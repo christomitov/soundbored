@@ -1,0 +1,97 @@
+<div class="max-w-6xl mx-auto px-4 py-8">
+  <div class="flex justify-between items-center mb-8">
+    <h1 class="text-3xl font-bold text-gray-800 dark:text-gray-100">Favorites</h1>
+    <div class="text-sm text-gray-600 dark:text-gray-400">
+      {length(@favorites)}/{@max_favorites} favorites
+    </div>
+  </div>
+
+  <%= if @current_user do %>
+    <%= if @sounds_with_tags == [] do %>
+      <div class="flex flex-col items-center justify-center py-16">
+        <div class="text-6xl mb-4">😢</div>
+        <h3 class="text-xl font-medium text-gray-900 dark:text-gray-100 mb-2">
+          You currently have no favorites
+        </h3>
+        <p class="text-gray-500 dark:text-gray-400">
+          Click the heart icon on any sound to add it to your favorites
+        </p>
+      </div>
+    <% else %>
+      <div class="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+        <%= for sound <- @sounds_with_tags do %>
+          <div class="relative bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-md transition-all duration-200">
+            <button
+              phx-click="play"
+              phx-value-name={sound.filename}
+              class="absolute inset-0 w-full h-full cursor-pointer z-0
+                     hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg
+                     focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2
+                     dark:focus:ring-offset-gray-800 pointer-events-auto"
+            >
+            </button>
+
+            <div class="relative z-10 p-4 flex flex-col min-h-[120px] pointer-events-none">
+              <div class="text-gray-800 dark:text-gray-200 font-medium break-all">
+                {Path.rootname(sound.filename)}
+              </div>
+
+              <div class="mt-auto pt-2 flex justify-between items-center">
+                <div class="flex flex-wrap gap-1 items-center">
+                  <%= if sound.tags != [] do %>
+                    <%= for tag <- sound.tags do %>
+                      <span class="inline-flex items-center rounded-full bg-blue-50 dark:bg-blue-900 px-2 py-1 text-xs font-medium text-blue-600 dark:text-blue-300">
+                        {tag.name}
+                      </span>
+                    <% end %>
+                  <% end %>
+                </div>
+
+                <div class="flex items-center gap-2 ml-2 flex-shrink-0 pointer-events-auto">
+                  <button
+                    id={"local-play-#{Path.basename(sound.filename, Path.extname(sound.filename))}"}
+                    phx-hook="LocalPlayer"
+                    data-filename={sound.filename}
+                    class="relative flex items-center justify-center w-8 h-8 text-gray-400 hover:text-green-600 
+                           dark:text-gray-500 dark:hover:text-green-400 rounded-md transition-colors"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                      class="w-4 h-4"
+                    >
+                      <path
+                        fill-rule="evenodd"
+                        d="M4.5 5.653c0-1.427 1.529-2.33 2.779-1.643l11.54 6.347c1.295.712 1.295 2.573 0 3.286L7.28 19.99c-1.25.687-2.779-.217-2.779-1.643V5.653Z"
+                        clip-rule="evenodd"
+                      />
+                    </svg>
+                  </button>
+                  <button
+                    phx-click="toggle_favorite"
+                    phx-value-sound-id={sound.id}
+                    class="relative flex items-center justify-center w-8 h-8 text-gray-400 hover:text-red-500 
+                           dark:text-gray-500 dark:hover:text-red-500 rounded-md transition-colors"
+                  >
+                    <%= if sound.id in @favorites do %>
+                      <.icon name="hero-heart-solid" class="w-4 h-4 text-red-500" />
+                    <% else %>
+                      <.icon name="hero-heart" class="w-4 h-4" />
+                    <% end %>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        <% end %>
+      </div>
+    <% end %>
+  <% else %>
+    <div class="text-center py-12">
+      <p class="text-gray-600 dark:text-gray-400">
+        Please log in to manage your favorites
+      </p>
+    </div>
+  <% end %>
+</div>

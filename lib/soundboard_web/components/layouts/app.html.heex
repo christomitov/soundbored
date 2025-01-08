@@ -1,0 +1,16 @@
+<header class="h-16">
+  <.live_component
+    module={SoundboardWeb.Components.Layouts.Navbar}
+    id="navbar"
+    current_path={@current_path}
+    presences={@presences}
+    current_user={@current_user}
+  />
+</header>
+
+<main class="">
+  <div>
+    <.flash_group flash={@flash} />
+    {@inner_content}
+  </div>
+</main>

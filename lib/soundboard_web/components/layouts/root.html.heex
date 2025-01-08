@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en" class="[scrollbar-gutter:stable]">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+    <meta name="theme-color" content="#1f2937" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"
+    />
+    <meta name="csrf-token" content={get_csrf_token()} />
+    <meta name="apple-mobile-web-app-title" content="SoundBored" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-touch-fullscreen" content="yes" />
+
+    <link rel="apple-touch-icon" href={~p"/images/icon-192.png"} />
+    <.live_title suffix="">
+      {assigns[:page_title] || "Soundboard"}
+    </.live_title>
+    <link phx-track-static rel="stylesheet" href={~p"/assets/app.css"} />
+    <script defer phx-track-static type="text/javascript" src={~p"/assets/app.js"}>
+    </script>
+  </head>
+  <body class="antialiased bg-gray-900">
+    {@inner_content}
+  </body>
+</html>

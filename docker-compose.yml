@@ -1,0 +1,55 @@
+services:
+  soundbored:
+    build:
+      context: .
+      args:
+        API_TOKEN: ${API_TOKEN}
+        DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID}
+        DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET}
+        DISCORD_TOKEN: ${DISCORD_TOKEN}
+        MIX_ENV: ${MIX_ENV:-prod}
+        PHX_HOST: ${PHX_HOST}
+        SECRET_KEY_BASE: ${SECRET_KEY_BASE}
+        SCHEME: ${SCHEME}
+        BASIC_AUTH_USERNAME: ${BASIC_AUTH_USERNAME}
+        BASIC_AUTH_PASSWORD: ${BASIC_AUTH_PASSWORD}
+    ports:
+      - "4000"
+    environment:
+      API_TOKEN: ${API_TOKEN}
+      DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID}
+      DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET}
+      DISCORD_TOKEN: ${DISCORD_TOKEN}
+      MIX_ENV: ${MIX_ENV:-prod}
+      PHX_HOST: ${PHX_HOST}
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE}
+      SCHEME: ${SCHEME}
+      BASIC_AUTH_USERNAME: ${BASIC_AUTH_USERNAME}
+      BASIC_AUTH_PASSWORD: ${BASIC_AUTH_PASSWORD}
+    volumes:
+      - soundbored_data:/app/priv/static/uploads
+    networks:
+      - caddy_network
+  
+  caddy:
+    image: caddy:2
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - caddy_network
+    depends_on:
+      - soundbored
+
+networks:
+  caddy_network:
+    driver: bridge
+
+volumes:
+  soundbored_data:
+  caddy_data:
+  caddy_config:
