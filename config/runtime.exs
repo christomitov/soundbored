@@ -127,4 +127,9 @@ if config_env() == :prod do
     plug_init_mode: :runtime
 
   config :soundboard, :env, :prod
+
+  # Add Basic Auth configuration
+  config :soundboard, :basic_auth,
+    username: System.get_env("BASIC_AUTH_USERNAME"),
+    password: System.get_env("BASIC_AUTH_PASSWORD")
 end

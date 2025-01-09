@@ -55,7 +55,7 @@ SCHEME=http
 
 
 # with the docker image pulled, run locally (no Caddy)
-docker run --env-file ./.env christom/soundbored
+docker run -p 4000:4000 --env-file ./.env christom/soundbored
 
 # Run locally (no Caddy)
 docker compose up
