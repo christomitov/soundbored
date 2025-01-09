@@ -3,6 +3,8 @@ services:
     image: christom/soundbored:latest
     ports:
       - "0.0.0.0:4000:4000"
+    environment:
+      PHX_SERVER_IP: "0.0.0.0"
     networks:
       - caddy_network
     env_file: .env

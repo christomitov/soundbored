@@ -50,7 +50,7 @@ if config_env() == :prod do
       port: nil
     ],
     http: [
-      ip: {0, 0, 0, 0, 0, 0, 0, 0},
+      ip: {0, 0, 0, 0},
       port: String.to_integer(System.get_env("PORT") || "4000")
     ],
     force_ssl: scheme == "https",
