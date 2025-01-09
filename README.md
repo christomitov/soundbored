@@ -22,17 +22,6 @@ You then need to invite the bot to your server by going to `Oauth2`, checking `b
 
 5. You will need to host this publicly somewhere for other users to be able to use it. I recommend using [Digital Ocean](https://www.digitalocean.com/) for this as its cheap and you can deploy Docker images directly.
 
-## Host Locally
-Run locally with:
-
-`docker compose up`
-
-The default url will be `http://localhost:4000` so make sure to set that in the redirect URLs above so you can authorize your Discord user.
-
-## Host Publicly
-Run publicly with:
-
-`docker compose --profile caddy up`
 
 ## Setup
 The Docker needs the following environment variables, check .env.example:
@@ -50,10 +39,42 @@ BASIC_AUTH_USERNAME=admin
 BASIC_AUTH_PASSWORD=admin
 ```
 
+
+## Deployment
+
+The application is containerized and published to Docker Hub. 
+
+### Local Development
+```bash
+# Create .env file from example
+cp .env.example .env
+
+# Edit .env with your values, make sure:
+PHX_HOST=localhost
+SCHEME=http
+
+# Run locally (no Caddy)
+docker compose up
+```
+
+### Production Deployment
+```bash
+# Create .env file from example
+cp .env.example .env
+
+# Edit .env with your values, make sure:
+PHX_HOST=your.domain.com
+SCHEME=https
+
+# Run in production (with Caddy)
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up
+```
+
+The deployment mode is automatically determined by the PHX_HOST value:
+- If PHX_HOST=localhost: Runs without Caddy, accessible at http://localhost:4000
+- If PHX_HOST=domain.com: Runs with Caddy, handles SSL automatically
+
+
 ## Usage
 
 After inviting the bot to your server, join a voice channel and type `!join` to have the bot join the voice channel. Type `!leave` to have the bot leave. You can upload sounds to Soundbored and trigger them there and they will play in the voice channel.
-
-
-
-

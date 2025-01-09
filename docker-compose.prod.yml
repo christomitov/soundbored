@@ -1,0 +1,30 @@
+services:
+  soundbored:
+    ports:
+      - "4000"
+    networks:
+      - caddy_network
+    env_file: .env
+
+  caddy:
+    image: caddy:2
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - caddy_network
+    depends_on:
+      - soundbored
+    env_file: .env
+
+networks:
+  caddy_network:
+    driver: bridge
+
+volumes:
+  caddy_data:
+  caddy_config: 
