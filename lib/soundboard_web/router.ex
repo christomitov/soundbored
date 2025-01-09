@@ -11,6 +11,8 @@ defmodule SoundboardWeb.Router do
     plug :protect_from_forgery
     plug :put_secure_browser_headers
     plug :put_cache_headers
+    plug :force_ssl_scheme
+    plug :put_url_scheme
   end
 
   pipeline :api do
@@ -43,6 +45,7 @@ defmodule SoundboardWeb.Router do
     live "/favorites", FavoritesLive
   end
 
+  # Discord OAuth routes - no basic auth
   scope "/auth", SoundboardWeb do
     pipe_through :browser
 
@@ -105,5 +108,16 @@ defmodule SoundboardWeb.Router do
 
   defp put_cache_headers(conn, _) do
     put_resp_header(conn, "cache-control", "no-cache, no-store, must-revalidate")
+  end
+
+  defp put_url_scheme(conn, _opts) do
+    scheme = System.get_env("SCHEME") || "https"
+    conn = put_private(conn, :url_scheme, String.to_atom(scheme))
+    conn
+  end
+
+  defp force_ssl_scheme(conn, _opts) do
+    scheme = System.get_env("SCHEME") || "https"
+    %{conn | scheme: String.to_atom(scheme)}
   end
 end

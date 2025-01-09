@@ -30,100 +30,49 @@ if config_env() == :prod do
     pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10")
 
   # The secret key base is used to sign/encrypt cookies and other secrets.
-  # A default value is used in config/dev.exs and config/test.exs but you
-  # want to use a different value for prod and you most likely don't want
-  # to check this value into version control, so we use an environment
-  # variable instead.
   secret_key_base =
     System.get_env("SECRET_KEY_BASE") ||
+      File.read!("/app/.secret_key_base") ||
       raise """
-      environment variable SECRET_KEY_BASE is missing.
+      environment variable SECRET_KEY_BASE is missing and no fallback file found.
       You can generate one by calling: mix phx.gen.secret
       """
 
   host = System.get_env("PHX_HOST") || raise "PHX_HOST must be set"
-  port = String.to_integer(System.get_env("PORT") || "4000")
   scheme = System.get_env("SCHEME") || "https"
+  callback_url = "#{scheme}://#{host}/auth/discord/callback"
 
-  config :soundboard, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
-
+  # Configure endpoint first
   config :soundboard, SoundboardWeb.Endpoint,
-    url: [host: host, port: port, scheme: scheme],
+    url: [
+      scheme: scheme,
+      host: host,
+      port: nil
+    ],
     http: [
-      # Enable IPv6 and bind on all interfaces.
-      # Set it to  {0, 0, 0, 0, 0, 0, 0, 1} for local network only access.
-      # See the documentation on https://hexdocs.pm/bandit/Bandit.html#t:options/0
-      # for details about using IPv6 vs IPv4 and loopback vs public addresses.
       ip: {0, 0, 0, 0, 0, 0, 0, 0},
-      port: port
+      port: String.to_integer(System.get_env("PORT") || "4000")
     ],
-    check_origin: [
-      "#{scheme}://#{host}",
-      "#{scheme}://#{host}:#{port}",
-      "http://#{host}",
-      "http://#{host}:#{port}"
-    ],
-    secret_key_base: secret_key_base,
-    debug_errors: true,
-    code_reloader: false,
-    server: true
+    force_ssl: scheme == "https",
+    secret_key_base: secret_key_base
 
-  # Add this to force the scheme to match the environment variable
-  if scheme == "http" do
-    config :soundboard, SoundboardWeb.Endpoint,
-      force_ssl: false,
-      https: nil
-  end
+  # Configure Ueberauth with explicit settings
+  config :ueberauth, Ueberauth,
+    base_path: "/auth",
+    providers: [
+      discord: {Ueberauth.Strategy.Discord, [
+        callback_url: callback_url,
+        callback_path: "/auth/discord/callback"
+      ]}
+    ]
 
-  # ## SSL Support
-  #
-  # To get SSL working, you will need to add the `https` key
-  # to your endpoint configuration:
-  #
-  #     config :soundboard, SoundboardWeb.Endpoint,
-  #       https: [
-  #         ...,
-  #         port: 443,
-  #         cipher_suite: :strong,
-  #         keyfile: System.get_env("SOME_APP_SSL_KEY_PATH"),
-  #         certfile: System.get_env("SOME_APP_SSL_CERT_PATH")
-  #       ]
-  #
-  # The `cipher_suite` is set to `:strong` to support only the
-  # latest and more secure SSL ciphers. This means old browsers
-  # and clients may not be supported. You can set it to
-  # `:compatible` for wider support.
-  #
-  # `:keyfile` and `:certfile` expect an absolute path to the key
-  # and cert in disk or a relative path inside priv, for example
-  # "priv/ssl/server.key". For all supported SSL configuration
-  # options, see https://hexdocs.pm/plug/Plug.SSL.html#configure/1
-  #
-  # We also recommend setting `force_ssl` in your config/prod.exs,
-  # ensuring no data is ever sent via http, always redirecting to https:
-  #
-  #     config :soundboard, SoundboardWeb.Endpoint,
-  #       force_ssl: [hsts: true]
-  #
-  # Check `Plug.SSL` for all available options in `force_ssl`.
-
-  # ## Configuring the mailer
-  #
-  # In production you need to configure the mailer to use a different adapter.
-  # Also, you may need to configure the Swoosh API client of your choice if you
-  # are not using SMTP. Here is an example of the configuration:
-  #
-  #     config :soundboard, Soundboard.Mailer,
-  #       adapter: Swoosh.Adapters.Mailgun,
-  #       api_key: System.get_env("MAILGUN_API_KEY"),
-  #       domain: System.get_env("MAILGUN_DOMAIN")
-  #
-  # For this example you need include a HTTP client required by Swoosh API client.
-  # Swoosh supports Hackney and Finch out of the box:
-  #
-  #     config :swoosh, :api_client, Swoosh.ApiClient.Hackney
-  #
-  # See https://hexdocs.pm/swoosh/Swoosh.html#module-installation for details.
+  # Configure OAuth client
+  config :ueberauth, Ueberauth.Strategy.Discord.OAuth,
+    client_id: System.get_env("DISCORD_CLIENT_ID"),
+    client_secret: System.get_env("DISCORD_CLIENT_SECRET"),
+    redirect_uri: callback_url,
+    authorize_url: "https://discord.com/oauth2/authorize",
+    token_url: "https://discord.com/api/oauth2/token"
 
   # Remove duplicate ffmpeg check and consolidate Nostrum config
   discord_token =
@@ -159,24 +108,23 @@ if config_env() == :prod do
 
   # Configure logger for production
   config :logger,
-    # Set minimum log level
-    level: :info,
+    # Set minimum log level to debug to see IO.puts
+    level: :debug,
     backends: [:console],
     compile_time_purge_matching: [
-      # Only purge debug logs
-      [level_lower_than: :info]
+      # Don't purge debug logs
+      [level_lower_than: :debug]
     ]
 
   config :logger, :console,
     format: "$time $metadata[$level] $message\n",
-    metadata: [:request_id, :error]
+    metadata: [:request_id, :error],
+    colors: [enabled: true]  # Enable colors for better visibility
 
   # Keep stacktraces in production for better error reporting
   config :phoenix,
     stacktrace_depth: 20,
     plug_init_mode: :runtime
 
-  # Add this configuration block
-  config :ueberauth, Ueberauth.Strategy.Discord,
-    callback_url: "#{scheme}://#{host}:#{port}/auth/discord/callback"
+  config :soundboard, :env, :prod
 end

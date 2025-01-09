@@ -1,6 +1,10 @@
 defmodule SoundboardWeb.AuthController do
   use SoundboardWeb, :controller
+  require Logger
+
+  plug :ensure_scheme
   plug Ueberauth
+  plug :override_callback_url
 
   alias Soundboard.Accounts.User
   alias Soundboard.Repo
@@ -49,26 +53,25 @@ defmodule SoundboardWeb.AuthController do
     |> redirect(to: ~p"/")
   end
 
-  def request(conn, %{"provider" => "discord"}) do
-    callback_url =
-      if Application.get_env(:soundboard, :env) == :prod do
-        host = System.get_env("PHX_HOST") || raise "PHX_HOST must be set"
-        scheme = System.get_env("SCHEME") || "https"
-        "#{scheme}://#{host}/auth/discord/callback"
-      else
-        url(conn, ~p"/auth/discord/callback")
-      end
+  def request(conn, %{"provider" => "discord"} = _params) do
+    callback_url = Application.get_env(:ueberauth, Ueberauth.Strategy.Discord)[:callback_url]
+    Logger.debug("Using callback URL: #{callback_url}")
 
-    discord_url =
-      "https://discord.com/oauth2/authorize?" <>
-        URI.encode_query(%{
-          client_id: System.get_env("DISCORD_CLIENT_ID"),
-          redirect_uri: callback_url,
-          response_type: "code",
-          scope: "identify",
-          state: get_csrf_token()
-        })
+    conn
+  end
 
-    redirect(conn, external: discord_url)
+  defp ensure_scheme(conn, _opts) do
+    scheme = System.get_env("SCHEME") || "https"
+    %{conn | scheme: String.to_atom(scheme)}
+  end
+
+  defp override_callback_url(conn, _opts) do
+    scheme = System.get_env("SCHEME") || "https"
+    host = System.get_env("PHX_HOST")
+    callback_url = "#{scheme}://#{host}/auth/discord/callback"
+
+    conn
+    |> assign(:ueberauth_callback_url, callback_url)
+    |> put_private(:ueberauth_callback_url, callback_url)
   end
 end

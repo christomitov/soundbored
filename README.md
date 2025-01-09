@@ -23,13 +23,16 @@ You then need to invite the bot to your server by going to `Oauth2`, checking `b
 5. You will need to host this publicly somewhere for other users to be able to use it. I recommend using [Digital Ocean](https://www.digitalocean.com/) for this as its cheap and you can deploy Docker images directly.
 
 ## Host Locally
-If you don't want to host it publicly, you can remove `docker-compose.yml` and rename `docker-compose.yml.nocaddy` to `docker-compose.yml` then do `cp .env.example .env` and change the values in there accordingly as per the Setup instructions below.
+Run locally with:
 
-Finally, start the instance with:
-
-`docker compose up -d`
+`docker compose up`
 
 The default url will be `http://localhost:4000` so make sure to set that in the redirect URLs above so you can authorize your Discord user.
+
+## Host Publicly
+Run publicly with:
+
+`docker compose --profile caddy up`
 
 ## Setup
 The Docker needs the following environment variables, check .env.example:
@@ -38,8 +41,9 @@ The Docker needs the following environment variables, check .env.example:
 DISCORD_TOKEN=your_actual_discord_token
 DISCORD_CLIENT_ID=your_actual_client_id
 DISCORD_CLIENT_SECRET=your_actual_client_secret
-# Change this to your domain
+# Change this to your domain or to localhost if you're running locally
 PHX_HOST=your.domain.com
+# change this to http if running locally
 SCHEME=https
 # Change these to password protect your soundboard
 BASIC_AUTH_USERNAME=admin

@@ -50,37 +50,31 @@ RUN set -xe \
 WORKDIR /app
 COPY . .
 
-# Install hex and rebar
+# Install hex and rebar and get dependencies
 RUN mix local.hex --force && \
-    mix local.rebar --force
+    mix local.rebar --force && \
+    mix deps.get
 
-# Generate or use provided SECRET_KEY_BASE
-RUN bash -c 'if [ -z "$SECRET_KEY_BASE" ]; then \
+# Generate and store SECRET_KEY_BASE
+RUN bash -c '\
+    if [ -z "$SECRET_KEY_BASE" ]; then \
         echo "Generating new SECRET_KEY_BASE..."; \
         generated_key=$(mix phx.gen.secret); \
-        echo "Generated key: $generated_key"; \
-        echo "Generated key length: ${#generated_key} bytes"; \
         echo "$generated_key" > /app/.secret_key_base; \
     else \
         echo "Using provided SECRET_KEY_BASE"; \
         echo "$SECRET_KEY_BASE" > /app/.secret_key_base; \
-    fi'
-
-# Build the release with the secret key
-RUN bash -c 'export SECRET_KEY_BASE=$(cat /app/.secret_key_base) && \
-    echo "Building with SECRET_KEY_BASE length: ${#SECRET_KEY_BASE} bytes" && \
+    fi && \
+    chmod 600 /app/.secret_key_base && \
+    export SECRET_KEY_BASE=$(cat /app/.secret_key_base) && \
+    echo "SECRET_KEY_BASE length: ${#SECRET_KEY_BASE} bytes" && \
     mix setup && \
     mix assets.deploy'
 
-# Create an entrypoint script
+# Create an entrypoint script that ensures SECRET_KEY_BASE is set
 RUN echo '#!/bin/bash\n\
-if [ -n "$SECRET_KEY_BASE" ]; then\n\
-    echo "Using provided runtime SECRET_KEY_BASE"\n\
-else\n\
-    echo "Using generated SECRET_KEY_BASE"\n\
-    export SECRET_KEY_BASE=$(cat /app/.secret_key_base)\n\
-fi\n\
-echo "SECRET_KEY_BASE length: ${#SECRET_KEY_BASE} bytes"\n\
+export SECRET_KEY_BASE=$(cat /app/.secret_key_base)\n\
+echo "Using SECRET_KEY_BASE (length: ${#SECRET_KEY_BASE} bytes)"\n\
 mix ecto.migrate\n\
 mix phx.server' > /app/entrypoint.sh && \
 chmod +x /app/entrypoint.sh

@@ -90,23 +90,20 @@ config :soundboard, Soundboard.Repo,
   database: "priv/static/uploads/database.db",
   pool_size: 5
 
+# Configure Ueberauth base settings
 config :ueberauth, Ueberauth,
   providers: [
-    discord:
-      {Ueberauth.Strategy.Discord,
-       [
-         default_scope: "identify",
-         callback_url:
-           case config_env() do
-             :prod -> nil
-             _ -> nil
-           end
-       ]}
+    discord: {Ueberauth.Strategy.Discord, [
+      default_scope: "identify"
+    ]}
   ]
 
+# Configure base OAuth settings
 config :ueberauth, Ueberauth.Strategy.Discord.OAuth,
-  client_id: System.get_env("DISCORD_CLIENT_ID"),
-  client_secret: System.get_env("DISCORD_CLIENT_SECRET")
+  client_id: {:system, "DISCORD_CLIENT_ID"},
+  client_secret: {:system, "DISCORD_CLIENT_SECRET"},
+  authorize_url: "https://discord.com/oauth2/authorize",
+  token_url: "https://discord.com/api/oauth2/token"
 
 config :phoenix_live_view,
   flash_timeout: 3000

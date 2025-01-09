@@ -8,29 +8,29 @@ services:
         DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET}
         DISCORD_TOKEN: ${DISCORD_TOKEN}
         MIX_ENV: ${MIX_ENV:-prod}
-        PHX_HOST: ${PHX_HOST}
+        PHX_HOST: ${PHX_HOST:-localhost}
         SECRET_KEY_BASE: ${SECRET_KEY_BASE}
-        SCHEME: ${SCHEME}
+        SCHEME: ${SCHEME:-http}
         BASIC_AUTH_USERNAME: ${BASIC_AUTH_USERNAME}
         BASIC_AUTH_PASSWORD: ${BASIC_AUTH_PASSWORD}
     ports:
-      - "4000"
+      - "${PORT:-4000}:4000"
     environment:
       API_TOKEN: ${API_TOKEN}
       DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID}
       DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET}
       DISCORD_TOKEN: ${DISCORD_TOKEN}
       MIX_ENV: ${MIX_ENV:-prod}
-      PHX_HOST: ${PHX_HOST}
+      PHX_HOST: ${PHX_HOST:-localhost}
       SECRET_KEY_BASE: ${SECRET_KEY_BASE}
-      SCHEME: ${SCHEME}
+      SCHEME: ${SCHEME:-http}
       BASIC_AUTH_USERNAME: ${BASIC_AUTH_USERNAME}
       BASIC_AUTH_PASSWORD: ${BASIC_AUTH_PASSWORD}
     volumes:
       - soundbored_data:/app/priv/static/uploads
     networks:
       - caddy_network
-  
+
   caddy:
     image: caddy:2
     ports:
@@ -44,6 +44,8 @@ services:
       - caddy_network
     depends_on:
       - soundbored
+    profiles:
+      - caddy
 
 networks:
   caddy_network:
