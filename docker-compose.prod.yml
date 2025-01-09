@@ -2,7 +2,7 @@ services:
   soundbored:
     image: christom/soundbored:latest
     ports:
-      - "4000"
+      - "0.0.0.0:4000:4000"
     networks:
       - caddy_network
     env_file: .env
@@ -10,8 +10,8 @@ services:
   caddy:
     image: caddy:2
     ports:
-      - "80:80"
-      - "443:443"
+      - "0.0.0.0:80:80"
+      - "0.0.0.0:443:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data

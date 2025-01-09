@@ -42,7 +42,7 @@ BASIC_AUTH_PASSWORD=admin
 
 ## Deployment
 
-The application is containerized and published to Docker Hub. 
+The application is containerized and published to Docker Hub. You can pull it with `docker pull christom/soundbored:latest`.
 
 ### Local Deployment
 ```bash
@@ -52,6 +52,10 @@ cp .env.example .env
 # Edit .env with your values, make sure:
 PHX_HOST=localhost
 SCHEME=http
+
+
+# with the docker image pulled, run locally (no Caddy)
+docker run --env-file ./.env christom/soundbored
 
 # Run locally (no Caddy)
 docker compose up

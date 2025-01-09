@@ -13,7 +13,7 @@ services:
         BASIC_AUTH_USERNAME: ${BASIC_AUTH_USERNAME}
         BASIC_AUTH_PASSWORD: ${BASIC_AUTH_PASSWORD}
     ports:
-      - "${PORT:-4000}:4000"
+      - "0.0.0.0:${PORT:-4000}:4000"
     environment:
       API_TOKEN: ${API_TOKEN}
       DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID}
