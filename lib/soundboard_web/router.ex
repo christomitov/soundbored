@@ -25,9 +25,15 @@ defmodule SoundboardWeb.Router do
   end
 
   pipeline :main_auth do
+    # Add debug logging
+    require Logger
+    username = System.get_env("BASIC_AUTH_USERNAME") || "admin"
+    password = System.get_env("BASIC_AUTH_PASSWORD") || "admin"
+    Logger.debug("Basic Auth - Username: #{username}, Password: #{password}")
+
     plug :basic_auth,
-      username: System.get_env("BASIC_AUTH_USERNAME") || "admin",
-      password: System.get_env("BASIC_AUTH_PASSWORD") || "admin"
+      username: username,
+      password: password
   end
 
   pipeline :require_auth do
