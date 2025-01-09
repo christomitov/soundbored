@@ -9,6 +9,7 @@ on:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    environment: Builder
 
     steps:
       - name: Checkout repository
