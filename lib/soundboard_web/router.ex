@@ -4,10 +4,7 @@ defmodule SoundboardWeb.Router do
   import Plug.BasicAuth
 
   pipeline :browser do
-    plug :basic_auth,
-      username: System.get_env("BASIC_AUTH_USERNAME") || "admin",
-      password: System.get_env("BASIC_AUTH_PASSWORD") || "admin"
-
+    plug SoundboardWeb.Plugs.BasicAuth
     plug :accepts, ["html"]
     plug :fetch_session
     plug :fetch_live_flash
