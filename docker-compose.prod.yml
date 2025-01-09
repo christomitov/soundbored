@@ -1,5 +1,6 @@
 services:
   soundbored:
+    image: christom/soundbored:latest
     ports:
       - "4000"
     networks:

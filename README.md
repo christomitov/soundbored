@@ -2,6 +2,8 @@
 
 Soundbored is an unlimited, no-cost, self-hosted soundboard for Discord. It allows you to play sounds in a voice channel.
 
+<img width="1470" alt="Screenshot 2025-01-08 at 1 12 08 PM" src="https://github.com/user-attachments/assets/6e2cf7ff-c19f-4405-bde0-b3f0daa4d84c" />
+
 ## Prerequisites
 
 1. A bot token with the following permissions:
@@ -18,9 +20,7 @@ You then need to invite the bot to your server by going to `Oauth2`, checking `b
 
 3. Under `Redirect` in `Oauth2` put your domain like `https://your.domain.com/auth/discord/callback` in the Discord Developer Portal. Copy the `Client ID` and `Client Secret` as you will need them for the environment variables below.
 
-4. Edit the `Caddyfile` if you're going to host publicly, and change `your.domain.com` accordingly.
-
-5. You will need to host this publicly somewhere for other users to be able to use it. I recommend using [Digital Ocean](https://www.digitalocean.com/) for this as its cheap and you can deploy Docker images directly.
+4. You will need to host this publicly somewhere for other users to be able to use it. I recommend using [Digital Ocean](https://www.digitalocean.com/) for this as its cheap and you can deploy Docker images directly.
 
 
 ## Setup
@@ -44,7 +44,7 @@ BASIC_AUTH_PASSWORD=admin
 
 The application is containerized and published to Docker Hub. 
 
-### Local Development
+### Local Deployment
 ```bash
 # Create .env file from example
 cp .env.example .env
@@ -66,13 +66,31 @@ cp .env.example .env
 PHX_HOST=your.domain.com
 SCHEME=https
 
+# Create a Caddyfile
+echo "your.domain.com {
+    reverse_proxy soundbored:4000
+}" > Caddyfile
+
+# Pull the latest image
+docker pull christom/soundbored:latest
+
 # Run in production (with Caddy)
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up
+docker compose -f docker-compose.prod.yml up -d
 ```
 
 The deployment mode is automatically determined by the PHX_HOST value:
 - If PHX_HOST=localhost: Runs without Caddy, accessible at http://localhost:4000
 - If PHX_HOST=domain.com: Runs with Caddy, handles SSL automatically
+
+Note: Make sure to create a Caddyfile in the same directory as your docker-compose.prod.yml file. The Caddyfile should contain your domain configuration. For example:
+
+```
+your.domain.com {
+    reverse_proxy soundbored:4000
+}
+```
+
+Replace `your.domain.com` with your actual domain name. Caddy will automatically handle SSL certificate generation for your domain.
 
 
 ## Usage
