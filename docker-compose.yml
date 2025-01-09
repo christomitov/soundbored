@@ -1,19 +1,8 @@
 services:
   soundbored:
     image: christom/soundbored:latest
-    build:
-      context: .
-      args:
-        DISCORD_TOKEN: ${DISCORD_TOKEN}
-        DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID}
-        DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET}
-        SECRET_KEY_BASE: ${SECRET_KEY_BASE}
-        PHX_HOST: ${PHX_HOST:-localhost}
-        SCHEME: ${SCHEME:-http}
-        BASIC_AUTH_USERNAME: ${BASIC_AUTH_USERNAME}
-        BASIC_AUTH_PASSWORD: ${BASIC_AUTH_PASSWORD}
     ports:
-      - "0.0.0.0:${PORT:-4000}:4000"
+      - "4000:4000"
     environment:
       API_TOKEN: ${API_TOKEN}
       DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID}
