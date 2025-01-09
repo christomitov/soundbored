@@ -42,7 +42,7 @@ BASIC_AUTH_PASSWORD=admin
 
 ## Deployment
 
-The application is containerized and published to Docker Hub. You can pull it with `docker pull christom/soundbored:latest`.
+The application is containerized and published to Docker Hub. You can pull it with `docker pull christom/soundbored:latest`. Or run immediately in localhost with: `docker run -d -p 4000:4000 --env-file ./.env christom/soundbored`.
 
 ### Local Deployment
 ```bash
@@ -54,10 +54,10 @@ PHX_HOST=localhost
 SCHEME=http
 
 
-# with the docker image pulled, run locally (no Caddy)
-docker run -p 4000:4000 --env-file ./.env christom/soundbored
+# With Docker Image, run locally (no Caddy)
+docker run -d -p 4000:4000 --env-file ./.env christom/soundbored
 
-# Run locally (no Caddy)
+# Or with Project cloned, Run locally (no Caddy)
 docker compose up
 ```
 
@@ -70,10 +70,10 @@ cp .env.example .env
 PHX_HOST=your.domain.com
 SCHEME=https
 
-# Create a Caddyfile
-echo "your.domain.com {
+# Modiy the Caddyfile
+your.domain.com {
     reverse_proxy soundbored:4000
-}" > Caddyfile
+}
 
 # Pull the latest image
 docker pull christom/soundbored:latest
