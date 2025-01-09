@@ -4,6 +4,10 @@ defmodule SoundboardWeb.Router do
   import Plug.BasicAuth
 
   pipeline :browser do
+    plug :basic_auth,
+      username: System.get_env("BASIC_AUTH_USERNAME") || "admin",
+      password: System.get_env("BASIC_AUTH_PASSWORD") || "admin"
+
     plug :accepts, ["html"]
     plug :fetch_session
     plug :fetch_live_flash
@@ -24,16 +28,17 @@ defmodule SoundboardWeb.Router do
     plug :api_authentication
   end
 
-  pipeline :main_auth do
-    # Add debug logging
-    require Logger
-    username = System.get_env("BASIC_AUTH_USERNAME") || "admin"
-    password = System.get_env("BASIC_AUTH_PASSWORD") || "admin"
-    Logger.debug("Basic Auth - Username: #{username}, Password: #{password}")
-
+  # Move basic auth to its own pipeline and make it first
+  pipeline :auth do
     plug :basic_auth,
-      username: username,
-      password: password
+      username: System.get_env("BASIC_AUTH_USERNAME") || "admin",
+      password: System.get_env("BASIC_AUTH_PASSWORD") || "admin"
+  end
+
+  # Remove basic auth from main_auth
+  pipeline :main_auth do
+    plug :fetch_session
+    plug :fetch_current_user
   end
 
   pipeline :require_auth do

@@ -100,8 +100,8 @@ config :ueberauth, Ueberauth,
 
 # Configure base OAuth settings
 config :ueberauth, Ueberauth.Strategy.Discord.OAuth,
-  client_id: {:system, "DISCORD_CLIENT_ID"},
-  client_secret: {:system, "DISCORD_CLIENT_SECRET"},
+  client_id: System.get_env("DISCORD_CLIENT_ID"),
+  client_secret: System.get_env("DISCORD_CLIENT_SECRET"),
   authorize_url: "https://discord.com/oauth2/authorize",
   token_url: "https://discord.com/api/oauth2/token"
 
