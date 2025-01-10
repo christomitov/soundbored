@@ -29,7 +29,7 @@ defmodule SoundboardWeb.Router do
 
   # Discord OAuth routes - NO basic auth but keep session
   scope "/auth", SoundboardWeb do
-    pipe_through [:browser]  # Just browser to handle session basics
+    pipe_through [:browser, :fetch_session]  # Ensure session is fetched
 
     get "/:provider", AuthController, :request
     get "/:provider/callback", AuthController, :callback

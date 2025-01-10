@@ -30,7 +30,7 @@ defmodule SoundboardWeb.AuthController do
         |> redirect(to: return_to)
 
       {:error, reason} ->
-        Logger.error("Failed to create/find user: #{inspect(reason)}")
+        Logger.error("Failed to create/user: #{inspect(reason)}")
         conn
         |> put_flash(:error, "Error signing in")
         |> redirect(to: "/")
@@ -81,37 +81,9 @@ defmodule SoundboardWeb.AuthController do
 
   def request(conn, %{"provider" => "discord"} = _params) do
     Logger.debug("""
-    Auth Request Debug:
-    Session: #{inspect(get_session(conn))}
-    CSRF Token: #{get_session(conn, :csrf_token)}
+    Auth Request:
+    Session before: #{inspect(get_session(conn))}
     """)
     conn
   end
-
-  defp store_state(conn, _opts) do
-    state = Base.encode64(:crypto.strong_rand_bytes(32))
-    put_session(conn, "oauth_state", state)
-  end
-
-  defp verify_state(%{params: %{"state" => param_state}} = conn, _opts) do
-    stored_state = get_session(conn, "oauth_state")
-
-    Logger.debug("""
-    State verification:
-    Param state: #{param_state}
-    Stored state: #{stored_state}
-    Session: #{inspect(get_session(conn))}
-    """)
-
-    if param_state && stored_state && param_state == stored_state do
-      conn
-    else
-      conn
-      |> put_flash(:error, "Invalid state parameter")
-      |> redirect(to: "/")
-      |> halt()
-    end
-  end
-
-  defp verify_state(conn, _opts), do: conn
 end

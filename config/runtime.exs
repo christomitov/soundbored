@@ -65,8 +65,8 @@ if config_env() == :prod do
       key: "_soundboard_key",
       signing_salt: secret_key_base,
       same_site: "Lax",
-      secure: true,
-      extra: "SameSite=Lax"
+      secure: scheme == "https",
+      max_age: 86400 * 30
     ]
 
   # Configure Ueberauth
