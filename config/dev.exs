@@ -101,11 +101,7 @@ config :soundboard, :dashboard,
 host = System.get_env("PHX_HOST") || "localhost:4000"
 scheme = System.get_env("SCHEME") || "http"
 
-config :ueberauth, Ueberauth,
-  providers: [
-    discord: {Ueberauth.Strategy.Discord, [default_scope: "identify"]}
-  ]
-
+# Configure Discord OAuth
 config :ueberauth, Ueberauth.Strategy.Discord.OAuth,
   client_id: System.get_env("DISCORD_CLIENT_ID"),
   client_secret: System.get_env("DISCORD_CLIENT_SECRET"),

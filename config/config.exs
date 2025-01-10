@@ -94,3 +94,9 @@ config :phoenix_live_view,
   flash_timeout: 3000
 
 config :soundboard, SoundboardWeb.Presence, pubsub_server: Soundboard.PubSub
+
+# Add this with your other configs
+config :ueberauth, Ueberauth,
+  providers: [
+    discord: {Ueberauth.Strategy.Discord, [default_scope: "identify"]}
+  ]
