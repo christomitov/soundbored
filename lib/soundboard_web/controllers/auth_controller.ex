@@ -18,6 +18,7 @@ defmodule SoundboardWeb.AuthController do
     # Set a session ID to track session consistency
     conn
     |> put_session(:session_id, System.unique_integer())
+    |> configure_session(renew: true)
   end
 
   def callback(%{assigns: %{ueberauth_auth: auth}} = conn, _params) do

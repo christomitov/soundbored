@@ -67,7 +67,8 @@ if config_env() == :prod do
       same_site: "Lax",
       secure: scheme == "https",
       max_age: 86400 * 30,
-      domain: host
+      domain: host,
+      path: "/"
     ]
 
   # Configure Ueberauth
