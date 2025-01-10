@@ -22,14 +22,6 @@ defmodule SoundboardWeb.AuthController do
   end
 
   def callback(%{assigns: %{ueberauth_auth: auth}} = conn, _params) do
-    Logger.debug("""
-    Auth Callback Debug:
-    Auth: #{inspect(auth)}
-    Session ID: #{inspect(get_session(conn, :session_id))}
-    All Session Data: #{inspect(get_session(conn))}
-    Cookies: #{inspect(conn.cookies)}
-    """)
-
     user_params = %{
       discord_id: auth.uid,
       username: auth.info.nickname || auth.info.name,
@@ -38,17 +30,11 @@ defmodule SoundboardWeb.AuthController do
 
     case find_or_create_user(user_params) do
       {:ok, user} ->
-        Logger.debug("User found/created successfully: #{user.id}")
-        return_to = get_session(conn, :return_to) || "/"
-
         conn
-        |> configure_session(renew: true)
         |> put_session(:user_id, user.id)
-        |> delete_session(:return_to)
-        |> redirect(to: return_to)
+        |> redirect(to: "/")
 
-      {:error, reason} ->
-        Logger.error("Failed to create user: #{inspect(reason)}")
+      {:error, _reason} ->
         conn
         |> put_flash(:error, "Error signing in")
         |> redirect(to: "/")

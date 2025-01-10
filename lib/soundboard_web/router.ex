@@ -12,10 +12,6 @@ defmodule SoundboardWeb.Router do
     plug :put_root_layout, html: {SoundboardWeb.Layouts, :root}
     plug :protect_from_forgery
     plug :put_secure_browser_headers
-    plug :put_cache_headers
-    plug :force_ssl_scheme
-    plug :put_url_scheme
-    plug :put_extra_security_headers
   end
 
   pipeline :require_basic_auth do
@@ -35,16 +31,16 @@ defmodule SoundboardWeb.Router do
     plug :put_session_opts
   end
 
-  # Discord OAuth routes - minimal pipeline
+  # Discord OAuth routes - must come before protected routes
   scope "/auth", SoundboardWeb do
-    pipe_through [:auth_browser]  # Use simpler pipeline
+    pipe_through [:browser]
 
     get "/:provider", AuthController, :request
     get "/:provider/callback", AuthController, :callback
     delete "/logout", AuthController, :logout
   end
 
-  # Main app routes - WITH basic auth
+  # Protected routes
   scope "/", SoundboardWeb do
     pipe_through [:browser, :auth, :ensure_authenticated_user, :require_basic_auth]
 
