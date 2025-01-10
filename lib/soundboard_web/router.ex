@@ -1,8 +1,9 @@
 defmodule SoundboardWeb.Router do
   use SoundboardWeb, :router
-  # Keep this import
-  import Plug.BasicAuth
   import Logger
+  import Config, only: [config_env: 0]
+
+  @env Application.compile_env(:soundboard, :env, :dev)
 
   pipeline :browser do
     plug :accepts, ["html"]
@@ -14,72 +15,41 @@ defmodule SoundboardWeb.Router do
     plug :put_cache_headers
     plug :force_ssl_scheme
     plug :put_url_scheme
+  end
+
+  pipeline :require_basic_auth do
     plug SoundboardWeb.Plugs.BasicAuth
   end
 
-  pipeline :api do
-    plug :accepts, ["json"]
-  end
-
-  # Add new pipeline for API authentication
-  pipeline :api_auth do
-    plug :api_authentication
-  end
-
-  # Move basic auth to its own pipeline and make it first
   pipeline :auth do
-    plug :basic_auth,
-      username: System.get_env("BASIC_AUTH_USERNAME") || "admin",
-      password: System.get_env("BASIC_AUTH_PASSWORD") || "admin"
-  end
-
-  # Remove basic auth from main_auth
-  pipeline :main_auth do
     plug :fetch_session
     plug :fetch_current_user
   end
 
-  pipeline :require_auth do
-    plug :ensure_authenticated_user
-  end
-
-  # Main app routes with Discord auth
-  scope "/", SoundboardWeb do
-    pipe_through [:browser, :fetch_current_user, :ensure_authenticated_user]
-
-    live "/", SoundboardLive
-    live "/stats", LeaderboardLive
-    live "/favorites", FavoritesLive
-  end
-
-  # Discord OAuth routes - no auth requirements
+  # Discord OAuth routes - NO basic auth
   scope "/auth", SoundboardWeb do
-    pipe_through [:browser]
+    pipe_through [:browser]  # Remove auth pipeline from OAuth routes
 
     get "/:provider", AuthController, :request
     get "/:provider/callback", AuthController, :callback
     delete "/logout", AuthController, :logout
   end
 
-  # Other scopes may use custom stacks.
-  # scope "/api", SoundboardWeb do
-  #   pipe_through :api
-  # end
+  # Main app routes - WITH basic auth
+  scope "/", SoundboardWeb do
+    pipe_through [:browser, :auth, :ensure_authenticated_user, :require_basic_auth]
 
-  # Add this scope near your other public routes
+    live "/", SoundboardLive
+    live "/stats", LeaderboardLive
+    live "/favorites", FavoritesLive
+  end
+
+  # Public uploads route
   scope "/uploads" do
     pipe_through :browser
 
     get "/*path", SoundboardWeb.UploadController, :show
   end
-
-  # Add this scope for API routes
-  # scope "/api", SoundboardWeb.API do
-  #   pipe_through [:api, :api_auth]
-
-  #   get "/sounds", SoundController, :index
-  #   post "/sounds/:id/play", SoundController, :play
-  # end
 
   # Debug route
   scope "/debug", SoundboardWeb do
@@ -121,34 +91,28 @@ defmodule SoundboardWeb.Router do
     end
   end
 
-  # Add the authentication function
-  defp api_authentication(conn, _opts) do
-    api_token = System.get_env("API_TOKEN") || raise "API_TOKEN environment variable is not set"
-
-    case get_req_header(conn, "authorization") do
-      ["Bearer " <> token] when token == api_token ->
-        conn
-
-      _ ->
-        conn
-        |> put_status(:forbidden)
-        |> json(%{error: "Invalid API token"})
-        |> halt()
-    end
-  end
-
   defp put_cache_headers(conn, _) do
     put_resp_header(conn, "cache-control", "no-cache, no-store, must-revalidate")
   end
 
   defp put_url_scheme(conn, _opts) do
-    scheme = System.get_env("SCHEME") || "https"
+    scheme = if @env == :prod do
+      System.get_env("SCHEME") || "https"
+    else
+      System.get_env("SCHEME") || "http"
+    end
+
     conn = put_private(conn, :url_scheme, String.to_atom(scheme))
     conn
   end
 
   defp force_ssl_scheme(conn, _opts) do
-    scheme = System.get_env("SCHEME") || "https"
-    %{conn | scheme: String.to_atom(scheme)}
+    if @env == :prod do
+      scheme = System.get_env("SCHEME") || "https"
+      %{conn | scheme: String.to_atom(scheme)}
+    else
+      # In dev/test, don't force SSL
+      conn
+    end
   end
 end

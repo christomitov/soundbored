@@ -2,9 +2,7 @@ defmodule SoundboardWeb.AuthController do
   use SoundboardWeb, :controller
   require Logger
 
-  plug :ensure_scheme
   plug Ueberauth
-  plug :override_callback_url
 
   alias Soundboard.Accounts.User
   alias Soundboard.Repo
@@ -21,10 +19,13 @@ defmodule SoundboardWeb.AuthController do
     case find_or_create_user(user_params) do
       {:ok, user} ->
         Logger.debug("User found/created successfully: #{user.id}")
+        return_to = get_session(conn, :return_to) || "/"
+
         conn
-        |> put_session(:user_id, user.id)
         |> configure_session(renew: true)
-        |> redirect(to: get_session(conn, :return_to) || "/")
+        |> put_session(:user_id, user.id)
+        |> delete_session(:return_to)
+        |> redirect(to: return_to)
 
       {:error, reason} ->
         Logger.error("Failed to create/find user: #{inspect(reason)}")
@@ -37,7 +38,7 @@ defmodule SoundboardWeb.AuthController do
   def callback(%{assigns: %{ueberauth_failure: fails}} = conn, _params) do
     Logger.error("Authentication failed: #{inspect(fails)}")
     conn
-    |> put_flash(:error, "Failed to authenticate: #{inspect(fails.errors)}")
+    |> put_flash(:error, "Failed to authenticate")
     |> redirect(to: "/")
   end
 
@@ -56,29 +57,7 @@ defmodule SoundboardWeb.AuthController do
   def logout(conn, _params) do
     conn
     |> clear_session()
-    |> redirect(to: ~p"/")
-  end
-
-  def request(conn, %{"provider" => "discord"} = _params) do
-    callback_url = Application.get_env(:ueberauth, Ueberauth.Strategy.Discord)[:callback_url]
-    Logger.debug("Using callback URL: #{callback_url}")
-
-    conn
-  end
-
-  defp ensure_scheme(conn, _opts) do
-    scheme = System.get_env("SCHEME") || "https"
-    %{conn | scheme: String.to_atom(scheme)}
-  end
-
-  defp override_callback_url(conn, _opts) do
-    scheme = System.get_env("SCHEME") || "https"
-    host = System.get_env("PHX_HOST")
-    callback_url = "#{scheme}://#{host}/auth/discord/callback"
-
-    conn
-    |> assign(:ueberauth_callback_url, callback_url)
-    |> put_private(:ueberauth_callback_url, callback_url)
+    |> redirect(to: "/")
   end
 
   def debug_session(conn, _params) do
@@ -87,5 +66,18 @@ defmodule SoundboardWeb.AuthController do
       current_user: conn.assigns[:current_user],
       cookies: conn.cookies
     })
+  end
+
+  def request(conn, %{"provider" => "discord"} = _params) do
+    client_id = System.get_env("DISCORD_CLIENT_ID")
+    client_secret = System.get_env("DISCORD_CLIENT_SECRET")
+
+    Logger.debug("""
+    Discord OAuth Debug:
+    Client ID: #{client_id || "not set"}
+    Client Secret: #{if client_secret, do: "set", else: "not set"}
+    """)
+
+    conn
   end
 end

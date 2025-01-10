@@ -64,10 +64,10 @@ if config_env() == :prod do
   # Configure Ueberauth
   config :ueberauth, Ueberauth,
     providers: [
-      discord: {Ueberauth.Strategy.Discord, []}
+      discord: {Ueberauth.Strategy.Discord, [default_scope: "identify"]}
     ]
 
-  # Configure OAuth client
+  # Configure Discord OAuth
   config :ueberauth, Ueberauth.Strategy.Discord.OAuth,
     client_id: System.get_env("DISCORD_CLIENT_ID"),
     client_secret: System.get_env("DISCORD_CLIENT_SECRET"),

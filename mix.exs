@@ -57,7 +57,8 @@ defmodule Soundboard.MixProject do
       {:number, "~> 1.0"},
       {:ueberauth, "~> 0.10.5"},
       {:ueberauth_discord, "~> 0.6"},
-      {:plug_cowboy, "~> 2.6"}
+      {:plug_cowboy, "~> 2.6"},
+      {:httpoison, "~> 2.0"}
     ]
   end
 

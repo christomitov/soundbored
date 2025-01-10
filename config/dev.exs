@@ -1,5 +1,15 @@
 import Config
 
+# Load environment variables from .env file in development
+if File.exists?(".env") do
+  File.stream!(".env")
+  |> Stream.map(&String.trim/1)
+  |> Enum.each(fn line ->
+    [key, value] = String.split(line, "=")
+    System.put_env(key, value)
+  end)
+end
+
 # Configure your database
 config :soundboard, Soundboard.Repo,
   database: "database.db",
@@ -87,3 +97,16 @@ config :soundboard,
 config :soundboard, :dashboard,
   username: "christo",
   password: "testing123@"
+
+host = System.get_env("PHX_HOST") || "localhost:4000"
+scheme = System.get_env("SCHEME") || "http"
+
+config :ueberauth, Ueberauth,
+  providers: [
+    discord: {Ueberauth.Strategy.Discord, [default_scope: "identify"]}
+  ]
+
+config :ueberauth, Ueberauth.Strategy.Discord.OAuth,
+  client_id: System.get_env("DISCORD_CLIENT_ID"),
+  client_secret: System.get_env("DISCORD_CLIENT_SECRET"),
+  redirect_uri: "#{scheme}://#{host}/auth/discord/callback"
