@@ -3,6 +3,7 @@ defmodule SoundboardWeb.AuthController do
   require Logger
 
   plug Ueberauth
+  plug :put_csrf_token
 
   alias Soundboard.Accounts.User
   alias Soundboard.Repo
@@ -68,16 +69,21 @@ defmodule SoundboardWeb.AuthController do
     })
   end
 
+  defp put_csrf_token(conn, _opts) do
+    if get_session(conn, :csrf_token) do
+      conn
+    else
+      token = Phoenix.Controller.get_csrf_token()
+      put_session(conn, :csrf_token, token)
+    end
+  end
+
   def request(conn, %{"provider" => "discord"} = _params) do
-    client_id = System.get_env("DISCORD_CLIENT_ID")
-    client_secret = System.get_env("DISCORD_CLIENT_SECRET")
-
     Logger.debug("""
-    Discord OAuth Debug:
-    Client ID: #{client_id || "not set"}
-    Client Secret: #{if client_secret, do: "set", else: "not set"}
+    Auth Request Debug:
+    Session: #{inspect(get_session(conn))}
+    CSRF Token: #{get_session(conn, :csrf_token)}
     """)
-
     conn
   end
 end

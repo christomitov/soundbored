@@ -26,9 +26,9 @@ defmodule SoundboardWeb.Router do
     plug :fetch_current_user
   end
 
-  # Discord OAuth routes - NO basic auth
+  # Discord OAuth routes - NO basic auth but keep session
   scope "/auth", SoundboardWeb do
-    pipe_through [:browser]  # Remove auth pipeline from OAuth routes
+    pipe_through [:browser, :auth]  # Add :auth to maintain session
 
     get "/:provider", AuthController, :request
     get "/:provider/callback", AuthController, :callback

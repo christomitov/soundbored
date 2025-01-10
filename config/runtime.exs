@@ -59,7 +59,13 @@ if config_env() == :prod do
     ],
     check_origin: false,
     force_ssl: scheme == "https",
-    secret_key_base: secret_key_base
+    secret_key_base: secret_key_base,
+    session: [
+      store: :cookie,
+      key: "_soundboard_key",
+      signing_salt: "your_signing_salt",  # Use a real salt here
+      same_site: "Lax"
+    ]
 
   # Configure Ueberauth
   config :ueberauth, Ueberauth,
