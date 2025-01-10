@@ -15,6 +15,7 @@ defmodule SoundboardWeb.Router do
     plug :put_cache_headers
     plug :force_ssl_scheme
     plug :put_url_scheme
+    plug :put_extra_security_headers
   end
 
   pipeline :require_basic_auth do
@@ -28,7 +29,7 @@ defmodule SoundboardWeb.Router do
 
   # Discord OAuth routes - NO basic auth but keep session
   scope "/auth", SoundboardWeb do
-    pipe_through [:browser, :auth]  # Add :auth to maintain session
+    pipe_through [:browser]  # Just browser to handle session basics
 
     get "/:provider", AuthController, :request
     get "/:provider/callback", AuthController, :callback
@@ -114,5 +115,12 @@ defmodule SoundboardWeb.Router do
       # In dev/test, don't force SSL
       conn
     end
+  end
+
+  defp put_extra_security_headers(conn, _opts) do
+    conn
+    |> put_resp_header("permissions-policy", "interest-cohort=()")
+    |> put_resp_header("cross-origin-opener-policy", "same-origin")
+    |> put_resp_header("cross-origin-embedder-policy", "require-corp")
   end
 end

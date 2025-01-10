@@ -63,8 +63,10 @@ if config_env() == :prod do
     session: [
       store: :cookie,
       key: "_soundboard_key",
-      signing_salt: "your_signing_salt",  # Use a real salt here
-      same_site: "Lax"
+      signing_salt: secret_key_base,
+      same_site: "Lax",
+      secure: true,
+      extra: "SameSite=Lax"
     ]
 
   # Configure Ueberauth

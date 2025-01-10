@@ -3,7 +3,8 @@ defmodule SoundboardWeb.AuthController do
   require Logger
 
   plug Ueberauth
-  plug :put_csrf_token
+  plug :store_state when action in [:request]
+  plug :verify_state when action in [:callback]
 
   alias Soundboard.Accounts.User
   alias Soundboard.Repo
@@ -86,4 +87,31 @@ defmodule SoundboardWeb.AuthController do
     """)
     conn
   end
+
+  defp store_state(conn, _opts) do
+    state = Base.encode64(:crypto.strong_rand_bytes(32))
+    put_session(conn, "oauth_state", state)
+  end
+
+  defp verify_state(%{params: %{"state" => param_state}} = conn, _opts) do
+    stored_state = get_session(conn, "oauth_state")
+
+    Logger.debug("""
+    State verification:
+    Param state: #{param_state}
+    Stored state: #{stored_state}
+    Session: #{inspect(get_session(conn))}
+    """)
+
+    if param_state && stored_state && param_state == stored_state do
+      conn
+    else
+      conn
+      |> put_flash(:error, "Invalid state parameter")
+      |> redirect(to: "/")
+      |> halt()
+    end
+  end
+
+  defp verify_state(conn, _opts), do: conn
 end
