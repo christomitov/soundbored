@@ -61,23 +61,17 @@ if config_env() == :prod do
     force_ssl: scheme == "https",
     secret_key_base: secret_key_base
 
-  # Configure Ueberauth with explicit settings
+  # Configure Ueberauth
   config :ueberauth, Ueberauth,
-    base_path: "/auth",
     providers: [
-      discord: {Ueberauth.Strategy.Discord, [
-        callback_url: callback_url,
-        callback_path: "/auth/discord/callback"
-      ]}
+      discord: {Ueberauth.Strategy.Discord, []}
     ]
 
   # Configure OAuth client
   config :ueberauth, Ueberauth.Strategy.Discord.OAuth,
     client_id: System.get_env("DISCORD_CLIENT_ID"),
     client_secret: System.get_env("DISCORD_CLIENT_SECRET"),
-    redirect_uri: callback_url,
-    authorize_url: "https://discord.com/oauth2/authorize",
-    token_url: "https://discord.com/api/oauth2/token"
+    redirect_uri: callback_url
 
   # Remove duplicate ffmpeg check and consolidate Nostrum config
   discord_token =

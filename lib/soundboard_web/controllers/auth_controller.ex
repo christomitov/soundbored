@@ -10,6 +10,8 @@ defmodule SoundboardWeb.AuthController do
   alias Soundboard.Repo
 
   def callback(%{assigns: %{ueberauth_auth: auth}} = conn, _params) do
+    Logger.debug("Auth callback received with uid: #{auth.uid}")
+
     user_params = %{
       discord_id: auth.uid,
       username: auth.info.nickname || auth.info.name,
@@ -18,21 +20,25 @@ defmodule SoundboardWeb.AuthController do
 
     case find_or_create_user(user_params) do
       {:ok, user} ->
+        Logger.debug("User found/created successfully: #{user.id}")
         conn
         |> put_session(:user_id, user.id)
-        |> redirect(to: ~p"/")
+        |> configure_session(renew: true)
+        |> redirect(to: get_session(conn, :return_to) || "/")
 
-      {:error, _reason} ->
+      {:error, reason} ->
+        Logger.error("Failed to create/find user: #{inspect(reason)}")
         conn
         |> put_flash(:error, "Error signing in")
-        |> redirect(to: ~p"/")
+        |> redirect(to: "/")
     end
   end
 
-  def callback(%{assigns: %{ueberauth_failure: _fails}} = conn, _params) do
+  def callback(%{assigns: %{ueberauth_failure: fails}} = conn, _params) do
+    Logger.error("Authentication failed: #{inspect(fails)}")
     conn
-    |> put_flash(:error, "Failed to authenticate.")
-    |> redirect(to: ~p"/")
+    |> put_flash(:error, "Failed to authenticate: #{inspect(fails.errors)}")
+    |> redirect(to: "/")
   end
 
   defp find_or_create_user(%{discord_id: discord_id} = params) do
@@ -73,5 +79,13 @@ defmodule SoundboardWeb.AuthController do
     conn
     |> assign(:ueberauth_callback_url, callback_url)
     |> put_private(:ueberauth_callback_url, callback_url)
+  end
+
+  def debug_session(conn, _params) do
+    json(conn, %{
+      session: get_session(conn),
+      current_user: conn.assigns[:current_user],
+      cookies: conn.cookies
+    })
   end
 end

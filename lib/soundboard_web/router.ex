@@ -2,9 +2,9 @@ defmodule SoundboardWeb.Router do
   use SoundboardWeb, :router
   # Keep this import
   import Plug.BasicAuth
+  import Logger
 
   pipeline :browser do
-    plug SoundboardWeb.Plugs.BasicAuth
     plug :accepts, ["html"]
     plug :fetch_session
     plug :fetch_live_flash
@@ -14,6 +14,7 @@ defmodule SoundboardWeb.Router do
     plug :put_cache_headers
     plug :force_ssl_scheme
     plug :put_url_scheme
+    plug SoundboardWeb.Plugs.BasicAuth
   end
 
   pipeline :api do
@@ -39,23 +40,21 @@ defmodule SoundboardWeb.Router do
   end
 
   pipeline :require_auth do
-    plug :fetch_session
-    plug :fetch_current_user
-    plug :require_authenticated_user
+    plug :ensure_authenticated_user
   end
 
   # Main app routes with Discord auth
   scope "/", SoundboardWeb do
-    pipe_through [:browser, :main_auth, :require_auth]
+    pipe_through [:browser, :fetch_current_user, :ensure_authenticated_user]
 
     live "/", SoundboardLive
     live "/stats", LeaderboardLive
     live "/favorites", FavoritesLive
   end
 
-  # Discord OAuth routes - no basic auth
+  # Discord OAuth routes - no auth requirements
   scope "/auth", SoundboardWeb do
-    pipe_through :browser
+    pipe_through [:browser]
 
     get "/:provider", AuthController, :request
     get "/:provider/callback", AuthController, :callback
@@ -82,18 +81,42 @@ defmodule SoundboardWeb.Router do
   #   post "/sounds/:id/play", SoundController, :play
   # end
 
-  def fetch_current_user(conn, _) do
-    user_id = get_session(conn, :user_id)
-    user = user_id && Soundboard.Repo.get(Soundboard.Accounts.User, user_id)
-    assign(conn, :current_user, user)
+  # Debug route
+  scope "/debug", SoundboardWeb do
+    pipe_through [:browser]
+
+    get "/session", AuthController, :debug_session
   end
 
-  def require_authenticated_user(conn, _opts) do
+  def fetch_current_user(conn, _) do
+    user_id = get_session(conn, :user_id)
+
+    if user_id do
+      case Soundboard.Repo.get(Soundboard.Accounts.User, user_id) do
+        nil ->
+          conn
+          |> clear_session()
+          |> assign(:current_user, nil)
+        user ->
+          assign(conn, :current_user, user)
+      end
+    else
+      assign(conn, :current_user, nil)
+    end
+  end
+
+  def ensure_authenticated_user(conn, _opts) do
+    Logger.debug("Checking authentication. Current user: #{inspect(conn.assigns[:current_user])}")
+    Logger.debug("Session: #{inspect(get_session(conn))}")
+
     if conn.assigns[:current_user] do
+      Logger.debug("User authenticated")
       conn
     else
+      Logger.debug("User not authenticated, redirecting to Discord")
       conn
-      |> Phoenix.Controller.redirect(to: "/auth/discord")
+      |> put_session(:return_to, conn.request_path)
+      |> redirect(to: "/auth/discord")
       |> halt()
     end
   end
