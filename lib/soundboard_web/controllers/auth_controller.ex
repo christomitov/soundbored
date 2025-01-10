@@ -3,8 +3,6 @@ defmodule SoundboardWeb.AuthController do
   require Logger
 
   plug Ueberauth
-  plug :store_state when action in [:request]
-  plug :verify_state when action in [:callback]
 
   alias Soundboard.Accounts.User
   alias Soundboard.Repo
@@ -30,7 +28,7 @@ defmodule SoundboardWeb.AuthController do
         |> redirect(to: return_to)
 
       {:error, reason} ->
-        Logger.error("Failed to create/user: #{inspect(reason)}")
+        Logger.error("Failed to create user: #{inspect(reason)}")
         conn
         |> put_flash(:error, "Error signing in")
         |> redirect(to: "/")
@@ -68,15 +66,6 @@ defmodule SoundboardWeb.AuthController do
       current_user: conn.assigns[:current_user],
       cookies: conn.cookies
     })
-  end
-
-  defp put_csrf_token(conn, _opts) do
-    if get_session(conn, :csrf_token) do
-      conn
-    else
-      token = Phoenix.Controller.get_csrf_token()
-      put_session(conn, :csrf_token, token)
-    end
   end
 
   def request(conn, %{"provider" => "discord"} = _params) do
