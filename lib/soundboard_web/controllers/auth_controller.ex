@@ -7,8 +7,27 @@ defmodule SoundboardWeb.AuthController do
   alias Soundboard.Accounts.User
   alias Soundboard.Repo
 
+  def request(conn, %{"provider" => "discord"} = _params) do
+    Logger.debug("""
+    Auth Request Debug:
+    Session ID: #{inspect(get_session(conn, :session_id))}
+    All Session Data: #{inspect(get_session(conn))}
+    Cookies: #{inspect(conn.cookies)}
+    """)
+
+    # Set a session ID to track session consistency
+    conn
+    |> put_session(:session_id, System.unique_integer())
+  end
+
   def callback(%{assigns: %{ueberauth_auth: auth}} = conn, _params) do
-    Logger.debug("Auth callback received with uid: #{auth.uid}")
+    Logger.debug("""
+    Auth Callback Debug:
+    Auth: #{inspect(auth)}
+    Session ID: #{inspect(get_session(conn, :session_id))}
+    All Session Data: #{inspect(get_session(conn))}
+    Cookies: #{inspect(conn.cookies)}
+    """)
 
     user_params = %{
       discord_id: auth.uid,
@@ -36,7 +55,14 @@ defmodule SoundboardWeb.AuthController do
   end
 
   def callback(%{assigns: %{ueberauth_failure: fails}} = conn, _params) do
-    Logger.error("Authentication failed: #{inspect(fails)}")
+    Logger.error("""
+    Authentication failed:
+    Failure: #{inspect(fails)}
+    Session ID: #{inspect(get_session(conn, :session_id))}
+    All Session Data: #{inspect(get_session(conn))}
+    Cookies: #{inspect(conn.cookies)}
+    """)
+
     conn
     |> put_flash(:error, "Failed to authenticate")
     |> redirect(to: "/")
@@ -66,13 +92,5 @@ defmodule SoundboardWeb.AuthController do
       current_user: conn.assigns[:current_user],
       cookies: conn.cookies
     })
-  end
-
-  def request(conn, %{"provider" => "discord"} = _params) do
-    Logger.debug("""
-    Auth Request:
-    Session before: #{inspect(get_session(conn))}
-    """)
-    conn
   end
 end

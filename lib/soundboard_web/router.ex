@@ -27,9 +27,16 @@ defmodule SoundboardWeb.Router do
     plug :fetch_current_user
   end
 
-  # Discord OAuth routes - NO basic auth but keep session
+  pipeline :auth_browser do
+    plug :accepts, ["html"]
+    plug :fetch_session
+    plug :protect_from_forgery
+    plug :put_secure_browser_headers
+  end
+
+  # Discord OAuth routes - minimal pipeline
   scope "/auth", SoundboardWeb do
-    pipe_through [:browser, :fetch_session]  # Ensure session is fetched
+    pipe_through [:auth_browser]  # Use simpler pipeline
 
     get "/:provider", AuthController, :request
     get "/:provider/callback", AuthController, :callback

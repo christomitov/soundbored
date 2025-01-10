@@ -66,7 +66,8 @@ if config_env() == :prod do
       signing_salt: secret_key_base,
       same_site: "Lax",
       secure: scheme == "https",
-      max_age: 86400 * 30
+      max_age: 86400 * 30,
+      domain: host
     ]
 
   # Configure Ueberauth
