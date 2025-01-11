@@ -147,10 +147,10 @@ defmodule SoundboardWeb.Components.Layouts.Navbar do
               Favorites
             </.mobile_nav_link>
             <.mobile_nav_link
-              navigate="/leaderboard"
-              active={current_page?(@current_path, "/leaderboard")}
+              navigate="/stats"
+              active={current_page?(@current_path, "/stats")}
             >
-              Leaderboard
+              Stats
             </.mobile_nav_link>
           </div>
           <div class="pt-4 pb-3 border-t border-gray-200 dark:border-gray-700">
