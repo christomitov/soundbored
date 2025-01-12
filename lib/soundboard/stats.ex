@@ -63,7 +63,7 @@ defmodule Soundboard.Stats do
 
     from(p in Play,
       join: s in Sound,
-      on: p.sound_id == s.id,
+      on: s.filename == p.sound_name,
       join: u in User,
       on: p.user_id == u.id,
       select: {s.filename, u.username, p.inserted_at},

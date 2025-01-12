@@ -2,6 +2,7 @@ defmodule SoundboardWeb.AudioPlayer do
   use GenServer
   require Logger
   alias Nostrum.Voice
+  alias Soundboard.Accounts.User
 
   defmodule State do
     defstruct [:voice_channel, :current_playback]
@@ -102,6 +103,12 @@ defmodule SoundboardWeb.AudioPlayer do
                 "loudnorm=I=-14:LRA=1:TP=-1:dual_mono=true,compand=attacks=0:points=-70/-70|-40/-40|-20/-12|0/-6|20/-6:gain=8"
               ]
             )
+
+            # Track play only after successful playback
+            case Soundboard.Repo.get_by(User, username: username) do
+              %{id: user_id} -> Soundboard.Stats.track_play(sound_name, user_id)
+              nil -> Logger.warning("Could not find user_id for #{username}")
+            end
 
             broadcast_success(sound_name, username)
           rescue

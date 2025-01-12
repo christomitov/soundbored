@@ -213,7 +213,6 @@ defmodule SoundboardWeb.LeaderboardLive do
             <%= for {sound_name, count} <- @top_sounds do %>
               <div
                 class="flex items-center justify-between p-2 rounded-lg bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer group"
-                phx-hook="ClickFeedback"
                 id={"play-top-#{sound_name}"}
                 class="px-6"
                 phx-click="play_sound"
@@ -234,7 +233,6 @@ defmodule SoundboardWeb.LeaderboardLive do
                     phx-click="toggle_favorite"
                     phx-value-sound={sound_name}
                     phx-stop
-                    phx-hook="ClickFeedback"
                     id={"favorite-#{sound_name}"}
                     class="text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-500 mr-2"
                   >
@@ -258,7 +256,6 @@ defmodule SoundboardWeb.LeaderboardLive do
             <%= for {sound_name, username, timestamp} <- @recent_plays do %>
               <div
                 class="flex items-center justify-between p-2 rounded-lg bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer group"
-                phx-hook="ClickFeedback"
                 id={"play-recent-#{sound_name}"}
                 class="px-6"
                 phx-click="play_sound"
@@ -311,7 +308,6 @@ defmodule SoundboardWeb.LeaderboardLive do
             <%= for {sound_name, username, timestamp} <- @recent_uploads do %>
               <div
                 class="flex items-center justify-between p-2 rounded-lg bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer group"
-                phx-hook="ClickFeedback"
                 id={"play-upload-#{sound_name}"}
                 class="px-6"
                 phx-click="play_sound"
@@ -379,12 +375,7 @@ defmodule SoundboardWeb.LeaderboardLive do
         {:noreply, put_flash(socket, :error, "You must be logged in to play sounds")}
 
       user ->
-        # Track the play
-        Soundboard.Stats.track_play(sound_name, user.id)
-
-        # Play the sound through AudioPlayer
         SoundboardWeb.AudioPlayer.play_sound(sound_name, user.username)
-
         {:noreply, socket}
     end
   end

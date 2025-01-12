@@ -21,7 +21,6 @@ import "phoenix_html"
 import {Socket} from "phoenix"
 import {LiveSocket} from "phoenix_live_view"
 import topbar from "../vendor/topbar"
-import ClickFeedback from "./hooks/click_feedback"
 import KubernetesPopup from "./hooks/kubernetes_popup"
 import LocalPlayer from "./hooks/local_player"
 
@@ -29,7 +28,6 @@ let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("
 
 // Add this to your hooks
 let Hooks = {
-  ClickFeedback,
   KubernetesPopup,
   LocalPlayer: LocalPlayer
 }
