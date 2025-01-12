@@ -75,6 +75,11 @@ defmodule SoundboardWeb.LeaderboardLive do
      |> assign(:presence_count, map_size(presences))}
   end
 
+  @impl true
+  def handle_info(:clear_flash, socket) do
+    {:noreply, clear_flash(socket)}
+  end
+
   defp assign_stats(socket) do
     {start_date, end_date} = socket.assigns.selected_week
 
