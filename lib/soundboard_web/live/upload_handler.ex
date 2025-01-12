@@ -9,20 +9,18 @@ defmodule SoundboardWeb.Live.UploadHandler do
 
     if !custom_name || custom_name == "" do
       Logger.error("Name is required")
-      {:error, Phoenix.LiveView.put_flash(socket, :error, "Name is required")}
+      {:error, "Name is required", socket}
     else
       # First try to save the file
       case FileHandler.save_upload(socket, custom_name, uploaded_entries_fn) do
         {:ok, filename} ->
-          # Create sound params with proper boolean conversion
+          # Create sound params with proper boolean conversion and tags
           sound_params = %{
             filename: filename,
             user_id: user_id,
             is_join_sound: params["is_join_sound"] in ["on", "true", true],
             is_leave_sound: params["is_leave_sound"] in ["on", "true", true]
           }
-
-          Logger.info("Attempting to save sound with params: #{inspect(sound_params)}")
 
           # Wrap the entire database operation in a transaction
           case Repo.transaction(fn ->
@@ -42,8 +40,16 @@ defmodule SoundboardWeb.Live.UploadHandler do
                    case %Sound{}
                         |> Sound.changeset(sound_params)
                         |> Repo.insert() do
-                     {:ok, sound} -> sound
-                     {:error, changeset} -> Repo.rollback({:insert_error, changeset})
+                     {:ok, sound} ->
+                       # Add tags after sound is created
+                       tags = socket.assigns.upload_tags || []
+
+                       Repo.preload(sound, :tags)
+                       |> Sound.changeset(%{tags: tags})
+                       |> Repo.update!()
+
+                     {:error, changeset} ->
+                       Repo.rollback({:insert_error, changeset})
                    end
                  rescue
                    e ->
@@ -51,40 +57,26 @@ defmodule SoundboardWeb.Live.UploadHandler do
                      Repo.rollback({:exception, e})
                  end
                end) do
-            {:ok, sound} ->
-              Logger.info("Sound created successfully: #{inspect(sound)}")
-              {:ok, Phoenix.LiveView.put_flash(socket, :info, "File uploaded successfully")}
+            {:ok, _sound} ->
+              # Broadcast updates
+              Phoenix.PubSub.broadcast(Soundboard.PubSub, "uploads", {:sound_uploaded})
+              Phoenix.PubSub.broadcast(Soundboard.PubSub, "stats", {:stats_updated})
+              :ok
 
             {:error, {:insert_error, changeset}} ->
               Logger.error("Error creating sound: #{inspect(changeset)}")
-
-              {:error,
-               Phoenix.LiveView.put_flash(
-                 socket,
-                 :error,
-                 "Error saving sound: #{error_message(changeset)}"
-               )}
+              {:error, "Error saving sound", socket}
 
             {:error, {:exception, e}} ->
               Logger.error("Exception while saving sound: #{inspect(e)}")
-              {:error, Phoenix.LiveView.put_flash(socket, :error, "An unexpected error occurred")}
+              {:error, "An unexpected error occurred", socket}
           end
 
         {:error, message} ->
           Logger.error("Error saving upload: #{message}")
-          {:error, Phoenix.LiveView.put_flash(socket, :error, message)}
+          {:error, message, socket}
       end
     end
-  end
-
-  defp error_message(changeset) do
-    Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->
-      Enum.reduce(opts, msg, fn {key, value}, acc ->
-        String.replace(acc, "%{#{key}}", to_string(value))
-      end)
-    end)
-    |> Enum.map(fn {k, v} -> "#{k} #{v}" end)
-    |> Enum.join(", ")
   end
 
   def validate_upload(socket) do

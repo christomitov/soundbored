@@ -41,12 +41,6 @@ defmodule SoundboardWeb.Live.PresenceLive do
       defp get_user_from_session(_), do: nil
 
       @impl true
-      def handle_event("cycle_user_color", %{"username" => username}, socket) do
-        PresenceHandler.cycle_user_color(username)
-        {:noreply, socket}
-      end
-
-      @impl true
       def handle_info({:user_color_changed, username}, socket) do
         Logger.debug("Received color change broadcast for #{username}")
         new_presences = Presence.list(@presence_topic)
@@ -67,11 +61,15 @@ defmodule SoundboardWeb.Live.PresenceLive do
       end
 
       @impl true
-      def handle_info(%{event: "presence_diff"}, socket) do
+      def handle_info({:presence_diff, diff}, socket) do
         {:noreply,
-         socket
-         |> assign(:presences, Presence.list(@presence_topic))
-         |> assign(:presence_count, map_size(Presence.list(@presence_topic)))}
+         assign(socket,
+           presence_count:
+             SoundboardWeb.Live.PresenceHandler.handle_presence_diff(
+               diff,
+               socket.assigns.presence_count
+             )
+         )}
       end
     end
   end

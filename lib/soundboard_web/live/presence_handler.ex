@@ -13,95 +13,62 @@ defmodule SoundboardWeb.Live.PresenceHandler do
     "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
     "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
     "bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200",
-    "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200"
+    "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200",
+    "bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200",
+    "bg-slate-100 text-slate-800 dark:bg-slate-900 dark:text-slate-200",
+    "bg-zinc-100 text-zinc-800 dark:bg-zinc-900 dark:text-zinc-200",
+    "bg-neutral-100 text-neutral-800 dark:bg-neutral-900 dark:text-neutral-200",
+    "bg-stone-100 text-stone-800 dark:bg-stone-900 dark:text-stone-200",
+    "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200"
   ]
 
   @colors_key :user_colors
-  @clicks_key :user_clicks
 
   def init do
     :persistent_term.put(@colors_key, %{})
-    :persistent_term.put(@clicks_key, %{})
   end
 
   def track_presence(socket, user) do
     if connected?(socket) do
       username = if user, do: user.username, else: "Anonymous #{socket.id |> String.slice(0..5)}"
+      color = get_random_unique_color(username)
 
       Presence.track(self(), @presence_topic, socket.id, %{
         online_at: System.system_time(:second),
-        color_updated_at: System.system_time(:second),
         user: %{
           username: username,
-          avatar: if(user, do: user.avatar, else: nil)
+          avatar: if(user, do: user.avatar, else: nil),
+          color: color
         }
       })
     end
   end
 
-  @spec get_user_color(any()) :: any()
+  @spec get_user_color(String.t()) :: String.t()
   def get_user_color(username) do
     colors = :persistent_term.get(@colors_key, %{})
-    index = Map.get(colors, username, :erlang.phash2(username, length(@colors)))
-    Enum.at(@colors, index)
+    Map.get(colors, username) || get_random_unique_color(username)
   end
 
-  @spec cycle_user_color(any()) :: nil | {:error, any()} | {:ok, binary()}
-  def cycle_user_color(username) do
-    Logger.debug("Cycling color for #{username}")
-    pid = Process.get(:connected_pid)
-    user = Process.get(:current_user)
-    socket_id = Process.get(:socket_id)
+  defp get_random_unique_color(username) do
+    colors = :persistent_term.get(@colors_key, %{})
+    used_colors = Map.values(colors)
 
-    Logger.debug("""
-    Process info:
-    PID: #{inspect(pid)}
-    User: #{inspect(user)}
-    Socket ID: #{inspect(socket_id)}
-    """)
+    available_colors = Enum.reject(@colors, &(&1 in used_colors))
 
-    if pid do
-      current_user = Process.get(:current_user)
-      Logger.debug("Current user: #{inspect(current_user)}")
-
-      if current_user && current_user.username == username do
-        # Get and increment click count
-        clicks = :persistent_term.get(@clicks_key, %{})
-        click_count = Map.get(clicks, username, 0) + 1
-        Logger.debug("Click count for #{username}: #{click_count}")
-
-        # Update clicks
-        :persistent_term.put(@clicks_key, Map.put(clicks, username, click_count))
-
-        # Only change color on third click
-        if click_count >= 3 do
-          Logger.debug("Changing color for #{username}")
-          # Reset click count
-          :persistent_term.put(@clicks_key, Map.put(clicks, username, 0))
-
-          # Change color
-          colors = :persistent_term.get(@colors_key, %{})
-          current_index = Map.get(colors, username, :erlang.phash2(username, length(@colors)))
-          new_index = rem(current_index + 1, length(@colors))
-          Logger.debug("New color index for #{username}: #{new_index}")
-
-          :persistent_term.put(@colors_key, Map.put(colors, username, new_index))
-
-          # Update presence with new color and broadcast in one step
-          Presence.update(pid, @presence_topic, socket_id, fn meta ->
-            meta
-            |> Map.put(:color_updated_at, System.system_time(:second))
-            |> put_in([:user, :color], get_user_color(username))
-          end)
-
-          {:ok, "Color updated"}
-        end
+    color =
+      if Enum.empty?(available_colors) do
+        # If all colors are used, pick a random one
+        Enum.random(@colors)
       else
-        Logger.debug("User not authorized to change color: #{username}")
+        # Pick a random available color
+        Enum.random(available_colors)
       end
-    else
-      Logger.debug("No connected process found for color change")
-    end
+
+    # Store the color assignment
+    :persistent_term.put(@colors_key, Map.put(colors, username, color))
+
+    color
   end
 
   def get_presence_count do

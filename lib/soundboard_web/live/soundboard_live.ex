@@ -8,7 +8,7 @@ defmodule SoundboardWeb.SoundboardLive do
   alias SoundboardWeb.Presence
   alias Soundboard.{Repo, Sound, Favorites}
   require Logger
-  alias SoundboardWeb.Live.{UploadHandler, FileHandler, TagHandler, PresenceHandler, FileFilter}
+  alias SoundboardWeb.Live.{FileHandler, TagHandler, FileFilter}
   import Ecto.Query
 
   import TagHandler,
@@ -20,6 +20,8 @@ defmodule SoundboardWeb.SoundboardLive do
 
   import FileFilter, only: [filter_files: 3]
 
+  import SoundboardWeb.Live.UploadHandler, only: [handle_upload: 3]
+
   @presence_topic "soundboard:presence"
   @pubsub_topic "soundboard"
 
@@ -27,6 +29,7 @@ defmodule SoundboardWeb.SoundboardLive do
   def mount(_params, session, socket) do
     if connected?(socket) do
       Phoenix.PubSub.subscribe(Soundboard.PubSub, @pubsub_topic)
+      Phoenix.PubSub.subscribe(Soundboard.PubSub, "soundboard:presence")
       send(self(), :load_sound_files)
     end
 
@@ -77,13 +80,9 @@ defmodule SoundboardWeb.SoundboardLive do
 
   @impl true
   def handle_event("save", %{"name" => custom_name}, socket) do
-    case UploadHandler.handle_upload(
-           socket,
-           %{"name" => custom_name},
-           &handle_uploaded_entries/3
-         ) do
-      {:ok, socket} -> {:noreply, load_sound_files(socket)}
-      {:error, socket} -> {:noreply, socket}
+    case handle_upload(socket, %{"name" => custom_name}, &handle_uploaded_entries/3) do
+      :ok -> {:noreply, load_sound_files(socket)}
+      {:error, _message, socket} -> {:noreply, socket}
     end
   end
 
@@ -156,12 +155,8 @@ defmodule SoundboardWeb.SoundboardLive do
         "is_leave_sound" => socket.assigns.is_leave_sound
       })
 
-    case SoundboardWeb.Live.UploadHandler.handle_upload(
-           socket,
-           params,
-           &handle_uploaded_entries/3
-         ) do
-      {:ok, socket} ->
+    case handle_upload(socket, params, &handle_uploaded_entries/3) do
+      :ok ->
         {:noreply,
          socket
          |> assign(:show_upload_modal, false)
@@ -174,7 +169,7 @@ defmodule SoundboardWeb.SoundboardLive do
          |> load_sound_files()
          |> put_flash(:info, "File uploaded successfully")}
 
-      {:error, socket} ->
+      {:error, _message, socket} ->
         {:noreply, socket}
     end
   end
@@ -619,6 +614,11 @@ defmodule SoundboardWeb.SoundboardLive do
      socket
      |> load_sound_files()
      |> assign(:loading_sounds, false)}
+  end
+
+  @impl true
+  def handle_info({:stats_updated}, socket) do
+    {:noreply, load_sound_files(socket)}
   end
 
   defp assign_favorites(socket, nil), do: assign(socket, :favorites, [])

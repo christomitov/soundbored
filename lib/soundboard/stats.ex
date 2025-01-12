@@ -1,11 +1,20 @@
 defmodule Soundboard.Stats do
   import Ecto.Query
-  alias Soundboard.{Repo, Stats.Play}
+  alias Soundboard.{Repo, Stats.Play, Sound}
+  alias Phoenix.PubSub
+
+  @pubsub_topic "soundboard"
 
   def track_play(sound_name, user_id) do
-    %Play{}
-    |> Play.changeset(%{sound_name: sound_name, user_id: user_id})
-    |> Repo.insert()
+    result =
+      %Play{}
+      |> Play.changeset(%{sound_name: sound_name, user_id: user_id})
+      |> Repo.insert()
+
+    # Broadcast stats update after tracking play
+    broadcast_stats_update()
+
+    result
   end
 
   defp get_week_range do
@@ -34,6 +43,8 @@ defmodule Soundboard.Stats do
 
   def get_top_sounds(start_date, end_date) do
     from(p in Play,
+      join: s in Sound,
+      on: s.filename == p.sound_name,
       where: fragment("DATE(?) BETWEEN ? AND ?", p.inserted_at, ^start_date, ^end_date),
       group_by: p.sound_name,
       select: {p.sound_name, count(p.id)},
@@ -46,10 +57,24 @@ defmodule Soundboard.Stats do
   def get_recent_plays(start_date, end_date) do
     from(p in Play,
       join: u in assoc(p, :user),
+      join: s in Sound,
+      on: s.filename == p.sound_name,
       where: fragment("DATE(?) BETWEEN ? AND ?", p.inserted_at, ^start_date, ^end_date),
       select: {p.sound_name, u.username, p.inserted_at},
       order_by: [desc: p.inserted_at],
       limit: 10
+    )
+    |> Repo.all()
+  end
+
+  def get_recent_plays(limit) do
+    from(p in Play,
+      join: u in assoc(p, :user),
+      join: s in Sound,
+      on: s.filename == p.sound_name,
+      select: {p.sound_name, u.username, p.inserted_at},
+      order_by: [desc: p.inserted_at],
+      limit: ^limit
     )
     |> Repo.all()
   end
@@ -63,11 +88,9 @@ defmodule Soundboard.Stats do
     broadcast_stats_update()
   end
 
-  defp broadcast_stats_update do
-    Phoenix.PubSub.broadcast(
-      Soundboard.PubSub,
-      "soundboard",
-      {:stats_updated}
-    )
+  def broadcast_stats_update do
+    # Broadcast to both channels to ensure all stats are updated
+    PubSub.broadcast(Soundboard.PubSub, "stats", {:stats_updated})
+    PubSub.broadcast(Soundboard.PubSub, @pubsub_topic, {:stats_updated})
   end
 end
