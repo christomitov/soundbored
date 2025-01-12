@@ -381,10 +381,24 @@ defmodule SoundboardWeb.LeaderboardLive do
   end
 
   defp get_user_avatar_from_presence(username, presences) do
-    presences
-    |> Enum.find_value(fn {_id, presence} ->
-      meta = List.first(presence.metas)
-      if get_in(meta, [:user, :username]) == username, do: get_in(meta, [:user, :avatar])
-    end)
+    # First try to get from presence
+    presence_avatar =
+      presences
+      |> Enum.find_value(fn {_id, presence} ->
+        meta = List.first(presence.metas)
+        if get_in(meta, [:user, :username]) == username, do: get_in(meta, [:user, :avatar])
+      end)
+
+    # If not in presence, try to get from database
+    case presence_avatar do
+      nil ->
+        case Soundboard.Repo.get_by(Soundboard.Accounts.User, username: username) do
+          nil -> nil
+          user -> user.avatar
+        end
+
+      avatar ->
+        avatar
+    end
   end
 end
