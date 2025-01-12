@@ -14,11 +14,11 @@ Soundbored is an unlimited, no-cost, self-hosted soundboard for Discord. It allo
 - Connect
 - Speak
 
-**Also remember to go under Bot and select PRESENCE INTENT, SERVER MEMBERS INTENT and MESSAGE CONTENT INTENT**
+**NOTE: Also remember to go under Bot and select PRESENCE INTENT, SERVER MEMBERS INTENT and MESSAGE CONTENT INTENT**
 
 You then need to invite the bot to your server by going to `Oauth2`, checking `bot` and then checking the same permisions as above. You can then take the generated URL at the bottom and invite the bot.
 
-2. A domain name so people can access your Soundbored instance.
+2. If you want to host publicly, a domain name is required so people can access your Soundbored instance.
 
 3. Under `Redirect` in `Oauth2` put your domain like `https://your.domain.com/auth/discord/callback` in the Discord Developer Portal. Copy the `Client ID` and `Client Secret` as you will need them for the environment variables below.
 

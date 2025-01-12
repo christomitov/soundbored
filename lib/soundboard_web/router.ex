@@ -96,38 +96,6 @@ defmodule SoundboardWeb.Router do
     end
   end
 
-  defp put_cache_headers(conn, _) do
-    put_resp_header(conn, "cache-control", "no-cache, no-store, must-revalidate")
-  end
-
-  defp put_url_scheme(conn, _opts) do
-    scheme = if @env == :prod do
-      System.get_env("SCHEME") || "https"
-    else
-      System.get_env("SCHEME") || "http"
-    end
-
-    conn = put_private(conn, :url_scheme, String.to_atom(scheme))
-    conn
-  end
-
-  defp force_ssl_scheme(conn, _opts) do
-    if @env == :prod do
-      scheme = System.get_env("SCHEME") || "https"
-      %{conn | scheme: String.to_atom(scheme)}
-    else
-      # In dev/test, don't force SSL
-      conn
-    end
-  end
-
-  defp put_extra_security_headers(conn, _opts) do
-    conn
-    |> put_resp_header("permissions-policy", "interest-cohort=()")
-    |> put_resp_header("cross-origin-opener-policy", "same-origin")
-    |> put_resp_header("cross-origin-embedder-policy", "require-corp")
-  end
-
   defp put_session_opts(conn, _opts) do
     conn
     |> put_resp_cookie("_soundboard_key", "",

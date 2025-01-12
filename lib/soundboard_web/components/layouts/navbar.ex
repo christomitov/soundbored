@@ -60,31 +60,38 @@ defmodule SoundboardWeb.Components.Layouts.Navbar do
               <%= @presences
                   |> Enum.flat_map(fn {_id, presence} ->
                     presence.metas
-                    |> Enum.map(& &1.user.username)
+                    |> Enum.map(& &1.user)
                   end)
-                  |> Enum.uniq()
-                  |> Enum.map(fn username -> %>
-                <span
-                  id={"user-#{username}"}
-                  data-username={username}
-                  class={[
-                    "px-2 py-1 rounded-full text-xs select-none transition-all duration-150",
-                    if(@current_user && username == @current_user.username,
-                      do: "cursor-pointer transform hover:scale-105 active:scale-95",
-                      else: "cursor-default"
-                    ),
-                    SoundboardWeb.Live.PresenceHandler.get_user_color(username)
-                  ]}
-                  phx-click={
-                    if @current_user && username == @current_user.username, do: "cycle_user_color"
-                  }
-                  phx-value-username={username}
-                  phx-hook={
-                    if @current_user && username == @current_user.username, do: "ClickFeedback"
-                  }
-                >
-                  {username}
-                </span>
+                  |> Enum.uniq_by(& &1.username)
+                  |> Enum.map(fn user -> %>
+                <div class="flex items-center gap-1">
+                  <span
+                    id={"user-#{user.username}"}
+                    data-username={user.username}
+                    class={[
+                      "px-2 py-1 rounded-full text-xs select-none transition-all duration-150 flex items-center gap-1",
+                      if(@current_user && user.username == @current_user.username,
+                        do: "cursor-pointer transform hover:scale-105 active:scale-95",
+                        else: "cursor-default"
+                      ),
+                      SoundboardWeb.Live.PresenceHandler.get_user_color(user.username)
+                    ]}
+                    phx-click={
+                      if @current_user && user.username == @current_user.username, do: "cycle_user_color"
+                    }
+                    phx-value-username={user.username}
+                    phx-hook={
+                      if @current_user && user.username == @current_user.username, do: "ClickFeedback"
+                    }
+                  >
+                    <img
+                      src={user.avatar}
+                      class="w-4 h-4 rounded-full"
+                      alt={"#{user.username}'s avatar"}
+                    />
+                    {user.username}
+                  </span>
+                </div>
               <% end) %>
             </div>
           </div>
@@ -158,13 +165,20 @@ defmodule SoundboardWeb.Components.Layouts.Navbar do
               <%= @presences
                   |> Enum.flat_map(fn {_id, presence} ->
                     presence.metas
-                    |> Enum.map(& &1.user.username)
+                    |> Enum.map(& &1.user)
                   end)
-                  |> Enum.uniq()
-                  |> Enum.map(fn username -> %>
-                <span class={"px-2 py-1 rounded-full text-xs #{SoundboardWeb.Live.PresenceHandler.get_user_color(username)}"}>
-                  {username}
-                </span>
+                  |> Enum.uniq_by(& &1.username)
+                  |> Enum.map(fn user -> %>
+                <div class="flex items-center gap-1">
+                  <img
+                    src={user.avatar}
+                    class="w-5 h-5 rounded-full"
+                    alt={"#{user.username}'s avatar"}
+                  />
+                  <span class={"px-2 py-1 rounded-full text-xs #{SoundboardWeb.Live.PresenceHandler.get_user_color(user.username)}"}>
+                    {user.username}
+                  </span>
+                </div>
               <% end) %>
             </div>
           </div>

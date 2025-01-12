@@ -20,40 +20,37 @@ defmodule Soundboard.Stats do
     }
   end
 
-  def get_top_users(limit \\ 10) do
-    {week_start, week_end} = get_week_range()
-
-    Play
-    |> where([p], p.inserted_at >= ^week_start and p.inserted_at <= ^week_end)
-    |> group_by([p], p.user_id)
-    |> join(:inner, [p], u in assoc(p, :user))
-    |> select([p, u], {u.username, count(p.id)})
-    |> order_by([p], desc: count(p.id))
-    |> limit(^limit)
+  def get_top_users(start_date, end_date) do
+    from(p in Play,
+      join: u in assoc(p, :user),
+      where: fragment("DATE(?) BETWEEN ? AND ?", p.inserted_at, ^start_date, ^end_date),
+      group_by: u.username,
+      select: {u.username, count(p.id)},
+      order_by: [desc: count(p.id)],
+      limit: 10
+    )
     |> Repo.all()
   end
 
-  def get_top_sounds(limit \\ 10) do
-    {week_start, week_end} = get_week_range()
-
-    Play
-    |> where([p], p.inserted_at >= ^week_start and p.inserted_at <= ^week_end)
-    |> group_by([p], p.sound_name)
-    |> select([p], {p.sound_name, count(p.id)})
-    |> order_by([p], desc: count(p.id))
-    |> limit(^limit)
+  def get_top_sounds(start_date, end_date) do
+    from(p in Play,
+      where: fragment("DATE(?) BETWEEN ? AND ?", p.inserted_at, ^start_date, ^end_date),
+      group_by: p.sound_name,
+      select: {p.sound_name, count(p.id)},
+      order_by: [desc: count(p.id)],
+      limit: 10
+    )
     |> Repo.all()
   end
 
-  def get_recent_plays(limit \\ 10) do
-    {week_start, week_end} = get_week_range()
-
-    Play
-    |> where([p], p.inserted_at >= ^week_start and p.inserted_at <= ^week_end)
-    |> join(:inner, [p], u in assoc(p, :user))
-    |> select([p, u], {p.sound_name, u.username, p.inserted_at})
-    |> order_by([p], desc: p.inserted_at)
-    |> limit(^limit)
+  def get_recent_plays(start_date, end_date) do
+    from(p in Play,
+      join: u in assoc(p, :user),
+      where: fragment("DATE(?) BETWEEN ? AND ?", p.inserted_at, ^start_date, ^end_date),
+      select: {p.sound_name, u.username, p.inserted_at},
+      order_by: [desc: p.inserted_at],
+      limit: 10
+    )
     |> Repo.all()
   end
 

@@ -15,13 +15,16 @@ defmodule SoundboardWeb.LeaderboardLive do
       Phoenix.PubSub.subscribe(Soundboard.PubSub, @pubsub_topic)
     end
 
+    current_week = get_week_range()
+
     {:ok,
      socket
      |> mount_presence(session)
      |> assign(:current_path, "/leaderboard")
      |> assign(:current_user, get_user_from_session(session))
      |> assign(:force_update, 0)
-     |> assign(:week_range, get_week_range())
+     |> assign(:selected_week, current_week)
+     |> assign(:current_week, current_week)
      |> assign(:recent_uploads, Sound.get_recent_uploads())
      |> assign_stats()}
   end
@@ -80,11 +83,12 @@ defmodule SoundboardWeb.LeaderboardLive do
 
   defp assign_stats(socket) do
     user_id = socket.assigns.current_user.id
+    {start_date, end_date} = socket.assigns.selected_week
 
     socket
-    |> assign(:top_users, Stats.get_top_users())
-    |> assign(:top_sounds, Stats.get_top_sounds())
-    |> assign(:recent_plays, Stats.get_recent_plays())
+    |> assign(:top_users, Stats.get_top_users(start_date, end_date))
+    |> assign(:top_sounds, Stats.get_top_sounds(start_date, end_date))
+    |> assign(:recent_plays, Stats.get_recent_plays(start_date, end_date))
     |> assign(:favorites, Favorites.list_favorites(user_id))
   end
 
@@ -97,11 +101,10 @@ defmodule SoundboardWeb.LeaderboardLive do
     Calendar.strftime(est_time, "%b %d, %I:%M %p EST")
   end
 
-  defp get_week_range do
-    today = Date.utc_today()
+  defp get_week_range(date \\ Date.utc_today()) do
     # Get the most recent Monday (beginning of week)
-    days_since_monday = Date.day_of_week(today, :monday)
-    start_date = Date.add(today, -days_since_monday + 1)
+    days_since_monday = Date.day_of_week(date, :monday)
+    start_date = Date.add(date, -days_since_monday + 1)
     end_date = Date.add(start_date, 6)
     {start_date, end_date}
   end
@@ -116,8 +119,26 @@ defmodule SoundboardWeb.LeaderboardLive do
     <div id="leaderboard" class="max-w-6xl mx-auto px-4 py-8">
       <div class="flex justify-between items-center mb-8">
         <h1 class="text-3xl font-bold text-gray-800 dark:text-gray-100">Stats</h1>
-        <div class="text-sm text-gray-600 dark:text-gray-400">
-          Week of {format_date_range(@week_range)}
+        <div class="flex items-center gap-4">
+          <button
+            phx-click="previous_week"
+            class="text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
+          >
+            <.icon name="hero-chevron-left-solid" class="h-5 w-5" />
+          </button>
+          <div class="text-sm text-gray-600 dark:text-gray-400">
+            Week of {format_date_range(@selected_week)}
+          </div>
+          <button
+            phx-click="next_week"
+            disabled={@selected_week == @current_week}
+            class={[
+              "text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200",
+              @selected_week == @current_week && "opacity-50 cursor-not-allowed"
+            ]}
+          >
+            <.icon name="hero-chevron-right-solid" class="h-5 w-5" />
+          </button>
         </div>
       </div>
 
@@ -128,9 +149,15 @@ defmodule SoundboardWeb.LeaderboardLive do
             <%= for {username, count} <- @top_users do %>
               <div class="flex justify-between items-center" id={"user-stat-#{username}"}>
                 <span class={[
-                  "px-2 py-1 rounded-full text-sm",
+                  "px-2 py-1 rounded-full text-sm flex items-center gap-1",
                   get_user_color_from_presence(username, @presences)
                 ]}>
+                  <img
+                    :if={get_user_avatar_from_presence(username, @presences)}
+                    src={get_user_avatar_from_presence(username, @presences)}
+                    class="w-4 h-4 rounded-full"
+                    alt={"#{username}'s avatar"}
+                  />
                   {username}
                 </span>
                 <span class="text-gray-600 dark:text-gray-400">{count} plays</span>
@@ -181,9 +208,15 @@ defmodule SoundboardWeb.LeaderboardLive do
               <div class="flex justify-between items-center">
                 <div class="flex items-center gap-2">
                   <span class={[
-                    "px-2 py-1 rounded-full text-sm",
+                    "px-2 py-1 rounded-full text-sm flex items-center gap-1",
                     get_user_color_from_presence(username, @presences)
                   ]}>
+                    <img
+                      :if={get_user_avatar_from_presence(username, @presences)}
+                      src={get_user_avatar_from_presence(username, @presences)}
+                      class="w-4 h-4 rounded-full"
+                      alt={"#{username}'s avatar"}
+                    />
                     {username}
                   </span>
                   <button
@@ -224,9 +257,15 @@ defmodule SoundboardWeb.LeaderboardLive do
               <div class="flex justify-between items-center">
                 <div class="flex items-center gap-2">
                   <span class={[
-                    "px-2 py-1 rounded-full text-sm",
+                    "px-2 py-1 rounded-full text-sm flex items-center gap-1",
                     get_user_color_from_presence(username, @presences)
                   ]}>
+                    <img
+                      :if={get_user_avatar_from_presence(username, @presences)}
+                      src={get_user_avatar_from_presence(username, @presences)}
+                      class="w-4 h-4 rounded-full"
+                      alt={"#{username}'s avatar"}
+                    />
                     {username}
                   </span>
                   <button
@@ -317,5 +356,35 @@ defmodule SoundboardWeb.LeaderboardLive do
   defp clear_flash_after_timeout(socket) do
     Process.send_after(self(), :clear_flash, 3000)
     socket
+  end
+
+  defp get_user_avatar_from_presence(username, presences) do
+    presences
+    |> Enum.find_value(fn {_id, presence} ->
+      meta = List.first(presence.metas)
+      if get_in(meta, [:user, :username]) == username, do: get_in(meta, [:user, :avatar])
+    end)
+  end
+
+  @impl true
+  def handle_event("previous_week", _, socket) do
+    {start_date, _} = socket.assigns.selected_week
+    new_week = get_week_range(Date.add(start_date, -7))
+
+    {:noreply,
+     socket
+     |> assign(:selected_week, new_week)
+     |> assign_stats()}
+  end
+
+  @impl true
+  def handle_event("next_week", _, socket) do
+    {start_date, _} = socket.assigns.selected_week
+    new_week = get_week_range(Date.add(start_date, 7))
+
+    case Date.compare(elem(new_week, 1), elem(socket.assigns.current_week, 1)) do
+      :gt -> {:noreply, socket}
+      _ -> {:noreply, socket |> assign(:selected_week, new_week) |> assign_stats()}
+    end
   end
 end
