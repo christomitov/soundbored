@@ -24,13 +24,8 @@ defmodule Soundboard.Application do
           SoundboardWeb.Endpoint,
           {SoundboardWeb.AudioPlayer, []},
           Soundboard.Repo,
-          # Use standard supervisor child spec
-          %{
-            id: SoundboardWeb.DiscordHandler,
-            start: {SoundboardWeb.DiscordHandler, :start_link, [[]]},
-            type: :worker,
-            restart: :permanent
-          }
+          SoundboardWeb.DiscordHandler.State,
+          SoundboardWeb.DiscordHandler
         ]
 
         opts = [strategy: :one_for_one, name: Soundboard.Supervisor]

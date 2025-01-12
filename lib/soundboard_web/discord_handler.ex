@@ -8,19 +8,50 @@ defmodule SoundboardWeb.DiscordHandler do
   alias Soundboard.{Repo, Sound, Accounts.User}
   import Ecto.Query
 
-  def handle_event({:VOICE_READY, payload, _ws_state}) do
-    Logger.info("""
-    Voice Ready Event:
-    Guild ID: #{payload.guild_id}
-    Channel ID: #{payload.channel_id}
-    """)
+  # State GenServer
+  defmodule State do
+    use GenServer
 
-    :noop
+    def start_link(_) do
+      GenServer.start_link(__MODULE__, %{}, name: __MODULE__)
+    end
+
+    def init(_) do
+      {:ok, %{voice_states: %{}}}
+    end
+
+    def get_state(user_id) do
+      try do
+        GenServer.call(__MODULE__, {:get_state, user_id})
+      catch
+        :exit, _ -> nil
+      end
+    end
+
+    def update_state(user_id, channel_id, session_id) do
+      try do
+        GenServer.cast(__MODULE__, {:update_state, user_id, channel_id, session_id})
+      catch
+        :exit, _ -> :error
+      end
+    end
+
+    def handle_call({:get_state, user_id}, _from, state) do
+      {:reply, Map.get(state.voice_states, user_id), state}
+    end
+
+    def handle_cast({:update_state, user_id, channel_id, session_id}, state) do
+      {:noreply,
+       %{state | voice_states: Map.put(state.voice_states, user_id, {channel_id, session_id})}}
+    end
   end
 
   def handle_event({:VOICE_STATE_UPDATE, %{channel_id: nil} = payload, _ws_state}) do
-    # Handle disconnection
+    # Handle disconnection (leaving voice channel)
     Logger.info("User #{payload.user_id} disconnected from voice")
+
+    # Store the last session_id when disconnecting
+    State.update_state(payload.user_id, nil, payload.session_id)
 
     user_with_sounds =
       from(u in User,
@@ -42,32 +73,82 @@ defmodule SoundboardWeb.DiscordHandler do
     end
   end
 
-  def handle_event({:VOICE_SERVER_UPDATE, _payload, _ws_state}) do
+  def handle_event({:VOICE_STATE_UPDATE, payload, _ws_state}) do
+    Logger.info("Voice state check - Payload: #{inspect(payload)}")
+
+    # Get previous state with error handling
+    previous_state = State.get_state(payload.user_id)
+
+    # Only handle actual join events by checking both channel and session changes
+    is_join_event =
+      case previous_state do
+        # First join ever
+        nil ->
+          true
+
+        {prev_channel_id, prev_session_id} ->
+          cond do
+            # Different session = true reconnect
+            prev_session_id != payload.session_id -> true
+            # Channel was nil (disconnected) and now isn't = true join
+            prev_channel_id == nil and payload.channel_id != nil -> true
+            # Same session, different channel = channel change
+            prev_channel_id != payload.channel_id -> true
+            # Same session, same channel = state update (mute/deaf)
+            true -> false
+          end
+      end
+
+    # Store current state with error handling
+    State.update_state(payload.user_id, payload.channel_id, payload.session_id)
+
+    # Add debug logging
+    Logger.debug("""
+    Voice state check:
+    Previous state: #{inspect(previous_state)}
+    Current channel: #{inspect(payload.channel_id)}
+    Current session: #{inspect(payload.session_id)}
+    Is join event: #{inspect(is_join_event)}
+    """)
+
+    if is_join_event do
+      # Find user and their configured sounds
+      user_with_sounds =
+        from(u in User,
+          where: u.discord_id == ^to_string(payload.user_id),
+          left_join: js in Sound,
+          on: js.user_id == u.id and js.is_join_sound == true,
+          select: {u.id, js.filename},
+          limit: 1
+        )
+        |> Repo.one()
+
+      case user_with_sounds do
+        {_user_id, join_sound} when not is_nil(join_sound) ->
+          Logger.info("User joined voice - scheduling sound with delay: #{join_sound}")
+          Process.send_after(self(), {:play_delayed_sound, join_sound}, 1000)
+
+        _ ->
+          :noop
+      end
+    else
+      Logger.info("Ignoring non-join voice state update")
+      :noop
+    end
+  end
+
+  def handle_event({:VOICE_READY, payload, _ws_state}) do
+    Logger.info("""
+    Voice Ready Event:
+    Guild ID: #{payload.guild_id}
+    Channel ID: #{payload.channel_id}
+    """)
+
     :noop
   end
 
-  def handle_event({:VOICE_STATE_UPDATE, payload, _ws_state}) do
-    Logger.info("Voice state update for user #{payload.user_id}")
-
-    # Find user and their configured sounds
-    user_with_sounds =
-      from(u in User,
-        where: u.discord_id == ^to_string(payload.user_id),
-        left_join: js in Sound,
-        on: js.user_id == u.id and js.is_join_sound == true,
-        select: {u.id, js.filename},
-        limit: 1
-      )
-      |> Repo.one()
-
-    case user_with_sounds do
-      {_user_id, join_sound} when not is_nil(join_sound) ->
-        Logger.info("User joined voice - scheduling sound with delay: #{join_sound}")
-        Process.send_after(self(), {:play_delayed_sound, join_sound}, 1000)
-
-      _ ->
-        :noop
-    end
+  def handle_event({:VOICE_SERVER_UPDATE, _payload, _ws_state}) do
+    :noop
   end
 
   def handle_event({:MESSAGE_CREATE, msg, _ws_state}) do
