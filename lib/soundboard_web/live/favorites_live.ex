@@ -125,6 +125,27 @@ defmodule SoundboardWeb.FavoritesLive do
     {:noreply, clear_flash(socket)}
   end
 
+  @impl true
+  def handle_info({:stats_updated}, socket) do
+    case socket.assigns.current_user do
+      nil ->
+        {:noreply, socket}
+
+      user ->
+        favorites = Favorites.list_favorites(user.id)
+
+        sounds_with_tags =
+          Sound.with_tags()
+          |> Soundboard.Repo.all()
+          |> Enum.filter(&(&1.id in favorites))
+
+        {:noreply,
+         socket
+         |> assign(:favorites, favorites)
+         |> assign(:sounds_with_tags, sounds_with_tags)}
+    end
+  end
+
   defp clear_flash_after_timeout(socket) do
     Process.send_after(self(), :clear_flash, 3000)
     socket
