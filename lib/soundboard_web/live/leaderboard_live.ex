@@ -1,21 +1,19 @@
 defmodule SoundboardWeb.LeaderboardLive do
   use SoundboardWeb, :live_view
   use SoundboardWeb.Live.PresenceLive
+  import Phoenix.Component
   alias Soundboard.{Stats, Favorites, Sound}
   require Logger
 
   @pubsub_topic "soundboard"
   @presence_topic "soundboard:presence"
+  @recent_limit 5
 
   @impl true
   def mount(_params, session, socket) do
     if connected?(socket) do
       :timer.send_interval(60 * 60 * 1000, self(), :check_week_rollover)
-      Phoenix.PubSub.subscribe(Soundboard.PubSub, @presence_topic)
-      Phoenix.PubSub.subscribe(Soundboard.PubSub, "sounds")
       Phoenix.PubSub.subscribe(Soundboard.PubSub, @pubsub_topic)
-      Phoenix.PubSub.subscribe(Soundboard.PubSub, "stats")
-      Phoenix.PubSub.subscribe(Soundboard.PubSub, "uploads")
     end
 
     current_week = get_week_range()
@@ -28,60 +26,19 @@ defmodule SoundboardWeb.LeaderboardLive do
      |> assign(:force_update, 0)
      |> assign(:selected_week, current_week)
      |> assign(:current_week, current_week)
-     |> assign(:recent_uploads, Sound.get_recent_uploads())
+     |> stream_configure(:recent_plays, dom_id: &"play-#{&1.id}")
+     |> stream(:recent_plays, [])
      |> assign_stats()}
   end
 
   @impl true
-  def handle_info(:update_stats, socket) do
-    {:noreply, assign_stats(socket)}
-  end
-
-  @impl true
   def handle_info({:sound_played, %{filename: filename, played_by: username}}, socket) do
+    recent_plays = Stats.get_recent_plays(limit: @recent_limit)
+
     {:noreply,
      socket
-     |> assign_stats()
+     |> stream(:recent_plays, recent_plays, reset: true)
      |> put_flash(:info, "#{username} played #{filename}")
-     |> clear_flash_after_timeout()}
-  end
-
-  @impl true
-  def handle_info({:play, sound_name, username}, socket) do
-    {:noreply,
-     socket
-     |> put_flash(:info, "#{username} played #{sound_name}")
-     |> clear_flash_after_timeout()}
-  end
-
-  @impl true
-  def handle_info(:clear_flash, socket) do
-    {:noreply, clear_flash(socket)}
-  end
-
-  @impl true
-  def handle_info(:check_week_rollover, socket) do
-    current_range = get_week_range()
-
-    if current_range != socket.assigns.week_range do
-      # New week has started, reset stats
-      Stats.reset_weekly_stats()
-
-      {:noreply,
-       socket
-       |> assign(:week_range, current_range)
-       |> assign_stats()
-       |> put_flash(:info, "Stats have been reset for the new week!")}
-    else
-      {:noreply, socket}
-    end
-  end
-
-  @impl true
-  def handle_info({:error, message}, socket) do
-    {:noreply,
-     socket
-     |> put_flash(:error, message)
      |> clear_flash_after_timeout()}
   end
 
@@ -91,8 +48,11 @@ defmodule SoundboardWeb.LeaderboardLive do
   end
 
   @impl true
-  def handle_info({:sound_uploaded}, socket) do
-    {:noreply, assign(socket, :recent_uploads, Sound.get_recent_uploads())}
+  def handle_info({:error, message}, socket) do
+    {:noreply,
+     socket
+     |> put_flash(:error, message)
+     |> clear_flash_after_timeout()}
   end
 
   @impl true
@@ -107,29 +67,24 @@ defmodule SoundboardWeb.LeaderboardLive do
 
   defp assign_stats(socket) do
     {start_date, end_date} = socket.assigns.selected_week
-    limit = 5
+
+    # Transform the tuples into maps with an id field
+    recent_plays =
+      Stats.get_recent_plays(limit: @recent_limit)
+      |> Enum.map(fn {filename, username, timestamp} ->
+        %{
+          id: "#{filename}-#{:erlang.system_time(:millisecond)}",
+          filename: filename,
+          username: username,
+          timestamp: timestamp
+        }
+      end)
 
     socket
-    |> assign(:top_users, Stats.get_top_users(start_date, end_date, limit: limit))
-    |> assign(:top_sounds, Stats.get_top_sounds(start_date, end_date, limit: limit))
-    |> assign(
-      :recent_plays,
-      Stats.get_recent_plays(limit: limit)
-      |> Enum.sort_by(
-        fn {_, _, timestamp} -> DateTime.to_unix(DateTime.from_naive!(timestamp, "Etc/UTC")) end,
-        :desc
-      )
-      |> Enum.take(limit)
-    )
-    |> assign(
-      :recent_uploads,
-      Sound.get_recent_uploads(limit: limit)
-      |> Enum.sort_by(
-        fn {_, _, timestamp} -> DateTime.to_unix(DateTime.from_naive!(timestamp, "Etc/UTC")) end,
-        :desc
-      )
-      |> Enum.take(limit)
-    )
+    |> assign(:top_users, Stats.get_top_users(start_date, end_date, limit: @recent_limit))
+    |> assign(:top_sounds, Stats.get_top_sounds(start_date, end_date, limit: @recent_limit))
+    |> stream(:recent_plays, recent_plays, reset: true)
+    |> assign(:recent_uploads, Sound.get_recent_uploads(limit: @recent_limit))
     |> assign(:favorites, get_favorites(socket.assigns.current_user))
   end
 
@@ -255,43 +210,42 @@ defmodule SoundboardWeb.LeaderboardLive do
       <div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-8">
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
           <h2 class="text-xl font-semibold text-gray-800 dark:text-gray-200 mb-4">Recent Plays</h2>
-          <div class="space-y-3">
-            <%= for {sound_name, username, timestamp} <- @recent_plays do %>
+          <div class="space-y-3" id="recent_plays" phx-update="stream">
+            <%= for {dom_id, play} <- @streams.recent_plays do %>
               <div
                 class="flex items-center justify-between p-2 rounded-lg bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer group"
-                id={"play-recent-#{sound_name}"}
-                class="px-6"
+                id={dom_id}
                 phx-click="play_sound"
-                phx-value-sound={sound_name}
+                phx-value-sound={play.filename}
               >
                 <div class="flex items-center gap-3 min-w-0">
                   <div class="flex-shrink-0">
                     <img
-                      src={get_user_avatar_from_presence(username, @presences)}
+                      src={get_user_avatar_from_presence(play.username, @presences)}
                       class="w-8 h-8 rounded-full"
-                      alt={username}
+                      alt={play.username}
                     />
                   </div>
                   <div class="min-w-0">
                     <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
-                      {sound_name}
+                      {play.filename}
                     </p>
                     <p class="text-xs text-gray-500 dark:text-gray-400">
-                      {username}
+                      {play.username}
                     </p>
                   </div>
                 </div>
                 <div class="flex items-center gap-2">
                   <span class="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
-                    {format_timestamp(timestamp)}
+                    {format_timestamp(play.timestamp)}
                   </span>
                   <button
                     phx-click="toggle_favorite"
-                    phx-value-sound={sound_name}
+                    phx-value-sound={play.filename}
                     phx-stop
                     class="text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-500 mr-2"
                   >
-                    <%= if is_favorite?(@favorites, sound_name) do %>
+                    <%= if is_favorite?(@favorites, play.filename) do %>
                       <.icon name="hero-heart-solid" class="h-5 w-5 text-red-500" />
                     <% else %>
                       <.icon name="hero-heart" class="h-5 w-5" />
@@ -397,9 +351,25 @@ defmodule SoundboardWeb.LeaderboardLive do
           sound_id ->
             case Favorites.toggle_favorite(user.id, sound_id) do
               {:ok, _favorite} ->
+                # Get updated favorites
+                updated_favorites = Favorites.list_favorites(user.id)
+
+                # Re-fetch recent plays to trigger re-render with updated favorite states
+                recent_plays =
+                  Stats.get_recent_plays(limit: @recent_limit)
+                  |> Enum.map(fn {filename, username, timestamp} ->
+                    %{
+                      id: "#{filename}-#{:erlang.system_time(:millisecond)}",
+                      filename: filename,
+                      username: username,
+                      timestamp: timestamp
+                    }
+                  end)
+
                 {:noreply,
                  socket
-                 |> assign(:favorites, Favorites.list_favorites(user.id))
+                 |> assign(:favorites, updated_favorites)
+                 |> stream(:recent_plays, recent_plays, reset: true)
                  |> put_flash(:info, "Favorites updated!")}
 
               {:error, _changeset} ->

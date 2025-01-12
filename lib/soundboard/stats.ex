@@ -59,8 +59,9 @@ defmodule Soundboard.Stats do
   end
 
   def get_recent_plays(opts \\ []) do
-    limit = Keyword.get(opts, :limit, 10)
+    limit = Keyword.get(opts, :limit, 5)
 
+    # Simple query that gets exactly 5 most recent plays
     from(p in Play,
       join: s in Sound,
       on: s.filename == p.sound_name,
