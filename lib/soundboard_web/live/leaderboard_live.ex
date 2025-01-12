@@ -107,25 +107,28 @@ defmodule SoundboardWeb.LeaderboardLive do
 
   defp assign_stats(socket) do
     {start_date, end_date} = socket.assigns.selected_week
+    limit = 5
 
     socket
-    |> assign(:top_users, Stats.get_top_users(start_date, end_date, limit: 5))
-    |> assign(:top_sounds, Stats.get_top_sounds(start_date, end_date, limit: 5))
+    |> assign(:top_users, Stats.get_top_users(start_date, end_date, limit: limit))
+    |> assign(:top_sounds, Stats.get_top_sounds(start_date, end_date, limit: limit))
     |> assign(
       :recent_plays,
-      Stats.get_recent_plays(limit: 5)
+      Stats.get_recent_plays(limit: limit)
       |> Enum.sort_by(
         fn {_, _, timestamp} -> DateTime.to_unix(DateTime.from_naive!(timestamp, "Etc/UTC")) end,
         :desc
       )
+      |> Enum.take(limit)
     )
     |> assign(
       :recent_uploads,
-      Sound.get_recent_uploads(limit: 5)
+      Sound.get_recent_uploads(limit: limit)
       |> Enum.sort_by(
         fn {_, _, timestamp} -> DateTime.to_unix(DateTime.from_naive!(timestamp, "Etc/UTC")) end,
         :desc
       )
+      |> Enum.take(limit)
     )
     |> assign(:favorites, get_favorites(socket.assigns.current_user))
   end
