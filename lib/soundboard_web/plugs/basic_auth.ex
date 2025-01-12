@@ -8,6 +8,7 @@ defmodule SoundboardWeb.Plugs.BasicAuth do
     password = System.get_env("BASIC_AUTH_PASSWORD") || "admin"
 
     require Logger
+
     Logger.debug("""
     Basic Auth Debug:
     Username set: #{username}
@@ -23,9 +24,13 @@ defmodule SoundboardWeb.Plugs.BasicAuth do
               [^username, ^password] -> conn
               _ -> unauthorized(conn)
             end
-          _ -> unauthorized(conn)
+
+          _ ->
+            unauthorized(conn)
         end
-      _ -> unauthorized(conn)
+
+      _ ->
+        unauthorized(conn)
     end
   end
 

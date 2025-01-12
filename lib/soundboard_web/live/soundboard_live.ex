@@ -128,7 +128,9 @@ defmodule SoundboardWeb.SoundboardLive do
   def handle_event("edit", %{"name" => filename}, socket) do
     sound =
       case Repo.get_by(Sound, filename: filename) do
-        nil -> %Sound{filename: filename, tags: [], user_id: socket.assigns.current_user.id}
+        nil ->
+          %Sound{filename: filename, tags: [], user_id: socket.assigns.current_user.id}
+
         sound ->
           sound
           |> Repo.preload(:tags)
@@ -148,12 +150,17 @@ defmodule SoundboardWeb.SoundboardLive do
   def handle_event("save_upload", params, socket) do
     Logger.info("Saving upload with params: #{inspect(params)}")
 
-    params = Map.merge(params, %{
-      "is_join_sound" => socket.assigns.is_join_sound,
-      "is_leave_sound" => socket.assigns.is_leave_sound
-    })
+    params =
+      Map.merge(params, %{
+        "is_join_sound" => socket.assigns.is_join_sound,
+        "is_leave_sound" => socket.assigns.is_leave_sound
+      })
 
-    case SoundboardWeb.Live.UploadHandler.handle_upload(socket, params, &handle_uploaded_entries/3) do
+    case SoundboardWeb.Live.UploadHandler.handle_upload(
+           socket,
+           params,
+           &handle_uploaded_entries/3
+         ) do
       {:ok, socket} ->
         {:noreply,
          socket
@@ -182,10 +189,12 @@ defmodule SoundboardWeb.SoundboardLive do
         {:ok, _socket} ->
           # File is valid
           Ecto.Changeset.change(%Soundboard.Sound{})
+
         {:error, _socket} ->
           # Create an error changeset
           data = %Soundboard.Sound{}
           types = %{file: :string}
+
           {data, types}
           |> Ecto.Changeset.cast(%{}, [:file])
           |> Ecto.Changeset.add_error(:file, "Please select a file")
@@ -201,14 +210,6 @@ defmodule SoundboardWeb.SoundboardLive do
      socket
      |> assign(:changeset, changeset)
      |> assign(:upload_name, params["name"] || "")}
-  end
-
-  defp validate_sound_settings(changeset, _params) do
-    changeset
-  end
-
-  defp handle_uploaded_entries(socket, name, func) do
-    Phoenix.LiveView.consume_uploaded_entries(socket, name, func)
   end
 
   @impl true
@@ -396,19 +397,25 @@ defmodule SoundboardWeb.SoundboardLive do
 
     # Reset any existing join sound if setting a new one
     if params["is_join_sound"] == "true" do
-      query = from(s in Sound,
-        where: [user_id: ^user_id, is_join_sound: true],
-        where: s.id != ^sound.id  # Don't reset the current sound
-      )
+      query =
+        from(s in Sound,
+          where: [user_id: ^user_id, is_join_sound: true],
+          # Don't reset the current sound
+          where: s.id != ^sound.id
+        )
+
       Repo.update_all(query, set: [is_join_sound: false])
     end
 
     # Reset any existing leave sound if setting a new one
     if params["is_leave_sound"] == "true" do
-      query = from(s in Sound,
-        where: [user_id: ^user_id, is_leave_sound: true],
-        where: s.id != ^sound.id  # Don't reset the current sound
-      )
+      query =
+        from(s in Sound,
+          where: [user_id: ^user_id, is_leave_sound: true],
+          # Don't reset the current sound
+          where: s.id != ^sound.id
+        )
+
       Repo.update_all(query, set: [is_leave_sound: false])
     end
 
@@ -428,7 +435,8 @@ defmodule SoundboardWeb.SoundboardLive do
          |> load_sound_files()
          |> put_flash(:info, "Sound updated successfully")}
 
-      {:error, %Ecto.Changeset{errors: [filename: {_, [constraint: :unique, constraint_name: _]}]}} ->
+      {:error,
+       %Ecto.Changeset{errors: [filename: {_, [constraint: :unique, constraint_name: _]}]}} ->
         {:noreply,
          socket
          |> put_flash(:error, "A sound with that name already exists")}
@@ -561,6 +569,16 @@ defmodule SoundboardWeb.SoundboardLive do
   end
 
   @impl true
+  def handle_event("toggle_join_sound", _params, socket) do
+    {:noreply, assign(socket, :is_join_sound, !socket.assigns.is_join_sound)}
+  end
+
+  @impl true
+  def handle_event("toggle_leave_sound", _params, socket) do
+    {:noreply, assign(socket, :is_leave_sound, !socket.assigns.is_leave_sound)}
+  end
+
+  @impl true
   def handle_info({:error, message}, socket) do
     {:noreply, put_flash(socket, :error, message)}
   end
@@ -610,9 +628,6 @@ defmodule SoundboardWeb.SoundboardLive do
     assign(socket, :favorites, favorites)
   end
 
-  defp assign_upload_name(socket, %{"name" => name}), do: assign(socket, :upload_name, name)
-  defp assign_upload_name(socket, _params), do: socket
-
   defp load_sound_files(socket) do
     assign(socket, :uploaded_files, FileHandler.load_sound_files())
   end
@@ -622,13 +637,11 @@ defmodule SoundboardWeb.SoundboardLive do
     socket
   end
 
-  @impl true
-  def handle_event("toggle_join_sound", _params, socket) do
-    {:noreply, assign(socket, :is_join_sound, !socket.assigns.is_join_sound)}
+  defp validate_sound_settings(changeset, _params) do
+    changeset
   end
 
-  @impl true
-  def handle_event("toggle_leave_sound", _params, socket) do
-    {:noreply, assign(socket, :is_leave_sound, !socket.assigns.is_leave_sound)}
+  defp handle_uploaded_entries(socket, name, func) do
+    Phoenix.LiveView.consume_uploaded_entries(socket, name, func)
   end
 end

@@ -1,9 +1,6 @@
 defmodule SoundboardWeb.Router do
   use SoundboardWeb, :router
-  import Logger
-  import Config, only: [config_env: 0]
-
-  @env Application.compile_env(:soundboard, :env, :dev)
+  require Logger
 
   pipeline :browser do
     plug :accepts, ["html"]
@@ -72,6 +69,7 @@ defmodule SoundboardWeb.Router do
           conn
           |> clear_session()
           |> assign(:current_user, nil)
+
         user ->
           assign(conn, :current_user, user)
       end
@@ -89,6 +87,7 @@ defmodule SoundboardWeb.Router do
       conn
     else
       Logger.debug("User not authenticated, redirecting to Discord")
+
       conn
       |> put_session(:return_to, conn.request_path)
       |> redirect(to: "/auth/discord")

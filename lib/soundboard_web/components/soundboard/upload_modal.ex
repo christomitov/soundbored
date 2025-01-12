@@ -68,7 +68,7 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
                     </div>
                   <% end %>
                 </div>
-
+                
     <!-- Name -->
                 <div class="mb-4">
                   <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 text-left">
@@ -84,7 +84,7 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
                            dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400"
                   />
                 </div>
-
+                
     <!-- Tags -->
                 <div class="text-left">
                   <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -107,7 +107,7 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
                       </span>
                     <% end %>
                   </div>
-
+                  
     <!-- Tag Input -->
                   <div class="mt-2 relative">
                     <div>
@@ -149,8 +149,8 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
                     <% end %>
                   </div>
                 </div>
-
-                <!-- Sound Settings -->
+                
+    <!-- Sound Settings -->
                 <div class="mt-5 mb-4">
                   <div class="flex flex-col gap-3 text-left">
                     <label class="relative flex items-start">
@@ -165,7 +165,9 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
                         />
                       </div>
                       <div class="ml-3 text-sm leading-6">
-                        <span class="font-medium text-gray-900 dark:text-gray-100">Play when I join voice</span>
+                        <span class="font-medium text-gray-900 dark:text-gray-100">
+                          Play when I join voice
+                        </span>
                       </div>
                     </label>
 
@@ -181,7 +183,9 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
                         />
                       </div>
                       <div class="ml-3 text-sm leading-6">
-                        <span class="font-medium text-gray-900 dark:text-gray-100">Play when I leave voice</span>
+                        <span class="font-medium text-gray-900 dark:text-gray-100">
+                          Play when I leave voice
+                        </span>
                       </div>
                     </label>
                   </div>

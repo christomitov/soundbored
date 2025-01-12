@@ -77,7 +77,8 @@ defmodule SoundboardWeb.Components.Layouts.Navbar do
                       SoundboardWeb.Live.PresenceHandler.get_user_color(user.username)
                     ]}
                     phx-click={
-                      if @current_user && user.username == @current_user.username, do: "cycle_user_color"
+                      if @current_user && user.username == @current_user.username,
+                        do: "cycle_user_color"
                     }
                     phx-value-username={user.username}
                     phx-hook={
@@ -153,10 +154,7 @@ defmodule SoundboardWeb.Components.Layouts.Navbar do
             >
               Favorites
             </.mobile_nav_link>
-            <.mobile_nav_link
-              navigate="/stats"
-              active={current_page?(@current_path, "/stats")}
-            >
+            <.mobile_nav_link navigate="/stats" active={current_page?(@current_path, "/stats")}>
               Stats
             </.mobile_nav_link>
           </div>

@@ -48,8 +48,8 @@ defmodule SoundboardWeb.Components.Soundboard.EditModal do
                     class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm dark:bg-gray-700 dark:text-gray-100"
                   />
                 </div>
-
-                <!-- Tags -->
+                
+    <!-- Tags -->
                 <div class="text-left">
                   <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
                     Tags
@@ -72,8 +72,8 @@ defmodule SoundboardWeb.Components.Soundboard.EditModal do
                     <% end %>
                   </div>
                 </div>
-
-                <!-- Tag Input -->
+                
+    <!-- Tag Input -->
                 <div class="mt-2 relative">
                   <div>
                     <input
@@ -113,8 +113,8 @@ defmodule SoundboardWeb.Components.Soundboard.EditModal do
                     </div>
                   <% end %>
                 </div>
-
-                <!-- Sound Settings -->
+                
+    <!-- Sound Settings -->
                 <div class="mt-5 mb-4">
                   <div class="flex flex-col gap-3 text-left">
                     <label class="relative flex items-start">
@@ -128,7 +128,9 @@ defmodule SoundboardWeb.Components.Soundboard.EditModal do
                         />
                       </div>
                       <div class="ml-3 text-sm leading-6">
-                        <span class="font-medium text-gray-900 dark:text-gray-100">Play when I join voice</span>
+                        <span class="font-medium text-gray-900 dark:text-gray-100">
+                          Play when I join voice
+                        </span>
                       </div>
                     </label>
 
@@ -143,7 +145,9 @@ defmodule SoundboardWeb.Components.Soundboard.EditModal do
                         />
                       </div>
                       <div class="ml-3 text-sm leading-6">
-                        <span class="font-medium text-gray-900 dark:text-gray-100">Play when I leave voice</span>
+                        <span class="font-medium text-gray-900 dark:text-gray-100">
+                          Play when I leave voice
+                        </span>
                       </div>
                     </label>
                   </div>

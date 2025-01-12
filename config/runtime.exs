@@ -123,7 +123,8 @@ if config_env() == :prod do
   config :logger, :console,
     format: "$time $metadata[$level] $message\n",
     metadata: [:request_id, :error],
-    colors: [enabled: true]  # Enable colors for better visibility
+    # Enable colors for better visibility
+    colors: [enabled: true]
 
   # Keep stacktraces in production for better error reporting
   config :phoenix,

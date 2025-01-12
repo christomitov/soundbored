@@ -1,7 +1,7 @@
 defmodule SoundboardWeb.Live.FileHandler do
   alias Soundboard.{Repo, Sound}
   alias Phoenix.PubSub
-  import Phoenix.LiveView.Upload
+
   require Logger
 
   @upload_directory "priv/static/uploads"
@@ -61,46 +61,42 @@ defmodule SoundboardWeb.Live.FileHandler do
 
   def save_upload(socket, custom_name, uploaded_entries_fn) do
     if length(socket.assigns.uploads.audio.entries) > 0 do
-      results = uploaded_entries_fn.(socket, :audio, fn %{path: path}, entry ->
-        ext = Path.extname(entry.client_name)
-        filename = custom_name <> ext
-        dest = Path.join(@upload_directory, filename)
+      results =
+        uploaded_entries_fn.(socket, :audio, fn %{path: path}, entry ->
+          ext = Path.extname(entry.client_name)
+          filename = custom_name <> ext
+          dest = Path.join(@upload_directory, filename)
 
-        # Ensure the uploads directory exists
-        File.mkdir_p!(Path.dirname(dest))
+          # Ensure the uploads directory exists
+          File.mkdir_p!(Path.dirname(dest))
 
-        case File.cp(path, dest) do
-          :ok ->
-            Logger.info("File saved successfully to #{dest}")
-            {:ok, filename}
-          {:error, reason} ->
-            Logger.error("Failed to save file: #{inspect(reason)}")
-            {:postpone, reason}
-        end
-      end)
+          case File.cp(path, dest) do
+            :ok ->
+              Logger.info("File saved successfully to #{dest}")
+              {:ok, filename}
+
+            {:error, reason} ->
+              Logger.error("Failed to save file: #{inspect(reason)}")
+              {:postpone, reason}
+          end
+        end)
 
       # Fix the return value handling
       case results do
         [filename] ->
           Logger.info("Upload successful: #{filename}")
           {:ok, filename}
+
         [{:ok, filename}] ->
           Logger.info("Upload successful: #{filename}")
           {:ok, filename}
+
         _ ->
           Logger.error("Upload failed: #{inspect(results)}")
           {:error, "Error saving file"}
       end
     else
       {:error, "Please select a file to upload"}
-    end
-  end
-
-  defp get_filename(custom_name, entry) do
-    if custom_name != "" do
-      "#{custom_name}#{Path.extname(entry.client_name)}"
-    else
-      entry.client_name
     end
   end
 

@@ -14,6 +14,7 @@ defmodule SoundboardWeb.DiscordHandler do
     Guild ID: #{payload.guild_id}
     Channel ID: #{payload.channel_id}
     """)
+
     :noop
   end
 
@@ -24,7 +25,8 @@ defmodule SoundboardWeb.DiscordHandler do
     user_with_sounds =
       from(u in User,
         where: u.discord_id == ^to_string(payload.user_id),
-        left_join: ls in Sound, on: ls.user_id == u.id and ls.is_leave_sound == true,
+        left_join: ls in Sound,
+        on: ls.user_id == u.id and ls.is_leave_sound == true,
         select: {u.id, ls.filename},
         limit: 1
       )
@@ -34,9 +36,14 @@ defmodule SoundboardWeb.DiscordHandler do
       {_user_id, leave_sound} when not is_nil(leave_sound) ->
         Logger.info("Playing leave sound: #{leave_sound}")
         SoundboardWeb.AudioPlayer.play_sound(leave_sound, "System")
+
       _ ->
         :noop
     end
+  end
+
+  def handle_event({:VOICE_SERVER_UPDATE, _payload, _ws_state}) do
+    :noop
   end
 
   def handle_event({:VOICE_STATE_UPDATE, payload, _ws_state}) do
@@ -46,7 +53,8 @@ defmodule SoundboardWeb.DiscordHandler do
     user_with_sounds =
       from(u in User,
         where: u.discord_id == ^to_string(payload.user_id),
-        left_join: js in Sound, on: js.user_id == u.id and js.is_join_sound == true,
+        left_join: js in Sound,
+        on: js.user_id == u.id and js.is_join_sound == true,
         select: {u.id, js.filename},
         limit: 1
       )
@@ -56,6 +64,7 @@ defmodule SoundboardWeb.DiscordHandler do
       {_user_id, join_sound} when not is_nil(join_sound) ->
         Logger.info("User joined voice - scheduling sound with delay: #{join_sound}")
         Process.send_after(self(), {:play_delayed_sound, join_sound}, 1000)
+
       _ ->
         :noop
     end
@@ -115,20 +124,17 @@ defmodule SoundboardWeb.DiscordHandler do
     end
   end
 
+  def handle_event(_event) do
+    :noop
+  end
+
   defp get_user_voice_channel(guild_id, user_id) do
     guild = GuildCache.get!(guild_id)
+
     case Enum.find(guild.voice_states, fn vs -> vs.user_id == user_id end) do
       nil -> nil
       voice_state -> voice_state.channel_id
     end
-  end
-
-  def handle_event({:VOICE_SERVER_UPDATE, _payload, _ws_state}) do
-    :noop
-  end
-
-  def handle_event(event) do
-    :noop
   end
 
   # Handle delayed sound playback

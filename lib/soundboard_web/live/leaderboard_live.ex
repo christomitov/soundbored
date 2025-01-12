@@ -346,26 +346,6 @@ defmodule SoundboardWeb.LeaderboardLive do
     end
   end
 
-  defp is_favorite?(favorites, sound_name) do
-    case Sound.get_sound_id(sound_name) do
-      nil -> false
-      sound_id -> Enum.member?(favorites, sound_id)
-    end
-  end
-
-  defp clear_flash_after_timeout(socket) do
-    Process.send_after(self(), :clear_flash, 3000)
-    socket
-  end
-
-  defp get_user_avatar_from_presence(username, presences) do
-    presences
-    |> Enum.find_value(fn {_id, presence} ->
-      meta = List.first(presence.metas)
-      if get_in(meta, [:user, :username]) == username, do: get_in(meta, [:user, :avatar])
-    end)
-  end
-
   @impl true
   def handle_event("previous_week", _, socket) do
     {start_date, _} = socket.assigns.selected_week
@@ -386,5 +366,25 @@ defmodule SoundboardWeb.LeaderboardLive do
       :gt -> {:noreply, socket}
       _ -> {:noreply, socket |> assign(:selected_week, new_week) |> assign_stats()}
     end
+  end
+
+  defp is_favorite?(favorites, sound_name) do
+    case Sound.get_sound_id(sound_name) do
+      nil -> false
+      sound_id -> Enum.member?(favorites, sound_id)
+    end
+  end
+
+  defp clear_flash_after_timeout(socket) do
+    Process.send_after(self(), :clear_flash, 3000)
+    socket
+  end
+
+  defp get_user_avatar_from_presence(username, presences) do
+    presences
+    |> Enum.find_value(fn {_id, presence} ->
+      meta = List.first(presence.metas)
+      if get_in(meta, [:user, :username]) == username, do: get_in(meta, [:user, :avatar])
+    end)
   end
 end

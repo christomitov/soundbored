@@ -9,12 +9,15 @@ defmodule Soundboard.Repo.Migrations.AddJoinLeaveFlagsToSounds do
 
     # Ensure only one join and one leave sound per user
     create unique_index(:sounds, [:user_id, :is_join_sound],
-      name: :user_join_sound_index,
-      where: "is_join_sound = TRUE"  # Use proper SQL boolean
-    )
+             name: :user_join_sound_index,
+             # Use proper SQL boolean
+             where: "is_join_sound = TRUE"
+           )
+
     create unique_index(:sounds, [:user_id, :is_leave_sound],
-      name: :user_leave_sound_index,
-      where: "is_leave_sound = TRUE"  # Use proper SQL boolean
-    )
+             name: :user_leave_sound_index,
+             # Use proper SQL boolean
+             where: "is_leave_sound = TRUE"
+           )
   end
 end
