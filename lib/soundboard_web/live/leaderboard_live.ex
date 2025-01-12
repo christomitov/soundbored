@@ -33,7 +33,17 @@ defmodule SoundboardWeb.LeaderboardLive do
 
   @impl true
   def handle_info({:sound_played, %{filename: filename, played_by: username}}, socket) do
-    recent_plays = Stats.get_recent_plays(limit: @recent_limit)
+    # Transform the tuple into a map with an id field
+    recent_plays =
+      Stats.get_recent_plays(limit: @recent_limit)
+      |> Enum.map(fn {filename, username, timestamp} ->
+        %{
+          id: "#{filename}-#{:erlang.system_time(:millisecond)}",
+          filename: filename,
+          username: username,
+          timestamp: timestamp
+        }
+      end)
 
     {:noreply,
      socket
