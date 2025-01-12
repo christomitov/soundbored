@@ -33,13 +33,14 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
 
             <div class="mt-3 text-center sm:mt-5">
               <h3 class="text-base font-semibold leading-6 text-gray-900 dark:text-gray-100 mb-4">
-                Upload New Sound
+                Upload Sound
               </h3>
 
               <form
                 phx-submit="save_upload"
                 phx-change="validate_upload"
-                onsubmit="return event.key != 'Enter';"
+                id="upload-form"
+                class="mt-4"
               >
                 <!-- File Input -->
                 <div class="mb-4">
@@ -67,7 +68,7 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
                     </div>
                   <% end %>
                 </div>
-                
+
     <!-- Name -->
                 <div class="mb-4">
                   <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 text-left">
@@ -83,7 +84,7 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
                            dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400"
                   />
                 </div>
-                
+
     <!-- Tags -->
                 <div class="text-left">
                   <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -106,7 +107,7 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
                       </span>
                     <% end %>
                   </div>
-                  
+
     <!-- Tag Input -->
                   <div class="mt-2 relative">
                     <div>
@@ -146,6 +147,43 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
                         <% end %>
                       </div>
                     <% end %>
+                  </div>
+                </div>
+
+                <!-- Sound Settings -->
+                <div class="mt-5 mb-4">
+                  <div class="flex flex-col gap-3 text-left">
+                    <label class="relative flex items-start">
+                      <div class="flex h-6 items-center">
+                        <input
+                          type="checkbox"
+                          name="is_join_sound"
+                          value="true"
+                          checked={@is_join_sound}
+                          phx-click="toggle_join_sound"
+                          class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-600 dark:border-gray-600 dark:focus:ring-offset-gray-800"
+                        />
+                      </div>
+                      <div class="ml-3 text-sm leading-6">
+                        <span class="font-medium text-gray-900 dark:text-gray-100">Play when I join voice</span>
+                      </div>
+                    </label>
+
+                    <label class="relative flex items-start">
+                      <div class="flex h-6 items-center">
+                        <input
+                          type="checkbox"
+                          name="is_leave_sound"
+                          value="true"
+                          checked={@is_leave_sound}
+                          phx-click="toggle_leave_sound"
+                          class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-600 dark:border-gray-600 dark:focus:ring-offset-gray-800"
+                        />
+                      </div>
+                      <div class="ml-3 text-sm leading-6">
+                        <span class="font-medium text-gray-900 dark:text-gray-100">Play when I leave voice</span>
+                      </div>
+                    </label>
                   </div>
                 </div>
 

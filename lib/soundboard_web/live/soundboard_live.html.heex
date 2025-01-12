@@ -189,7 +189,12 @@
   </div>
 
   <%= if @show_modal do %>
-    <.edit_modal {assigns} />
+    <.edit_modal 
+      current_sound={@current_sound}
+      current_user={@current_user}
+      tag_input={@tag_input}
+      tag_suggestions={@tag_suggestions}
+    />
     <%= if @show_delete_confirm do %>
       <.delete_modal {assigns} />
     <% end %>

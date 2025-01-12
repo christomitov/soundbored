@@ -2,6 +2,7 @@ defmodule SoundboardWeb.Live.FileHandler do
   alias Soundboard.{Repo, Sound}
   alias Phoenix.PubSub
   import Phoenix.LiveView.Upload
+  require Logger
 
   @upload_directory "priv/static/uploads"
 
@@ -58,44 +59,40 @@ defmodule SoundboardWeb.Live.FileHandler do
     end
   end
 
-  def save_upload(socket, custom_name, _consume_fn) do
-    case uploaded_entries(socket, :audio) do
-      {[_ | _] = _entries, []} ->
-        consumed =
-          consume_uploaded_entries(socket, :audio, fn meta, entry ->
-            filename = get_filename(custom_name, entry)
+  def save_upload(socket, custom_name, uploaded_entries_fn) do
+    if length(socket.assigns.uploads.audio.entries) > 0 do
+      results = uploaded_entries_fn.(socket, :audio, fn %{path: path}, entry ->
+        ext = Path.extname(entry.client_name)
+        filename = custom_name <> ext
+        dest = Path.join(@upload_directory, filename)
 
-            if File.exists?(Path.join(@upload_directory, filename)) do
-              {:postpone, :file_exists}
-            else
-              dest = Path.join(@upload_directory, filename)
-              File.cp!(meta.path, dest)
+        # Ensure the uploads directory exists
+        File.mkdir_p!(Path.dirname(dest))
 
-              # Create sound record with tags
-              {:ok, _sound} =
-                %Sound{}
-                |> Sound.changeset(%{
-                  filename: filename,
-                  user_id: socket.assigns.current_user.id,
-                  tags: socket.assigns.upload_tags
-                })
-                |> Repo.insert()
-
-              filename
-            end
-          end)
-
-        case consumed do
-          [filename] when is_binary(filename) ->
-            Phoenix.PubSub.broadcast(Soundboard.PubSub, "soundboard", {:files_updated})
-            {:ok, "File uploaded successfully!"}
-
-          _ ->
-            {:error, "Upload failed"}
+        case File.cp(path, dest) do
+          :ok ->
+            Logger.info("File saved successfully to #{dest}")
+            {:ok, filename}
+          {:error, reason} ->
+            Logger.error("Failed to save file: #{inspect(reason)}")
+            {:postpone, reason}
         end
+      end)
 
-      _ ->
-        {:error, "No file selected"}
+      # Fix the return value handling
+      case results do
+        [filename] ->
+          Logger.info("Upload successful: #{filename}")
+          {:ok, filename}
+        [{:ok, filename}] ->
+          Logger.info("Upload successful: #{filename}")
+          {:ok, filename}
+        _ ->
+          Logger.error("Upload failed: #{inspect(results)}")
+          {:error, "Error saving file"}
+      end
+    else
+      {:error, "Please select a file to upload"}
     end
   end
 

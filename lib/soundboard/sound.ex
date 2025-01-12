@@ -7,6 +7,8 @@ defmodule Soundboard.Sound do
   schema "sounds" do
     field :filename, :string
     field :description, :string
+    field :is_join_sound, :boolean, default: false
+    field :is_leave_sound, :boolean, default: false
     belongs_to :user, Soundboard.Accounts.User
 
     many_to_many :tags, Soundboard.Tag,
@@ -18,8 +20,17 @@ defmodule Soundboard.Sound do
 
   def changeset(sound, attrs) do
     sound
-    |> cast(attrs, [:filename, :description, :user_id])
-    |> validate_required([:filename])
+    |> cast(attrs, [:filename, :description, :user_id, :is_join_sound, :is_leave_sound])
+    |> validate_required([:filename, :user_id])
+    |> unique_constraint(:filename, name: :sounds_filename_index)
+    |> unique_constraint([:user_id, :is_join_sound],
+      name: :user_join_sound_index,
+      message: "You already have a join sound set"
+    )
+    |> unique_constraint([:user_id, :is_leave_sound],
+      name: :user_leave_sound_index,
+      message: "You already have a leave sound set"
+    )
     |> put_tags(attrs)
   end
 
@@ -62,5 +73,11 @@ defmodule Soundboard.Sound do
       select: {s.filename, u.username, s.inserted_at}
     )
     |> Repo.all()
+  end
+
+  def update_sound(sound, attrs) do
+    sound
+    |> changeset(attrs)
+    |> Repo.update()
   end
 end

@@ -45,12 +45,11 @@ defmodule SoundboardWeb.Components.Soundboard.EditModal do
                     type="text"
                     name="filename"
                     value={Path.rootname(@current_sound.filename)}
-                    class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm
-                           dark:bg-gray-700 dark:text-gray-100"
+                    class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm dark:bg-gray-700 dark:text-gray-100"
                   />
                 </div>
-                
-    <!-- Tags -->
+
+                <!-- Tags -->
                 <div class="text-left">
                   <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
                     Tags
@@ -73,8 +72,8 @@ defmodule SoundboardWeb.Components.Soundboard.EditModal do
                     <% end %>
                   </div>
                 </div>
-                
-    <!-- Tag Input -->
+
+                <!-- Tag Input -->
                 <div class="mt-2 relative">
                   <div>
                     <input
@@ -115,6 +114,41 @@ defmodule SoundboardWeb.Components.Soundboard.EditModal do
                   <% end %>
                 </div>
 
+                <!-- Sound Settings -->
+                <div class="mt-5 mb-4">
+                  <div class="flex flex-col gap-3 text-left">
+                    <label class="relative flex items-start">
+                      <div class="flex h-6 items-center">
+                        <input
+                          type="checkbox"
+                          name="is_join_sound"
+                          value="true"
+                          checked={@current_sound.is_join_sound}
+                          class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-600 dark:border-gray-600 dark:focus:ring-offset-gray-800"
+                        />
+                      </div>
+                      <div class="ml-3 text-sm leading-6">
+                        <span class="font-medium text-gray-900 dark:text-gray-100">Play when I join voice</span>
+                      </div>
+                    </label>
+
+                    <label class="relative flex items-start">
+                      <div class="flex h-6 items-center">
+                        <input
+                          type="checkbox"
+                          name="is_leave_sound"
+                          value="true"
+                          checked={@current_sound.is_leave_sound}
+                          class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-600 dark:border-gray-600 dark:focus:ring-offset-gray-800"
+                        />
+                      </div>
+                      <div class="ml-3 text-sm leading-6">
+                        <span class="font-medium text-gray-900 dark:text-gray-100">Play when I leave voice</span>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+
                 <div class="mt-5 sm:mt-6 flex justify-between gap-4">
                   <div>
                     <button
@@ -124,7 +158,7 @@ defmodule SoundboardWeb.Components.Soundboard.EditModal do
                       Save Changes
                     </button>
                   </div>
-                  <%= if @current_user && @current_sound.user_id == @current_user.id do %>
+                  <%= if @current_user && @current_sound && @current_sound.user_id && @current_sound.user_id == @current_user.id do %>
                     <button
                       type="button"
                       phx-click="show_delete_confirm"
