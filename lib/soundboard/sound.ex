@@ -3,6 +3,7 @@ defmodule Soundboard.Sound do
   import Ecto.Changeset
   import Ecto.Query
   alias Soundboard.Repo
+  alias Soundboard.Accounts.User
 
   schema "sounds" do
     field :filename, :string
@@ -65,12 +66,15 @@ defmodule Soundboard.Sound do
     end
   end
 
-  def get_recent_uploads(limit \\ 10) do
+  def get_recent_uploads(opts \\ []) do
+    limit = Keyword.get(opts, :limit, 10)
+
     from(s in Soundboard.Sound,
-      join: u in assoc(s, :user),
+      join: u in User,
+      on: s.user_id == u.id,
+      select: {s.filename, u.username, s.inserted_at},
       order_by: [desc: s.inserted_at],
-      limit: ^limit,
-      select: {s.filename, u.username, s.inserted_at}
+      limit: ^limit
     )
     |> Repo.all()
   end

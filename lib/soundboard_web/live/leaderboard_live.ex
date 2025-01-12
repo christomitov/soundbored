@@ -109,17 +109,29 @@ defmodule SoundboardWeb.LeaderboardLive do
     {start_date, end_date} = socket.assigns.selected_week
 
     socket
-    |> assign(:top_users, Stats.get_top_users(start_date, end_date))
-    |> assign(:top_sounds, Stats.get_top_sounds(start_date, end_date))
-    |> assign(:recent_plays, Stats.get_recent_plays(10))
+    |> assign(:top_users, Stats.get_top_users(start_date, end_date, limit: 5))
+    |> assign(:top_sounds, Stats.get_top_sounds(start_date, end_date, limit: 5))
     |> assign(
-      :favorites,
-      if(socket.assigns[:current_user],
-        do: Favorites.list_favorites(socket.assigns.current_user.id),
-        else: []
+      :recent_plays,
+      Stats.get_recent_plays(limit: 5)
+      |> Enum.sort_by(
+        fn {_, _, timestamp} -> DateTime.to_unix(DateTime.from_naive!(timestamp, "Etc/UTC")) end,
+        :desc
       )
     )
+    |> assign(
+      :recent_uploads,
+      Sound.get_recent_uploads(limit: 5)
+      |> Enum.sort_by(
+        fn {_, _, timestamp} -> DateTime.to_unix(DateTime.from_naive!(timestamp, "Etc/UTC")) end,
+        :desc
+      )
+    )
+    |> assign(:favorites, get_favorites(socket.assigns.current_user))
   end
+
+  defp get_favorites(nil), do: []
+  defp get_favorites(user), do: Favorites.list_favorites(user.id)
 
   defp format_timestamp(timestamp) do
     est_time =

@@ -1,6 +1,6 @@
 defmodule Soundboard.Stats do
   import Ecto.Query
-  alias Soundboard.{Repo, Stats.Play, Sound}
+  alias Soundboard.{Repo, Stats.Play, Sound, Accounts.User}
   alias Phoenix.PubSub
 
   @pubsub_topic "soundboard"
@@ -29,19 +29,23 @@ defmodule Soundboard.Stats do
     }
   end
 
-  def get_top_users(start_date, end_date) do
+  def get_top_users(start_date, end_date, opts \\ []) do
+    limit = Keyword.get(opts, :limit, 10)
+
     from(p in Play,
       join: u in assoc(p, :user),
       where: fragment("DATE(?) BETWEEN ? AND ?", p.inserted_at, ^start_date, ^end_date),
       group_by: u.username,
       select: {u.username, count(p.id)},
       order_by: [desc: count(p.id)],
-      limit: 10
+      limit: ^limit
     )
     |> Repo.all()
   end
 
-  def get_top_sounds(start_date, end_date) do
+  def get_top_sounds(start_date, end_date, opts \\ []) do
+    limit = Keyword.get(opts, :limit, 10)
+
     from(p in Play,
       join: s in Sound,
       on: s.filename == p.sound_name,
@@ -49,30 +53,20 @@ defmodule Soundboard.Stats do
       group_by: p.sound_name,
       select: {p.sound_name, count(p.id)},
       order_by: [desc: count(p.id)],
-      limit: 10
+      limit: ^limit
     )
     |> Repo.all()
   end
 
-  def get_recent_plays(start_date, end_date) do
-    from(p in Play,
-      join: u in assoc(p, :user),
-      join: s in Sound,
-      on: s.filename == p.sound_name,
-      where: fragment("DATE(?) BETWEEN ? AND ?", p.inserted_at, ^start_date, ^end_date),
-      select: {p.sound_name, u.username, p.inserted_at},
-      order_by: [desc: p.inserted_at],
-      limit: 10
-    )
-    |> Repo.all()
-  end
+  def get_recent_plays(opts \\ []) do
+    limit = Keyword.get(opts, :limit, 10)
 
-  def get_recent_plays(limit) do
     from(p in Play,
-      join: u in assoc(p, :user),
       join: s in Sound,
-      on: s.filename == p.sound_name,
-      select: {p.sound_name, u.username, p.inserted_at},
+      on: p.sound_id == s.id,
+      join: u in User,
+      on: p.user_id == u.id,
+      select: {s.filename, u.username, p.inserted_at},
       order_by: [desc: p.inserted_at],
       limit: ^limit
     )
