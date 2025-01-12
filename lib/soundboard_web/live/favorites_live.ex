@@ -40,10 +40,6 @@ defmodule SoundboardWeb.FavoritesLive do
         do: socket.assigns.current_user.username,
         else: "Anonymous"
 
-    if socket.assigns.current_user do
-      Soundboard.Stats.track_play(filename, socket.assigns.current_user.id)
-    end
-
     SoundboardWeb.AudioPlayer.play_sound(filename, username)
     {:noreply, socket}
   end
