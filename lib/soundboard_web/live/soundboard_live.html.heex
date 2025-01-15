@@ -113,21 +113,31 @@
           </button>
 
           <%!-- Content container with higher z-index --%>
-          <div class="relative z-10 p-4 flex flex-col min-h-[120px] pointer-events-none">
-            <%!-- Title Section --%>
-            <div class="text-gray-800 dark:text-gray-200 font-medium break-all">
+          <div class="relative z-10 p-4 flex flex-col min-h-[120px]">
+            <div class="text-gray-800 dark:text-gray-200 font-medium break-all pointer-events-none">
               {Path.rootname(sound.filename)}
             </div>
 
             <%!-- Bottom Section with Tags and Icons --%>
             <div class="mt-auto pt-2 flex justify-between items-center">
               <%!-- Tags on the left --%>
-              <div class="flex flex-wrap gap-1 items-center">
+              <div class="flex flex-wrap gap-1 items-center pointer-events-auto z-20">
                 <%= if sound.tags != [] do %>
                   <%= for tag <- sound.tags do %>
-                    <span class="inline-flex items-center rounded-full bg-blue-50 dark:bg-blue-900 px-2 py-1 text-xs font-medium text-blue-600 dark:text-blue-300">
+                    <button
+                      phx-click="toggle_tag_filter"
+                      phx-value-tag={tag.name}
+                      class={[
+                        "inline-flex items-center rounded-full px-2 py-1 text-xs font-medium transition-colors",
+                        if(tag_selected?(tag, @selected_tags),
+                          do: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
+                          else:
+                            "bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-900/50 dark:text-blue-300 dark:hover:bg-blue-900"
+                        )
+                      ]}
+                    >
                       {tag.name}
-                    </span>
+                    </button>
                   <% end %>
                 <% end %>
               </div>
