@@ -108,12 +108,12 @@
             class="absolute inset-0 w-full h-full cursor-pointer z-0
                    hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg
                    focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2
-                   dark:focus:ring-offset-gray-800 pointer-events-auto"
+                   dark:focus:ring-offset-gray-800"
           >
           </button>
 
           <%!-- Content container with higher z-index --%>
-          <div class="relative z-10 p-4 flex flex-col min-h-[120px]">
+          <div class="relative z-10 p-4 flex flex-col min-h-[120px] pointer-events-none">
             <div class="text-gray-800 dark:text-gray-200 font-medium break-all pointer-events-none">
               {Path.rootname(sound.filename)}
             </div>

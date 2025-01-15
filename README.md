@@ -4,19 +4,6 @@ Soundbored is an unlimited, no-cost, self-hosted soundboard for Discord. It allo
 
 <img width="1470" alt="Screenshot 2025-01-08 at 1 12 08 PM" src="https://github.com/user-attachments/assets/6e2cf7ff-c19f-4405-bde0-b3f0daa4d84c" />
 
-## Changelog
-
-### v1.1.0 (2025-01-12)
-
-#### ✨ New Features
-- Implemented join/leave sound notifications
-- Added Discord avatar support for member profiles
-- Added week selector functionality to statistics page
-
-#### 🐛 Bug Fixes
-- Fixed mobile menu navigation issues on statistics page
-- Fixed statistics page not updating in realtime
-- Fixed styling issues on stats page
 
 ## Prerequisites
 
@@ -116,3 +103,27 @@ Replace `your.domain.com` with your actual domain name. Caddy will automatically
 ## Usage
 
 After inviting the bot to your server, join a voice channel and type `!join` to have the bot join the voice channel. Type `!leave` to have the bot leave. You can upload sounds to Soundbored and trigger them there and they will play in the voice channel.
+
+
+## Changelog
+
+### v1.1.1 (2025-01-15)
+
+#### ✨ New Features
+- Added random sound button
+- Allow ability to click tags inside sounds for filtering
+
+#### 🐛 Bug Fixes
+- Fixed bug where if you uploaded a sound and edited its name before uploading a file it would crash
+
+### v1.1.0 (2025-01-12)
+
+#### ✨ New Features
+- Implemented join/leave sound notifications
+- Added Discord avatar support for member profiles
+- Added week selector functionality to statistics page
+
+#### 🐛 Bug Fixes
+- Fixed mobile menu navigation issues on statistics page
+- Fixed statistics page not updating in realtime
+- Fixed styling issues on stats page
