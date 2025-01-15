@@ -129,7 +129,7 @@ defmodule SoundboardWeb.Components.Layouts.Navbar do
           </.mobile_nav_link>
         </div>
         <div class="pt-4 pb-3 border-t border-gray-200 dark:border-gray-700">
-          <div class="space-y-1 px-2">
+          <div class="space-y-2 px-4">
             <%= @presences
                 |> Enum.flat_map(fn {_id, presence} ->
                   presence.metas
@@ -137,22 +137,22 @@ defmodule SoundboardWeb.Components.Layouts.Navbar do
                 end)
                 |> Enum.uniq_by(& &1.username)
                 |> Enum.map(fn user -> %>
-              <div class="flex items-center gap-1 py-1">
+              <div class="flex items-center gap-2 py-2">
                 <span
                   id={"mobile-user-#{user.username}"}
                   data-username={user.username}
                   class={[
-                    "px-2 py-1 rounded-full text-xs select-none transition-all duration-150 flex items-center gap-1",
-                    "cursor-default",
+                    "px-3 py-2 rounded-full text-sm select-none transition-all duration-150 flex items-center gap-2",
+                    "cursor-default leading-relaxed tracking-wide",
                     SoundboardWeb.Live.PresenceHandler.get_user_color(user.username)
                   ]}
                 >
                   <img
                     src={user.avatar}
-                    class="w-4 h-4 rounded-full"
+                    class="w-5 h-5 rounded-full"
                     alt={"#{user.username}'s avatar"}
                   />
-                  {user.username}
+                  <span class="truncate">{user.username}</span>
                 </span>
               </div>
             <% end) %>
@@ -186,7 +186,7 @@ defmodule SoundboardWeb.Components.Layouts.Navbar do
     <.link
       navigate={@navigate}
       class={[
-        "block pl-3 pr-4 py-2 border-l-4 text-base font-medium",
+        "block pl-4 pr-4 py-3 border-l-4 text-base font-medium leading-relaxed tracking-wide",
         if(@active,
           do: "bg-blue-50 dark:bg-blue-900/50 border-blue-500 text-blue-700 dark:text-blue-100",
           else:
