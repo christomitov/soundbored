@@ -67,8 +67,13 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
                       {entry.client_name} ({format_bytes(entry.client_size)})
                     </div>
                   <% end %>
+                  <%= if @upload_error do %>
+                    <div class="mt-2 text-sm text-red-600 dark:text-red-400">
+                      <%= @upload_error %>
+                    </div>
+                  <% end %>
                 </div>
-                
+
     <!-- Name -->
                 <div class="mb-4">
                   <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 text-left">
@@ -84,7 +89,7 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
                            dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400"
                   />
                 </div>
-                
+
     <!-- Tags -->
                 <div class="text-left">
                   <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -107,7 +112,7 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
                       </span>
                     <% end %>
                   </div>
-                  
+
     <!-- Tag Input -->
                   <div class="mt-2 relative">
                     <div>
@@ -149,7 +154,7 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
                     <% end %>
                   </div>
                 </div>
-                
+
     <!-- Sound Settings -->
                 <div class="mt-5 mb-4">
                   <div class="flex flex-col gap-3 text-left">
@@ -195,7 +200,7 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
                   <button
                     type="submit"
                     class="inline-flex w-full justify-center rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 dark:focus-visible:outline-offset-gray-800"
-                    disabled={@uploads.audio.entries == []}
+                    disabled={@uploads.audio.entries == [] || @upload_error}
                   >
                     Upload Sound
                   </button>

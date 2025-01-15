@@ -68,6 +68,7 @@ defmodule SoundboardWeb.SoundboardLive do
     |> assign(:selected_tags, [])
     |> assign(:is_join_sound, false)
     |> assign(:is_leave_sound, false)
+    |> assign(:upload_error, nil)
     |> allow_upload(:audio,
       accept: ~w(audio/mpeg audio/wav audio/ogg audio/x-m4a),
       max_entries: 1,
@@ -175,35 +176,19 @@ defmodule SoundboardWeb.SoundboardLive do
 
   @impl true
   def handle_event("validate_upload", params, socket) do
-    Logger.info("Validating upload with params: #{inspect(params)}")
+    case SoundboardWeb.Live.UploadHandler.validate_upload(socket, params) do
+      {:ok, _socket} ->
+        {:noreply,
+         socket
+         |> assign(:upload_error, nil)
+         |> assign(:upload_name, params["name"] || "")}
 
-    # Validate the uploaded file
-    changeset =
-      case SoundboardWeb.Live.UploadHandler.validate_upload(socket) do
-        {:ok, _socket} ->
-          # File is valid
-          Ecto.Changeset.change(%Soundboard.Sound{})
-
-        {:error, _socket} ->
-          # Create an error changeset
-          data = %Soundboard.Sound{}
-          types = %{file: :string}
-
-          {data, types}
-          |> Ecto.Changeset.cast(%{}, [:file])
-          |> Ecto.Changeset.add_error(:file, "Please select a file")
-      end
-
-    # Validate the form data
-    changeset =
-      changeset
-      |> Ecto.Changeset.cast(params, [:is_join_sound, :is_leave_sound])
-      |> validate_sound_settings(params)
-
-    {:noreply,
-     socket
-     |> assign(:changeset, changeset)
-     |> assign(:upload_name, params["name"] || "")}
+      {:error, changeset} ->
+        {:noreply,
+         socket
+         |> assign(:upload_error, get_error_message(changeset))
+         |> assign(:upload_name, params["name"] || "")}
+    end
   end
 
   @impl true
@@ -636,11 +621,16 @@ defmodule SoundboardWeb.SoundboardLive do
     socket
   end
 
-  defp validate_sound_settings(changeset, _params) do
-    changeset
-  end
-
   defp handle_uploaded_entries(socket, name, func) do
     Phoenix.LiveView.consume_uploaded_entries(socket, name, func)
+  end
+
+  defp get_error_message(changeset) do
+    Enum.map(changeset.errors, fn
+      {:filename, {"has already been taken", _}} -> "A sound with that name already exists"
+      {:file, {"Please select a file", _}} -> "Please select a file"
+      {_key, {msg, _}} -> msg
+    end)
+    |> Enum.join(", ")
   end
 end
