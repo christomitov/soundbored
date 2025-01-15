@@ -558,6 +558,27 @@ defmodule SoundboardWeb.SoundboardLive do
   end
 
   @impl true
+  def handle_event("play_random", _params, socket) do
+    case get_random_sound(socket.assigns.uploaded_files) do
+      nil ->
+        {:noreply, socket}
+
+      sound ->
+        username =
+          if socket.assigns.current_user,
+            do: socket.assigns.current_user.username,
+            else: "Anonymous"
+
+        # Broadcast to Discord if connected
+        if connected?(socket) do
+          SoundboardWeb.AudioPlayer.play_sound(sound.filename, username)
+        end
+
+        {:noreply, socket}
+    end
+  end
+
+  @impl true
   def handle_info({:error, message}, socket) do
     {:noreply, put_flash(socket, :error, message)}
   end
@@ -632,5 +653,11 @@ defmodule SoundboardWeb.SoundboardLive do
       {_key, {msg, _}} -> msg
     end)
     |> Enum.join(", ")
+  end
+
+  defp get_random_sound([]), do: nil
+
+  defp get_random_sound(sounds) do
+    Enum.random(sounds)
   end
 end

@@ -69,11 +69,11 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
                   <% end %>
                   <%= if @upload_error do %>
                     <div class="mt-2 text-sm text-red-600 dark:text-red-400">
-                      <%= @upload_error %>
+                      {@upload_error}
                     </div>
                   <% end %>
                 </div>
-
+                
     <!-- Name -->
                 <div class="mb-4">
                   <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 text-left">
@@ -89,7 +89,7 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
                            dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400"
                   />
                 </div>
-
+                
     <!-- Tags -->
                 <div class="text-left">
                   <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -112,7 +112,7 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
                       </span>
                     <% end %>
                   </div>
-
+                  
     <!-- Tag Input -->
                   <div class="mt-2 relative">
                     <div>
@@ -154,7 +154,7 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
                     <% end %>
                   </div>
                 </div>
-
+                
     <!-- Sound Settings -->
                 <div class="mt-5 mb-4">
                   <div class="flex flex-col gap-3 text-left">

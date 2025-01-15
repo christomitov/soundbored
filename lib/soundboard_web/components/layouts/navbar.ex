@@ -80,7 +80,7 @@ defmodule SoundboardWeb.Components.Layouts.Navbar do
               <span class="sr-only">Open main menu</span>
               <!-- Menu open: "hidden", Menu closed: "block" -->
               <svg
-                class={["h-6 w-6", !@show_mobile_menu && "block" || "hidden"]}
+                class={["h-6 w-6", (!@show_mobile_menu && "block") || "hidden"]}
                 xmlns="http://www.w3.org/2000/svg"
                 fill="none"
                 viewBox="0 0 24 24"
@@ -96,7 +96,7 @@ defmodule SoundboardWeb.Components.Layouts.Navbar do
               </svg>
               <!-- Menu open: "block", Menu closed: "hidden" -->
               <svg
-                class={["h-6 w-6", @show_mobile_menu && "block" || "hidden"]}
+                class={["h-6 w-6", (@show_mobile_menu && "block") || "hidden"]}
                 xmlns="http://www.w3.org/2000/svg"
                 fill="none"
                 viewBox="0 0 24 24"
@@ -114,9 +114,9 @@ defmodule SoundboardWeb.Components.Layouts.Navbar do
           </div>
         </div>
       </div>
-
-      <!-- Mobile menu -->
-      <div class={["sm:hidden", !@show_mobile_menu && "hidden" || "block"]} id="mobile-menu">
+      
+    <!-- Mobile menu -->
+      <div class={["sm:hidden", (!@show_mobile_menu && "hidden") || "block"]} id="mobile-menu">
         <div class="pt-2 pb-3 space-y-1">
           <.mobile_nav_link navigate="/" active={current_page?(@current_path, "/")}>
             Sounds

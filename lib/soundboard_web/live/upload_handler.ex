@@ -105,7 +105,9 @@ defmodule SoundboardWeb.Live.UploadHandler do
 
   defp validate_name_unique(changeset) do
     case get_field(changeset, :filename) do
-      nil -> changeset
+      nil ->
+        changeset
+
       filename ->
         case Repo.get_by(Sound, filename: filename) do
           nil -> changeset
