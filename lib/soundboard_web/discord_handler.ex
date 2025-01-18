@@ -86,7 +86,7 @@ defmodule SoundboardWeb.DiscordHandler do
         nil ->
           true
 
-        {prev_channel_id, prev_session_id} ->
+        {prev_channel_id, _prev_session_id} ->
           cond do
             # Different channel from nil = true join
             prev_channel_id == nil and payload.channel_id != nil -> true
