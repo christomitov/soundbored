@@ -1,14 +1,19 @@
 # Soundbored
-
 Soundbored is an unlimited, no-cost, self-hosted soundboard for Discord. It allows you to play sounds in a voice channel.
 
-[Prerequisites](#prerequisites)
-[Setup](#setup)
-[Deployment](#deployment)
-[Usage](#usage)
-[Changelog](#changelog)
+<img width="1468" alt="Screenshot 2025-01-18 at 1 26 07 PM" src="https://github.com/user-attachments/assets/4a504100-5ef9-47bc-b406-35b67837e116" />
 
-<img width="1470" alt="Screenshot 2025-01-08 at 1 12 08 PM" src="https://github.com/user-attachments/assets/6e2cf7ff-c19f-4405-bde0-b3f0daa4d84c" />
+## Table Of Contents
+
+[Prerequisites](#prerequisites)
+
+[Setup](#setup)
+
+[Deployment](#deployment)
+
+[Usage](#usage)
+
+[Changelog](#changelog)
 
 
 
