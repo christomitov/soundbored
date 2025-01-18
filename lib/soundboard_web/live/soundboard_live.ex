@@ -746,8 +746,13 @@ defmodule SoundboardWeb.SoundboardLive do
 
   @impl true
   def handle_info({:files_updated}, socket) do
-    # Reload the uploaded files list
-    uploaded_files = Soundboard.Sound.with_tags() |> Soundboard.Repo.all()
+    # Reload the uploaded files list with preloaded associations
+    uploaded_files =
+      Sound
+      |> Repo.all()
+      # Make sure we preload both tags and user
+      |> Repo.preload([:tags, :user])
+
     {:noreply, assign(socket, :uploaded_files, uploaded_files)}
   end
 
