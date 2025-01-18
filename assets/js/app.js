@@ -27,9 +27,45 @@ import LocalPlayer from "./hooks/local_player"
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 
 // Add this to your hooks
-let Hooks = {
-  KubernetesPopup,
-  LocalPlayer: LocalPlayer
+let Hooks = {}
+Hooks.LocalPlayer = {
+  mounted() {
+    this.audio = null;
+    
+    this.el.addEventListener("click", e => {
+      e.preventDefault()
+      e.stopPropagation()
+      
+      if (this.audio && !this.audio.paused) {
+        this.audio.pause()
+        this.audio.currentTime = 0
+        this.el.querySelector('.play-icon').classList.remove('hidden')
+        this.el.querySelector('.stop-icon').classList.add('hidden')
+        return
+      }
+      
+      const filename = this.el.dataset.filename
+      const sourceType = this.el.dataset.sourceType
+      const url = this.el.dataset.url
+      
+      this.audio = new Audio()
+      
+      if (sourceType === "url") {
+        this.audio.src = url
+      } else {
+        this.audio.src = `/uploads/${filename}`
+      }
+      
+      this.audio.play()
+      this.el.querySelector('.play-icon').classList.add('hidden')
+      this.el.querySelector('.stop-icon').classList.remove('hidden')
+      
+      this.audio.onended = () => {
+        this.el.querySelector('.play-icon').classList.remove('hidden')
+        this.el.querySelector('.stop-icon').classList.add('hidden')
+      }
+    })
+  }
 }
 
 let liveSocket = new LiveSocket("/live", Socket, {
