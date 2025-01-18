@@ -116,10 +116,12 @@ defmodule SoundboardWeb.AudioPlayer do
     case Soundboard.Repo.get_by(Sound, filename: sound_name) do
       %{source_type: "url", url: url} when not is_nil(url) ->
         {:ok, url}
+
       %{source_type: "local", filename: filename} when not is_nil(filename) ->
         priv_dir = :code.priv_dir(:soundboard)
         path = Path.join([priv_dir, "static/uploads", filename])
         if File.exists?(path), do: {:ok, path}, else: {:error, "Sound file not found"}
+
       _ ->
         {:error, "Invalid sound configuration"}
     end

@@ -114,15 +114,16 @@ After inviting the bot to your server, join a voice channel and type `!join` to 
 
 ## Changelog
 
-### v1.1.1 (2025-01-15)
+### v1.1.1 (2025-01-18)
 
 #### ✨ New Features
-- Added random sound button
-- Added ability to add and trigger sounds from a URL
-- Allow ability to click tags inside sound Cards for filtering
+- Added random sound button.
+- Added ability to add and trigger sounds from a URL.
+- Allow ability to click tags inside sound Cards for filtering.
+- Show what user uploaded a sound in the sound Card.
 
 #### 🐛 Bug Fixes
-- Fixed bug where if you uploaded a sound and edited its name before uploading a file it would crash
+- Fixed bug where if you uploaded a sound and edited its name before uploading a file it would crash.
 - Fixed bug where changing an uploaded sound name created a new sound in entry and didn't update the old.
 
 ### v1.1.0 (2025-01-12)

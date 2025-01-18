@@ -7,8 +7,10 @@ defmodule Soundboard.Sound do
 
   schema "sounds" do
     field :filename, :string
-    field :url, :string  # New field for remote sounds
-    field :source_type, :string, default: "local"  # "local" or "url"
+    # New field for remote sounds
+    field :url, :string
+    # "local" or "url"
+    field :source_type, :string, default: "local"
     field :description, :string
     field :is_join_sound, :boolean, default: false
     field :is_leave_sound, :boolean, default: false
@@ -23,7 +25,15 @@ defmodule Soundboard.Sound do
 
   def changeset(sound, attrs) do
     sound
-    |> cast(attrs, [:filename, :url, :source_type, :description, :user_id, :is_join_sound, :is_leave_sound])
+    |> cast(attrs, [
+      :filename,
+      :url,
+      :source_type,
+      :description,
+      :user_id,
+      :is_join_sound,
+      :is_leave_sound
+    ])
     |> validate_required([:user_id])
     |> validate_source_type()
     |> unique_constraint(:filename, name: :sounds_filename_index)

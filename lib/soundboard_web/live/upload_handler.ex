@@ -63,6 +63,7 @@ defmodule SoundboardWeb.Live.UploadHandler do
     case source_type do
       "url" ->
         handle_url_upload(socket, params, user_id)
+
       "local" ->
         handle_local_upload(socket, params, user_id, consume_uploaded_entries_fn)
     end
@@ -100,7 +101,9 @@ defmodule SoundboardWeb.Live.UploadHandler do
           Phoenix.PubSub.broadcast(Soundboard.PubSub, "uploads", {:sound_uploaded})
           Phoenix.PubSub.broadcast(Soundboard.PubSub, "stats", {:stats_updated})
           sound
-        {:error, changeset} -> Repo.rollback(changeset)
+
+        {:error, changeset} ->
+          Repo.rollback(changeset)
       end
     end)
     |> case do
@@ -126,6 +129,7 @@ defmodule SoundboardWeb.Live.UploadHandler do
             Phoenix.PubSub.broadcast(Soundboard.PubSub, "uploads", {:sound_uploaded})
             Phoenix.PubSub.broadcast(Soundboard.PubSub, "stats", {:stats_updated})
             :ok
+
           {:error, changeset} ->
             {:error, get_error_message(changeset), socket}
         end

@@ -36,25 +36,25 @@ defmodule SoundboardWeb.Components.Soundboard.EditModal do
               </h3>
 
               <form phx-submit="save_sound" phx-change="validate_sound" id="edit-form" class="mt-4">
-                <input type="hidden" name="id" value={@current_sound.id} />
+                <input type="hidden" name="sound_id" value={@current_sound.id} />
                 <input type="hidden" name="source_type" value={@current_sound.source_type} />
                 <input type="hidden" name="url" value={@current_sound.url} />
-
-                <!-- Display current source type (non-editable) -->
+                
+    <!-- Display current source type (non-editable) -->
                 <div class="mb-4 text-left">
                   <label class="block text-sm font-medium text-gray-500 dark:text-gray-400">
                     Source
                   </label>
                   <div class="mt-1 text-sm text-gray-700 dark:text-gray-300">
                     <%= if @current_sound.source_type == "url" do %>
-                      URL: <%= @current_sound.url %>
+                      URL: {@current_sound.url}
                     <% else %>
                       Local File
                     <% end %>
                   </div>
                 </div>
-
-                <!-- Name Input -->
+                
+    <!-- Name Input -->
                 <div class="mb-4">
                   <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 text-left">
                     Name
@@ -62,7 +62,13 @@ defmodule SoundboardWeb.Components.Soundboard.EditModal do
                   <input
                     type="text"
                     name="filename"
-                    value={String.replace(@current_sound.filename, Path.extname(@current_sound.filename), "")}
+                    value={
+                      String.replace(
+                        @current_sound.filename,
+                        Path.extname(@current_sound.filename),
+                        ""
+                      )
+                    }
                     required
                     placeholder="Sound name"
                     class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm
@@ -70,8 +76,8 @@ defmodule SoundboardWeb.Components.Soundboard.EditModal do
                            dark:bg-gray-700 dark:text-gray-100"
                   />
                 </div>
-
-                <!-- Tags -->
+                
+    <!-- Tags -->
                 <div class="text-left">
                   <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
                     Tags
@@ -94,8 +100,8 @@ defmodule SoundboardWeb.Components.Soundboard.EditModal do
                     <% end %>
                   </div>
                 </div>
-
-                <!-- Tag Input -->
+                
+    <!-- Tag Input -->
                 <div class="mt-2 relative">
                   <div>
                     <input
@@ -135,8 +141,8 @@ defmodule SoundboardWeb.Components.Soundboard.EditModal do
                     </div>
                   <% end %>
                 </div>
-
-                <!-- Sound Settings -->
+                
+    <!-- Sound Settings -->
                 <div class="mt-5 mb-4">
                   <div class="flex flex-col gap-3 text-left">
                     <label class="relative flex items-start">
@@ -186,13 +192,15 @@ defmodule SoundboardWeb.Components.Soundboard.EditModal do
                   >
                     Save Changes
                   </button>
-                  <button
-                    type="button"
-                    phx-click="show_delete_confirm"
-                    class="flex-1 rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500"
-                  >
-                    Delete Sound
-                  </button>
+                  <%= if @current_sound.user_id == @current_user.id do %>
+                    <button
+                      type="button"
+                      phx-click="show_delete_confirm"
+                      class="flex-1 rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500"
+                    >
+                      Delete Sound
+                    </button>
+                  <% end %>
                 </div>
               </form>
             </div>
