@@ -35,8 +35,26 @@ defmodule SoundboardWeb.Components.Soundboard.EditModal do
                 Edit Sound
               </h3>
 
-              <form phx-submit="save_sound" class="mt-4">
-                <!-- Filename -->
+              <form phx-submit="save_sound" phx-change="validate_sound" id="edit-form" class="mt-4">
+                <input type="hidden" name="id" value={@current_sound.id} />
+                <input type="hidden" name="source_type" value={@current_sound.source_type} />
+                <input type="hidden" name="url" value={@current_sound.url} />
+
+                <!-- Display current source type (non-editable) -->
+                <div class="mb-4 text-left">
+                  <label class="block text-sm font-medium text-gray-500 dark:text-gray-400">
+                    Source
+                  </label>
+                  <div class="mt-1 text-sm text-gray-700 dark:text-gray-300">
+                    <%= if @current_sound.source_type == "url" do %>
+                      URL: <%= @current_sound.url %>
+                    <% else %>
+                      Local File
+                    <% end %>
+                  </div>
+                </div>
+
+                <!-- Name Input -->
                 <div class="mb-4">
                   <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 text-left">
                     Name
@@ -44,12 +62,16 @@ defmodule SoundboardWeb.Components.Soundboard.EditModal do
                   <input
                     type="text"
                     name="filename"
-                    value={Path.rootname(@current_sound.filename)}
-                    class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm dark:bg-gray-700 dark:text-gray-100"
+                    value={String.replace(@current_sound.filename, Path.extname(@current_sound.filename), "")}
+                    required
+                    placeholder="Sound name"
+                    class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm
+                           focus:border-blue-500 focus:ring-blue-500 sm:text-sm
+                           dark:bg-gray-700 dark:text-gray-100"
                   />
                 </div>
-                
-    <!-- Tags -->
+
+                <!-- Tags -->
                 <div class="text-left">
                   <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
                     Tags
@@ -72,8 +94,8 @@ defmodule SoundboardWeb.Components.Soundboard.EditModal do
                     <% end %>
                   </div>
                 </div>
-                
-    <!-- Tag Input -->
+
+                <!-- Tag Input -->
                 <div class="mt-2 relative">
                   <div>
                     <input
@@ -113,8 +135,8 @@ defmodule SoundboardWeb.Components.Soundboard.EditModal do
                     </div>
                   <% end %>
                 </div>
-                
-    <!-- Sound Settings -->
+
+                <!-- Sound Settings -->
                 <div class="mt-5 mb-4">
                   <div class="flex flex-col gap-3 text-left">
                     <label class="relative flex items-start">
@@ -124,6 +146,8 @@ defmodule SoundboardWeb.Components.Soundboard.EditModal do
                           name="is_join_sound"
                           value="true"
                           checked={@current_sound.is_join_sound}
+                          phx-click="toggle_edit_join_sound"
+                          phx-change={nil}
                           class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-600 dark:border-gray-600 dark:focus:ring-offset-gray-800"
                         />
                       </div>
@@ -141,6 +165,8 @@ defmodule SoundboardWeb.Components.Soundboard.EditModal do
                           name="is_leave_sound"
                           value="true"
                           checked={@current_sound.is_leave_sound}
+                          phx-click="toggle_edit_leave_sound"
+                          phx-change={nil}
                           class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-600 dark:border-gray-600 dark:focus:ring-offset-gray-800"
                         />
                       </div>
@@ -153,24 +179,20 @@ defmodule SoundboardWeb.Components.Soundboard.EditModal do
                   </div>
                 </div>
 
-                <div class="mt-5 sm:mt-6 flex justify-between gap-4">
-                  <div>
-                    <button
-                      type="submit"
-                      class="inline-flex justify-center rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-500"
-                    >
-                      Save Changes
-                    </button>
-                  </div>
-                  <%= if @current_user && @current_sound && @current_sound.user_id && @current_sound.user_id == @current_user.id do %>
-                    <button
-                      type="button"
-                      phx-click="show_delete_confirm"
-                      class="inline-flex justify-center rounded-md border border-transparent bg-red-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-red-700"
-                    >
-                      Delete Sound
-                    </button>
-                  <% end %>
+                <div class="mt-5 sm:mt-6 flex gap-3">
+                  <button
+                    type="submit"
+                    class="flex-1 rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-500"
+                  >
+                    Save Changes
+                  </button>
+                  <button
+                    type="button"
+                    phx-click="show_delete_confirm"
+                    class="flex-1 rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500"
+                  >
+                    Delete Sound
+                  </button>
                 </div>
               </form>
             </div>

@@ -59,7 +59,9 @@ defmodule SoundboardWeb.SoundboardLive do
     |> assign(:tag_input, "")
     |> assign(:tag_suggestions, [])
     |> assign(:show_upload_modal, false)
+    |> assign(:source_type, "local")
     |> assign(:upload_name, "")
+    |> assign(:url, "")
     |> assign(:upload_tags, [])
     |> assign(:upload_tag_input, "")
     |> assign(:upload_tag_suggestions, [])
@@ -148,47 +150,64 @@ defmodule SoundboardWeb.SoundboardLive do
 
   @impl true
   def handle_event("save_upload", params, socket) do
-    Logger.info("Saving upload with params: #{inspect(params)}")
+    Logger.info("SAVE UPLOAD TRIGGERED with params: #{inspect(params)}")
+    Logger.info("Current socket assigns: #{inspect(socket.assigns)}")
 
-    params =
-      Map.merge(params, %{
+    params = params
+      |> Map.merge(%{
         "is_join_sound" => socket.assigns.is_join_sound,
-        "is_leave_sound" => socket.assigns.is_leave_sound
+        "is_leave_sound" => socket.assigns.is_leave_sound,
+        "source_type" => socket.assigns.source_type,
+        "name" => params["name"],
+        "url" => params["url"]
       })
+
+    Logger.info("Modified params: #{inspect(params)}")
 
     case handle_upload(socket, params, &handle_uploaded_entries/3) do
       :ok ->
+        Logger.info("Upload successful!")
         {:noreply,
          socket
          |> assign(:show_upload_modal, false)
          |> assign(:upload_tags, [])
          |> assign(:upload_name, "")
+         |> assign(:url, "")
          |> assign(:upload_tag_input, "")
          |> assign(:upload_tag_suggestions, [])
          |> assign(:is_join_sound, false)
          |> assign(:is_leave_sound, false)
          |> load_sound_files()
-         |> put_flash(:info, "File uploaded successfully")}
+         |> put_flash(:info, "Sound added successfully")}
 
-      {:error, _message, socket} ->
-        {:noreply, socket}
+      {:error, message, socket} ->
+        Logger.error("Failed to save upload: #{inspect(message)}")
+        {:noreply,
+         socket
+         |> put_flash(:error, message)}
     end
   end
 
   @impl true
   def handle_event("validate_upload", params, socket) do
+    Logger.info("Validating upload with params: #{inspect(params)}")
+
     case SoundboardWeb.Live.UploadHandler.validate_upload(socket, params) do
       {:ok, _socket} ->
         {:noreply,
          socket
          |> assign(:upload_error, nil)
-         |> assign(:upload_name, params["name"] || "")}
+         |> assign(:upload_name, params["name"] || "")
+         |> assign(:url, params["url"] || "")
+         |> assign(:source_type, params["source_type"] || socket.assigns.source_type)}
 
       {:error, changeset} ->
         {:noreply,
          socket
          |> assign(:upload_error, get_error_message(changeset))
-         |> assign(:upload_name, params["name"] || "")}
+         |> assign(:upload_name, params["name"] || "")
+         |> assign(:url, params["url"] || "")
+         |> assign(:source_type, params["source_type"] || socket.assigns.source_type)}
     end
   end
 
@@ -197,6 +216,7 @@ defmodule SoundboardWeb.SoundboardLive do
     {:noreply,
      socket
      |> assign(:show_upload_modal, true)
+     |> assign(:source_type, "local")
      |> assign(:upload_tags, [])
      |> assign(:upload_name, "")
      |> assign(:upload_tag_input, "")
@@ -374,76 +394,87 @@ defmodule SoundboardWeb.SoundboardLive do
   def handle_event("save_sound", params, socket) do
     sound = socket.assigns.current_sound
     user_id = socket.assigns.current_user.id
-    old_filename = sound.filename
-    new_filename = params["filename"] <> Path.extname(sound.filename)
+    source_type = params["source_type"] || sound.source_type
 
-    # First check if new filename already exists (except for current sound)
-    existing_sound =
-      Sound
-      |> where([s], s.filename == ^new_filename and s.id != ^sound.id)
-      |> Repo.one()
+    # Build the changeset based on source type
+    sound_params = case source_type do
+      "url" ->
+        %{
+          filename: params["filename"] <> ".mp3",
+          url: params["url"],
+          source_type: "url",
+          user_id: user_id,
+          is_join_sound: params["is_join_sound"] == "true",
+          is_leave_sound: params["is_leave_sound"] == "true"
+        }
 
-    if existing_sound do
-      {:noreply,
-       socket
-       |> put_flash(:error, "A sound with that name already exists")}
-    else
-      sounds_directory = Application.app_dir(:soundboard, "priv/static/uploads")
+      "local" ->
+        old_filename = sound.filename
+        new_filename = params["filename"] <> Path.extname(sound.filename)
 
-      # Ensure we're using the project root in development
-      sounds_directory = if Mix.env() == :dev do
-        Path.join(File.cwd!(), "priv/static/uploads")
-      else
-        sounds_directory
-      end
+        # Check for existing filename
+        existing_sound =
+          Sound
+          |> where([s], s.filename == ^new_filename and s.id != ^sound.id)
+          |> Repo.one()
 
-      # Wrap everything in a transaction
-      result = Repo.transaction(fn ->
-        # Reset any existing join/leave sounds
-        if params["is_join_sound"] == "true" do
+        if existing_sound do
+          throw {:error, "A sound with that name already exists"}
+        end
+
+        # Handle local file rename
+        sounds_directory = if Mix.env() == :dev do
+          Path.join(File.cwd!(), "priv/static/uploads")
+        else
+          Application.app_dir(:soundboard, "priv/static/uploads")
+        end
+
+        if old_filename != new_filename do
+          old_path = Path.join(sounds_directory, old_filename)
+          new_path = Path.join(sounds_directory, new_filename)
+
+          case File.rename(old_path, new_path) do
+            :ok -> :ok
+            {:error, reason} ->
+              throw {:error, "Failed to rename file: #{inspect(reason)}"}
+          end
+        end
+
+        %{
+          filename: new_filename,
+          source_type: "local",
+          user_id: user_id,
+          is_join_sound: params["is_join_sound"] == "true",
+          is_leave_sound: params["is_leave_sound"] == "true"
+        }
+    end
+
+    try do
+      # Handle join/leave sound resets
+      Repo.transaction(fn ->
+        if sound_params.is_join_sound do
           from(s in Sound,
             where: s.user_id == ^user_id and s.is_join_sound == true and s.id != ^sound.id
           )
           |> Repo.update_all(set: [is_join_sound: false])
         end
 
-        if params["is_leave_sound"] == "true" do
+        if sound_params.is_leave_sound do
           from(s in Sound,
             where: s.user_id == ^user_id and s.is_leave_sound == true and s.id != ^sound.id
           )
           |> Repo.update_all(set: [is_leave_sound: false])
         end
 
-        # Rename the file if needed
-        if old_filename != new_filename do
-          old_path = Path.join(sounds_directory, old_filename)
-          new_path = Path.join(sounds_directory, new_filename)
-
-          Logger.debug("Renaming file from #{old_path} to #{new_path}")
-
-          case File.rename(old_path, new_path) do
-            :ok -> :ok
-            {:error, reason} ->
-              Logger.error("Failed to rename file from #{old_path} to #{new_path}: #{inspect(reason)}")
-              Repo.rollback("Failed to rename file")
-          end
-        end
-
-        # Update the existing record
-        case Repo.get!(Sound, sound.id)  # Get a fresh copy of the record
-             |> Sound.changeset(%{
-               filename: new_filename,
-               user_id: user_id,
-               is_join_sound: params["is_join_sound"] == "true",
-               is_leave_sound: params["is_leave_sound"] == "true"
-             })
+        # Update the sound
+        case Repo.get!(Sound, sound.id)
+             |> Sound.changeset(sound_params)
              |> Repo.update() do
           {:ok, updated_sound} -> updated_sound
           {:error, changeset} -> Repo.rollback(changeset)
         end
       end)
-
-      case result do
+      |> case do
         {:ok, _updated_sound} ->
           {:noreply,
            socket
@@ -453,18 +484,15 @@ defmodule SoundboardWeb.SoundboardLive do
            |> put_flash(:info, "Sound updated successfully")}
 
         {:error, _} ->
-          # Revert file rename if it was done
-          if old_filename != new_filename do
-            old_path = Path.join(sounds_directory, old_filename)
-            new_path = Path.join(sounds_directory, new_filename)
-            # Try to revert the file rename if it was done
-            File.rename(new_path, old_path)
-          end
-
           {:noreply,
            socket
            |> put_flash(:error, "Error updating sound")}
       end
+    catch
+      {:error, message} ->
+        {:noreply,
+         socket
+         |> put_flash(:error, message)}
     end
   end
 
@@ -705,5 +733,48 @@ defmodule SoundboardWeb.SoundboardLive do
 
   defp get_random_sound(sounds) do
     Enum.random(sounds)
+  end
+
+  @impl true
+  def handle_event("change_source_type", %{"source_type" => source_type}, socket) do
+    {:noreply, assign(socket, :source_type, source_type)}
+  end
+
+  @impl true
+  def handle_event("validate_sound", %{"_target" => ["filename"]} = params, socket) do
+    Logger.info("Validating sound edit with params: #{inspect(params)}")
+
+    # Check if filename already exists for another sound
+    filename = (params["filename"] || "") <> ".mp3"
+    current_sound_id = params["id"]
+
+    existing_sound =
+      Sound
+      |> where([s], s.filename == ^filename and s.id != ^current_sound_id)
+      |> Repo.one()
+
+    if existing_sound do
+      {:noreply, put_flash(socket, :error, "A sound with that name already exists")}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  # Catch-all for other validate_sound events
+  @impl true
+  def handle_event("validate_sound", _params, socket) do
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("toggle_edit_join_sound", _params, socket) do
+    current_sound = socket.assigns.current_sound
+    {:noreply, assign(socket, :current_sound, %{current_sound | is_join_sound: !current_sound.is_join_sound})}
+  end
+
+  @impl true
+  def handle_event("toggle_edit_leave_sound", _params, socket) do
+    current_sound = socket.assigns.current_sound
+    {:noreply, assign(socket, :current_sound, %{current_sound | is_leave_sound: !current_sound.is_leave_sound})}
   end
 end

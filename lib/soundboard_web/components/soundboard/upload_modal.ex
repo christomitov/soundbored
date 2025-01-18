@@ -4,17 +4,13 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
 
   def upload_modal(assigns) do
     ~H"""
-    <div
-      class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity z-10"
-      phx-window-keydown="close_modal_key"
-      phx-key="Escape"
-    >
+    <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity z-10">
       <div class="fixed inset-0 z-10 overflow-y-auto">
         <div class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
           <div class="relative transform overflow-hidden rounded-lg bg-white dark:bg-gray-800 px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg sm:p-6">
             <div class="absolute right-0 top-0 pr-4 pt-4">
               <button
-                phx-click="close_modal"
+                phx-click="close_upload_modal"
                 type="button"
                 class="rounded-md bg-white dark:bg-gray-800 text-gray-400 hover:text-gray-500 dark:hover:text-gray-300"
               >
@@ -33,7 +29,7 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
 
             <div class="mt-3 text-center sm:mt-5">
               <h3 class="text-base font-semibold leading-6 text-gray-900 dark:text-gray-100 mb-4">
-                Upload Sound
+                Add Sound
               </h3>
 
               <form
@@ -42,39 +38,62 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
                 id="upload-form"
                 class="mt-4"
               >
-                <!-- File Input -->
+                <!-- Source Type -->
                 <div class="mb-4">
-                  <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 text-left mb-2">
-                    File
+                  <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 text-left">
+                    Source Type
                   </label>
-                  <div class="flex items-center gap-2">
-                    <.live_file_input
-                      upload={@uploads.audio}
-                      class="block w-full text-sm text-gray-500 dark:text-gray-400
-                             file:mr-4 file:py-2 file:px-4
-                             file:rounded-md file:border-0
-                             file:text-sm file:font-semibold
-                             file:bg-blue-50 file:text-blue-700
-                             dark:file:bg-blue-900 dark:file:text-blue-300
-                             hover:file:bg-blue-100 dark:hover:file:bg-blue-800"
+                  <select
+                    name="source_type"
+                    phx-change="change_source_type"
+                    class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm
+                           focus:border-blue-500 focus:ring-blue-500 sm:text-sm
+                           dark:bg-gray-700 dark:text-gray-100"
+                  >
+                    <option value="local" selected={@source_type == "local"}>Local File</option>
+                    <option value="url" selected={@source_type == "url"}>URL</option>
+                  </select>
+                </div>
+
+                <%= if @source_type == "local" do %>
+                  <!-- Local File Input -->
+                  <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 text-left mb-2">
+                      File
+                    </label>
+                    <div class="flex items-center gap-2">
+                      <.live_file_input
+                        upload={@uploads.audio}
+                        class="block w-full text-sm text-gray-500 dark:text-gray-400
+                               file:mr-4 file:py-2 file:px-4
+                               file:rounded-md file:border-0
+                               file:text-sm file:font-semibold
+                               file:bg-blue-50 file:text-blue-700
+                               dark:file:bg-blue-900 dark:file:text-blue-300
+                               hover:file:bg-blue-100 dark:hover:file:bg-blue-800"
+                      />
+                    </div>
+                  </div>
+                <% else %>
+                  <!-- URL Input -->
+                  <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 text-left">
+                      URL
+                    </label>
+                    <input
+                      type="url"
+                      name="url"
+                      value={@url}
+                      required
+                      placeholder="https://example.com/sound.mp3"
+                      class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm
+                             focus:border-blue-500 focus:ring-blue-500 sm:text-sm
+                             dark:bg-gray-700 dark:text-gray-100"
                     />
                   </div>
-                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    MP3, WAV, OGG or M4A up to 25MB
-                  </p>
-                  <%= for entry <- @uploads.audio.entries do %>
-                    <div class="mt-2 text-sm text-blue-600 dark:text-blue-400">
-                      {entry.client_name} ({format_bytes(entry.client_size)})
-                    </div>
-                  <% end %>
-                  <%= if @upload_error do %>
-                    <div class="mt-2 text-sm text-red-600 dark:text-red-400">
-                      {@upload_error}
-                    </div>
-                  <% end %>
-                </div>
-                
-    <!-- Name -->
+                <% end %>
+
+                <!-- Name Input -->
                 <div class="mb-4">
                   <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 text-left">
                     Name
@@ -82,15 +101,16 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
                   <input
                     type="text"
                     name="name"
-                    autocomplete="off"
                     value={@upload_name}
+                    required
                     placeholder="Sound name"
-                    class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm
-                           dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400"
+                    class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm
+                           focus:border-blue-500 focus:ring-blue-500 sm:text-sm
+                           dark:bg-gray-700 dark:text-gray-100"
                   />
                 </div>
-                
-    <!-- Tags -->
+
+                <!-- Tags -->
                 <div class="text-left">
                   <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
                     Tags
@@ -112,7 +132,7 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
                       </span>
                     <% end %>
                   </div>
-                  
+
     <!-- Tag Input -->
                   <div class="mt-2 relative">
                     <div>
@@ -154,7 +174,7 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
                     <% end %>
                   </div>
                 </div>
-                
+
     <!-- Sound Settings -->
                 <div class="mt-5 mb-4">
                   <div class="flex flex-col gap-3 text-left">
@@ -199,10 +219,14 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
                 <div class="mt-5 sm:mt-6">
                   <button
                     type="submit"
-                    class="inline-flex w-full justify-center rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 dark:focus-visible:outline-offset-gray-800"
-                    disabled={@uploads.audio.entries == [] || @upload_error}
+                    phx-disable-with="Adding..."
+                    class="inline-flex w-full justify-center rounded-md bg-blue-600 px-3 py-2
+                           text-sm font-semibold text-white shadow-sm hover:bg-blue-500
+                           focus-visible:outline focus-visible:outline-2
+                           focus-visible:outline-offset-2 focus-visible:outline-blue-600
+                           dark:focus-visible:outline-offset-gray-800"
                   >
-                    Upload Sound
+                    Add Sound
                   </button>
                 </div>
               </form>

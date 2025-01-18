@@ -3,6 +3,7 @@ defmodule SoundboardWeb.AudioPlayer do
   require Logger
   alias Nostrum.Voice
   alias Soundboard.Accounts.User
+  alias Soundboard.Sound
 
   defmodule State do
     defstruct [:voice_channel, :current_playback]
@@ -41,87 +42,35 @@ defmodule SoundboardWeb.AudioPlayer do
         {:play_sound, sound_name, username},
         %{voice_channel: {guild_id, channel_id}} = state
       ) do
-    priv_dir = :code.priv_dir(:soundboard)
-    sound_path = Path.join([priv_dir, "static/uploads", sound_name])
+    case get_sound_path(sound_name) do
+      {:ok, path_or_url} ->
+        task =
+          Task.async(fn ->
+            try do
+              Voice.stop(guild_id)
+              ensure_voice_connected(guild_id, channel_id)
 
-    if File.exists?(sound_path) do
-      task =
-        Task.async(fn ->
-          try do
-            Voice.stop(guild_id)
-            ensure_voice_connected(guild_id, channel_id)
+              Voice.play(guild_id, path_or_url, :url, get_ffmpeg_options())
 
-            Voice.play(guild_id, sound_path, :url,
-              volume: 0.7,
-              ffmpeg_args: [
-                # Standard sample rate for Opus
-                "-ar",
-                "48000",
-                # Stereo channels
-                "-ac",
-                "2",
-                # Use the Opus codec
-                "-c:a",
-                "libopus",
-                # Lower bitrate for efficiency
-                "-b:a",
-                "96k",
-                # Enable variable bitrate
-                "-vbr",
-                "on",
-                # Optimize for general audio use
-                "-application",
-                "audio",
-                # Standard 20ms frame duration
-                "-frame_duration",
-                "20",
-                # Reduced packet loss simulation
-                "-packet_loss",
-                "3",
-                # Enable forward error correction
-                "-fec",
-                "1",
-                # Lower buffer size for reduced latency
-                "-buffer_size",
-                "960k",
-                # Lower max bitrate for bandwidth control
-                "-maxrate",
-                "128k",
-                # Fewer threads for efficiency
-                "-threads",
-                "4",
-                # Optimize seeking
-                "-fflags",
-                "+fastseek",
-                # Reduced probe size for faster startup
-                "-probesize",
-                "128k",
-                # Lower analysis duration for quick initialization
-                "-analyzeduration",
-                "2000000",
-                "-af",
-                "loudnorm=I=-14:LRA=1:TP=-1:dual_mono=true,compand=attacks=0:points=-70/-70|-40/-40|-20/-12|0/-6|20/-6:gain=8"
-              ]
-            )
+              # Track play only after successful playback
+              case Soundboard.Repo.get_by(User, username: username) do
+                %{id: user_id} -> Soundboard.Stats.track_play(sound_name, user_id)
+                nil -> Logger.warning("Could not find user_id for #{username}")
+              end
 
-            # Track play only after successful playback
-            case Soundboard.Repo.get_by(User, username: username) do
-              %{id: user_id} -> Soundboard.Stats.track_play(sound_name, user_id)
-              nil -> Logger.warning("Could not find user_id for #{username}")
+              broadcast_success(sound_name, username)
+            rescue
+              e ->
+                Logger.error("Error playing sound: #{inspect(e)}")
+                broadcast_error("Failed to play sound")
             end
+          end)
 
-            broadcast_success(sound_name, username)
-          rescue
-            e ->
-              Logger.error("Error playing sound: #{inspect(e)}")
-              broadcast_error("Failed to play sound")
-          end
-        end)
+        {:noreply, %{state | current_playback: task}}
 
-      {:noreply, %{state | current_playback: task}}
-    else
-      broadcast_error("Sound file not found")
-      {:noreply, state}
+      {:error, reason} ->
+        broadcast_error(reason)
+        {:noreply, state}
     end
   end
 
@@ -161,5 +110,73 @@ defmodule SoundboardWeb.AudioPlayer do
       "soundboard",
       {:error, message}
     )
+  end
+
+  defp get_sound_path(sound_name) do
+    case Soundboard.Repo.get_by(Sound, filename: sound_name) do
+      %{source_type: "url", url: url} when not is_nil(url) ->
+        {:ok, url}
+      %{source_type: "local", filename: filename} when not is_nil(filename) ->
+        priv_dir = :code.priv_dir(:soundboard)
+        path = Path.join([priv_dir, "static/uploads", filename])
+        if File.exists?(path), do: {:ok, path}, else: {:error, "Sound file not found"}
+      _ ->
+        {:error, "Invalid sound configuration"}
+    end
+  end
+
+  defp get_ffmpeg_options do
+    [
+      volume: 0.7,
+      ffmpeg_args: [
+        # Standard sample rate for Opus
+        "-ar",
+        "48000",
+        # Stereo channels
+        "-ac",
+        "2",
+        # Use the Opus codec
+        "-c:a",
+        "libopus",
+        # Lower bitrate for efficiency
+        "-b:a",
+        "96k",
+        # Enable variable bitrate
+        "-vbr",
+        "on",
+        # Optimize for general audio use
+        "-application",
+        "audio",
+        # Standard 20ms frame duration
+        "-frame_duration",
+        "20",
+        # Reduced packet loss simulation
+        "-packet_loss",
+        "3",
+        # Enable forward error correction
+        "-fec",
+        "1",
+        # Lower buffer size for reduced latency
+        "-buffer_size",
+        "960k",
+        # Lower max bitrate for bandwidth control
+        "-maxrate",
+        "128k",
+        # Fewer threads for efficiency
+        "-threads",
+        "4",
+        # Optimize seeking
+        "-fflags",
+        "+fastseek",
+        # Reduced probe size for faster startup
+        "-probesize",
+        "128k",
+        # Lower analysis duration for quick initialization
+        "-analyzeduration",
+        "2000000",
+        "-af",
+        "loudnorm=I=-14:LRA=1:TP=-1:dual_mono=true,compand=attacks=0:points=-70/-70|-40/-40|-20/-12|0/-6|20/-6:gain=8"
+      ]
+    ]
   end
 end

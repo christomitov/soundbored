@@ -7,6 +7,8 @@ defmodule Soundboard.Sound do
 
   schema "sounds" do
     field :filename, :string
+    field :url, :string  # New field for remote sounds
+    field :source_type, :string, default: "local"  # "local" or "url"
     field :description, :string
     field :is_join_sound, :boolean, default: false
     field :is_leave_sound, :boolean, default: false
@@ -21,8 +23,9 @@ defmodule Soundboard.Sound do
 
   def changeset(sound, attrs) do
     sound
-    |> cast(attrs, [:filename, :description, :user_id, :is_join_sound, :is_leave_sound])
-    |> validate_required([:filename, :user_id])
+    |> cast(attrs, [:filename, :url, :source_type, :description, :user_id, :is_join_sound, :is_leave_sound])
+    |> validate_required([:user_id])
+    |> validate_source_type()
     |> unique_constraint(:filename, name: :sounds_filename_index)
     |> unique_constraint([:user_id, :is_join_sound],
       name: :user_join_sound_index,
@@ -33,6 +36,14 @@ defmodule Soundboard.Sound do
       message: "You already have a leave sound set"
     )
     |> put_tags(attrs)
+  end
+
+  defp validate_source_type(changeset) do
+    case get_field(changeset, :source_type) do
+      "local" -> validate_required(changeset, [:filename])
+      "url" -> validate_required(changeset, [:url])
+      _ -> add_error(changeset, :source_type, "must be either 'local' or 'url'")
+    end
   end
 
   defp put_tags(changeset, %{tags: tags}) when is_list(tags) do
