@@ -447,7 +447,6 @@ defmodule SoundboardWeb.SoundboardLive do
   @impl true
   def handle_event("save_sound", params, socket) do
     sound = socket.assigns.current_sound
-    user_id = socket.assigns.current_user.id
     source_type = params["source_type"] || sound.source_type
 
     # Verify sound ID matches
@@ -462,7 +461,6 @@ defmodule SoundboardWeb.SoundboardLive do
               filename: params["filename"] <> ".mp3",
               url: params["url"],
               source_type: "url",
-              user_id: user_id,
               is_join_sound: params["is_join_sound"] == "true",
               is_leave_sound: params["is_leave_sound"] == "true"
             }
@@ -505,7 +503,6 @@ defmodule SoundboardWeb.SoundboardLive do
             %{
               filename: new_filename,
               source_type: "local",
-              user_id: user_id,
               is_join_sound: params["is_join_sound"] == "true",
               is_leave_sound: params["is_leave_sound"] == "true"
             }
