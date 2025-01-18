@@ -29,14 +29,30 @@ defmodule SoundboardWeb.Live.FileHandler do
 
   def delete_file(socket) do
     sound = socket.assigns.current_sound
-    file_path = Path.join(@upload_directory, sound.filename)
 
-    with :ok <- File.rm(file_path),
-         {:ok, _} <- maybe_delete_record(sound) do
-      broadcast_update()
-      {:ok, "Sound deleted successfully!"}
-    else
-      _ -> {:error, "Failed to delete sound"}
+    case sound.source_type do
+      "url" ->
+        # For URL sounds, just delete the database record
+        case Repo.delete(sound) do
+          {:ok, _} ->
+            broadcast_update()
+            {:ok, "Sound deleted successfully!"}
+
+          {:error, _} ->
+            {:error, "Failed to delete sound"}
+        end
+
+      "local" ->
+        # For local sounds, delete both file and database record
+        file_path = Path.join(@upload_directory, sound.filename)
+
+        with :ok <- File.rm(file_path),
+             {:ok, _} <- maybe_delete_record(sound) do
+          broadcast_update()
+          {:ok, "Sound deleted successfully!"}
+        else
+          _ -> {:error, "Failed to delete sound"}
+        end
     end
   end
 

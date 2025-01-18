@@ -202,7 +202,6 @@ defmodule SoundboardWeb.SoundboardLive do
   @impl true
   def handle_event("save_upload", params, socket) do
     Logger.info("SAVE UPLOAD TRIGGERED with params: #{inspect(params)}")
-    Logger.info("Current socket assigns: #{inspect(socket.assigns)}")
 
     params =
       params
@@ -214,12 +213,8 @@ defmodule SoundboardWeb.SoundboardLive do
         "url" => params["url"]
       })
 
-    Logger.info("Modified params: #{inspect(params)}")
-
     case handle_upload(socket, params, &handle_uploaded_entries/3) do
       :ok ->
-        Logger.info("Upload successful!")
-
         {:noreply,
          socket
          |> assign(:show_upload_modal, false)
@@ -230,15 +225,12 @@ defmodule SoundboardWeb.SoundboardLive do
          |> assign(:upload_tag_suggestions, [])
          |> assign(:is_join_sound, false)
          |> assign(:is_leave_sound, false)
+         |> assign(:source_type, "local")
          |> load_sound_files()
          |> put_flash(:info, "Sound added successfully")}
 
       {:error, message, socket} ->
-        Logger.error("Failed to save upload: #{inspect(message)}")
-
-        {:noreply,
-         socket
-         |> put_flash(:error, message)}
+        {:noreply, put_flash(socket, :error, message)}
     end
   end
 
