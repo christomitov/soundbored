@@ -119,7 +119,7 @@ After inviting the bot to your server, join a voice channel and type `!join` to 
 
 ## Changelog
 
-### v1.1.1 (2025-01-18)
+### v1.2.0 (2025-01-18)
 
 #### ✨ New Features
 - Added random sound button.
