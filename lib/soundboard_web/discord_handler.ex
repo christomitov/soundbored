@@ -88,13 +88,11 @@ defmodule SoundboardWeb.DiscordHandler do
 
         {prev_channel_id, prev_session_id} ->
           cond do
-            # Different session = true reconnect
-            prev_session_id != payload.session_id -> true
-            # Channel was nil (disconnected) and now isn't = true join
+            # Different channel from nil = true join
             prev_channel_id == nil and payload.channel_id != nil -> true
-            # Same session, different channel = channel change
-            prev_channel_id != payload.channel_id -> true
-            # Same session, same channel = state update (mute/deaf)
+            # Different channel = true join (moving between channels)
+            prev_channel_id != payload.channel_id and payload.channel_id != nil -> true
+            # All other cases (including session changes) = not a join
             true -> false
           end
       end
