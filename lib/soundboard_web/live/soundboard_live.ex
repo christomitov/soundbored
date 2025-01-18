@@ -513,14 +513,15 @@ defmodule SoundboardWeb.SoundboardLive do
         Repo.transaction(fn ->
           if sound_params.is_join_sound do
             from(s in Sound,
-              where: s.user_id == ^user_id and s.is_join_sound == true and s.id != ^sound.id
+              where: s.user_id == ^sound.user_id and s.is_join_sound == true and s.id != ^sound.id
             )
             |> Repo.update_all(set: [is_join_sound: false])
           end
 
           if sound_params.is_leave_sound do
             from(s in Sound,
-              where: s.user_id == ^user_id and s.is_leave_sound == true and s.id != ^sound.id
+              where:
+                s.user_id == ^sound.user_id and s.is_leave_sound == true and s.id != ^sound.id
             )
             |> Repo.update_all(set: [is_leave_sound: false])
           end
