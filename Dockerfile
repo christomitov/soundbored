@@ -1,4 +1,4 @@
-FROM erlang:27
+FROM erlang:27-alpine
 
 # Define build arguments
 ARG API_TOKEN
@@ -27,11 +27,19 @@ ENV API_TOKEN=$API_TOKEN \
     LC_CTYPE=C.UTF-8 \
     ELIXIR_VERSION="v1.18.0"
 
-# Install dependencies required for building ffmpeg
-RUN apt-get update && apt-get install -y \
+# Install dependencies required for building ffmpeg and system utilities
+RUN apk add --no-cache \
     ffmpeg \
     bash \
-    && rm -rf /var/lib/apt/lists/*
+    curl \
+    make \
+    git
+
+# Verify shell environment
+RUN which bash && \
+    which sh && \
+    echo "Shell verification complete" && \
+    bash --version
 
 # Install Elixir
 RUN set -xe \
@@ -71,13 +79,34 @@ RUN bash -c '\
     mix setup && \
     mix assets.deploy'
 
-# Create an entrypoint script that ensures SECRET_KEY_BASE is set
-RUN echo '#!/bin/bash\n\
+RUN printf '#!/bin/bash\n\
+set -e\n\
+\n\
+# Enable command tracing for debugging\n\
+set -x\n\
+\n\
+# Debug information\n\
+echo "=== Starting entrypoint script ==="\n\
+echo "Current directory: $(pwd)"\n\
+echo "Directory contents:"\n\
+ls -la\n\
+echo "Environment variables:"\n\
+env | grep -v "SECRET"\n\
+\n\
+# Set up environment\n\
 export SECRET_KEY_BASE=$(cat /app/.secret_key_base)\n\
-echo "Using SECRET_KEY_BASE (length: ${#SECRET_KEY_BASE} bytes)"\n\
+echo "Secret key base is configured (length: ${#SECRET_KEY_BASE} bytes)"\n\
+\n\
+# Run migrations\n\
+echo "Running database migrations..."\n\
 mix ecto.migrate\n\
-mix phx.server' > /app/entrypoint.sh && \
-chmod +x /app/entrypoint.sh
+\n\
+# Start Phoenix server in foreground\n\
+# Using exec ensures proper signal handling and process management\n\
+echo "Starting Phoenix server..."\n\
+exec mix phx.server\n\
+' > /app/entrypoint.sh && chmod +x /app/entrypoint.sh
 
+# Configure shell and entrypoint
 SHELL ["/bin/bash", "-c"]
 ENTRYPOINT ["/bin/bash", "/app/entrypoint.sh"]
