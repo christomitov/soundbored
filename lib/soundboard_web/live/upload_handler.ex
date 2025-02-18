@@ -81,7 +81,9 @@ defmodule SoundboardWeb.Live.UploadHandler do
 
     # Handle join/leave sound resets in a transaction
     Repo.transaction(fn ->
+      # Only reset the user's own join/leave sounds
       if sound_params.is_join_sound do
+        # Add user_id check to only reset own sounds
         from(s in Sound,
           where: s.user_id == ^user_id and s.is_join_sound == true
         )
@@ -89,15 +91,16 @@ defmodule SoundboardWeb.Live.UploadHandler do
       end
 
       if sound_params.is_leave_sound do
+        # Add user_id check to only reset own sounds
         from(s in Sound,
           where: s.user_id == ^user_id and s.is_leave_sound == true
         )
         |> Repo.update_all(set: [is_leave_sound: false])
       end
 
-      case create_sound(sound_params, socket.assigns.upload_tags) do
+      # Verify ownership before creating sound
+      case create_sound_with_ownership_check(sound_params, socket.assigns.upload_tags, user_id) do
         {:ok, sound} ->
-          # Broadcast updates
           Phoenix.PubSub.broadcast(Soundboard.PubSub, "uploads", {:sound_uploaded})
           Phoenix.PubSub.broadcast(Soundboard.PubSub, "stats", {:stats_updated})
           sound
@@ -123,15 +126,40 @@ defmodule SoundboardWeb.Live.UploadHandler do
           is_leave_sound: params["is_leave_sound"] == "true"
         }
 
-        case create_sound(sound_params, socket.assigns.upload_tags) do
-          {:ok, _sound} ->
-            # Broadcast updates
-            Phoenix.PubSub.broadcast(Soundboard.PubSub, "uploads", {:sound_uploaded})
-            Phoenix.PubSub.broadcast(Soundboard.PubSub, "stats", {:stats_updated})
-            :ok
+        # Use the same transaction pattern for local uploads
+        Repo.transaction(fn ->
+          # Only reset the user's own join/leave sounds
+          if sound_params.is_join_sound do
+            from(s in Sound,
+              where: s.user_id == ^user_id and s.is_join_sound == true
+            )
+            |> Repo.update_all(set: [is_join_sound: false])
+          end
 
-          {:error, changeset} ->
-            {:error, get_error_message(changeset), socket}
+          if sound_params.is_leave_sound do
+            from(s in Sound,
+              where: s.user_id == ^user_id and s.is_leave_sound == true
+            )
+            |> Repo.update_all(set: [is_leave_sound: false])
+          end
+
+          case create_sound_with_ownership_check(
+                 sound_params,
+                 socket.assigns.upload_tags,
+                 user_id
+               ) do
+            {:ok, sound} ->
+              Phoenix.PubSub.broadcast(Soundboard.PubSub, "uploads", {:sound_uploaded})
+              Phoenix.PubSub.broadcast(Soundboard.PubSub, "stats", {:stats_updated})
+              sound
+
+            {:error, changeset} ->
+              Repo.rollback(changeset)
+          end
+        end)
+        |> case do
+          {:ok, _sound} -> :ok
+          {:error, changeset} -> {:error, get_error_message(changeset), socket}
         end
 
       {:error, message} ->
@@ -139,10 +167,15 @@ defmodule SoundboardWeb.Live.UploadHandler do
     end
   end
 
-  defp create_sound(params, tags) do
-    %Sound{}
-    |> Sound.changeset(Map.put(params, :tags, tags))
-    |> Repo.insert()
+  # New helper function to verify ownership
+  defp create_sound_with_ownership_check(params, tags, user_id) do
+    if params.user_id == user_id do
+      %Sound{}
+      |> Sound.changeset(Map.put(params, :tags, tags))
+      |> Repo.insert()
+    else
+      {:error, "Unauthorized to set sounds for other users"}
+    end
   end
 
   defp validate_name_unique(changeset) do
