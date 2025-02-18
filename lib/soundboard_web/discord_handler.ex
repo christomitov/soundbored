@@ -75,13 +75,91 @@ defmodule SoundboardWeb.DiscordHandler do
     result
   end
 
+  # Add helper function for leaving voice channel
+  defp leave_voice_channel(guild_id) do
+    Logger.info("Bot leaving voice channel in guild #{guild_id}")
+    Process.delete(:current_voice_channel)
+    Voice.leave_channel(guild_id)
+
+    # Update AudioPlayer
+    GenServer.cast(
+      SoundboardWeb.AudioPlayer,
+      {:set_voice_channel, nil, nil}
+    )
+  end
+
+  # Add helper function for joining voice channel
+  defp join_voice_channel(guild_id, channel_id) do
+    Logger.info("Bot joining voice channel #{channel_id} in guild #{guild_id}")
+    Process.put(:current_voice_channel, {guild_id, channel_id})
+    Voice.join_channel(guild_id, channel_id)
+
+    # Update AudioPlayer
+    GenServer.cast(
+      SoundboardWeb.AudioPlayer,
+      {:set_voice_channel, guild_id, channel_id}
+    )
+  end
+
+  # Simplified check_users_in_voice function - no bot token needed
+  defp check_users_in_voice(guild_id, channel_id) do
+    guild = GuildCache.get!(guild_id)
+
+    # Count total users in the specified channel
+    users_in_channel =
+      guild.voice_states
+      |> Enum.count(fn vs ->
+        vs.channel_id == channel_id
+      end)
+
+    Logger.info("""
+    Voice state check:
+    Channel ID: #{channel_id}
+    Users in channel: #{users_in_channel}
+    Voice states: #{inspect(guild.voice_states)}
+    """)
+
+    users_in_channel
+  end
+
   def handle_event({:VOICE_STATE_UPDATE, %{channel_id: nil} = payload, _ws_state}) do
     # Handle disconnection (leaving voice channel)
     Logger.info("User #{payload.user_id} disconnected from voice")
-
-    # Store the last session_id when disconnecting
     State.update_state(payload.user_id, nil, payload.session_id)
 
+    # Check if we're in a channel
+    case get_current_voice_channel() do
+      {guild_id, channel_id} ->
+        guild = GuildCache.get!(guild_id)
+
+        # Count ALL users in our current channel
+        users_in_channel =
+          guild.voice_states
+          |> Enum.count(fn vs ->
+            vs.channel_id == channel_id
+          end)
+
+        Logger.info("""
+        Disconnect check:
+        Channel ID: #{channel_id}
+        Users in channel: #{users_in_channel}
+        Voice states: #{inspect(guild.voice_states)}
+        """)
+
+        # If 1 or fewer users in channel (just the bot), leave
+        if users_in_channel <= 1 do
+          Logger.info(
+            "Only bot remaining in channel (users: #{users_in_channel}), forcing disconnect"
+          )
+
+          leave_voice_channel(guild_id)
+        end
+
+      _ ->
+        :noop
+    end
+
+    # Handle leave sound
     user_with_sounds =
       from(u in User,
         where: u.discord_id == ^to_string(payload.user_id),
@@ -103,69 +181,37 @@ defmodule SoundboardWeb.DiscordHandler do
   end
 
   def handle_event({:VOICE_STATE_UPDATE, payload, _ws_state}) do
-    Logger.info("Voice state check - Payload: #{inspect(payload)}")
+    Logger.info("Voice state update received: #{inspect(payload)}")
 
-    # Get previous state with error handling
+    # Update state tracking
     previous_state = State.get_state(payload.user_id)
-
-    # Store current state with error handling
     State.update_state(payload.user_id, payload.channel_id, payload.session_id)
 
-    # Check if any users are in voice channels for this guild
-    users_in_voice = check_users_in_voice(payload.guild_id)
-    Logger.info("Users in voice: #{users_in_voice}")
+    # Handle channel join/leave logic
+    case get_current_voice_channel() do
+      nil when payload.channel_id != nil ->
+        # Bot not in channel but user joined one - join their channel
+        join_voice_channel(payload.guild_id, payload.channel_id)
 
-    cond do
-      # If no users in voice, leave the channel
-      users_in_voice == 0 ->
-        Logger.info("No non-bot users in voice channels, leaving voice")
-        Process.delete(:current_voice_channel)
-        Voice.leave_channel(payload.guild_id)
+      {guild_id, channel_id} ->
+        # Bot in channel - check if we should leave
+        users = check_users_in_voice(guild_id, channel_id)
+        # Changed to <= 1
+        if users <= 1, do: leave_voice_channel(guild_id)
 
-        # Also update AudioPlayer
-        GenServer.cast(
-          SoundboardWeb.AudioPlayer,
-          {:set_voice_channel, nil, nil}
-        )
-
-      # If users present and bot not in voice, join the channel
-      payload.channel_id != nil and get_current_voice_channel() == nil ->
-        Logger.info("Users in voice channel, joining channel: #{payload.channel_id}")
-        Process.put(:current_voice_channel, {payload.guild_id, payload.channel_id})
-        Voice.join_channel(payload.guild_id, payload.channel_id)
-
-        # Update AudioPlayer
-        GenServer.cast(
-          SoundboardWeb.AudioPlayer,
-          {:set_voice_channel, payload.guild_id, payload.channel_id}
-        )
-
-      true ->
+      _ ->
         :noop
     end
 
-    # Add this before the debug logging
+    # Handle join sound if this was a join event
     is_join_event =
       case previous_state do
-        # First join
         nil -> true
-        # Was disconnected
         {nil, _} -> true
-        # Changed channels
         {prev_channel, _} -> prev_channel != payload.channel_id
       end
 
-    # Debug logging stays the same
-    Logger.debug("""
-    Voice state check:
-    Previous state: #{inspect(previous_state)}
-    Current channel: #{inspect(payload.channel_id)}
-    Current session: #{inspect(payload.session_id)}
-    Is join event: #{inspect(is_join_event)}
-    """)
-
     if is_join_event do
-      # Find user and their configured sounds
       user_with_sounds =
         from(u in User,
           where: u.discord_id == ^to_string(payload.user_id),
@@ -178,15 +224,11 @@ defmodule SoundboardWeb.DiscordHandler do
 
       case user_with_sounds do
         {_user_id, join_sound} when not is_nil(join_sound) ->
-          Logger.info("User joined voice - scheduling sound with delay: #{join_sound}")
           Process.send_after(self(), {:play_delayed_sound, join_sound}, 1000)
 
         _ ->
           :noop
       end
-    else
-      Logger.info("Ignoring non-join voice state update")
-      :noop
     end
   end
 
@@ -207,30 +249,12 @@ defmodule SoundboardWeb.DiscordHandler do
   def handle_event({:MESSAGE_CREATE, msg, _ws_state}) do
     case msg.content do
       "!join" ->
-        Logger.info("Join command received from user #{msg.author.username}")
-
         case get_user_voice_channel(msg.guild_id, msg.author.id) do
           nil ->
-            Logger.warning("No voice channel found for user #{msg.author.username}")
             Api.create_message(msg.channel_id, "You need to be in a voice channel!")
 
           channel_id ->
-            Logger.info("Found voice channel: #{inspect(channel_id)}")
-            Logger.info("Storing voice channel: guild=#{msg.guild_id}, channel=#{channel_id}")
-
-            # Store the current voice channel info in the Discord Handler process
-            Process.put(:current_voice_channel, {msg.guild_id, channel_id})
-            Voice.join_channel(msg.guild_id, channel_id)
-
-            # Also store it in the AudioPlayer process
-            GenServer.cast(
-              SoundboardWeb.AudioPlayer,
-              {:set_voice_channel, msg.guild_id, channel_id}
-            )
-
-            # Verify storage
-            stored = Process.get(:current_voice_channel)
-            Logger.info("Stored voice channel: #{inspect(stored)}")
+            join_voice_channel(msg.guild_id, channel_id)
 
             # Send web interface URL
             scheme = System.get_env("SCHEME")
@@ -248,8 +272,7 @@ defmodule SoundboardWeb.DiscordHandler do
 
       "!leave" ->
         if msg.guild_id do
-          Process.delete(:current_voice_channel)
-          Voice.leave_channel(msg.guild_id)
+          leave_voice_channel(msg.guild_id)
           Api.create_message(msg.channel_id, "Left the voice channel!")
         end
 
@@ -291,30 +314,6 @@ defmodule SoundboardWeb.DiscordHandler do
 
   def get_current_voice_channel do
     Process.get(:current_voice_channel)
-  end
-
-  # Add this helper function
-  defp check_users_in_voice(guild_id) do
-    guild = GuildCache.get!(guild_id)
-    bot_id = Application.get_env(:nostrum, :user_id)
-
-    # Debug logging
-    Logger.info("""
-    Checking users in voice for guild #{guild.id}:
-    Bot ID: #{bot_id}
-    Voice states: #{inspect(guild.voice_states)}
-    """)
-
-    # Count non-bot users in voice channels
-    user_count =
-      guild.voice_states
-      # Changed from Map.values() to just Enum.count
-      |> Enum.count(fn vs ->
-        vs.user_id != bot_id && vs.channel_id != nil
-      end)
-
-    Logger.info("Found #{user_count} non-bot users in voice channels")
-    user_count
   end
 
   # Add this helper function
