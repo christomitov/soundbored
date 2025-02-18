@@ -12,9 +12,8 @@ defmodule Soundboard.Sound do
     # "local" or "url"
     field :source_type, :string, default: "local"
     field :description, :string
-    field :is_join_sound, :boolean, default: false
-    field :is_leave_sound, :boolean, default: false
     belongs_to :user, Soundboard.Accounts.User
+    has_many :user_sound_settings, Soundboard.UserSoundSetting
 
     many_to_many :tags, Soundboard.Tag,
       join_through: Soundboard.SoundTag,
@@ -30,21 +29,11 @@ defmodule Soundboard.Sound do
       :url,
       :source_type,
       :description,
-      :user_id,
-      :is_join_sound,
-      :is_leave_sound
+      :user_id
     ])
     |> validate_required([:user_id])
     |> validate_source_type()
     |> unique_constraint(:filename, name: :sounds_filename_index)
-    |> unique_constraint([:user_id, :is_join_sound],
-      name: :user_join_sound_index,
-      message: "You already have a join sound set"
-    )
-    |> unique_constraint([:user_id, :is_leave_sound],
-      name: :user_leave_sound_index,
-      message: "You already have a leave sound set"
-    )
     |> put_tags(attrs)
   end
 

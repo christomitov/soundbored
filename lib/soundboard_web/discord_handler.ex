@@ -5,7 +5,7 @@ defmodule SoundboardWeb.DiscordHandler do
   alias Nostrum.Api
   alias Nostrum.Cache.GuildCache
   alias Nostrum.Voice
-  alias Soundboard.{Repo, Sound, Accounts.User}
+  alias Soundboard.{Repo, Sound, Accounts.User, UserSoundSetting}
   import Ecto.Query
 
   # State GenServer
@@ -163,9 +163,11 @@ defmodule SoundboardWeb.DiscordHandler do
     user_with_sounds =
       from(u in User,
         where: u.discord_id == ^to_string(payload.user_id),
-        left_join: ls in Sound,
-        on: ls.user_id == u.id and ls.is_leave_sound == true,
-        select: {u.id, ls.filename},
+        left_join: uss in UserSoundSetting,
+        on: uss.user_id == u.id and uss.is_leave_sound == true,
+        left_join: s in Sound,
+        on: s.id == uss.sound_id,
+        select: {u.id, s.filename},
         limit: 1
       )
       |> Repo.one()
@@ -215,9 +217,11 @@ defmodule SoundboardWeb.DiscordHandler do
       user_with_sounds =
         from(u in User,
           where: u.discord_id == ^to_string(payload.user_id),
-          left_join: js in Sound,
-          on: js.user_id == u.id and js.is_join_sound == true,
-          select: {u.id, js.filename},
+          left_join: uss in UserSoundSetting,
+          on: uss.user_id == u.id and uss.is_join_sound == true,
+          left_join: s in Sound,
+          on: s.id == uss.sound_id,
+          select: {u.id, s.filename},
           limit: 1
         )
         |> Repo.one()

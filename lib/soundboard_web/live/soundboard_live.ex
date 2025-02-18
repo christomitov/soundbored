@@ -6,7 +6,7 @@ defmodule SoundboardWeb.SoundboardLive do
   import DeleteModal
   import UploadModal
   alias SoundboardWeb.Presence
-  alias Soundboard.{Repo, Sound, Favorites}
+  alias Soundboard.{Repo, Sound, Favorites, UserSoundSetting}
   require Logger
   alias SoundboardWeb.Live.{FileHandler, TagHandler, FileFilter}
   import Ecto.Query
@@ -184,11 +184,17 @@ defmodule SoundboardWeb.SoundboardLive do
          |> put_flash(:error, "Sound not found in database")}
 
       sound ->
+        # Get the user's settings for this sound
+        user_settings = Repo.one(
+          from uss in UserSoundSetting,
+          where: uss.sound_id == ^sound.id and uss.user_id == ^socket.assigns.current_user.id
+        )
+
         sound =
           sound
           |> Repo.preload(:tags)
-          |> Map.put(:is_join_sound, !!sound.is_join_sound)
-          |> Map.put(:is_leave_sound, !!sound.is_leave_sound)
+          |> Map.put(:is_join_sound, !!user_settings && !!user_settings.is_join_sound)
+          |> Map.put(:is_leave_sound, !!user_settings && !!user_settings.is_leave_sound)
 
         {:noreply,
          socket
@@ -445,83 +451,51 @@ defmodule SoundboardWeb.SoundboardLive do
     if to_string(sound.id) != params["sound_id"] do
       {:noreply, put_flash(socket, :error, "Invalid sound ID")}
     else
-      # Build the changeset based on source type
-      sound_params =
-        case source_type do
-          "url" ->
-            %{
-              filename: params["filename"] <> ".mp3",
-              url: params["url"],
-              source_type: "url",
-              is_join_sound: params["is_join_sound"] == "true",
-              is_leave_sound: params["is_leave_sound"] == "true"
-            }
-
-          "local" ->
-            old_filename = sound.filename
-            new_filename = params["filename"] <> Path.extname(sound.filename)
-
-            # Check for existing filename
-            existing_sound =
-              Sound
-              |> where([s], s.filename == ^new_filename and s.id != ^sound.id)
-              |> Repo.one()
-
-            if existing_sound do
-              throw({:error, "A sound with that name already exists"})
-            end
-
-            # Handle local file rename
-            sounds_directory =
-              if Mix.env() == :dev do
-                Path.join(File.cwd!(), "priv/static/uploads")
-              else
-                Application.app_dir(:soundboard, "priv/static/uploads")
-              end
-
-            if old_filename != new_filename do
-              old_path = Path.join(sounds_directory, old_filename)
-              new_path = Path.join(sounds_directory, new_filename)
-
-              case File.rename(old_path, new_path) do
-                :ok ->
-                  :ok
-
-                {:error, reason} ->
-                  throw({:error, "Failed to rename file: #{inspect(reason)}"})
-              end
-            end
-
-            %{
-              filename: new_filename,
-              source_type: "local",
-              is_join_sound: params["is_join_sound"] == "true",
-              is_leave_sound: params["is_leave_sound"] == "true"
-            }
-        end
-
       try do
-        # Handle join/leave sound resets
+        # Handle join/leave sound settings in a transaction
         Repo.transaction(fn ->
-          if sound_params.is_join_sound do
-            from(s in Sound,
-              where: s.user_id == ^sound.user_id and s.is_join_sound == true and s.id != ^sound.id
+          sound = Repo.get!(Sound, sound.id)
+          user_id = socket.assigns.current_user.id
+
+          # Reset existing join/leave settings
+          if params["is_join_sound"] == "true" do
+            from(uss in UserSoundSetting,
+              where: uss.user_id == ^user_id and uss.is_join_sound == true
             )
             |> Repo.update_all(set: [is_join_sound: false])
           end
 
-          if sound_params.is_leave_sound do
-            from(s in Sound,
-              where:
-                s.user_id == ^sound.user_id and s.is_leave_sound == true and s.id != ^sound.id
+          if params["is_leave_sound"] == "true" do
+            from(uss in UserSoundSetting,
+              where: uss.user_id == ^user_id and uss.is_leave_sound == true
             )
             |> Repo.update_all(set: [is_leave_sound: false])
           end
 
-          # Update the sound
-          case Repo.get!(Sound, sound.id)
-               |> Sound.changeset(sound_params)
-               |> Repo.update() do
+          # Create or update user sound settings
+          user_sound_setting =
+            Repo.get_by(UserSoundSetting,
+              user_id: user_id,
+              sound_id: sound.id
+            ) || %UserSoundSetting{}
+
+          user_sound_setting
+          |> UserSoundSetting.changeset(%{
+            user_id: user_id,
+            sound_id: sound.id,
+            is_join_sound: params["is_join_sound"] == "true",
+            is_leave_sound: params["is_leave_sound"] == "true"
+          })
+          |> Repo.insert_or_update!()
+
+          # Update the sound's basic info
+          sound_params = %{
+            filename: params["filename"] <> Path.extname(sound.filename),
+            source_type: source_type,
+            url: params["url"]
+          }
+
+          case Sound.changeset(sound, sound_params) |> Repo.update() do
             {:ok, updated_sound} -> updated_sound
             {:error, changeset} -> Repo.rollback(changeset)
           end
