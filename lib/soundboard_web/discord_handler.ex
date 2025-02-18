@@ -295,7 +295,6 @@ defmodule SoundboardWeb.DiscordHandler do
 
   # Add this helper function
   defp check_users_in_voice(guild_id) do
-    # Force a fresh fetch from cache
     guild = GuildCache.get!(guild_id)
     bot_id = Application.get_env(:nostrum, :user_id)
 
@@ -304,19 +303,16 @@ defmodule SoundboardWeb.DiscordHandler do
     Checking users in voice for guild #{guild.id}:
     Bot ID: #{bot_id}
     Voice states: #{inspect(guild.voice_states)}
-    Current voice states count: #{length(Map.keys(guild.voice_states))}
     """)
 
     # Count non-bot users in voice channels
     user_count =
       guild.voice_states
-      |> Map.values()  # Convert map to list of values
-      |> Enum.count(fn vs ->
+      |> Enum.count(fn vs ->  # Changed from Map.values() to just Enum.count
         vs.user_id != bot_id && vs.channel_id != nil
       end)
 
     Logger.info("Found #{user_count} non-bot users in voice channels")
-
     user_count
   end
 
