@@ -30,6 +30,11 @@ defmodule SoundboardWeb.Router do
     plug :put_session_opts
   end
 
+  pipeline :api do
+    plug :accepts, ["json"]
+    plug SoundboardWeb.Plugs.APIAuth
+  end
+
   # Discord OAuth routes - must come before protected routes
   scope "/auth", SoundboardWeb do
     pipe_through [:browser]
@@ -60,6 +65,14 @@ defmodule SoundboardWeb.Router do
     pipe_through [:browser]
 
     get "/session", AuthController, :debug_session
+  end
+
+  # Add this new scope for API routes before your other scopes
+  scope "/api", SoundboardWeb.API do
+    pipe_through :api
+
+    get "/sounds", SoundController, :index
+    post "/sounds/:id/play", SoundController, :play
   end
 
   def fetch_current_user(conn, _) do
