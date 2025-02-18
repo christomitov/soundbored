@@ -709,6 +709,19 @@ defmodule SoundboardWeb.SoundboardLive do
   end
 
   @impl true
+  def handle_event("stop_sound", _params, socket) do
+    # Stop browser-based sounds
+    socket = push_event(socket, "stop-all-sounds", %{})
+
+    # Stop Discord bot sounds if user is logged in
+    if socket.assigns.current_user do
+      SoundboardWeb.AudioPlayer.stop_sound()
+    end
+
+    {:noreply, socket}
+  end
+
+  @impl true
   def handle_info({:error, message}, socket) do
     {:noreply, put_flash(socket, :error, message)}
   end

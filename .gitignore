@@ -38,3 +38,5 @@ npm-debug.log
 /priv/static/uploads/
 
 .env
+
+.DS_Store
