@@ -12,7 +12,9 @@ defmodule SoundboardWeb.Router do
   end
 
   pipeline :require_basic_auth do
-    plug SoundboardWeb.Plugs.BasicAuth
+    if System.get_env("BASIC_AUTH_USERNAME") && System.get_env("BASIC_AUTH_PASSWORD") do
+      plug SoundboardWeb.Plugs.BasicAuth
+    end
   end
 
   pipeline :auth do

@@ -26,6 +26,7 @@ defmodule SoundboardWeb.FavoritesLive do
         Sound.with_tags()
         |> Soundboard.Repo.all()
         |> Enum.filter(&(&1.id in favorites))
+        |> Enum.sort_by(&String.downcase(&1.filename))
 
       {:ok, assign(socket, favorites: favorites, sounds_with_tags: sounds_with_tags)}
     else
@@ -59,6 +60,7 @@ defmodule SoundboardWeb.FavoritesLive do
               Sound.with_tags()
               |> Soundboard.Repo.all()
               |> Enum.filter(&(&1.id in favorites))
+              |> Enum.sort_by(&String.downcase(&1.filename))
 
             {:noreply,
              socket
@@ -109,6 +111,7 @@ defmodule SoundboardWeb.FavoritesLive do
         Sound.with_tags()
         |> Soundboard.Repo.all()
         |> Enum.filter(&(&1.id in favorites))
+        |> Enum.sort_by(&String.downcase(&1.filename))
 
       {:noreply, assign(socket, favorites: favorites, sounds_with_tags: sounds_with_tags)}
     else
@@ -134,6 +137,7 @@ defmodule SoundboardWeb.FavoritesLive do
           Sound.with_tags()
           |> Soundboard.Repo.all()
           |> Enum.filter(&(&1.id in favorites))
+          |> Enum.sort_by(&String.downcase(&1.filename))
 
         {:noreply,
          socket

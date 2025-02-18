@@ -787,6 +787,7 @@ defmodule SoundboardWeb.SoundboardLive do
       Sound
       |> Repo.all()
       |> Repo.preload([:tags, :user])
+      |> Enum.sort_by(&String.downcase(&1.filename))
 
     assign(socket, :uploaded_files, sounds)
   end

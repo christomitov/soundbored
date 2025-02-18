@@ -308,7 +308,8 @@ defmodule SoundboardWeb.DiscordHandler do
     # Count non-bot users in voice channels
     user_count =
       guild.voice_states
-      |> Enum.count(fn vs ->  # Changed from Map.values() to just Enum.count
+      # Changed from Map.values() to just Enum.count
+      |> Enum.count(fn vs ->
         vs.user_id != bot_id && vs.channel_id != nil
       end)
 
