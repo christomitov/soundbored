@@ -13,6 +13,8 @@ Soundbored is an unlimited, no-cost, self-hosted soundboard for Discord. It allo
 
 [Usage](#usage)
 
+[API](#api)
+
 [Changelog](#changelog)
 
 
@@ -42,6 +44,8 @@ You then need to invite the bot to your server by going to `Oauth2`, checking `b
 The Docker needs the following environment variables, check .env.example:
 
 ```
+API_TOKEN=make_up_a_token_here
+
 DISCORD_TOKEN=your_actual_discord_token
 DISCORD_CLIENT_ID=your_actual_client_id
 DISCORD_CLIENT_SECRET=your_actual_client_secret
@@ -116,8 +120,31 @@ Replace `your.domain.com` with your actual domain name. Caddy will automatically
 
 After inviting the bot to your server, join a voice channel and type `!join` to have the bot join the voice channel. Type `!leave` to have the bot leave. You can upload sounds to Soundbored and trigger them there and they will play in the voice channel.
 
+## API
+
+The API is used to trigger sounds from other applications. It is protected by the API_TOKEN in the .env file. The API has the following endpoints:
+
+```
+# Get list of sounds to find the ID
+curl https://soundboardurl.com/api/sounds \
+  -H "Authorization: Bearer API_TOKEN"
+
+# Play a sound by ID
+curl -X POST https://soundboardurl.com/api/sounds/123/play \
+  -H "Authorization: Bearer API_TOKEN" \
+```
+
 
 ## Changelog
+
+### v1.3.0 (2025-02-18)
+
+#### ✨ New Features
+- Added API to get and trigger sounds.
+- Added "stop all sounds" button.
+- Implemented auto leave and join voice channels.
+- Sorting sounds alphabetically
+- Added ability to disable basic auth (just comment out BASIC_AUTH_USERNAME and BASIC_AUTH_PASSWORD in .env)
 
 ### v1.2.0 (2025-01-18)
 
