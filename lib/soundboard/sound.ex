@@ -63,9 +63,10 @@ defmodule Soundboard.Sound do
   end
 
   def list_files do
-    # Get all sounds from the database with their tags
-    with_tags()
-    |> Soundboard.Repo.all()
+    __MODULE__
+    |> with_tags()
+    |> preload(:user_sound_settings)
+    |> Repo.all()
   end
 
   def get_sound_id(filename) do

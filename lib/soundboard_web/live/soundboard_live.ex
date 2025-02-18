@@ -177,7 +177,9 @@ defmodule SoundboardWeb.SoundboardLive do
 
   @impl true
   def handle_event("edit", %{"id" => id}, socket) do
-    case Repo.get(Sound, id) do
+    case Sound
+         |> Repo.get(id)
+         |> Repo.preload([:tags, :user_sound_settings]) do
       nil ->
         {:noreply,
          socket
