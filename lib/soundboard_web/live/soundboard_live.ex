@@ -187,10 +187,11 @@ defmodule SoundboardWeb.SoundboardLive do
 
       sound ->
         # Get the user's settings for this sound
-        user_settings = Repo.one(
-          from uss in UserSoundSetting,
-          where: uss.sound_id == ^sound.id and uss.user_id == ^socket.assigns.current_user.id
-        )
+        user_settings =
+          Repo.one(
+            from uss in UserSoundSetting,
+              where: uss.sound_id == ^sound.id and uss.user_id == ^socket.assigns.current_user.id
+          )
 
         sound =
           sound

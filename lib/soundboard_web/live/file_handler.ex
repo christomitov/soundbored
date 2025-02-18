@@ -1,6 +1,8 @@
 defmodule SoundboardWeb.Live.FileHandler do
   alias Soundboard.{Repo, Sound}
   alias Phoenix.PubSub
+  alias Ecto.Multi
+  import Ecto.Query
 
   require Logger
 
@@ -10,6 +12,7 @@ defmodule SoundboardWeb.Live.FileHandler do
     if String.trim(new_name) == "" do
       {:ok, "No changes made"}
     else
+      # Keep the original extension
       old_path = Path.join(@upload_directory, old_name)
       new_name = String.trim(new_name) <> Path.extname(old_name)
       new_path = Path.join(@upload_directory, new_name)
@@ -22,7 +25,24 @@ defmodule SoundboardWeb.Live.FileHandler do
           {:error, "A file with that name already exists"}
 
         true ->
-          perform_rename(old_path, new_path, new_name, socket)
+          # Wrap file operations in a transaction
+          Repo.transaction(fn ->
+            with :ok <- File.rename(old_path, new_path),
+                 {:ok, _updated_sound} <-
+                   update_sound_filename(socket.assigns.current_sound, new_name) do
+              broadcast_update()
+              {:ok, "File renamed successfully!"}
+            else
+              error ->
+                # If anything fails, roll back and try to restore the original filename
+                File.rename(new_path, old_path)
+                Repo.rollback(error)
+            end
+          end)
+          |> case do
+            {:ok, result} -> result
+            {:error, _} -> {:error, "Failed to rename file"}
+          end
       end
     end
   end
@@ -116,20 +136,21 @@ defmodule SoundboardWeb.Live.FileHandler do
     end
   end
 
-  defp perform_rename(old_path, new_path, new_name, socket) do
-    with :ok <- File.rename(old_path, new_path),
-         {:ok, _updated_sound} <- update_sound_filename(socket.assigns.current_sound, new_name) do
-      broadcast_update()
-      {:ok, "File renamed successfully!"}
-    else
-      _ -> {:error, "Failed to rename file"}
-    end
-  end
-
   defp update_sound_filename(sound, new_name) do
-    sound
-    |> Ecto.Changeset.change(filename: new_name)
-    |> Repo.update()
+    old_name = sound.filename
+
+    Multi.new()
+    |> Multi.update(:sound, Sound.changeset(sound, %{filename: new_name}))
+    |> Multi.update_all(
+      :plays,
+      from(p in Soundboard.Stats.Play, where: p.sound_name == ^old_name),
+      set: [sound_name: new_name]
+    )
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{sound: updated_sound}} -> {:ok, updated_sound}
+      {:error, _, changeset, _} -> {:error, changeset}
+    end
   end
 
   defp maybe_delete_record(nil), do: {:ok, nil}

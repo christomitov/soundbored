@@ -74,10 +74,13 @@ defmodule SoundboardWeb.Live.UploadHandler do
       filename: params["name"] <> ".mp3",
       url: params["url"],
       source_type: "url",
-      user_id: user_id,  # Owner of the sound
-      join_leave_user_id: if(params["is_join_sound"] == "true" || params["is_leave_sound"] == "true") do
-        user_id  # User who wants this as their join/leave sound
-      end,
+      # Owner of the sound
+      user_id: user_id,
+      join_leave_user_id:
+        if(params["is_join_sound"] == "true" || params["is_leave_sound"] == "true") do
+          # User who wants this as their join/leave sound
+          user_id
+        end,
       is_join_sound: params["is_join_sound"] == "true",
       is_leave_sound: params["is_leave_sound"] == "true"
     }
@@ -103,6 +106,7 @@ defmodule SoundboardWeb.Live.UploadHandler do
           Phoenix.PubSub.broadcast(Soundboard.PubSub, "uploads", {:sound_uploaded})
           Phoenix.PubSub.broadcast(Soundboard.PubSub, "stats", {:stats_updated})
           sound
+
         {:error, changeset} ->
           Repo.rollback(changeset)
       end
@@ -119,10 +123,13 @@ defmodule SoundboardWeb.Live.UploadHandler do
         sound_params = %{
           filename: filename,
           source_type: "local",
-          user_id: user_id,  # Owner of the sound
-          join_leave_user_id: if(params["is_join_sound"] == "true" || params["is_leave_sound"] == "true") do
-            user_id  # User who wants this as their join/leave sound
-          end,
+          # Owner of the sound
+          user_id: user_id,
+          join_leave_user_id:
+            if(params["is_join_sound"] == "true" || params["is_leave_sound"] == "true") do
+              # User who wants this as their join/leave sound
+              user_id
+            end,
           is_join_sound: params["is_join_sound"] == "true",
           is_leave_sound: params["is_leave_sound"] == "true"
         }
@@ -147,6 +154,7 @@ defmodule SoundboardWeb.Live.UploadHandler do
               Phoenix.PubSub.broadcast(Soundboard.PubSub, "uploads", {:sound_uploaded})
               Phoenix.PubSub.broadcast(Soundboard.PubSub, "stats", {:stats_updated})
               sound
+
             {:error, changeset} ->
               Repo.rollback(changeset)
           end

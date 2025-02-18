@@ -13,22 +13,25 @@ defmodule Soundboard.Repo.Migrations.CreateUserSoundSettings do
 
     create index(:user_sound_settings, [:user_id])
     create index(:user_sound_settings, [:sound_id])
+
     create unique_index(:user_sound_settings, [:user_id, :is_join_sound],
-      where: "is_join_sound = 1",
-      name: :user_sound_settings_join_sound_index
-    )
+             where: "is_join_sound = 1",
+             name: :user_sound_settings_join_sound_index
+           )
+
     create unique_index(:user_sound_settings, [:user_id, :is_leave_sound],
-      where: "is_leave_sound = 1",
-      name: :user_sound_settings_leave_sound_index
-    )
+             where: "is_leave_sound = 1",
+             name: :user_sound_settings_leave_sound_index
+           )
 
     execute """
-    INSERT INTO user_sound_settings (user_id, sound_id, is_join_sound, is_leave_sound, inserted_at, updated_at)
-    SELECT user_id, id, COALESCE(is_join_sound, 0), COALESCE(is_leave_sound, 0), datetime('now'), datetime('now')
-    FROM sounds
-    WHERE is_join_sound = 1 OR is_leave_sound = 1;
-    """, """
-    DELETE FROM user_sound_settings;
-    """
+            INSERT INTO user_sound_settings (user_id, sound_id, is_join_sound, is_leave_sound, inserted_at, updated_at)
+            SELECT user_id, id, COALESCE(is_join_sound, 0), COALESCE(is_leave_sound, 0), datetime('now'), datetime('now')
+            FROM sounds
+            WHERE is_join_sound = 1 OR is_leave_sound = 1;
+            """,
+            """
+            DELETE FROM user_sound_settings;
+            """
   end
 end
