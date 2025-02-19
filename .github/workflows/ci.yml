@@ -1,10 +1,10 @@
-name: Test
+name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ "main" ]
   pull_request:
-    branches: [ main, master ]
+    branches: [ "main" ]
 
 jobs:
   test:
@@ -12,13 +12,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       
       - name: Set up Elixir
         uses: erlef/setup-beam@v1
         with:
-          elixir-version: '1.18.x' # Updated Elixir version
-          otp-version: '26.x'      # Updated OTP version for Elixir 1.18
+          elixir-version: '1.18.x'
+          otp-version: '26.x'
           
       - name: Restore dependencies cache
         uses: actions/cache@v3
@@ -44,17 +44,19 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
           MIX_ENV: test
+          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
           
       - name: Check minimum test coverage
         run: mix coveralls.json
         env:
           MIX_ENV: test
           COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
+          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
           
       - name: Verify minimum coverage
         run: |
           COVERAGE=$(cat cover/excoveralls.json | jq '.total_coverage')
-          MINIMUM=5.0  # Set your minimum coverage threshold
+          MINIMUM=5.0
           if (( $(echo "$COVERAGE < $MINIMUM" | bc -l) )); then
             echo "Test coverage is below minimum: $COVERAGE% < $MINIMUM%"
             exit 1
@@ -62,3 +64,39 @@ jobs:
           
       - name: Run Credo
         run: mix credo --strict
+
+  build-and-push:
+    needs: test
+    runs-on: ubuntu-latest
+    environment: Builder
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/soundbored:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/soundbored:${{ github.sha }}
+            ghcr.io/${{ github.repository }}/soundbored:latest
+            ghcr.io/${{ github.repository }}/soundbored:${{ github.sha }} 
