@@ -502,11 +502,15 @@ defmodule SoundboardWeb.SoundboardLive do
            |> Repo.insert_or_update() do
       broadcast_update()
 
-      # Get fresh list of sounds in alphabetical order
+      # Get fresh list of sounds with consistent preloading
       sounds =
         Sound
         |> Repo.all()
-        |> Repo.preload([:tags, :user])
+        |> Repo.preload([
+          :tags,
+          :user,
+          user_sound_settings: [user: []]
+        ])
         |> Enum.sort_by(&String.downcase(&1.filename))
 
       {:noreply,
@@ -514,7 +518,6 @@ defmodule SoundboardWeb.SoundboardLive do
        |> put_flash(:info, "Sound updated successfully")
        |> assign(:show_modal, false)
        |> assign(:current_sound, nil)
-       # Directly assign sorted sounds
        |> assign(:uploaded_files, sounds)}
     else
       {:error, %Ecto.Changeset{} = changeset} ->
@@ -733,12 +736,13 @@ defmodule SoundboardWeb.SoundboardLive do
 
   @impl true
   def handle_info({:files_updated}, socket) do
-    # Reload the uploaded files list with preloaded associations
+    # Reload the uploaded files list with preloaded associations and proper sorting
     uploaded_files =
       Sound
       |> Repo.all()
-      # Make sure we preload both tags and user
-      |> Repo.preload([:tags, :user])
+      |> Repo.preload([:tags, :user, user_sound_settings: [user: []]])
+      # Ensure consistent sorting
+      |> Enum.sort_by(&String.downcase(&1.filename))
 
     {:noreply, assign(socket, :uploaded_files, uploaded_files)}
   end
@@ -771,11 +775,10 @@ defmodule SoundboardWeb.SoundboardLive do
   end
 
   defp load_sound_files(socket) do
-    # Use Repo.all with preload to get all sounds with their tags and users
     sounds =
       Sound
       |> Repo.all()
-      |> Repo.preload([:tags, :user])
+      |> Repo.preload([:tags, :user, user_sound_settings: [user: []]])
       |> Enum.sort_by(&String.downcase(&1.filename))
 
     assign(socket, :uploaded_files, sounds)
