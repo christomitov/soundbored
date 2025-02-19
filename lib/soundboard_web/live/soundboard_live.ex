@@ -479,58 +479,80 @@ defmodule SoundboardWeb.SoundboardLive do
     new_filename = params["filename"] <> Path.extname(sound.filename)
     new_path = Path.join("priv/static/uploads", new_filename)
 
-    with :ok <- File.rename(old_path, new_path),
-         sound_params = %{
-           filename: new_filename,
-           source_type: params["source_type"] || sound.source_type,
-           url: params["url"]
-         },
-         {:ok, _updated_sound} <- Sound.changeset(sound, sound_params) |> Repo.update(),
-         # Find or create user setting
-         user_setting =
-           Enum.find(sound.user_sound_settings, &(&1.user_id == user_id)) ||
-             %Soundboard.UserSoundSetting{sound_id: sound.id, user_id: user_id},
-         setting_params = %{
-           user_id: user_id,
-           sound_id: sound.id,
-           is_join_sound: params["is_join_sound"] == "true",
-           is_leave_sound: params["is_leave_sound"] == "true"
-         },
-         {:ok, _setting} <-
-           user_setting
-           |> Soundboard.UserSoundSetting.changeset(setting_params)
-           |> Repo.insert_or_update() do
-      broadcast_update()
+    # Start a transaction to handle all database updates
+    Repo.transaction(fn ->
+      # First clear any existing join/leave sounds if needed
+      if params["is_join_sound"] == "true" do
+        from(uss in Soundboard.UserSoundSetting,
+          where: uss.user_id == ^user_id and uss.is_join_sound == true
+        )
+        |> Repo.update_all(set: [is_join_sound: false])
+      end
 
-      # Get fresh list of sounds with consistent preloading
-      sounds =
-        Sound
-        |> Repo.all()
-        |> Repo.preload([
-          :tags,
-          :user,
-          user_sound_settings: [user: []]
-        ])
-        |> Enum.sort_by(&String.downcase(&1.filename))
+      if params["is_leave_sound"] == "true" do
+        from(uss in Soundboard.UserSoundSetting,
+          where: uss.user_id == ^user_id and uss.is_leave_sound == true
+        )
+        |> Repo.update_all(set: [is_leave_sound: false])
+      end
 
-      {:noreply,
-       socket
-       |> put_flash(:info, "Sound updated successfully")
-       |> assign(:show_modal, false)
-       |> assign(:current_sound, nil)
-       |> assign(:uploaded_files, sounds)}
-    else
-      {:error, %Ecto.Changeset{} = changeset} ->
+      # Then proceed with the file rename and updates
+      with :ok <- File.rename(old_path, new_path),
+           sound_params = %{
+             filename: new_filename,
+             source_type: params["source_type"] || sound.source_type,
+             url: params["url"]
+           },
+           {:ok, updated_sound} <- Sound.changeset(sound, sound_params) |> Repo.update(),
+           # Find or create user setting
+           user_setting =
+             Enum.find(sound.user_sound_settings, &(&1.user_id == user_id)) ||
+               %Soundboard.UserSoundSetting{sound_id: sound.id, user_id: user_id},
+           setting_params = %{
+             user_id: user_id,
+             sound_id: sound.id,
+             is_join_sound: params["is_join_sound"] == "true",
+             is_leave_sound: params["is_leave_sound"] == "true"
+           },
+           {:ok, _setting} <-
+             user_setting
+             |> Soundboard.UserSoundSetting.changeset(setting_params)
+             |> Repo.insert_or_update() do
+        updated_sound
+      else
+        error -> Repo.rollback(error)
+      end
+    end)
+    |> case do
+      {:ok, _updated_sound} ->
+        broadcast_update()
+
+        sounds =
+          Sound
+          |> Repo.all()
+          |> Repo.preload([
+            :tags,
+            :user,
+            user_sound_settings: [user: []]
+          ])
+          |> Enum.sort_by(&String.downcase(&1.filename))
+
         {:noreply,
          socket
-         |> put_flash(:error, "Error updating sound: #{error_message(changeset)}")}
+         |> put_flash(:info, "Sound updated successfully")
+         |> assign(:show_modal, false)
+         |> assign(:current_sound, nil)
+         |> assign(:uploaded_files, sounds)}
 
-      error ->
-        Logger.error("Failed to update sound: #{inspect(error)}")
+      {:error, error} ->
+        error_message = case error do
+          %Ecto.Changeset{} = changeset -> error_message(changeset)
+          _ -> "Failed to update sound"
+        end
 
         {:noreply,
          socket
-         |> put_flash(:error, "Failed to update sound")}
+         |> put_flash(:error, "Error updating sound: #{error_message}")}
     end
   end
 
