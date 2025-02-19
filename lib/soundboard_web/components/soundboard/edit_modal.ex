@@ -2,6 +2,24 @@ defmodule SoundboardWeb.Components.Soundboard.EditModal do
   use Phoenix.Component
 
   def edit_modal(assigns) do
+    # Add a default empty list for tags if they're not loaded
+    assigns =
+      assign_new(assigns, :current_sound, fn ->
+        %{tags: [], is_join_sound: false, is_leave_sound: false}
+      end)
+
+    # Ensure tags is a list even if not loaded
+    assigns =
+      update(assigns, :current_sound, fn sound ->
+        tags =
+          case sound.tags do
+            tags when is_list(tags) -> tags
+            _ -> []
+          end
+
+        Map.put(sound, :tags, tags)
+      end)
+
     ~H"""
     <div
       class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity z-10"
@@ -145,16 +163,19 @@ defmodule SoundboardWeb.Components.Soundboard.EditModal do
     <!-- Sound Settings -->
                 <div class="mt-5 mb-4">
                   <div class="flex flex-col gap-3 text-left">
+                    <% user_setting =
+                      Enum.find(
+                        @current_sound.user_sound_settings || [],
+                        &(&1.user_id == @current_user.id)
+                      ) %>
                     <label class="relative flex items-start">
                       <div class="flex h-6 items-center">
                         <input
                           type="checkbox"
                           name="is_join_sound"
                           value="true"
-                          checked={@current_sound.is_join_sound}
-                          phx-click="toggle_edit_join_sound"
-                          phx-change={nil}
-                          class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-600 dark:border-gray-600 dark:focus:ring-offset-gray-800"
+                          checked={user_setting && user_setting.is_join_sound}
+                          class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-600"
                         />
                       </div>
                       <div class="ml-3 text-sm leading-6">
@@ -170,10 +191,8 @@ defmodule SoundboardWeb.Components.Soundboard.EditModal do
                           type="checkbox"
                           name="is_leave_sound"
                           value="true"
-                          checked={@current_sound.is_leave_sound}
-                          phx-click="toggle_edit_leave_sound"
-                          phx-change={nil}
-                          class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-600 dark:border-gray-600 dark:focus:ring-offset-gray-800"
+                          checked={user_setting && user_setting.is_leave_sound}
+                          class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-600"
                         />
                       </div>
                       <div class="ml-3 text-sm leading-6">

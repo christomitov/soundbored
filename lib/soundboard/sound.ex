@@ -15,9 +15,7 @@ defmodule Soundboard.Sound do
     belongs_to :user, Soundboard.Accounts.User
     has_many :user_sound_settings, Soundboard.UserSoundSetting
 
-    many_to_many :tags, Soundboard.Tag,
-      join_through: Soundboard.SoundTag,
-      on_replace: :delete
+    many_to_many :tags, Soundboard.Tag, join_through: "sound_tags"
 
     timestamps()
   end
@@ -120,5 +118,16 @@ defmodule Soundboard.Sound do
         on: s.user_id == u.id and (s.is_join_sound == true or s.is_leave_sound == true),
         select: {u.id, s.filename, s.is_join_sound, s.is_leave_sound}
     )
+  end
+
+  # Get a sound with all its associations loaded
+  def get_sound!(id) do
+    __MODULE__
+    |> Repo.get!(id)
+    |> Repo.preload([
+      :tags,
+      :user,
+      user_sound_settings: [user: []]
+    ])
   end
 end

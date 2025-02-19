@@ -6,7 +6,7 @@ defmodule SoundboardWeb.SoundboardLive do
   import DeleteModal
   import UploadModal
   alias SoundboardWeb.Presence
-  alias Soundboard.{Repo, Sound, Favorites, UserSoundSetting}
+  alias Soundboard.{Repo, Sound, Favorites}
   require Logger
   alias SoundboardWeb.Live.{FileHandler, TagHandler, FileFilter}
   import Ecto.Query
@@ -27,11 +27,25 @@ defmodule SoundboardWeb.SoundboardLive do
 
   @impl true
   def mount(_params, session, socket) do
-    if connected?(socket) do
-      Phoenix.PubSub.subscribe(Soundboard.PubSub, @pubsub_topic)
-      Phoenix.PubSub.subscribe(Soundboard.PubSub, "soundboard:presence")
-      send(self(), :load_sound_files)
-    end
+    socket =
+      if connected?(socket) do
+        sounds =
+          Soundboard.Sound
+          |> Repo.all()
+          |> Repo.preload([
+            :tags,
+            :user,
+            user_sound_settings: [user: []]
+          ])
+
+        socket = assign(socket, :uploaded_files, sounds)
+        Phoenix.PubSub.subscribe(Soundboard.PubSub, @pubsub_topic)
+        Phoenix.PubSub.subscribe(Soundboard.PubSub, "soundboard:presence")
+        send(self(), :load_sound_files)
+        socket
+      else
+        socket
+      end
 
     socket =
       socket
@@ -115,20 +129,57 @@ defmodule SoundboardWeb.SoundboardLive do
   @impl true
   def handle_event("toggle_edit_join_sound", _params, socket) do
     current_sound = socket.assigns.current_sound
+    user_id = socket.assigns.current_user.id
 
-    {:noreply,
-     assign(socket, :current_sound, %{current_sound | is_join_sound: !current_sound.is_join_sound})}
+    # Find or create user setting
+    user_setting =
+      Enum.find(current_sound.user_sound_settings, &(&1.user_id == user_id)) ||
+        %Soundboard.UserSoundSetting{sound_id: current_sound.id, user_id: user_id}
+
+    setting_params = %{
+      user_id: user_id,
+      sound_id: current_sound.id,
+      is_join_sound: !user_setting.is_join_sound,
+      is_leave_sound: user_setting.is_leave_sound
+    }
+
+    case user_setting
+         |> Soundboard.UserSoundSetting.changeset(setting_params)
+         |> Repo.insert_or_update() do
+      {:ok, _setting} ->
+        {:noreply, socket}
+
+      {:error, _changeset} ->
+        {:noreply, socket |> put_flash(:error, "Failed to update sound settings")}
+    end
   end
 
   @impl true
   def handle_event("toggle_edit_leave_sound", _params, socket) do
     current_sound = socket.assigns.current_sound
+    user_id = socket.assigns.current_user.id
 
-    {:noreply,
-     assign(socket, :current_sound, %{
-       current_sound
-       | is_leave_sound: !current_sound.is_leave_sound
-     })}
+    # Find or create user setting
+    user_setting =
+      Enum.find(current_sound.user_sound_settings, &(&1.user_id == user_id)) ||
+        %Soundboard.UserSoundSetting{sound_id: current_sound.id, user_id: user_id}
+
+    setting_params = %{
+      user_id: user_id,
+      sound_id: current_sound.id,
+      is_join_sound: user_setting.is_join_sound,
+      is_leave_sound: !user_setting.is_leave_sound
+    }
+
+    case user_setting
+         |> Soundboard.UserSoundSetting.changeset(setting_params)
+         |> Repo.insert_or_update() do
+      {:ok, _setting} ->
+        {:noreply, socket}
+
+      {:error, _changeset} ->
+        {:noreply, socket |> put_flash(:error, "Failed to update sound settings")}
+    end
   end
 
   @impl true
@@ -177,35 +228,8 @@ defmodule SoundboardWeb.SoundboardLive do
 
   @impl true
   def handle_event("edit", %{"id" => id}, socket) do
-    case Sound
-         |> Repo.get(id)
-         |> Repo.preload([:tags, :user_sound_settings]) do
-      nil ->
-        {:noreply,
-         socket
-         |> put_flash(:error, "Sound not found in database")}
-
-      sound ->
-        # Get the user's settings for this sound
-        user_settings =
-          Repo.one(
-            from uss in UserSoundSetting,
-              where: uss.sound_id == ^sound.id and uss.user_id == ^socket.assigns.current_user.id
-          )
-
-        sound =
-          sound
-          |> Repo.preload(:tags)
-          |> Map.put(:is_join_sound, !!user_settings && !!user_settings.is_join_sound)
-          |> Map.put(:is_leave_sound, !!user_settings && !!user_settings.is_leave_sound)
-
-        {:noreply,
-         socket
-         |> assign(:current_sound, sound)
-         |> assign(:show_modal, true)
-         |> assign(:tag_input, "")
-         |> assign(:tag_suggestions, [])}
-    end
+    sound = Soundboard.Sound.get_sound!(id)
+    {:noreply, assign(socket, current_sound: sound, show_modal: true)}
   end
 
   @impl true
@@ -448,81 +472,54 @@ defmodule SoundboardWeb.SoundboardLive do
   @impl true
   def handle_event("save_sound", params, socket) do
     sound = socket.assigns.current_sound
-    source_type = params["source_type"] || sound.source_type
+    user_id = socket.assigns.current_user.id
 
-    # Verify sound ID matches
-    if to_string(sound.id) != params["sound_id"] do
-      {:noreply, put_flash(socket, :error, "Invalid sound ID")}
+    # First rename the file if needed
+    old_path = Path.join("priv/static/uploads", sound.filename)
+    new_filename = params["filename"] <> Path.extname(sound.filename)
+    new_path = Path.join("priv/static/uploads", new_filename)
+
+    with :ok <- File.rename(old_path, new_path),
+         sound_params = %{
+           filename: new_filename,
+           source_type: params["source_type"] || sound.source_type,
+           url: params["url"]
+         },
+         {:ok, _updated_sound} <- Sound.changeset(sound, sound_params) |> Repo.update(),
+         # Find or create user sound setting
+         user_setting =
+           Enum.find(sound.user_sound_settings, &(&1.user_id == user_id)) ||
+             %Soundboard.UserSoundSetting{sound_id: sound.id, user_id: user_id},
+         setting_params = %{
+           user_id: user_id,
+           sound_id: sound.id,
+           is_join_sound: params["is_join_sound"] == "true",
+           is_leave_sound: params["is_leave_sound"] == "true"
+         },
+         {:ok, _setting} <-
+           user_setting
+           |> Soundboard.UserSoundSetting.changeset(setting_params)
+           |> Repo.insert_or_update() do
+      broadcast_update()
+
+      {:noreply,
+       socket
+       |> put_flash(:info, "Sound updated successfully")
+       |> assign(:show_modal, false)
+       |> assign(:current_sound, nil)
+       |> load_sound_files()}
     else
-      try do
-        # Handle join/leave sound settings in a transaction
-        Repo.transaction(fn ->
-          sound = Repo.get!(Sound, sound.id)
-          user_id = socket.assigns.current_user.id
+      {:error, %Ecto.Changeset{} = changeset} ->
+        {:noreply,
+         socket
+         |> put_flash(:error, "Error updating sound: #{error_message(changeset)}")}
 
-          # Reset existing join/leave settings
-          if params["is_join_sound"] == "true" do
-            from(uss in UserSoundSetting,
-              where: uss.user_id == ^user_id and uss.is_join_sound == true
-            )
-            |> Repo.update_all(set: [is_join_sound: false])
-          end
+      error ->
+        Logger.error("Failed to update sound: #{inspect(error)}")
 
-          if params["is_leave_sound"] == "true" do
-            from(uss in UserSoundSetting,
-              where: uss.user_id == ^user_id and uss.is_leave_sound == true
-            )
-            |> Repo.update_all(set: [is_leave_sound: false])
-          end
-
-          # Create or update user sound settings
-          user_sound_setting =
-            Repo.get_by(UserSoundSetting,
-              user_id: user_id,
-              sound_id: sound.id
-            ) || %UserSoundSetting{}
-
-          user_sound_setting
-          |> UserSoundSetting.changeset(%{
-            user_id: user_id,
-            sound_id: sound.id,
-            is_join_sound: params["is_join_sound"] == "true",
-            is_leave_sound: params["is_leave_sound"] == "true"
-          })
-          |> Repo.insert_or_update!()
-
-          # Update the sound's basic info
-          sound_params = %{
-            filename: params["filename"] <> Path.extname(sound.filename),
-            source_type: source_type,
-            url: params["url"]
-          }
-
-          case Sound.changeset(sound, sound_params) |> Repo.update() do
-            {:ok, updated_sound} -> updated_sound
-            {:error, changeset} -> Repo.rollback(changeset)
-          end
-        end)
-        |> case do
-          {:ok, _updated_sound} ->
-            {:noreply,
-             socket
-             |> assign(:show_modal, false)
-             |> assign(:current_sound, nil)
-             |> load_sound_files()
-             |> put_flash(:info, "Sound updated successfully")}
-
-          {:error, _} ->
-            {:noreply,
-             socket
-             |> put_flash(:error, "Error updating sound")}
-        end
-      catch
-        {:error, message} ->
-          {:noreply,
-           socket
-           |> put_flash(:error, message)}
-      end
+        {:noreply,
+         socket
+         |> put_flash(:error, "Failed to update sound")}
     end
   end
 
@@ -751,6 +748,13 @@ defmodule SoundboardWeb.SoundboardLive do
     {:noreply, load_sound_files(socket)}
   end
 
+  defp error_message(changeset) do
+    Enum.map(changeset.errors, fn {field, {msg, _opts}} ->
+      "#{field} #{msg}"
+    end)
+    |> Enum.join(", ")
+  end
+
   defp assign_favorites(socket, nil), do: assign(socket, :favorites, [])
 
   defp assign_favorites(socket, user) do
@@ -791,5 +795,9 @@ defmodule SoundboardWeb.SoundboardLive do
 
   defp get_random_sound(sounds) do
     Enum.random(sounds)
+  end
+
+  defp broadcast_update do
+    Phoenix.PubSub.broadcast(Soundboard.PubSub, "soundboard", {:files_updated})
   end
 end
