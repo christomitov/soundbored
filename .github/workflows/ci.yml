@@ -56,7 +56,19 @@ jobs:
           
       - name: Verify minimum coverage
         run: |
-          COVERAGE=$(cat cover/excoveralls.json | jq '.total_coverage')
+          if [ ! -f "cover/excoveralls.json" ]; then
+            echo "Coverage file not found!"
+            exit 1
+          fi
+          
+          COVERAGE=$(jq -r '.total' cover/excoveralls.json)
+          if [ "$COVERAGE" = "null" ] || [ -z "$COVERAGE" ]; then
+            echo "Could not parse coverage value!"
+            echo "Coverage file contents:"
+            cat cover/excoveralls.json
+            exit 1
+          fi
+          
           MINIMUM=5.0
           if (( $(echo "$COVERAGE < $MINIMUM" | bc -l) )); then
             echo "Test coverage is below minimum: $COVERAGE% < $MINIMUM%"
