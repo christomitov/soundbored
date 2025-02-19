@@ -47,29 +47,12 @@ jobs:
           MIX_ENV: test
           DISCORD_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
           
-      - name: Check minimum test coverage
-        run: mix coveralls.json
-        env:
-          MIX_ENV: test
-          COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
-          DISCORD_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
-          
       - name: Verify minimum coverage
         run: |
-          if [ ! -f "cover/excoveralls.json" ]; then
-            echo "Coverage file not found!"
-            exit 1
-          fi
-          
-          COVERAGE=$(jq -r '.total' cover/excoveralls.json)
-          if [ "$COVERAGE" = "null" ] || [ -z "$COVERAGE" ]; then
-            echo "Could not parse coverage value!"
-            echo "Coverage file contents:"
-            cat cover/excoveralls.json
-            exit 1
-          fi
-          
+          # Get coverage from mix coveralls and remove the % symbol
+          COVERAGE=$(mix coveralls | grep "\[TOTAL\]" | awk '{print $2}' | sed 's/%//')
           MINIMUM=5.0
+          
           if (( $(echo "$COVERAGE < $MINIMUM" | bc -l) )); then
             echo "Test coverage is below minimum: $COVERAGE% < $MINIMUM%"
             exit 1
