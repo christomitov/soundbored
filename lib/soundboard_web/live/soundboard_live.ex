@@ -185,8 +185,8 @@ defmodule SoundboardWeb.SoundboardLive do
   @impl true
   def handle_event("save", %{"name" => custom_name}, socket) do
     case handle_upload(socket, %{"name" => custom_name}, &handle_uploaded_entries/3) do
-      :ok -> {:noreply, load_sound_files(socket)}
-      {:error, _message, socket} -> {:noreply, socket}
+      {:ok, _} -> {:noreply, load_sound_files(socket)}
+      {:error, _, socket} -> {:noreply, socket}
     end
   end
 
@@ -247,7 +247,7 @@ defmodule SoundboardWeb.SoundboardLive do
       })
 
     case handle_upload(socket, params, &handle_uploaded_entries/3) do
-      :ok ->
+      {:ok, _sound} ->
         {:noreply,
          socket
          |> assign(:show_upload_modal, false)
@@ -839,9 +839,9 @@ defmodule SoundboardWeb.SoundboardLive do
            user_setting
            |> Soundboard.UserSoundSetting.changeset(setting_params)
            |> Repo.insert_or_update() do
-      updated_sound
+      {:ok, updated_sound}
     else
-      error -> Repo.rollback(error)
+      error -> {:error, error}
     end
   end
 end

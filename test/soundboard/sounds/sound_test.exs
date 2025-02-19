@@ -100,7 +100,7 @@ defmodule Soundboard.Sounds.SoundTest do
         [sound.id, tag.id, now, now]
       )
 
-      result = Sound.with_tags() |> Repo.one()
+      result = Sound.with_tags() |> Repo.all() |> Enum.find(&(&1.id == sound.id))
       assert [%{name: "test_tag"}] = result.tags
     end
 
@@ -127,7 +127,7 @@ defmodule Soundboard.Sounds.SoundTest do
         [sound.id, tag.id, now, now]
       )
 
-      [result] = Sound.list_files()
+      result = Sound.list_files() |> Enum.find(&(&1.id == sound.id))
       assert result.id == sound.id
       assert [%{name: "test_tag"}] = result.tags
     end

@@ -8,7 +8,10 @@ defmodule Soundboard.Tag do
 
   schema "tags" do
     field :name, :string
-    many_to_many :sounds, Soundboard.Sound, join_through: "sound_tags"
+
+    many_to_many :sounds, Soundboard.Sound,
+      join_through: Soundboard.SoundTag,
+      on_replace: :delete
 
     timestamps()
   end

@@ -113,40 +113,68 @@ defmodule SoundboardWeb.Live.UploadHandler do
 
   defp handle_sound_transaction(sound_params, user_id, socket) do
     Repo.transaction(fn ->
-      if sound_params.is_join_sound do
-        from(s in Sound,
-          where: s.join_leave_user_id == ^user_id and s.is_join_sound == true
-        )
-        |> Repo.update_all(set: [is_join_sound: false, join_leave_user_id: nil])
-      end
-
-      if sound_params.is_leave_sound do
-        from(s in Sound,
-          where: s.join_leave_user_id == ^user_id and s.is_leave_sound == true
-        )
-        |> Repo.update_all(set: [is_leave_sound: false, join_leave_user_id: nil])
-      end
-
-      case create_sound(sound_params, socket.assigns.upload_tags) do
-        {:ok, sound} ->
-          Phoenix.PubSub.broadcast(Soundboard.PubSub, "uploads", {:sound_uploaded})
-          Phoenix.PubSub.broadcast(Soundboard.PubSub, "stats", {:stats_updated})
-          sound
-
-        {:error, changeset} ->
-          Repo.rollback(changeset)
-      end
+      clear_existing_settings(user_id, sound_params)
+      create_sound_with_settings(sound_params, user_id, socket)
     end)
     |> case do
-      {:ok, _sound} -> :ok
+      {:ok, {:ok, sound}} -> {:ok, sound}
       {:error, changeset} -> {:error, get_error_message(changeset), socket}
     end
   end
 
-  defp create_sound(params, tags) do
-    %Sound{}
-    |> Sound.changeset(Map.put(params, :tags, tags))
+  defp clear_existing_settings(user_id, %{is_join_sound: true}) do
+    from(s in Sound, where: s.join_leave_user_id == ^user_id and s.is_join_sound == true)
+    |> Repo.update_all(set: [is_join_sound: false, join_leave_user_id: nil])
+  end
+
+  defp clear_existing_settings(user_id, %{is_leave_sound: true}) do
+    from(s in Sound, where: s.join_leave_user_id == ^user_id and s.is_leave_sound == true)
+    |> Repo.update_all(set: [is_leave_sound: false, join_leave_user_id: nil])
+  end
+
+  defp clear_existing_settings(_, _), do: nil
+
+  defp create_sound_with_settings(sound_params, user_id, socket) do
+    with {:ok, sound} <- create_sound(sound_params, socket.assigns.upload_tags),
+         {:ok, _setting} <- create_user_setting(sound, user_id, sound_params) do
+      broadcast_updates()
+      {:ok, sound}
+    end
+  end
+
+  defp create_user_setting(sound, user_id, sound_params) do
+    %Soundboard.UserSoundSetting{
+      user_id: user_id,
+      sound_id: sound.id,
+      is_join_sound: sound_params.is_join_sound,
+      is_leave_sound: sound_params.is_leave_sound
+    }
     |> Repo.insert()
+  end
+
+  defp broadcast_updates do
+    Phoenix.PubSub.broadcast(Soundboard.PubSub, "uploads", {:sound_uploaded})
+    Phoenix.PubSub.broadcast(Soundboard.PubSub, "stats", {:stats_updated})
+  end
+
+  defp create_sound(params, tags) do
+    with {:ok, sound} <- %Sound{} |> Sound.changeset(params) |> Repo.insert(),
+         {n, _} when n > 0 <-
+           Repo.insert_all(
+             "sound_tags",
+             Enum.map(tags, fn tag ->
+               now = NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
+
+               %{
+                 sound_id: sound.id,
+                 tag_id: tag.id,
+                 inserted_at: now,
+                 updated_at: now
+               }
+             end)
+           ) do
+      {:ok, sound}
+    end
   end
 
   defp validate_name_unique(changeset) do
