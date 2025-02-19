@@ -486,7 +486,7 @@ defmodule SoundboardWeb.SoundboardLive do
            url: params["url"]
          },
          {:ok, _updated_sound} <- Sound.changeset(sound, sound_params) |> Repo.update(),
-         # Find or create user sound setting
+         # Find or create user setting
          user_setting =
            Enum.find(sound.user_sound_settings, &(&1.user_id == user_id)) ||
              %Soundboard.UserSoundSetting{sound_id: sound.id, user_id: user_id},
@@ -502,12 +502,20 @@ defmodule SoundboardWeb.SoundboardLive do
            |> Repo.insert_or_update() do
       broadcast_update()
 
+      # Get fresh list of sounds in alphabetical order
+      sounds =
+        Sound
+        |> Repo.all()
+        |> Repo.preload([:tags, :user])
+        |> Enum.sort_by(&String.downcase(&1.filename))
+
       {:noreply,
        socket
        |> put_flash(:info, "Sound updated successfully")
        |> assign(:show_modal, false)
        |> assign(:current_sound, nil)
-       |> load_sound_files()}
+       # Directly assign sorted sounds
+       |> assign(:uploaded_files, sounds)}
     else
       {:error, %Ecto.Changeset{} = changeset} ->
         {:noreply,
