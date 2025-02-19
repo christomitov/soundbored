@@ -1,0 +1,64 @@
+name: Test
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test:
+    name: Build and test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: '1.18.x' # Updated Elixir version
+          otp-version: '26.x'      # Updated OTP version for Elixir 1.18
+          
+      - name: Restore dependencies cache
+        uses: actions/cache@v3
+        with:
+          path: deps
+          key: ${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
+          restore-keys: ${{ runner.os }}-mix-
+          
+      - name: Install dependencies
+        run: mix deps.get
+        
+      - name: Compile (warnings as errors)
+        run: mix compile --warnings-as-errors
+        
+      - name: Install SQLite dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y sqlite3 libsqlite3-dev
+          
+      - name: Run tests with coverage
+        run: mix coveralls.github
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
+          MIX_ENV: test
+          
+      - name: Check minimum test coverage
+        run: mix coveralls.json
+        env:
+          MIX_ENV: test
+          COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
+          
+      - name: Verify minimum coverage
+        run: |
+          COVERAGE=$(cat cover/excoveralls.json | jq '.total_coverage')
+          MINIMUM=5.0  # Set your minimum coverage threshold
+          if (( $(echo "$COVERAGE < $MINIMUM" | bc -l) )); then
+            echo "Test coverage is below minimum: $COVERAGE% < $MINIMUM%"
+            exit 1
+          fi
+          
+      - name: Run Credo
+        run: mix credo --strict

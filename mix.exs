@@ -4,12 +4,21 @@ defmodule Soundboard.MixProject do
   def project do
     [
       app: :soundboard,
-      version: "0.1.0",
+      version: "1.3.0",
       elixir: "~> 1.18",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
-      deps: deps()
+      deps: deps(),
+      test_coverage: [tool: ExCoveralls],
+      preferred_cli_env: [
+        coveralls: :test,
+        "coveralls.detail": :test,
+        "coveralls.post": :test,
+        "coveralls.html": :test,
+        "coveralls.json": :test,
+        "coveralls.github": :test
+      ]
     ]
   end
 
@@ -58,7 +67,10 @@ defmodule Soundboard.MixProject do
       {:ueberauth, "~> 0.10.5"},
       {:ueberauth_discord, "~> 0.6"},
       {:plug_cowboy, "~> 2.6"},
-      {:httpoison, "~> 2.0"}
+      {:httpoison, "~> 2.0"},
+      {:mock, "~> 0.3.9", only: :test},
+      {:excoveralls, "~> 0.18.5", only: :test},
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false}
     ]
   end
 

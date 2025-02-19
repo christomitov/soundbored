@@ -46,9 +46,8 @@ defmodule SoundboardWeb.DiscordHandler do
     end
   end
 
-  def start_link do
+  def init do
     Logger.info("Starting DiscordHandler...")
-    result = Nostrum.Consumer.start_link(__MODULE__)
 
     unless auto_join_disabled?() do
       # Only run auto-join task if not disabled
@@ -72,7 +71,7 @@ defmodule SoundboardWeb.DiscordHandler do
       end)
     end
 
-    result
+    :ok
   end
 
   # Add helper function for leaving voice channel

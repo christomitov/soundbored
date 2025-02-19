@@ -545,10 +545,11 @@ defmodule SoundboardWeb.SoundboardLive do
          |> assign(:uploaded_files, sounds)}
 
       {:error, error} ->
-        error_message = case error do
-          %Ecto.Changeset{} = changeset -> error_message(changeset)
-          _ -> "Failed to update sound"
-        end
+        error_message =
+          case error do
+            %Ecto.Changeset{} = changeset -> error_message(changeset)
+            _ -> "Failed to update sound"
+          end
 
         {:noreply,
          socket
