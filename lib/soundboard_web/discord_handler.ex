@@ -50,27 +50,27 @@ defmodule SoundboardWeb.DiscordHandler do
     Logger.info("Starting DiscordHandler...")
     result = Nostrum.Consumer.start_link(__MODULE__)
 
-    # Check all guilds for voice channels with users
-    Task.start(fn ->
-      Logger.info("Starting voice channel check task...")
-      # Give Discord more time to fully initialize
-      Process.sleep(5000)
+    unless auto_join_disabled?() do
+      # Only run auto-join task if not disabled
+      Task.start(fn ->
+        Logger.info("Starting voice channel check task...")
+        Process.sleep(5000)
 
-      case GuildCache.all() do
-        [] ->
-          Logger.warning("No guilds found in cache. Discord may not be ready.")
+        case GuildCache.all() do
+          [] ->
+            Logger.warning("No guilds found in cache. Discord may not be ready.")
 
-        guilds ->
-          # Convert stream to list
-          guilds = Enum.to_list(guilds)
-          Logger.info("Found #{length(guilds)} guilds")
+          guilds ->
+            guilds = Enum.to_list(guilds)
+            Logger.info("Found #{length(guilds)} guilds")
 
-          for guild <- guilds do
-            Logger.info("Checking guild #{guild.id} for voice channels...")
-            check_and_join_voice(guild)
-          end
-      end
-    end)
+            for guild <- guilds do
+              Logger.info("Checking guild #{guild.id} for voice channels...")
+              check_and_join_voice(guild)
+            end
+        end
+      end)
+    end
 
     result
   end
@@ -127,39 +127,27 @@ defmodule SoundboardWeb.DiscordHandler do
     Logger.info("User #{payload.user_id} disconnected from voice")
     State.update_state(payload.user_id, nil, payload.session_id)
 
-    # Check if we're in a channel
-    case get_current_voice_channel() do
-      {guild_id, channel_id} ->
-        guild = GuildCache.get!(guild_id)
+    unless auto_join_disabled?() do
+      # Only auto-leave if not disabled
+      case get_current_voice_channel() do
+        {guild_id, channel_id} ->
+          guild = GuildCache.get!(guild_id)
 
-        # Count ALL users in our current channel
-        users_in_channel =
-          guild.voice_states
-          |> Enum.count(fn vs ->
-            vs.channel_id == channel_id
-          end)
+          users_in_channel =
+            guild.voice_states
+            |> Enum.count(fn vs -> vs.channel_id == channel_id end)
 
-        Logger.info("""
-        Disconnect check:
-        Channel ID: #{channel_id}
-        Users in channel: #{users_in_channel}
-        Voice states: #{inspect(guild.voice_states)}
-        """)
+          if users_in_channel <= 1 do
+            Logger.info("Only bot remaining in channel, forcing disconnect")
+            leave_voice_channel(guild_id)
+          end
 
-        # If 1 or fewer users in channel (just the bot), leave
-        if users_in_channel <= 1 do
-          Logger.info(
-            "Only bot remaining in channel (users: #{users_in_channel}), forcing disconnect"
-          )
-
-          leave_voice_channel(guild_id)
-        end
-
-      _ ->
-        :noop
+        _ ->
+          :noop
+      end
     end
 
-    # Handle leave sound
+    # Handle leave sound (keep this functionality regardless of auto-join setting)
     user_with_sounds =
       from(u in User,
         where: u.discord_id == ^to_string(payload.user_id),
@@ -184,28 +172,25 @@ defmodule SoundboardWeb.DiscordHandler do
 
   def handle_event({:VOICE_STATE_UPDATE, payload, _ws_state}) do
     Logger.info("Voice state update received: #{inspect(payload)}")
-
-    # Update state tracking
     previous_state = State.get_state(payload.user_id)
     State.update_state(payload.user_id, payload.channel_id, payload.session_id)
 
-    # Handle channel join/leave logic
-    case get_current_voice_channel() do
-      nil when payload.channel_id != nil ->
-        # Bot not in channel but user joined one - join their channel
-        join_voice_channel(payload.guild_id, payload.channel_id)
+    unless auto_join_disabled?() do
+      # Only handle auto-join/leave if not disabled
+      case get_current_voice_channel() do
+        nil when payload.channel_id != nil ->
+          join_voice_channel(payload.guild_id, payload.channel_id)
 
-      {guild_id, channel_id} ->
-        # Bot in channel - check if we should leave
-        users = check_users_in_voice(guild_id, channel_id)
-        # Changed to <= 1
-        if users <= 1, do: leave_voice_channel(guild_id)
+        {guild_id, channel_id} ->
+          users = check_users_in_voice(guild_id, channel_id)
+          if users <= 1, do: leave_voice_channel(guild_id)
 
-      _ ->
-        :noop
+        _ ->
+          :noop
+      end
     end
 
-    # Handle join sound if this was a join event
+    # Handle join sound (keep this functionality regardless of auto-join setting)
     is_join_event =
       case previous_state do
         nil -> true
@@ -357,5 +342,10 @@ defmodule SoundboardWeb.DiscordHandler do
       _ ->
         Logger.info("No users found in voice channels for guild #{guild.id}")
     end
+  end
+
+  # Add this helper function to check if auto-join is disabled
+  defp auto_join_disabled? do
+    System.get_env("DISABLE_AUTO_JOIN") == "true"
   end
 end
