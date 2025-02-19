@@ -37,22 +37,32 @@ defmodule Soundboard.UserSoundSetting do
   end
 
   defp maybe_clear_join_sound(changeset, user_id, sound_id) do
-    if get_change(changeset, :is_join_sound) == true do
-      from(uss in __MODULE__,
-        where: uss.user_id == ^user_id and uss.sound_id != ^sound_id and uss.is_join_sound == true
-      )
-      |> Repo.update_all(set: [is_join_sound: false])
+    case get_change(changeset, :is_join_sound) do
+      true ->
+        # Only clear other join sounds if we're setting this one as a join sound
+        from(uss in __MODULE__,
+          where: uss.user_id == ^user_id and
+                 uss.sound_id != ^sound_id and
+                 uss.is_join_sound == true
+        )
+        |> Repo.update_all(set: [is_join_sound: false])
+        changeset
+      _ -> changeset
     end
-    changeset
   end
 
   defp maybe_clear_leave_sound(changeset, user_id, sound_id) do
-    if get_change(changeset, :is_leave_sound) == true do
-      from(uss in __MODULE__,
-        where: uss.user_id == ^user_id and uss.sound_id != ^sound_id and uss.is_leave_sound == true
-      )
-      |> Repo.update_all(set: [is_leave_sound: false])
+    case get_change(changeset, :is_leave_sound) do
+      true ->
+        # Only clear other leave sounds if we're setting this one as a leave sound
+        from(uss in __MODULE__,
+          where: uss.user_id == ^user_id and
+                 uss.sound_id != ^sound_id and
+                 uss.is_leave_sound == true
+        )
+        |> Repo.update_all(set: [is_leave_sound: false])
+        changeset
+      _ -> changeset
     end
-    changeset
   end
 end

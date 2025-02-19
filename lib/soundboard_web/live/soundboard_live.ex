@@ -802,46 +802,37 @@ defmodule SoundboardWeb.SoundboardLive do
   end
 
   defp update_sound_transaction(sound, user_id, params, old_path, new_path, new_filename) do
-    # First clear any existing join/leave sounds if needed
-    if params["is_join_sound"] == "true" do
-      from(uss in Soundboard.UserSoundSetting,
-        where: uss.user_id == ^user_id and uss.is_join_sound == true
-      )
-      |> Repo.update_all(set: [is_join_sound: false])
-    end
+    Repo.transaction(fn ->
+      # First handle the file rename
+      with :ok <- File.rename(old_path, new_path),
+           sound_params = %{
+             filename: new_filename,
+             source_type: params["source_type"] || sound.source_type,
+             url: params["url"]
+           },
+           {:ok, updated_sound} <- Sound.changeset(sound, sound_params) |> Repo.update() do
+        # Find or create user setting
+        user_setting =
+          Enum.find(sound.user_sound_settings, &(&1.user_id == user_id)) ||
+            %Soundboard.UserSoundSetting{sound_id: sound.id, user_id: user_id}
 
-    if params["is_leave_sound"] == "true" do
-      from(uss in Soundboard.UserSoundSetting,
-        where: uss.user_id == ^user_id and uss.is_leave_sound == true
-      )
-      |> Repo.update_all(set: [is_leave_sound: false])
-    end
+        # Update the settings using our UserSoundSetting changeset
+        setting_params = %{
+          user_id: user_id,
+          sound_id: sound.id,
+          is_join_sound: params["is_join_sound"] == "true",
+          is_leave_sound: params["is_leave_sound"] == "true"
+        }
 
-    # Then proceed with the file rename and updates
-    with :ok <- File.rename(old_path, new_path),
-         sound_params = %{
-           filename: new_filename,
-           source_type: params["source_type"] || sound.source_type,
-           url: params["url"]
-         },
-         {:ok, updated_sound} <- Sound.changeset(sound, sound_params) |> Repo.update(),
-         # Find or create user setting
-         user_setting =
-           Enum.find(sound.user_sound_settings, &(&1.user_id == user_id)) ||
-             %Soundboard.UserSoundSetting{sound_id: sound.id, user_id: user_id},
-         setting_params = %{
-           user_id: user_id,
-           sound_id: sound.id,
-           is_join_sound: params["is_join_sound"] == "true",
-           is_leave_sound: params["is_leave_sound"] == "true"
-         },
-         {:ok, _setting} <-
-           user_setting
-           |> Soundboard.UserSoundSetting.changeset(setting_params)
-           |> Repo.insert_or_update() do
-      {:ok, updated_sound}
-    else
-      error -> {:error, error}
-    end
+        case user_setting
+             |> Soundboard.UserSoundSetting.changeset(setting_params)
+             |> Repo.insert_or_update() do
+          {:ok, _setting} -> updated_sound
+          {:error, changeset} -> Repo.rollback(changeset)
+        end
+      else
+        error -> Repo.rollback(error)
+      end
+    end)
   end
 end
