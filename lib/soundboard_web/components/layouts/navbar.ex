@@ -1,4 +1,7 @@
 defmodule SoundboardWeb.Components.Layouts.Navbar do
+  @moduledoc """
+  The navbar component.
+  """
   use Phoenix.LiveComponent
   use SoundboardWeb, :html
 

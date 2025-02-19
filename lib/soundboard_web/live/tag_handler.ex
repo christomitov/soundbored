@@ -1,37 +1,49 @@
 defmodule SoundboardWeb.Live.TagHandler do
-  alias Soundboard.{Repo, Sound, Tag}
+  @moduledoc """
+  Handles the adding and removing of tags from sounds.
+  """
   alias Phoenix.PubSub
+  alias Soundboard.{Repo, Sound, Tag}
   import Phoenix.Component, only: [assign: 3]
   import Ecto.Query
 
   def add_tag(socket, tag_name, current_tags) do
     tag_name = String.downcase(tag_name)
 
-    if tag_name == "" do
-      {:error, "Tag name cannot be empty"}
+    with {:ok} <- validate_tag_name(tag_name),
+         {:ok, tag} <- find_or_create_tag(tag_name),
+         {:ok} <- validate_unique_tag(tag, current_tags) do
+      add_tag_to_sound_or_upload(socket, tag, current_tags)
+    end
+  end
+
+  defp validate_tag_name(""), do: {:error, "Tag name cannot be empty"}
+  defp validate_tag_name(_), do: {:ok}
+
+  defp validate_unique_tag(tag, current_tags) do
+    if Enum.any?(current_tags, &(&1.id == tag.id)) do
+      {:error, "Tag already exists"}
     else
-      case find_or_create_tag(tag_name) do
-        {:ok, tag} ->
-          if Enum.any?(current_tags, &(&1.id == tag.id)) do
-            {:error, "Tag already exists"}
-          else
-            if socket.assigns.current_sound do
-              case update_sound_tags(socket.assigns.current_sound, [tag | current_tags]) do
-                {:ok, updated_sound} ->
-                  broadcast_update()
-                  {:ok, assign(socket, :current_sound, Repo.preload(updated_sound, :tags))}
+      {:ok}
+    end
+  end
 
-                {:error, _} ->
-                  {:error, "Failed to add tag"}
-              end
-            else
-              {:ok, assign(socket, :upload_tags, [tag | current_tags])}
-            end
-          end
+  defp add_tag_to_sound_or_upload(socket, tag, current_tags) do
+    if socket.assigns.current_sound do
+      add_tag_to_sound(socket, tag, current_tags)
+    else
+      {:ok, assign(socket, :upload_tags, [tag | current_tags])}
+    end
+  end
 
-        {:error, _changeset} ->
-          {:error, "Failed to create tag"}
-      end
+  defp add_tag_to_sound(socket, tag, current_tags) do
+    case update_sound_tags(socket.assigns.current_sound, [tag | current_tags]) do
+      {:ok, updated_sound} ->
+        broadcast_update()
+        {:ok, assign(socket, :current_sound, Repo.preload(updated_sound, :tags))}
+
+      {:error, _} ->
+        {:error, "Failed to add tag"}
     end
   end
 

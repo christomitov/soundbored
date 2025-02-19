@@ -1,5 +1,8 @@
 defmodule Soundboard.TestHelpers do
-  alias Soundboard.{Repo, Sound, Tag}
+  @moduledoc """
+  Helper functions for testing.
+  """
+  alias Soundboard.{Accounts, Repo, Sound, Tag}
 
   def create_test_file(filename) do
     test_dir = "test/support/fixtures"
@@ -62,7 +65,7 @@ defmodule Soundboard.TestHelpers do
       })
 
     %Soundboard.Accounts.User{}
-    |> Soundboard.Accounts.User.changeset(user_attrs)
+    |> Accounts.User.changeset(user_attrs)
     |> Soundboard.Repo.insert()
   end
 

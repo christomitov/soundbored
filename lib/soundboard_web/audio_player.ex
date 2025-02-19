@@ -1,4 +1,7 @@
 defmodule SoundboardWeb.AudioPlayer do
+  @moduledoc """
+  Handles the audio playback.
+  """
   use GenServer
   require Logger
   alias Nostrum.Voice
@@ -6,6 +9,9 @@ defmodule SoundboardWeb.AudioPlayer do
   alias Soundboard.Sound
 
   defmodule State do
+    @moduledoc """
+    The state of the audio player.
+    """
     defstruct [:voice_channel, :current_playback]
   end
 

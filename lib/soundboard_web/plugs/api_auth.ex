@@ -1,4 +1,7 @@
 defmodule SoundboardWeb.Plugs.APIAuth do
+  @moduledoc """
+  API authentication plug.
+  """
   import Plug.Conn
   require Logger
 

@@ -1,4 +1,7 @@
 defmodule SoundboardWeb.Components.Soundboard.UploadModal do
+  @moduledoc """
+  The upload modal component.
+  """
   use Phoenix.Component
 
   def upload_modal(assigns) do

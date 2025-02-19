@@ -1,7 +1,7 @@
 defmodule SoundboardWeb.API.SoundController do
   use SoundboardWeb, :controller
 
-  alias Soundboard.{Sound, Repo}
+  alias Soundboard.{Repo, Sound}
 
   def index(conn, _params) do
     sounds =

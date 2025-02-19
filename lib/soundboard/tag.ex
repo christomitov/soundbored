@@ -1,4 +1,7 @@
 defmodule Soundboard.Tag do
+  @moduledoc """
+  The Tag module.
+  """
   use Ecto.Schema
   import Ecto.Changeset
   import Ecto.Query

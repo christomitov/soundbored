@@ -113,7 +113,7 @@ defmodule SoundboardWeb.Router do
   defp put_session_opts(conn, _opts) do
     conn
     |> put_resp_cookie("_soundboard_key", "",
-      max_age: 86400 * 30,
+      max_age: 86_400 * 30,
       same_site: "Lax",
       secure: Application.get_env(:soundboard, :env) == :prod,
       http_only: true,

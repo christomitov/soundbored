@@ -1,9 +1,12 @@
 defmodule Soundboard.Sound do
+  @moduledoc """
+  The Sound module.
+  """
   use Ecto.Schema
   import Ecto.Changeset
   import Ecto.Query
-  alias Soundboard.Repo
   alias Soundboard.Accounts.User
+  alias Soundboard.Repo
 
   schema "sounds" do
     field :filename, :string

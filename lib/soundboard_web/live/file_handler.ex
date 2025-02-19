@@ -1,7 +1,11 @@
 defmodule SoundboardWeb.Live.FileHandler do
-  alias Soundboard.{Repo, Sound}
-  alias Phoenix.PubSub
+  @moduledoc """
+  Handles the renaming and deletion of files.
+  """
+
   alias Ecto.Multi
+  alias Phoenix.PubSub
+  alias Soundboard.{Repo, Sound}
   import Ecto.Query
 
   require Logger
@@ -12,38 +16,37 @@ defmodule SoundboardWeb.Live.FileHandler do
     if String.trim(new_name) == "" do
       {:ok, "No changes made"}
     else
-      # Keep the original extension
-      old_path = Path.join(@upload_directory, old_name)
       new_name = String.trim(new_name) <> Path.extname(old_name)
-      new_path = Path.join(@upload_directory, new_name)
+      perform_rename(old_name, new_name, socket)
+    end
+  end
 
-      cond do
-        old_name == new_name ->
-          {:ok, "No changes made"}
+  defp perform_rename(old_name, new_name, socket) do
+    old_path = Path.join(@upload_directory, old_name)
+    new_path = Path.join(@upload_directory, new_name)
 
-        File.exists?(new_path) ->
-          {:error, "A file with that name already exists"}
+    cond do
+      old_name == new_name -> {:ok, "No changes made"}
+      File.exists?(new_path) -> {:error, "A file with that name already exists"}
+      true -> execute_rename(old_path, new_path, socket, new_name)
+    end
+  end
 
-        true ->
-          # Wrap file operations in a transaction
-          Repo.transaction(fn ->
-            with :ok <- File.rename(old_path, new_path),
-                 {:ok, _updated_sound} <-
-                   update_sound_filename(socket.assigns.current_sound, new_name) do
-              broadcast_update()
-              {:ok, "File renamed successfully!"}
-            else
-              error ->
-                # If anything fails, roll back and try to restore the original filename
-                File.rename(new_path, old_path)
-                Repo.rollback(error)
-            end
-          end)
-          |> case do
-            {:ok, result} -> result
-            {:error, _} -> {:error, "Failed to rename file"}
-          end
+  defp execute_rename(old_path, new_path, socket, new_name) do
+    Repo.transaction(fn ->
+      with :ok <- File.rename(old_path, new_path),
+           {:ok, _updated_sound} <- update_sound_filename(socket.assigns.current_sound, new_name) do
+        broadcast_update()
+        {:ok, "File renamed successfully!"}
+      else
+        error ->
+          File.rename(new_path, old_path)
+          Repo.rollback(error)
       end
+    end)
+    |> case do
+      {:ok, result} -> result
+      {:error, _} -> {:error, "Failed to rename file"}
     end
   end
 
@@ -96,44 +99,39 @@ defmodule SoundboardWeb.Live.FileHandler do
   end
 
   def save_upload(socket, custom_name, uploaded_entries_fn) do
-    if length(socket.assigns.uploads.audio.entries) > 0 do
-      results =
-        uploaded_entries_fn.(socket, :audio, fn %{path: path}, entry ->
-          ext = Path.extname(entry.client_name)
-          filename = custom_name <> ext
-          dest = Path.join(@upload_directory, filename)
-
-          # Ensure the uploads directory exists
-          File.mkdir_p!(Path.dirname(dest))
-
-          case File.cp(path, dest) do
-            :ok ->
-              Logger.info("File saved successfully to #{dest}")
-              {:ok, filename}
-
-            {:error, reason} ->
-              Logger.error("Failed to save file: #{inspect(reason)}")
-              {:postpone, reason}
-          end
-        end)
-
-      # Fix the return value handling
-      case results do
-        [filename] ->
-          Logger.info("Upload successful: #{filename}")
-          {:ok, filename}
-
-        [{:ok, filename}] ->
-          Logger.info("Upload successful: #{filename}")
-          {:ok, filename}
-
-        _ ->
-          Logger.error("Upload failed: #{inspect(results)}")
-          {:error, "Error saving file"}
-      end
-    else
+    if Enum.empty?(socket.assigns.uploads.audio.entries) do
       {:error, "Please select a file to upload"}
+    else
+      process_upload(socket, custom_name, uploaded_entries_fn)
     end
+  end
+
+  defp process_upload(socket, custom_name, uploaded_entries_fn) do
+    results = handle_file_copy(socket, custom_name, uploaded_entries_fn)
+
+    case results do
+      [filename] -> {:ok, filename}
+      [{:ok, filename}] -> {:ok, filename}
+      _ -> {:error, "Error saving file"}
+    end
+  end
+
+  defp handle_file_copy(socket, custom_name, uploaded_entries_fn) do
+    uploaded_entries_fn.(socket, :audio, fn %{path: path}, entry ->
+      filename = custom_name <> Path.extname(entry.client_name)
+      dest = Path.join(@upload_directory, filename)
+      File.mkdir_p!(Path.dirname(dest))
+
+      case File.cp(path, dest) do
+        :ok ->
+          Logger.info("File saved successfully to #{dest}")
+          {:ok, filename}
+
+        {:error, reason} ->
+          Logger.error("Failed to save file: #{inspect(reason)}")
+          {:postpone, reason}
+      end
+    end)
   end
 
   defp update_sound_filename(sound, new_name) do

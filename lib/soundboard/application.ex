@@ -4,6 +4,7 @@ defmodule Soundboard.Application do
   @moduledoc false
 
   use Application
+  alias SoundboardWeb.Live.PresenceHandler
   require Logger
 
   @impl true
@@ -11,7 +12,7 @@ defmodule Soundboard.Application do
     Logger.info("Starting Soundboard Application")
 
     # Initialize presence handler state
-    SoundboardWeb.Live.PresenceHandler.init()
+    PresenceHandler.init()
 
     case Application.ensure_all_started(:nostrum) do
       {:ok, started_apps} ->

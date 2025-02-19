@@ -1,6 +1,11 @@
 defmodule Soundboard.Tags.TagTest do
+  @moduledoc """
+  Tests the Tag module.
+  """
   use Soundboard.DataCase
-  alias Soundboard.{Tag, Sound, Repo}
+  alias Soundboard.Accounts.User
+  alias Soundboard.{Repo, Sound, Tag}
+
   import Ecto.Changeset
 
   describe "tag validation" do
@@ -73,7 +78,7 @@ defmodule Soundboard.Tags.TagTest do
   defp insert_user do
     {:ok, user} =
       %Soundboard.Accounts.User{}
-      |> Soundboard.Accounts.User.changeset(%{
+      |> User.changeset(%{
         username: "test_user",
         discord_id: "123456",
         avatar: "test.jpg"

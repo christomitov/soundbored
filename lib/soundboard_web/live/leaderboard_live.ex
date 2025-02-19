@@ -1,8 +1,9 @@
 defmodule SoundboardWeb.LeaderboardLive do
   use SoundboardWeb, :live_view
   use SoundboardWeb.Live.PresenceLive
+  alias SoundboardWeb.Live.PresenceHandler
   import Phoenix.Component
-  alias Soundboard.{Stats, Favorites, Sound}
+  alias Soundboard.{Favorites, Sound, Stats}
   require Logger
 
   @pubsub_topic "soundboard"
@@ -209,7 +210,7 @@ defmodule SoundboardWeb.LeaderboardLive do
                     id={"favorite-#{sound_name}"}
                     class="text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-500 mr-2"
                   >
-                    <%= if is_favorite?(@favorites, sound_name) do %>
+                    <%= if favorite?(@favorites, sound_name) do %>
                       <.icon name="hero-heart-solid" class="h-5 w-5 text-red-500" />
                     <% else %>
                       <.icon name="hero-heart" class="h-5 w-5" />
@@ -260,7 +261,7 @@ defmodule SoundboardWeb.LeaderboardLive do
                     phx-stop
                     class="text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-500 mr-2"
                   >
-                    <%= if is_favorite?(@favorites, play.filename) do %>
+                    <%= if favorite?(@favorites, play.filename) do %>
                       <.icon name="hero-heart-solid" class="h-5 w-5 text-red-500" />
                     <% else %>
                       <.icon name="hero-heart" class="h-5 w-5" />
@@ -312,7 +313,7 @@ defmodule SoundboardWeb.LeaderboardLive do
                     phx-stop
                     class="text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-500 mr-2"
                   >
-                    <%= if is_favorite?(@favorites, sound_name) do %>
+                    <%= if favorite?(@favorites, sound_name) do %>
                       <.icon name="hero-heart-solid" class="h-5 w-5 text-red-500" />
                     <% else %>
                       <.icon name="hero-heart" class="h-5 w-5" />
@@ -335,9 +336,45 @@ defmodule SoundboardWeb.LeaderboardLive do
 
       if get_in(meta, [:user, :username]) == username do
         get_in(meta, [:user, :color]) ||
-          SoundboardWeb.Live.PresenceHandler.get_user_color(username)
+          PresenceHandler.get_user_color(username)
       end
-    end) || SoundboardWeb.Live.PresenceHandler.get_user_color(username)
+    end) || PresenceHandler.get_user_color(username)
+  end
+
+  defp handle_favorite_toggle(socket, user, sound_name) do
+    case Sound.get_sound_id(sound_name) do
+      nil -> {:noreply, put_flash(socket, :error, "Sound not found")}
+      sound_id -> update_favorite(socket, user, sound_id)
+    end
+  end
+
+  defp update_favorite(socket, user, sound_id) do
+    case Favorites.toggle_favorite(user.id, sound_id) do
+      {:ok, _favorite} ->
+        updated_favorites = Favorites.list_favorites(user.id)
+        recent_plays = get_recent_plays()
+
+        {:noreply,
+         socket
+         |> assign(:favorites, updated_favorites)
+         |> stream(:recent_plays, recent_plays, reset: true)
+         |> put_flash(:info, "Favorites updated!")}
+
+      {:error, _changeset} ->
+        {:noreply, put_flash(socket, :error, "Could not update favorites")}
+    end
+  end
+
+  defp get_recent_plays do
+    Stats.get_recent_plays(limit: @recent_limit)
+    |> Enum.map(fn {filename, username, timestamp} ->
+      %{
+        id: "#{filename}-#{:erlang.system_time(:millisecond)}",
+        filename: filename,
+        username: username,
+        timestamp: timestamp
+      }
+    end)
   end
 
   @impl true
@@ -359,38 +396,7 @@ defmodule SoundboardWeb.LeaderboardLive do
         {:noreply, put_flash(socket, :error, "You must be logged in to favorite sounds")}
 
       user ->
-        case Sound.get_sound_id(sound_name) do
-          nil ->
-            {:noreply, put_flash(socket, :error, "Sound not found")}
-
-          sound_id ->
-            case Favorites.toggle_favorite(user.id, sound_id) do
-              {:ok, _favorite} ->
-                # Get updated favorites
-                updated_favorites = Favorites.list_favorites(user.id)
-
-                # Re-fetch recent plays to trigger re-render with updated favorite states
-                recent_plays =
-                  Stats.get_recent_plays(limit: @recent_limit)
-                  |> Enum.map(fn {filename, username, timestamp} ->
-                    %{
-                      id: "#{filename}-#{:erlang.system_time(:millisecond)}",
-                      filename: filename,
-                      username: username,
-                      timestamp: timestamp
-                    }
-                  end)
-
-                {:noreply,
-                 socket
-                 |> assign(:favorites, updated_favorites)
-                 |> stream(:recent_plays, recent_plays, reset: true)
-                 |> put_flash(:info, "Favorites updated!")}
-
-              {:error, _changeset} ->
-                {:noreply, put_flash(socket, :error, "Could not update favorites")}
-            end
-        end
+        handle_favorite_toggle(socket, user, sound_name)
     end
   end
 
@@ -416,7 +422,7 @@ defmodule SoundboardWeb.LeaderboardLive do
     end
   end
 
-  defp is_favorite?(favorites, sound_name) do
+  defp favorite?(favorites, sound_name) do
     case Sound.get_sound_id(sound_name) do
       nil -> false
       sound_id -> Enum.member?(favorites, sound_id)

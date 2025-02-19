@@ -1,4 +1,7 @@
 defmodule Soundboard.UserSoundSetting do
+  @moduledoc """
+  The UserSoundSetting module.
+  """
   use Ecto.Schema
   import Ecto.Changeset
 

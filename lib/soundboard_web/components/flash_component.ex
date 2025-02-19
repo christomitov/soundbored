@@ -1,4 +1,7 @@
 defmodule SoundboardWeb.Components.FlashComponent do
+  @moduledoc """
+  The flash component.
+  """
   use Phoenix.Component
 
   def flash(assigns) do

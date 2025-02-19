@@ -1,6 +1,10 @@
 defmodule Soundboard.Sounds.SoundTest do
+  @moduledoc """
+  Tests the Sound module.
+  """
   use Soundboard.DataCase
-  alias Soundboard.{Sound, Tag, Repo}
+  alias Soundboard.Accounts.User
+  alias Soundboard.{Repo, Sound, Tag}
 
   describe "changeset validation" do
     test "validates required fields" do
@@ -147,7 +151,7 @@ defmodule Soundboard.Sounds.SoundTest do
   defp insert_user do
     {:ok, user} =
       %Soundboard.Accounts.User{}
-      |> Soundboard.Accounts.User.changeset(%{
+      |> User.changeset(%{
         username: "test_user_#{System.unique_integer()}",
         discord_id: "123456_#{System.unique_integer()}",
         avatar: "test.jpg"

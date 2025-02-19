@@ -1,4 +1,8 @@
 defmodule SoundboardWeb.Live.FileFilter do
+  @moduledoc """
+  Filters the files based on the selected tags and search query.
+  """
+
   def filter_files(files, query, selected_tags) do
     files
     |> filter_by_tags(selected_tags)

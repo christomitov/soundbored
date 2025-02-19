@@ -1,15 +1,21 @@
 defmodule SoundboardWeb.DiscordHandler do
+  @moduledoc """
+  Handles the Discord events.
+  """
   use Nostrum.Consumer
   require Logger
 
   alias Nostrum.Api
   alias Nostrum.Cache.GuildCache
   alias Nostrum.Voice
-  alias Soundboard.{Repo, Sound, Accounts.User, UserSoundSetting}
+  alias Soundboard.{Accounts.User, Repo, Sound, UserSoundSetting}
   import Ecto.Query
 
   # State GenServer
   defmodule State do
+    @moduledoc """
+    Handles the state of the Discord handler.
+    """
     use GenServer
 
     def start_link(_) do
@@ -21,19 +27,15 @@ defmodule SoundboardWeb.DiscordHandler do
     end
 
     def get_state(user_id) do
-      try do
-        GenServer.call(__MODULE__, {:get_state, user_id})
-      catch
-        :exit, _ -> nil
-      end
+      GenServer.call(__MODULE__, {:get_state, user_id})
+    rescue
+      _ -> nil
     end
 
     def update_state(user_id, channel_id, session_id) do
-      try do
-        GenServer.cast(__MODULE__, {:update_state, user_id, channel_id, session_id})
-      catch
-        :exit, _ -> :error
-      end
+      GenServer.cast(__MODULE__, {:update_state, user_id, channel_id, session_id})
+    rescue
+      _ -> :error
     end
 
     def handle_call({:get_state, user_id}, _from, state) do
@@ -48,30 +50,33 @@ defmodule SoundboardWeb.DiscordHandler do
 
   def init do
     Logger.info("Starting DiscordHandler...")
-
-    unless auto_join_disabled?() do
-      # Only run auto-join task if not disabled
-      Task.start(fn ->
-        Logger.info("Starting voice channel check task...")
-        Process.sleep(5000)
-
-        case GuildCache.all() do
-          [] ->
-            Logger.warning("No guilds found in cache. Discord may not be ready.")
-
-          guilds ->
-            guilds = Enum.to_list(guilds)
-            Logger.info("Found #{length(guilds)} guilds")
-
-            for guild <- guilds do
-              Logger.info("Checking guild #{guild.id} for voice channels...")
-              check_and_join_voice(guild)
-            end
-        end
-      end)
-    end
-
+    if not auto_join_disabled?(), do: start_guild_check_task()
     :ok
+  end
+
+  defp start_guild_check_task do
+    Task.start(fn ->
+      Logger.info("Starting voice channel check task...")
+      Process.sleep(5000)
+      check_guilds()
+    end)
+  end
+
+  defp check_guilds do
+    case Enum.to_list(GuildCache.all()) do
+      [] -> Logger.warning("No guilds found in cache. Discord may not be ready.")
+      guilds -> process_guilds(guilds)
+    end
+  end
+
+  defp process_guilds(guilds) do
+    guilds = Enum.to_list(guilds)
+    Logger.info("Found #{length(guilds)} guilds")
+
+    for guild <- guilds do
+      Logger.info("Checking guild #{guild.id} for voice channels...")
+      check_and_join_voice(guild)
+    end
   end
 
   # Add helper function for leaving voice channel
@@ -122,51 +127,14 @@ defmodule SoundboardWeb.DiscordHandler do
   end
 
   def handle_event({:VOICE_STATE_UPDATE, %{channel_id: nil} = payload, _ws_state}) do
-    # Handle disconnection (leaving voice channel)
     Logger.info("User #{payload.user_id} disconnected from voice")
     State.update_state(payload.user_id, nil, payload.session_id)
 
     unless auto_join_disabled?() do
-      # Only auto-leave if not disabled
-      case get_current_voice_channel() do
-        {guild_id, channel_id} ->
-          guild = GuildCache.get!(guild_id)
-
-          users_in_channel =
-            guild.voice_states
-            |> Enum.count(fn vs -> vs.channel_id == channel_id end)
-
-          if users_in_channel <= 1 do
-            Logger.info("Only bot remaining in channel, forcing disconnect")
-            leave_voice_channel(guild_id)
-          end
-
-        _ ->
-          :noop
-      end
+      handle_bot_alone_check(payload.guild_id)
     end
 
-    # Handle leave sound (keep this functionality regardless of auto-join setting)
-    user_with_sounds =
-      from(u in User,
-        where: u.discord_id == ^to_string(payload.user_id),
-        left_join: uss in UserSoundSetting,
-        on: uss.user_id == u.id and uss.is_leave_sound == true,
-        left_join: s in Sound,
-        on: s.id == uss.sound_id,
-        select: {u.id, s.filename},
-        limit: 1
-      )
-      |> Repo.one()
-
-    case user_with_sounds do
-      {_user_id, leave_sound} when not is_nil(leave_sound) ->
-        Logger.info("Playing leave sound: #{leave_sound}")
-        SoundboardWeb.AudioPlayer.play_sound(leave_sound, "System")
-
-      _ ->
-        :noop
-    end
+    handle_leave_sound(payload.user_id)
   end
 
   def handle_event({:VOICE_STATE_UPDATE, payload, _ws_state}) do
@@ -175,49 +143,10 @@ defmodule SoundboardWeb.DiscordHandler do
     State.update_state(payload.user_id, payload.channel_id, payload.session_id)
 
     unless auto_join_disabled?() do
-      # Only handle auto-join/leave if not disabled
-      case get_current_voice_channel() do
-        nil when payload.channel_id != nil ->
-          join_voice_channel(payload.guild_id, payload.channel_id)
-
-        {guild_id, channel_id} ->
-          users = check_users_in_voice(guild_id, channel_id)
-          if users <= 1, do: leave_voice_channel(guild_id)
-
-        _ ->
-          :noop
-      end
+      handle_auto_join_leave(payload)
     end
 
-    # Handle join sound (keep this functionality regardless of auto-join setting)
-    is_join_event =
-      case previous_state do
-        nil -> true
-        {nil, _} -> true
-        {prev_channel, _} -> prev_channel != payload.channel_id
-      end
-
-    if is_join_event do
-      user_with_sounds =
-        from(u in User,
-          where: u.discord_id == ^to_string(payload.user_id),
-          left_join: uss in UserSoundSetting,
-          on: uss.user_id == u.id and uss.is_join_sound == true,
-          left_join: s in Sound,
-          on: s.id == uss.sound_id,
-          select: {u.id, s.filename},
-          limit: 1
-        )
-        |> Repo.one()
-
-      case user_with_sounds do
-        {_user_id, join_sound} when not is_nil(join_sound) ->
-          Process.send_after(self(), {:play_delayed_sound, join_sound}, 1000)
-
-        _ ->
-          :noop
-      end
-    end
+    handle_join_sound(payload.user_id, previous_state, payload.channel_id)
   end
 
   def handle_event({:VOICE_READY, payload, _ws_state}) do
@@ -346,5 +275,96 @@ defmodule SoundboardWeb.DiscordHandler do
   # Add this helper function to check if auto-join is disabled
   defp auto_join_disabled? do
     System.get_env("DISABLE_AUTO_JOIN") == "true"
+  end
+
+  defp handle_bot_alone_check(_guild_id) do
+    case get_current_voice_channel() do
+      {guild_id, channel_id} ->
+        check_and_maybe_leave(guild_id, channel_id)
+
+      _ ->
+        :noop
+    end
+  end
+
+  defp check_and_maybe_leave(guild_id, channel_id) do
+    users = check_users_in_voice(guild_id, channel_id)
+
+    if users <= 1 do
+      Logger.info("Only bot remaining in channel, forcing disconnect")
+      leave_voice_channel(guild_id)
+    end
+  end
+
+  defp handle_auto_join_leave(payload) do
+    case get_current_voice_channel() do
+      nil when payload.channel_id != nil ->
+        join_voice_channel(payload.guild_id, payload.channel_id)
+
+      {guild_id, channel_id} ->
+        check_and_maybe_leave(guild_id, channel_id)
+
+      _ ->
+        :noop
+    end
+  end
+
+  defp handle_join_sound(user_id, previous_state, new_channel_id) do
+    is_join_event =
+      case previous_state do
+        nil -> true
+        {nil, _} -> true
+        {prev_channel, _} -> prev_channel != new_channel_id
+      end
+
+    if is_join_event do
+      play_join_sound(user_id)
+    end
+  end
+
+  defp play_join_sound(user_id) do
+    user_with_sounds =
+      from(u in User,
+        where: u.discord_id == ^to_string(user_id),
+        left_join: uss in UserSoundSetting,
+        on: uss.user_id == u.id and uss.is_join_sound == true,
+        left_join: s in Sound,
+        on: s.id == uss.sound_id,
+        select: {u.id, s.filename},
+        limit: 1
+      )
+      |> Repo.one()
+
+    case user_with_sounds do
+      {_user_id, join_sound} when not is_nil(join_sound) ->
+        Process.send_after(self(), {:play_delayed_sound, join_sound}, 1000)
+
+      _ ->
+        :noop
+    end
+  end
+
+  defp handle_leave_sound(user_id) do
+    # Handle leave sound (keep this functionality regardless of auto-join setting)
+    user_with_sounds =
+      from(u in User,
+        where: u.discord_id == ^to_string(user_id),
+        left_join: uss in UserSoundSetting,
+        on: uss.user_id == u.id and uss.is_leave_sound == true,
+        left_join: s in Sound,
+        on: s.id == uss.sound_id,
+        select: {u.id, s.filename},
+        limit: 1
+      )
+      |> Repo.one()
+
+    case user_with_sounds do
+      {_user_id, leave_sound} when not is_nil(leave_sound) ->
+        Logger.info("Playing leave sound: #{leave_sound}")
+        SoundboardWeb.AudioPlayer.play_sound(leave_sound, "System")
+
+      _ ->
+        :noop
+    end
   end
 end

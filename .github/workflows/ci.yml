@@ -49,7 +49,6 @@ jobs:
           
       - name: Verify minimum coverage
         run: |
-          # Get coverage from mix coveralls and remove the % symbol
           COVERAGE=$(mix coveralls | grep "\[TOTAL\]" | awk '{print $2}' | sed 's/%//')
           MINIMUM=5.0
           
@@ -59,6 +58,8 @@ jobs:
           else
             echo "Coverage is $COVERAGE%, which meets the minimum requirement of $MINIMUM%"
           fi
+        env:
+          DISCORD_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
           
       - name: Run Credo
         run: mix credo --strict

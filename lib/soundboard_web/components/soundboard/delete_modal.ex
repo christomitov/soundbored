@@ -1,4 +1,7 @@
 defmodule SoundboardWeb.Components.Soundboard.DeleteModal do
+  @moduledoc """
+  The delete modal component.
+  """
   use Phoenix.Component
 
   def delete_modal(assigns) do

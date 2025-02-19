@@ -1,4 +1,7 @@
 defmodule SoundboardWeb.Plugs.BasicAuth do
+  @moduledoc """
+  Basic authentication plug.
+  """
   import Plug.Conn
   require Logger
 
@@ -13,28 +16,23 @@ defmodule SoundboardWeb.Plugs.BasicAuth do
       Logger.info("Basic auth credentials not configured - skipping authentication")
       conn
     else
-      Logger.debug("""
-      Basic Auth Debug:
-      Username set: #{username}
-      Auth header: #{inspect(get_req_header(conn, "authorization"))}
-      """)
+      authenticate(conn, username, password)
+    end
+  end
 
-      case get_req_header(conn, "authorization") do
-        ["Basic " <> auth] ->
-          case Base.decode64(auth) do
-            {:ok, decoded} ->
-              case String.split(decoded, ":") do
-                [^username, ^password] -> conn
-                _ -> unauthorized(conn)
-              end
+  defp authenticate(conn, username, password) do
+    Logger.debug("""
+    Basic Auth Debug:
+    Username set: #{username}
+    Auth header: #{inspect(get_req_header(conn, "authorization"))}
+    """)
 
-            _ ->
-              unauthorized(conn)
-          end
-
-        _ ->
-          unauthorized(conn)
-      end
+    with ["Basic " <> auth] <- get_req_header(conn, "authorization"),
+         {:ok, decoded} <- Base.decode64(auth),
+         [^username, ^password] <- String.split(decoded, ":") do
+      conn
+    else
+      _ -> unauthorized(conn)
     end
   end
 

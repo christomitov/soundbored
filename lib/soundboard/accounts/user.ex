@@ -1,4 +1,7 @@
 defmodule Soundboard.Accounts.User do
+  @moduledoc """
+  The User module.
+  """
   use Ecto.Schema
   import Ecto.Changeset
 

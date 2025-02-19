@@ -1,4 +1,7 @@
 defmodule Soundboard.Stats.Play do
+  @moduledoc """
+  The Play module.
+  """
   use Ecto.Schema
   import Ecto.Changeset
   alias Soundboard.Accounts.User

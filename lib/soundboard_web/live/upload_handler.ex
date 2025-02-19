@@ -1,6 +1,9 @@
 defmodule SoundboardWeb.Live.UploadHandler do
+  @moduledoc """
+  Handles the upload of sounds from a local file or a URL.
+  """
   alias SoundboardWeb.Live.FileHandler
-  alias Soundboard.{Sound, Repo}
+  alias Soundboard.{Repo, Sound}
   import Ecto.Query
   import Ecto.Changeset
   require Logger
@@ -74,18 +77,41 @@ defmodule SoundboardWeb.Live.UploadHandler do
       filename: params["name"] <> ".mp3",
       url: params["url"],
       source_type: "url",
-      # Owner of the sound
       user_id: user_id,
       join_leave_user_id:
-        if(params["is_join_sound"] == "true" || params["is_leave_sound"] == "true") do
-          # User who wants this as their join/leave sound
+        if params["is_join_sound"] == "true" || params["is_leave_sound"] == "true" do
           user_id
         end,
       is_join_sound: params["is_join_sound"] == "true",
       is_leave_sound: params["is_leave_sound"] == "true"
     }
 
-    # Handle join/leave sound resets in a transaction
+    handle_sound_transaction(sound_params, user_id, socket)
+  end
+
+  defp handle_local_upload(socket, params, user_id, consume_uploaded_entries_fn) do
+    case FileHandler.save_upload(socket, params["name"], consume_uploaded_entries_fn) do
+      {:ok, filename} ->
+        sound_params = %{
+          filename: filename,
+          source_type: "local",
+          user_id: user_id,
+          join_leave_user_id:
+            if params["is_join_sound"] == "true" || params["is_leave_sound"] == "true" do
+              user_id
+            end,
+          is_join_sound: params["is_join_sound"] == "true",
+          is_leave_sound: params["is_leave_sound"] == "true"
+        }
+
+        handle_sound_transaction(sound_params, user_id, socket)
+
+      {:error, message} ->
+        {:error, message, socket}
+    end
+  end
+
+  defp handle_sound_transaction(sound_params, user_id, socket) do
     Repo.transaction(fn ->
       if sound_params.is_join_sound do
         from(s in Sound,
@@ -117,59 +143,6 @@ defmodule SoundboardWeb.Live.UploadHandler do
     end
   end
 
-  defp handle_local_upload(socket, params, user_id, consume_uploaded_entries_fn) do
-    case FileHandler.save_upload(socket, params["name"], consume_uploaded_entries_fn) do
-      {:ok, filename} ->
-        sound_params = %{
-          filename: filename,
-          source_type: "local",
-          # Owner of the sound
-          user_id: user_id,
-          join_leave_user_id:
-            if(params["is_join_sound"] == "true" || params["is_leave_sound"] == "true") do
-              # User who wants this as their join/leave sound
-              user_id
-            end,
-          is_join_sound: params["is_join_sound"] == "true",
-          is_leave_sound: params["is_leave_sound"] == "true"
-        }
-
-        Repo.transaction(fn ->
-          if sound_params.is_join_sound do
-            from(s in Sound,
-              where: s.join_leave_user_id == ^user_id and s.is_join_sound == true
-            )
-            |> Repo.update_all(set: [is_join_sound: false, join_leave_user_id: nil])
-          end
-
-          if sound_params.is_leave_sound do
-            from(s in Sound,
-              where: s.join_leave_user_id == ^user_id and s.is_leave_sound == true
-            )
-            |> Repo.update_all(set: [is_leave_sound: false, join_leave_user_id: nil])
-          end
-
-          case create_sound(sound_params, socket.assigns.upload_tags) do
-            {:ok, sound} ->
-              Phoenix.PubSub.broadcast(Soundboard.PubSub, "uploads", {:sound_uploaded})
-              Phoenix.PubSub.broadcast(Soundboard.PubSub, "stats", {:stats_updated})
-              sound
-
-            {:error, changeset} ->
-              Repo.rollback(changeset)
-          end
-        end)
-        |> case do
-          {:ok, _sound} -> :ok
-          {:error, changeset} -> {:error, get_error_message(changeset), socket}
-        end
-
-      {:error, message} ->
-        {:error, message, socket}
-    end
-  end
-
-  # Add this function back
   defp create_sound(params, tags) do
     %Sound{}
     |> Sound.changeset(Map.put(params, :tags, tags))
@@ -205,11 +178,10 @@ defmodule SoundboardWeb.Live.UploadHandler do
   end
 
   defp get_error_message(changeset) do
-    Enum.map(changeset.errors, fn
+    Enum.map_join(changeset.errors, ", ", fn
       {:filename, {"has already been taken", _}} -> "A sound with that name already exists"
       {:file, {"Please select a file", _}} -> "Please select a file"
       {_key, {msg, _}} -> msg
     end)
-    |> Enum.join(", ")
   end
 end

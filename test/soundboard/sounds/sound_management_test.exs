@@ -1,6 +1,6 @@
 defmodule Soundboard.Sounds.SoundManagementTest do
   use Soundboard.DataCase
-  alias Soundboard.{Sound, Accounts.User, Repo}
+  alias Soundboard.{Accounts.User, Repo, Sound}
 
   describe "sound management" do
     setup do

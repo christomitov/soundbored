@@ -1,5 +1,9 @@
 defmodule SoundboardWeb.DiscordHandlerTest do
+  @moduledoc """
+  Tests the DiscordHandler module.
+  """
   use Soundboard.DataCase
+  alias Ecto.Adapters.SQL.Sandbox
   alias SoundboardWeb.DiscordHandler
   import Mock
 
@@ -9,7 +13,7 @@ defmodule SoundboardWeb.DiscordHandlerTest do
       start_supervised!({SoundboardWeb.DiscordHandler, name: SoundboardWeb.DiscordHandler})
 
       # Then allow sandbox access
-      Ecto.Adapters.SQL.Sandbox.allow(
+      Sandbox.allow(
         Soundboard.Repo,
         self(),
         Process.whereis(SoundboardWeb.DiscordHandler)

@@ -1,7 +1,10 @@
 defmodule Soundboard.Stats do
+  @moduledoc """
+  Handles the stats of the soundboard.
+  """
   import Ecto.Query
-  alias Soundboard.{Repo, Stats.Play, Sound, Accounts.User}
   alias Phoenix.PubSub
+  alias Soundboard.{Accounts.User, Repo, Sound, Stats.Play}
 
   @pubsub_topic "soundboard"
 

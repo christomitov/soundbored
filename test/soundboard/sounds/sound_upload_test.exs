@@ -1,7 +1,12 @@
 defmodule Soundboard.Sounds.UploadTest do
+  @moduledoc """
+  Tests the Sound.Upload module.
+  """
   use Soundboard.DataCase
-  alias Soundboard.Sound
+
+  alias Soundboard.Accounts.User
   alias Soundboard.Repo
+  alias Soundboard.Sound
 
   setup do
     user = insert_user()
@@ -68,7 +73,7 @@ defmodule Soundboard.Sounds.UploadTest do
   defp insert_user do
     {:ok, user} =
       %Soundboard.Accounts.User{}
-      |> Soundboard.Accounts.User.changeset(%{
+      |> User.changeset(%{
         username: "test_user",
         discord_id: "123456",
         avatar: "test.jpg"

@@ -1,4 +1,7 @@
 defmodule SoundboardWeb.Components.Soundboard.EditModal do
+  @moduledoc """
+  The edit modal component.
+  """
   use Phoenix.Component
 
   def edit_modal(assigns) do

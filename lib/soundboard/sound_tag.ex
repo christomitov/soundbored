@@ -1,4 +1,7 @@
 defmodule Soundboard.SoundTag do
+  @moduledoc """
+  The SoundTag module.
+  """
   use Ecto.Schema
   import Ecto.Changeset
 

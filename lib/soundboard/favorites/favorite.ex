@@ -1,4 +1,7 @@
 defmodule Soundboard.Favorites.Favorite do
+  @moduledoc """
+  The Favorite module.
+  """
   use Ecto.Schema
   import Ecto.Changeset
 

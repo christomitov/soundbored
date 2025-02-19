@@ -1,6 +1,9 @@
 defmodule Soundboard.Favorites do
+  @moduledoc """
+  The Favorites module.
+  """
   import Ecto.Query
-  alias Soundboard.{Repo, Favorites.Favorite}
+  alias Soundboard.{Favorites.Favorite, Repo}
 
   @max_favorites 16
 

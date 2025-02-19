@@ -1,4 +1,7 @@
 defmodule SoundboardWeb.Live.PresenceHandler do
+  @moduledoc """
+  Handles presence tracking for the Soundboard app.
+  """
   import Phoenix.LiveView, only: [connected?: 1]
   alias SoundboardWeb.Presence
   require Logger

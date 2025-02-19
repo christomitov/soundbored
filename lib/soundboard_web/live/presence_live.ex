@@ -1,7 +1,7 @@
 defmodule SoundboardWeb.Live.PresenceLive do
   defmacro __using__(_opts) do
     quote do
-      alias SoundboardWeb.{Presence, Live.PresenceHandler}
+      alias SoundboardWeb.{Live.PresenceHandler, Presence}
       require Logger
 
       @presence_topic "soundboard:presence"
@@ -46,7 +46,7 @@ defmodule SoundboardWeb.Live.PresenceLive do
         {:noreply,
          assign(socket,
            presence_count:
-             SoundboardWeb.Live.PresenceHandler.handle_presence_diff(
+             PresenceHandler.handle_presence_diff(
                diff,
                socket.assigns.presence_count
              )
