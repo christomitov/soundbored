@@ -4,7 +4,7 @@ defmodule Soundboard.Sounds.SoundTest do
   """
   use Soundboard.DataCase
   alias Soundboard.Accounts.User
-  alias Soundboard.{Repo, Sound, Tag}
+  alias Soundboard.{Repo, Sound, Tag, UserSoundSetting}
 
   describe "changeset validation" do
     test "validates required fields" do
@@ -144,6 +144,114 @@ defmodule Soundboard.Sounds.SoundTest do
       result = Sound.get_sound!(sound.id)
       assert result.id == sound.id
       assert [%{name: "test_tag"}] = result.tags
+    end
+  end
+
+  describe "user sound settings" do
+    test "can set join sound without affecting leave sound", %{user: user} do
+      # Create two sounds
+      {:ok, sound1} = insert_sound(user)
+      {:ok, sound2} = insert_sound(user)
+
+      # Set sound1 as both join and leave sound
+      {:ok, setting1} = UserSoundSetting.changeset(
+        %UserSoundSetting{},
+        %{
+          user_id: user.id,
+          sound_id: sound1.id,
+          is_join_sound: true,
+          is_leave_sound: true
+        }
+      ) |> Repo.insert()
+
+      # Set sound2 as join sound (should only unset sound1's join sound)
+      {:ok, setting2} = UserSoundSetting.changeset(
+        %UserSoundSetting{},
+        %{
+          user_id: user.id,
+          sound_id: sound2.id,
+          is_join_sound: true,
+          is_leave_sound: false
+        }
+      ) |> Repo.insert()
+
+      # Reload settings to verify state
+      setting1 = Repo.get(UserSoundSetting, setting1.id)
+      setting2 = Repo.get(UserSoundSetting, setting2.id)
+
+      # Original sound should keep leave sound but lose join sound
+      assert setting1.is_join_sound == false
+      assert setting1.is_leave_sound == true
+
+      # New sound should be join sound only
+      assert setting2.is_join_sound == true
+      assert setting2.is_leave_sound == false
+    end
+
+    test "can set leave sound without affecting join sound", %{user: user} do
+      # Create two sounds
+      {:ok, sound1} = insert_sound(user)
+      {:ok, sound2} = insert_sound(user)
+
+      # Set sound1 as both join and leave sound
+      {:ok, setting1} = UserSoundSetting.changeset(
+        %UserSoundSetting{},
+        %{
+          user_id: user.id,
+          sound_id: sound1.id,
+          is_join_sound: true,
+          is_leave_sound: true
+        }
+      ) |> Repo.insert()
+
+      # Set sound2 as leave sound (should only unset sound1's leave sound)
+      {:ok, setting2} = UserSoundSetting.changeset(
+        %UserSoundSetting{},
+        %{
+          user_id: user.id,
+          sound_id: sound2.id,
+          is_join_sound: false,
+          is_leave_sound: true
+        }
+      ) |> Repo.insert()
+
+      # Reload settings to verify state
+      setting1 = Repo.get(UserSoundSetting, setting1.id)
+      setting2 = Repo.get(UserSoundSetting, setting2.id)
+
+      # Original sound should keep join sound but lose leave sound
+      assert setting1.is_join_sound == true
+      assert setting1.is_leave_sound == false
+
+      # New sound should be leave sound only
+      assert setting2.is_join_sound == false
+      assert setting2.is_leave_sound == true
+    end
+
+    test "can unset join/leave sounds independently", %{user: user} do
+      # Create a sound
+      {:ok, sound} = insert_sound(user)
+
+      # Set both join and leave
+      {:ok, setting} = UserSoundSetting.changeset(
+        %UserSoundSetting{},
+        %{
+          user_id: user.id,
+          sound_id: sound.id,
+          is_join_sound: true,
+          is_leave_sound: true
+        }
+      ) |> Repo.insert()
+
+      # Unset join sound only
+      {:ok, updated_setting} = UserSoundSetting.changeset(
+        setting,
+        %{is_join_sound: false}
+      ) |> Repo.update()
+
+      # Verify leave sound remains set
+      assert updated_setting.is_join_sound == false
+      assert updated_setting.is_leave_sound == true
     end
   end
 
