@@ -44,14 +44,14 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
           MIX_ENV: test
-          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+          DISCORD_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
           
       - name: Check minimum test coverage
         run: mix coveralls.json
         env:
           MIX_ENV: test
           COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
-          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+          DISCORD_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
           
       - name: Verify minimum coverage
         run: |
