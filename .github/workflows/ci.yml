@@ -61,6 +61,8 @@ jobs:
           if (( $(echo "$COVERAGE < $MINIMUM" | bc -l) )); then
             echo "Test coverage is below minimum: $COVERAGE% < $MINIMUM%"
             exit 1
+          else
+            echo "Coverage is $COVERAGE%, which meets the minimum requirement of $MINIMUM%"
           fi
           
       - name: Run Credo
