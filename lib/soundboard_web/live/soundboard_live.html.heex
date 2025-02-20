@@ -241,8 +241,9 @@
 
   <%= if @show_modal do %>
     <.edit_modal
-      current_sound={@current_sound}
+      flash={@flash}
       current_user={@current_user}
+      current_sound={@current_sound}
       tag_input={@tag_input}
       tag_suggestions={@tag_suggestions}
     />

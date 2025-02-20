@@ -112,6 +112,7 @@ defmodule SoundboardWeb.SoundboardLiveTest do
 
       # Create test file if it doesn't exist
       test_file = "priv/static/uploads/test.mp3"
+      updated_file = "priv/static/uploads/updated.mp3"
 
       unless File.exists?(test_file) do
         File.write!(test_file, "test content")
@@ -122,10 +123,9 @@ defmodule SoundboardWeb.SoundboardLiveTest do
       |> element("#edit-form")
       |> render_submit(params)
 
-      # Clean up safely
-      if File.exists?(test_file) do
-        File.rm!(test_file)
-      end
+      # Clean up both original and updated files
+      File.rm_rf!(test_file)
+      File.rm_rf!(updated_file)
 
       updated_sound = Repo.get(Sound, sound.id)
       assert updated_sound.filename == "updated.mp3"

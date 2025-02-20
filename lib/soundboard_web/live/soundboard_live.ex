@@ -614,28 +614,31 @@ defmodule SoundboardWeb.SoundboardLive do
 
   @impl true
   def handle_event("delete_sound", _params, socket) do
-    # First verify the user owns this sound
-    if socket.assigns.current_sound.user_id != socket.assigns.current_user.id do
-      {:noreply,
-       socket
-       |> put_flash(:error, "You can only delete sounds that you uploaded")
-       |> assign(:show_delete_confirm, false)}
-    else
-      case FileHandler.delete_file(socket) do
-        {:ok, message} ->
-          {:noreply,
-           socket
-           |> assign(:show_delete_confirm, false)
-           |> assign(:show_modal, false)
-           |> assign(:current_sound, nil)
-           |> load_sound_files()
-           |> put_flash(:info, message)}
+    sound = socket.assigns.current_sound
 
-        {:error, message} ->
-          {:noreply,
-           socket
-           |> put_flash(:error, message)}
-      end
+    # Delete from database regardless of file existence
+    case Repo.delete(sound) do
+      {:ok, _deleted_sound} ->
+        # Only try to delete file if it's a local sound
+        if sound.source_type == "local" do
+          uploads_dir = Application.get_env(:soundboard, :uploads_dir, "priv/static/uploads")
+          sound_path = Path.join(uploads_dir, sound.filename)
+          _ = File.rm(sound_path)
+        end
+
+        {:noreply,
+         socket
+         |> assign(:show_modal, false)
+         |> assign(:show_delete_confirm, false)
+         |> assign(:current_sound, nil)
+         |> load_sound_files()
+         |> put_flash(:info, "Sound deleted successfully")}
+
+      {:error, _changeset} ->
+        {:noreply,
+         socket
+         |> put_flash(:error, "Failed to delete sound")
+         |> assign(:show_delete_confirm, false)}
     end
   end
 

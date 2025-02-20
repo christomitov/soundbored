@@ -5,6 +5,11 @@ defmodule SoundboardWeb.Components.Soundboard.EditModal do
   use Phoenix.Component
 
   def edit_modal(assigns) do
+    assigns = assign_new(assigns, :flash, fn -> %{} end)
+
+    # Ensure flash.error exists with nil default
+    assigns = update(assigns, :flash, fn flash -> Map.put_new(flash, :error, nil) end)
+
     # Add a default empty list for tags if they're not loaded
     assigns =
       assign_new(assigns, :current_sound, fn ->
@@ -22,6 +27,11 @@ defmodule SoundboardWeb.Components.Soundboard.EditModal do
 
         Map.put(sound, :tags, tags)
       end)
+
+    # Add default assigns for validation error
+    assigns =
+      assigns
+      |> assign_new(:validation_error, fn -> nil end)
 
     ~H"""
     <div
@@ -60,7 +70,7 @@ defmodule SoundboardWeb.Components.Soundboard.EditModal do
                 <input type="hidden" name="sound_id" value={@current_sound.id} />
                 <input type="hidden" name="source_type" value={@current_sound.source_type} />
                 <input type="hidden" name="url" value={@current_sound.url} />
-                
+
     <!-- Display current source type (non-editable) -->
                 <div class="mb-4 text-left">
                   <label class="block text-sm font-medium text-gray-500 dark:text-gray-400">
@@ -74,8 +84,8 @@ defmodule SoundboardWeb.Components.Soundboard.EditModal do
                     <% end %>
                   </div>
                 </div>
-                
-    <!-- Name Input -->
+
+    <!-- Name Input with error message -->
                 <div class="mb-4">
                   <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 text-left">
                     Name
@@ -92,12 +102,15 @@ defmodule SoundboardWeb.Components.Soundboard.EditModal do
                     }
                     required
                     placeholder="Sound name"
-                    class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm
-                           focus:border-blue-500 focus:ring-blue-500 sm:text-sm
-                           dark:bg-gray-700 dark:text-gray-100"
+                    class={"mt-1 block w-full rounded-md shadow-sm sm:text-sm
+                           dark:text-gray-100 #{if @flash && @flash.error, do: "border-red-300 focus:border-red-500 focus:ring-red-500", else: "border-gray-300 dark:border-gray-600 focus:border-blue-500 focus:ring-blue-500"}
+                           dark:bg-gray-700"}
                   />
+                  <%= if @flash && @flash.error do %>
+                    <p class="mt-2 text-sm text-red-600 dark:text-red-400">{@flash.error}</p>
+                  <% end %>
                 </div>
-                
+
     <!-- Tags -->
                 <div class="text-left">
                   <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -121,7 +134,7 @@ defmodule SoundboardWeb.Components.Soundboard.EditModal do
                     <% end %>
                   </div>
                 </div>
-                
+
     <!-- Tag Input -->
                 <div class="mt-2 relative">
                   <div>
@@ -162,7 +175,7 @@ defmodule SoundboardWeb.Components.Soundboard.EditModal do
                     </div>
                   <% end %>
                 </div>
-                
+
     <!-- Sound Settings -->
                 <div class="mt-5 mb-4">
                   <div class="flex flex-col gap-3 text-left">
@@ -210,7 +223,11 @@ defmodule SoundboardWeb.Components.Soundboard.EditModal do
                 <div class="mt-5 sm:mt-6 flex gap-3">
                   <button
                     type="submit"
-                    class="flex-1 rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-500"
+                    disabled={@flash && @flash.error}
+                    class={"flex-1 rounded-md px-3 py-2 text-sm font-semibold text-white shadow-sm
+                            #{if @flash && @flash.error,
+                              do: "bg-gray-400 cursor-not-allowed",
+                              else: "bg-blue-600 hover:bg-blue-500"}"}
                   >
                     Save Changes
                   </button>
