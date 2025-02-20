@@ -842,23 +842,27 @@ defmodule SoundboardWeb.SoundboardLive do
       Logger.info("Attempting to rename file from #{old_path} to #{new_path}")
 
       # Handle file rename only for local files
-      rename_result = if sound.source_type == "local" do
-        # Check if source file exists
-        case File.exists?(old_path) do
-          true ->
-            case File.rename(old_path, new_path) do
-              :ok -> :ok
-              {:error, reason} ->
-                Logger.error("File rename failed: #{inspect(reason)}")
-                Repo.rollback("Failed to rename file: #{inspect(reason)}")
-            end
-          false ->
-            Logger.error("Source file not found: #{old_path}")
-            Repo.rollback("Source file not found")
+      rename_result =
+        if sound.source_type == "local" do
+          # Check if source file exists
+          case File.exists?(old_path) do
+            true ->
+              case File.rename(old_path, new_path) do
+                :ok ->
+                  :ok
+
+                {:error, reason} ->
+                  Logger.error("File rename failed: #{inspect(reason)}")
+                  Repo.rollback("Failed to rename file: #{inspect(reason)}")
+              end
+
+            false ->
+              Logger.error("Source file not found: #{old_path}")
+              Repo.rollback("Source file not found")
+          end
+        else
+          :ok
         end
-      else
-        :ok
-      end
 
       with :ok <- rename_result,
            sound_params = %{
@@ -867,7 +871,6 @@ defmodule SoundboardWeb.SoundboardLive do
              url: params["url"]
            },
            {:ok, updated_sound} <- Sound.changeset(sound, sound_params) |> Repo.update() do
-
         # Find or create user setting
         user_setting =
           Enum.find(sound.user_sound_settings, &(&1.user_id == user_id)) ||
@@ -884,7 +887,9 @@ defmodule SoundboardWeb.SoundboardLive do
         case user_setting
              |> Soundboard.UserSoundSetting.changeset(setting_params)
              |> Repo.insert_or_update() do
-          {:ok, _setting} -> updated_sound
+          {:ok, _setting} ->
+            updated_sound
+
           {:error, changeset} ->
             Logger.error("Failed to update user settings: #{inspect(changeset)}")
             Repo.rollback(changeset)
@@ -893,6 +898,7 @@ defmodule SoundboardWeb.SoundboardLive do
         {:error, changeset} ->
           Logger.error("Failed to update sound: #{inspect(changeset)}")
           Repo.rollback(changeset)
+
         error ->
           Logger.error("Unexpected error: #{inspect(error)}")
           Repo.rollback(error)

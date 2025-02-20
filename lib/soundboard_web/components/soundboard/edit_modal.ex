@@ -70,7 +70,7 @@ defmodule SoundboardWeb.Components.Soundboard.EditModal do
                 <input type="hidden" name="sound_id" value={@current_sound.id} />
                 <input type="hidden" name="source_type" value={@current_sound.source_type} />
                 <input type="hidden" name="url" value={@current_sound.url} />
-
+                
     <!-- Display current source type (non-editable) -->
                 <div class="mb-4 text-left">
                   <label class="block text-sm font-medium text-gray-500 dark:text-gray-400">
@@ -84,7 +84,7 @@ defmodule SoundboardWeb.Components.Soundboard.EditModal do
                     <% end %>
                   </div>
                 </div>
-
+                
     <!-- Name Input with error message -->
                 <div class="mb-4">
                   <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 text-left">
@@ -110,7 +110,7 @@ defmodule SoundboardWeb.Components.Soundboard.EditModal do
                     <p class="mt-2 text-sm text-red-600 dark:text-red-400">{@flash.error}</p>
                   <% end %>
                 </div>
-
+                
     <!-- Tags -->
                 <div class="text-left">
                   <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -134,7 +134,7 @@ defmodule SoundboardWeb.Components.Soundboard.EditModal do
                     <% end %>
                   </div>
                 </div>
-
+                
     <!-- Tag Input -->
                 <div class="mt-2 relative">
                   <div>
@@ -175,7 +175,7 @@ defmodule SoundboardWeb.Components.Soundboard.EditModal do
                     </div>
                   <% end %>
                 </div>
-
+                
     <!-- Sound Settings -->
                 <div class="mt-5 mb-4">
                   <div class="flex flex-col gap-3 text-left">
