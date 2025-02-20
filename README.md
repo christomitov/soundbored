@@ -1,6 +1,6 @@
 # Soundbored
 [![Coverage Status](https://coveralls.io/repos/github/christomitov/soundbored/badge.svg?branch=main)](https://coveralls.io/github/christomitov/soundbored?branch=main)
-[![Build Status](https://github.com/christomitov/soundbored/workflows/Test/badge.svg)](https://github.com/christomitov/soundbored/actions)
+[![Build Status](https://github.com/christomitov/soundbored/workflows/CI%2FCD%20Pipeline/badge.svg)](https://github.com/christomitov/soundbored/actions)
 
 Soundbored is an unlimited, no-cost, self-hosted soundboard for Discord. It allows you to play sounds in a voice channel.
 
