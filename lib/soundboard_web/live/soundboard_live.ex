@@ -282,6 +282,7 @@ defmodule SoundboardWeb.SoundboardLive do
         {:noreply,
          socket
          |> assign(:upload_error, nil)}
+
       _sound ->
         {:noreply,
          socket
@@ -884,7 +885,9 @@ defmodule SoundboardWeb.SoundboardLive do
           {:ok, _} -> socket
           {:error, error} -> put_flash(socket, :error, error)
         end
-      _ -> socket
+
+      _ ->
+        socket
     end
   end
 

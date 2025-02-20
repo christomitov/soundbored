@@ -27,19 +27,18 @@ defmodule SoundboardWeb.LeaderboardLive do
      |> assign(:force_update, 0)
      |> assign(:selected_week, current_week)
      |> assign(:current_week, current_week)
-     |> stream_configure(:recent_plays, dom_id: &"play-#{&1.id}")
+     |> stream_configure(:recent_plays, dom_id: &"recent-play-#{&1.filename}-#{&1.id}")
      |> stream(:recent_plays, [])
      |> assign_stats()}
   end
 
   @impl true
   def handle_info({:sound_played, %{filename: filename, played_by: username}}, socket) do
-    # Transform the tuple into a map with an id field
     recent_plays =
       Stats.get_recent_plays(limit: @recent_limit)
       |> Enum.map(fn {filename, username, timestamp} ->
         %{
-          id: "#{filename}-#{:erlang.system_time(:millisecond)}",
+          id: "#{:erlang.system_time(:millisecond)}",
           filename: filename,
           username: username,
           timestamp: timestamp
@@ -84,12 +83,11 @@ defmodule SoundboardWeb.LeaderboardLive do
   defp assign_stats(socket) do
     {start_date, end_date} = socket.assigns.selected_week
 
-    # Transform the tuples into maps with an id field
     recent_plays =
       Stats.get_recent_plays(limit: @recent_limit)
       |> Enum.map(fn {filename, username, timestamp} ->
         %{
-          id: "#{filename}-#{:erlang.system_time(:millisecond)}",
+          id: "#{:erlang.system_time(:millisecond)}",
           filename: filename,
           username: username,
           timestamp: timestamp
@@ -369,7 +367,7 @@ defmodule SoundboardWeb.LeaderboardLive do
     Stats.get_recent_plays(limit: @recent_limit)
     |> Enum.map(fn {filename, username, timestamp} ->
       %{
-        id: "#{filename}-#{:erlang.system_time(:millisecond)}",
+        id: "#{:erlang.system_time(:millisecond)}",
         filename: filename,
         username: username,
         timestamp: timestamp
