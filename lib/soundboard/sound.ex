@@ -18,7 +18,10 @@ defmodule Soundboard.Sound do
     belongs_to :user, Soundboard.Accounts.User
     has_many :user_sound_settings, Soundboard.UserSoundSetting
 
-    many_to_many :tags, Soundboard.Tag, join_through: "sound_tags"
+    many_to_many :tags, Soundboard.Tag,
+      join_through: Soundboard.SoundTag,
+      on_replace: :delete,
+      unique: true
 
     timestamps()
   end

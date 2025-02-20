@@ -157,8 +157,6 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
                         onkeydown="
                           if(event.key === 'Enter' || event.key === 'Tab') {
                             event.preventDefault();
-                            this.value = '';
-                            return false;
                           }
                         "
                       />

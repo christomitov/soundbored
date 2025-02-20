@@ -5,10 +5,10 @@ defmodule Soundboard.SoundTag do
   use Ecto.Schema
   import Ecto.Changeset
 
+  @primary_key false
   schema "sound_tags" do
-    belongs_to :sound, Soundboard.Sound
-    belongs_to :tag, Soundboard.Tag
-
+    belongs_to :sound, Soundboard.Sound, primary_key: true
+    belongs_to :tag, Soundboard.Tag, primary_key: true
     timestamps()
   end
 

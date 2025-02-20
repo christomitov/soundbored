@@ -293,33 +293,8 @@ defmodule SoundboardWeb.SoundboardLive do
   @impl true
   def handle_event("validate_upload", params, socket) do
     Logger.info("Validating upload with params: #{inspect(params)}")
-
-    # Keep track of existing entries
-    socket =
-      if socket.assigns.uploads.audio.entries == [] do
-        socket
-      else
-        validate_audio_entries(socket)
-      end
-
-    case UploadHandler.validate_upload(socket, params) do
-      {:ok, _socket} ->
-        {:noreply,
-         socket
-         |> assign(:upload_error, nil)
-         |> assign(:upload_name, params["name"] || socket.assigns.upload_name)
-         |> assign(:url, params["url"] || socket.assigns.url)
-         |> assign(:source_type, params["source_type"] || socket.assigns.source_type)}
-
-      {:error, changeset} ->
-        # Don't cancel uploads on validation errors
-        {:noreply,
-         socket
-         |> assign(:upload_error, get_error_message(changeset))
-         |> assign(:upload_name, params["name"] || socket.assigns.upload_name)
-         |> assign(:url, params["url"] || socket.assigns.url)
-         |> assign(:source_type, params["source_type"] || socket.assigns.source_type)}
-    end
+    socket = validate_existing_entries(socket)
+    handle_upload_validation(socket, params)
   end
 
   @impl true
@@ -836,74 +811,96 @@ defmodule SoundboardWeb.SoundboardLive do
      |> put_flash(:error, "Error updating sound: #{error_message}")}
   end
 
+  defp validate_existing_entries(socket) do
+    if socket.assigns.uploads.audio.entries == [] do
+      socket
+    else
+      validate_audio_entries(socket)
+    end
+  end
+
+  defp handle_upload_validation(socket, params) do
+    case UploadHandler.validate_upload(socket, params) do
+      {:ok, _socket} ->
+        {:noreply, assign_upload_params(socket, params, nil)}
+
+      {:error, changeset} ->
+        {:noreply, assign_upload_params(socket, params, get_error_message(changeset))}
+    end
+  end
+
+  defp assign_upload_params(socket, params, error) do
+    socket
+    |> assign(:upload_error, error)
+    |> assign(:upload_name, params["name"] || socket.assigns.upload_name)
+    |> assign(:url, params["url"] || socket.assigns.url)
+    |> assign(:source_type, params["source_type"] || socket.assigns.source_type)
+  end
+
   defp update_sound_transaction(sound, user_id, params, old_path, new_path, new_filename) do
     Repo.transaction(fn ->
-      # Add logging to track the file paths
       Logger.info("Attempting to rename file from #{old_path} to #{new_path}")
 
-      # Handle file rename only for local files
-      rename_result =
-        if sound.source_type == "local" do
-          # Check if source file exists
-          case File.exists?(old_path) do
-            true ->
-              case File.rename(old_path, new_path) do
-                :ok ->
-                  :ok
-
-                {:error, reason} ->
-                  Logger.error("File rename failed: #{inspect(reason)}")
-                  Repo.rollback("Failed to rename file: #{inspect(reason)}")
-              end
-
-            false ->
-              Logger.error("Source file not found: #{old_path}")
-              Repo.rollback("Source file not found")
-          end
-        else
-          :ok
-        end
-
-      with :ok <- rename_result,
+      with :ok <- handle_file_rename(sound, old_path, new_path),
            sound_params = %{
              filename: new_filename,
              source_type: params["source_type"] || sound.source_type,
              url: params["url"]
            },
            {:ok, updated_sound} <- Sound.changeset(sound, sound_params) |> Repo.update() do
-        # Find or create user setting
-        user_setting =
-          Enum.find(sound.user_sound_settings, &(&1.user_id == user_id)) ||
-            %Soundboard.UserSoundSetting{sound_id: sound.id, user_id: user_id}
-
-        # Update the settings using our UserSoundSetting changeset
-        setting_params = %{
-          user_id: user_id,
-          sound_id: sound.id,
-          is_join_sound: params["is_join_sound"] == "true",
-          is_leave_sound: params["is_leave_sound"] == "true"
-        }
-
-        case user_setting
-             |> Soundboard.UserSoundSetting.changeset(setting_params)
-             |> Repo.insert_or_update() do
-          {:ok, _setting} ->
-            updated_sound
-
-          {:error, changeset} ->
-            Logger.error("Failed to update user settings: #{inspect(changeset)}")
-            Repo.rollback(changeset)
-        end
-      else
-        {:error, changeset} ->
-          Logger.error("Failed to update sound: #{inspect(changeset)}")
-          Repo.rollback(changeset)
-
-        error ->
-          Logger.error("Unexpected error: #{inspect(error)}")
-          Repo.rollback(error)
+        update_user_settings(sound, user_id, updated_sound, params)
       end
     end)
+  end
+
+  defp handle_file_rename(%{source_type: "local"}, old_path, new_path) do
+    case File.exists?(old_path) do
+      true ->
+        rename_file(old_path, new_path)
+
+      false ->
+        Logger.error("Source file not found: #{old_path}")
+        Repo.rollback("Source file not found")
+    end
+  end
+
+  defp handle_file_rename(_, _, _), do: :ok
+
+  defp rename_file(old_path, new_path) do
+    case File.rename(old_path, new_path) do
+      :ok ->
+        :ok
+
+      {:error, reason} ->
+        Logger.error("File rename failed: #{inspect(reason)}")
+        Repo.rollback("Failed to rename file: #{inspect(reason)}")
+    end
+  end
+
+  defp update_user_settings(sound, user_id, updated_sound, params) do
+    # Find or create user setting
+    user_setting =
+      Enum.find(sound.user_sound_settings, &(&1.user_id == user_id)) ||
+        %Soundboard.UserSoundSetting{sound_id: sound.id, user_id: user_id}
+
+    # Update the settings using our UserSoundSetting changeset
+    setting_params = %{
+      user_id: user_id,
+      sound_id: sound.id,
+      is_join_sound: params["is_join_sound"] == "true",
+      is_leave_sound: params["is_leave_sound"] == "true"
+    }
+
+    case user_setting
+         |> Soundboard.UserSoundSetting.changeset(setting_params)
+         |> Repo.insert_or_update() do
+      {:ok, _setting} ->
+        updated_sound
+
+      {:error, changeset} ->
+        Logger.error("Failed to update user settings: #{inspect(changeset)}")
+        Repo.rollback(changeset)
+    end
   end
 
   defp validate_audio(entry, _socket) do
