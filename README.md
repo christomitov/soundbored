@@ -9,10 +9,15 @@ Soundbored is an unlimited, no-cost, self-hosted soundboard for Discord. It allo
 ## Table Of Contents
 
 [Prerequisites](#prerequisites)
+
 [Setup](#setup)
+
 [Deployment](#deployment)
+
 [Usage](#usage)
+
 [API](#api)
+
 [Changelog](#changelog)
 - [v1.3.0 (2025-02-18)](#v130-2025-02-18)
 - [v1.2.0 (2025-01-18)](#v120-2025-01-18)
