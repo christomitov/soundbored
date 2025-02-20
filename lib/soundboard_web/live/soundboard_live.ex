@@ -8,7 +8,7 @@ defmodule SoundboardWeb.SoundboardLive do
   alias SoundboardWeb.Presence
   alias Soundboard.{Favorites, Repo, Sound}
   require Logger
-  alias SoundboardWeb.Live.{FileFilter, FileHandler, TagHandler, UploadHandler}
+  alias SoundboardWeb.Live.{FileFilter, TagHandler, UploadHandler}
   import Ecto.Query
 
   import TagHandler,

@@ -120,68 +120,6 @@ defmodule SoundboardWeb.Live.UploadHandlerTest do
       assert sound.source_type == "url"
     end
 
-    """
-    test "handles local upload successfully", %{socket: socket, user: user} do
-      # Create test file
-      File.mkdir_p!("priv/static/uploads")
-      File.write!("priv/static/uploads/test.mp3", "test content")
-
-      params = %{
-        "source_type" => "local",
-        "name" => "test_local_sound"
-      }
-
-      # First clear any existing sounds
-      Repo.delete_all(Sound)
-
-      # Create a proper upload config with completed entry
-      upload_config = %Phoenix.LiveView.UploadConfig{
-        max_entries: 1,
-        max_file_size: 8_000_000,
-        accept: :any,
-        ref: "phx-123",
-        entries: [
-          %Phoenix.LiveView.UploadEntry{
-            ref: "abc123",
-            upload_ref: "phx-123",
-            upload_config: %Phoenix.LiveView.UploadConfig{
-              max_entries: 1,
-              max_file_size: 8_000_000,
-              accept: :any,
-              ref: "phx-123"
-            },
-            uuid: "test-uuid",
-            valid?: true,
-            done?: true,
-            cancelled?: false,
-                progress: 100,
-            client_name: "test.mp3",
-            client_type: "audio/mpeg",
-            client_size: 123,
-            client_last_modified: System.system_time(:second)
-          }
-        ]
-      }
-
-      # Update socket with proper upload config
-      socket = put_in(socket.assigns.uploads.audio, upload_config)
-
-      # Mock the consume_uploaded_entries function to match FileHandler.save_upload expectations
-      consume_fn = fn _socket, :audio, _func ->
-        # Return the expected format directly
-        [{:ok, "test_local_sound.mp3"}]
-      end
-
-      assert {:ok, sound} = UploadHandler.handle_upload(socket, params, consume_fn)
-      assert sound.filename == "test_local_sound.mp3"
-      assert sound.source_type == "local"
-      assert sound.user_id == user.id
-
-      # Clean up
-      File.rm!("priv/static/uploads/test.mp3")
-    end
-    """
-
     test "handles upload with tags", %{socket: socket, tags: [tag1, _tag2]} do
       params = %{
         "source_type" => "url",

@@ -1,4 +1,7 @@
 defmodule SoundboardWeb.SoundboardLiveTest do
+  @moduledoc """
+  This module contains tests for the SoundboardLive view.
+  """
   use SoundboardWeb.ConnCase
   import Phoenix.LiveViewTest
   alias Soundboard.{Accounts.User, Repo, Sound}
@@ -36,7 +39,7 @@ defmodule SoundboardWeb.SoundboardLiveTest do
 
   describe "Soundboard LiveView" do
     test "mounts successfully with user session", %{conn: conn} do
-      {:ok, view, html} = live(conn, "/")
+      {:ok, _, html} = live(conn, "/")
 
       assert html =~ "Soundboard"
       # Check for the main content instead of a specific container
