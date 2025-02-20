@@ -41,13 +41,17 @@ defmodule Soundboard.UserSoundSetting do
       true ->
         # Only clear other join sounds if we're setting this one as a join sound
         from(uss in __MODULE__,
-          where: uss.user_id == ^user_id and
-                 uss.sound_id != ^sound_id and
-                 uss.is_join_sound == true
+          where:
+            uss.user_id == ^user_id and
+              uss.sound_id != ^sound_id and
+              uss.is_join_sound == true
         )
         |> Repo.update_all(set: [is_join_sound: false])
+
         changeset
-      _ -> changeset
+
+      _ ->
+        changeset
     end
   end
 
@@ -56,13 +60,17 @@ defmodule Soundboard.UserSoundSetting do
       true ->
         # Only clear other leave sounds if we're setting this one as a leave sound
         from(uss in __MODULE__,
-          where: uss.user_id == ^user_id and
-                 uss.sound_id != ^sound_id and
-                 uss.is_leave_sound == true
+          where:
+            uss.user_id == ^user_id and
+              uss.sound_id != ^sound_id and
+              uss.is_leave_sound == true
         )
         |> Repo.update_all(set: [is_leave_sound: false])
+
         changeset
-      _ -> changeset
+
+      _ ->
+        changeset
     end
   end
 end

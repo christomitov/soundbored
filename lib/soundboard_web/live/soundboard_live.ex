@@ -88,7 +88,13 @@ defmodule SoundboardWeb.SoundboardLive do
     |> allow_upload(:audio,
       accept: ~w(audio/mpeg audio/wav audio/ogg audio/x-m4a),
       max_entries: 1,
-      max_file_size: 25_000_000
+      max_file_size: 25_000_000,
+      auto_upload: false,
+      progress: &handle_progress/3,
+      accept_errors: [
+        too_large: "File is too large (max 25MB)",
+        not_accepted: "Invalid file type. Please upload an MP3, WAV, OGG, or M4A file."
+      ]
     )
   end
 
@@ -268,24 +274,49 @@ defmodule SoundboardWeb.SoundboardLive do
   end
 
   @impl true
+  def handle_event("check_filename", %{"name" => name}, socket) do
+    filename = name <> ".mp3"
+
+    case Repo.get_by(Sound, filename: filename) do
+      nil ->
+        {:noreply,
+         socket
+         |> assign(:upload_error, nil)}
+      _sound ->
+        {:noreply,
+         socket
+         |> assign(:upload_error, "A sound with that name already exists")}
+    end
+  end
+
+  @impl true
   def handle_event("validate_upload", params, socket) do
     Logger.info("Validating upload with params: #{inspect(params)}")
+
+    # Keep track of existing entries
+    socket =
+      if socket.assigns.uploads.audio.entries == [] do
+        socket
+      else
+        validate_audio_entries(socket)
+      end
 
     case UploadHandler.validate_upload(socket, params) do
       {:ok, _socket} ->
         {:noreply,
          socket
          |> assign(:upload_error, nil)
-         |> assign(:upload_name, params["name"] || "")
-         |> assign(:url, params["url"] || "")
+         |> assign(:upload_name, params["name"] || socket.assigns.upload_name)
+         |> assign(:url, params["url"] || socket.assigns.url)
          |> assign(:source_type, params["source_type"] || socket.assigns.source_type)}
 
       {:error, changeset} ->
+        # Don't cancel uploads on validation errors
         {:noreply,
          socket
          |> assign(:upload_error, get_error_message(changeset))
-         |> assign(:upload_name, params["name"] || "")
-         |> assign(:url, params["url"] || "")
+         |> assign(:upload_name, params["name"] || socket.assigns.upload_name)
+         |> assign(:url, params["url"] || socket.assigns.url)
          |> assign(:source_type, params["source_type"] || socket.assigns.source_type)}
     end
   end
@@ -834,5 +865,30 @@ defmodule SoundboardWeb.SoundboardLive do
         error -> Repo.rollback(error)
       end
     end)
+  end
+
+  defp validate_audio(entry, _socket) do
+    case entry.client_type do
+      type when type in ~w(audio/mpeg audio/wav audio/ogg audio/x-m4a) ->
+        {:ok, entry}
+
+      _ ->
+        {:error, "Invalid file type"}
+    end
+  end
+
+  defp validate_audio_entries(socket) do
+    case socket.assigns.uploads.audio.entries do
+      [entry | _] ->
+        case validate_audio(entry, socket) do
+          {:ok, _} -> socket
+          {:error, error} -> put_flash(socket, :error, error)
+        end
+      _ -> socket
+    end
+  end
+
+  defp handle_progress(:audio, _entry, socket) do
+    {:noreply, socket}
   end
 end

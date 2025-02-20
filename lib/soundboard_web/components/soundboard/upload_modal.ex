@@ -94,7 +94,7 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
                     />
                   </div>
                 <% end %>
-                
+
     <!-- Name Input -->
                 <div class="mb-4">
                   <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 text-left">
@@ -106,12 +106,17 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
                     value={@upload_name}
                     required
                     placeholder="Sound name"
+                    phx-blur="check_filename"
+                    phx-value-name={@upload_name}
                     class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm
                            focus:border-blue-500 focus:ring-blue-500 sm:text-sm
                            dark:bg-gray-700 dark:text-gray-100"
                   />
+                  <%= if @upload_error do %>
+                    <p class="mt-1 text-sm text-red-600 dark:text-red-400">{@upload_error}</p>
+                  <% end %>
                 </div>
-                
+
     <!-- Tags -->
                 <div class="text-left">
                   <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -134,7 +139,7 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
                       </span>
                     <% end %>
                   </div>
-                  
+
     <!-- Tag Input -->
                   <div class="mt-2 relative">
                     <div>
@@ -152,8 +157,7 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
                         onkeydown="
                           if(event.key === 'Enter' || event.key === 'Tab') {
                             event.preventDefault();
-                            const value = this.value;
-                            requestAnimationFrame(() => this.value = '');
+                            this.value = '';
                             return false;
                           }
                         "
@@ -176,7 +180,7 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
                     <% end %>
                   </div>
                 </div>
-                
+
     <!-- Sound Settings -->
                 <div class="mt-5 mb-4">
                   <div class="flex flex-col gap-3 text-left">

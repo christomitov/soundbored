@@ -43,19 +43,25 @@ defmodule SoundboardWeb.Live.UploadHandler do
   end
 
   defp validate_local_upload(socket, name) do
-    changeset =
-      %Sound{}
-      |> Sound.changeset(%{
-        filename: (name || "") <> get_file_extension(socket),
-        user_id: socket.assigns.current_user.id
-      })
-      |> validate_name_unique()
-      |> validate_file_selected(socket)
+    if name && name != "" do
+      changeset =
+        %Sound{}
+        |> Sound.changeset(%{
+          filename: name <> get_file_extension(socket),
+          user_id: socket.assigns.current_user.id
+        })
+        |> validate_name_unique()
 
-    if changeset.valid? do
-      {:ok, socket}
+      if changeset.valid? do
+        {:ok, socket}
+      else
+        {:error, changeset}
+      end
     else
-      {:error, changeset}
+      case Phoenix.LiveView.uploaded_entries(socket, :audio) do
+        {[], []} -> {:error, add_error(%Ecto.Changeset{}, :file, "Please select a file")}
+        _ -> {:ok, socket}
+      end
     end
   end
 
@@ -118,6 +124,7 @@ defmodule SoundboardWeb.Live.UploadHandler do
     end)
     |> case do
       {:ok, {:ok, sound}} -> {:ok, sound}
+      {:ok, {:error, changeset}} -> {:error, get_error_message(changeset), socket}
       {:error, changeset} -> {:error, get_error_message(changeset), socket}
     end
   end
@@ -158,22 +165,36 @@ defmodule SoundboardWeb.Live.UploadHandler do
   end
 
   defp create_sound(params, tags) do
-    with {:ok, sound} <- %Sound{} |> Sound.changeset(params) |> Repo.insert(),
-         {n, _} when n > 0 <-
-           Repo.insert_all(
-             "sound_tags",
-             Enum.map(tags, fn tag ->
-               now = NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
+    case %Sound{} |> Sound.changeset(params) |> Repo.insert() do
+      {:ok, sound} ->
+        case insert_sound_tags(sound, tags) do
+          {:ok, _} -> {:ok, sound}
+          error -> error
+        end
 
-               %{
-                 sound_id: sound.id,
-                 tag_id: tag.id,
-                 inserted_at: now,
-                 updated_at: now
-               }
-             end)
-           ) do
-      {:ok, sound}
+      error ->
+        error
+    end
+  end
+
+  defp insert_sound_tags(_sound, []), do: {:ok, nil}
+
+  defp insert_sound_tags(sound, tags) do
+    now = NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
+
+    tag_entries =
+      Enum.map(tags, fn tag ->
+        %{
+          sound_id: sound.id,
+          tag_id: tag.id,
+          inserted_at: now,
+          updated_at: now
+        }
+      end)
+
+    case Repo.insert_all("sound_tags", tag_entries) do
+      {n, _} when n > 0 -> {:ok, sound}
+      _ -> {:error, "Failed to insert tags"}
     end
   end
 
@@ -190,13 +211,6 @@ defmodule SoundboardWeb.Live.UploadHandler do
     end
   end
 
-  defp validate_file_selected(changeset, socket) do
-    case Phoenix.LiveView.uploaded_entries(socket, :audio) do
-      {[], []} -> add_error(changeset, :file, "Please select a file")
-      _ -> changeset
-    end
-  end
-
   defp get_file_extension(socket) do
     case Phoenix.LiveView.uploaded_entries(socket, :audio) do
       {[entry | _], _} -> Path.extname(entry.client_name)
@@ -205,11 +219,14 @@ defmodule SoundboardWeb.Live.UploadHandler do
     end
   end
 
-  defp get_error_message(changeset) do
+  defp get_error_message(changeset) when is_map(changeset) do
     Enum.map_join(changeset.errors, ", ", fn
       {:filename, {"has already been taken", _}} -> "A sound with that name already exists"
       {:file, {"Please select a file", _}} -> "Please select a file"
-      {_key, {msg, _}} -> msg
+      {key, {msg, _}} -> "#{key} #{msg}"
     end)
   end
+
+  defp get_error_message(error) when is_binary(error), do: error
+  defp get_error_message(_), do: "An unexpected error occurred"
 end
