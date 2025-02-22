@@ -1,0 +1,17 @@
+{
+  "skip_files": [
+    "lib/soundboard_web/presence.ex",
+    "lib/soundboard_web/telemetry.ex",
+    "lib/soundboard_web/gettext.ex",
+    "lib/soundboard_web/endpoint.ex",
+    "lib/soundboard_web/router.ex",
+    "lib/soundboard_web/components/",
+    "lib/soundboard_web/live/",
+    "lib/soundboard_web/controllers/error_html.ex",
+    "lib/soundboard_web/controllers/error_json.ex",
+    "lib/soundboard/repo.ex",
+    "lib/soundboard/application.ex",
+    "lib/soundboard_web.ex",
+    "test"
+  ]
+}

@@ -151,14 +151,14 @@ defmodule SoundboardWeb.DiscordHandler do
       pid when is_pid(pid) ->
         try do
           # Check if we have a valid gateway connection
-          Nostrum.Api.get_current_user()
-          |> case do
+          case Nostrum.Api.get_current_user() do
             {:ok, _} -> true
             _ -> false
           end
         rescue
           _ -> false
         end
+      _ -> false
     end
   end
 

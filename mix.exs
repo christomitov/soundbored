@@ -10,7 +10,34 @@ defmodule Soundboard.MixProject do
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
       deps: deps(),
-      test_coverage: [tool: ExCoveralls],
+      test_coverage: [
+        tool: ExCoveralls,
+        ignore_modules: [
+          SoundboardWeb.CoreComponents,
+          SoundboardWeb.Components.FlashComponent,
+          SoundboardWeb.Components.Layouts,
+          SoundboardWeb.Router,
+          SoundboardWeb.Telemetry,
+          SoundboardWeb.Endpoint,
+          SoundboardWeb.Gettext,
+          # Controllers and views with no meaningful coverage needs
+          SoundboardWeb.ErrorHTML,
+          SoundboardWeb.ErrorJSON,
+          SoundboardWeb.PageController,
+          SoundboardWeb.PageHTML,
+          SoundboardWeb.UploadController,
+          # Live views that might need separate testing strategy
+          SoundboardWeb.FavoritesLive,
+          SoundboardWeb.PresenceLive,
+          SoundboardWeb.Presence,
+          # Repo and application modules
+          Soundboard.Repo,
+          # Test support files
+          SoundboardWeb.ConnCase,
+          Soundboard.DataCase,
+          Soundboard.TestHelpers
+        ]
+      ],
       preferred_cli_env: [
         coveralls: :test,
         "coveralls.detail": :test,

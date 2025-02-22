@@ -53,13 +53,6 @@ defmodule SoundboardWeb.Router do
     live "/favorites", FavoritesLive
   end
 
-  # Public uploads route
-  scope "/uploads" do
-    pipe_through :browser
-
-    get "/*path", SoundboardWeb.UploadController, :show
-  end
-
   # Debug route
   scope "/debug", SoundboardWeb do
     pipe_through [:browser]
