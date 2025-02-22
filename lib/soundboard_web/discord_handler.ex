@@ -297,14 +297,31 @@ defmodule SoundboardWeb.DiscordHandler do
   end
 
   defp handle_auto_join_leave(payload) do
+    Logger.info("Handling auto join/leave for payload: #{inspect(payload)}")
+
     case get_current_voice_channel() do
       nil when payload.channel_id != nil ->
-        join_voice_channel(payload.guild_id, payload.channel_id)
+        # Only join if there are actually users in the channel
+        users_in_channel = check_users_in_voice(payload.guild_id, payload.channel_id)
+        Logger.info("Found #{users_in_channel} users in channel #{payload.channel_id}")
 
-      {guild_id, channel_id} ->
-        check_and_maybe_leave(guild_id, channel_id)
+        if users_in_channel > 0 do
+          Logger.info("Joining channel #{payload.channel_id} with #{users_in_channel} users")
+          join_voice_channel(payload.guild_id, payload.channel_id)
+        end
+
+      {guild_id, current_channel_id} when current_channel_id != payload.channel_id ->
+        # Only check current channel if the update was for a different channel
+        users = check_users_in_voice(guild_id, current_channel_id)
+        Logger.info("Current channel #{current_channel_id} has #{users} users")
+
+        if users <= 1 do
+          Logger.info("Bot is alone in channel #{current_channel_id}, leaving")
+          leave_voice_channel(guild_id)
+        end
 
       _ ->
+        Logger.debug("No action needed for voice state update")
         :noop
     end
   end

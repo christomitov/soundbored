@@ -19,7 +19,22 @@ defmodule SoundboardWeb.DiscordHandlerTest do
         Process.whereis(SoundboardWeb.DiscordHandler)
       )
 
-      with_mock Nostrum.Voice, join_channel: fn _, _ -> :ok end do
+      mock_guild = %{
+        id: "456",
+        voice_states: [
+          %{
+            user_id: "789",
+            channel_id: "123",
+            guild_id: "456",
+            session_id: "abc"
+          }
+        ]
+      }
+
+      with_mocks([
+        {Nostrum.Voice, [], [join_channel: fn _, _ -> :ok end]},
+        {Nostrum.Cache.GuildCache, [], [get!: fn _guild_id -> mock_guild end]}
+      ]) do
         payload = %{
           channel_id: "123",
           guild_id: "456",
