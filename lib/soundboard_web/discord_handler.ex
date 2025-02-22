@@ -81,28 +81,85 @@ defmodule SoundboardWeb.DiscordHandler do
 
   # Add helper function for leaving voice channel
   defp leave_voice_channel(guild_id) do
-    Logger.info("Bot leaving voice channel in guild #{guild_id}")
-    Process.delete(:current_voice_channel)
-    Voice.leave_channel(guild_id)
+    if connected_to_discord?() do
+      Logger.info("Bot leaving voice channel in guild #{guild_id}")
+      Process.delete(:current_voice_channel)
 
-    # Update AudioPlayer
-    GenServer.cast(
-      SoundboardWeb.AudioPlayer,
-      {:set_voice_channel, nil, nil}
-    )
+      # Add rate limit protection
+      try do
+        Voice.leave_channel(guild_id)
+      rescue
+        e ->
+          error_msg = Exception.message(e)
+          Logger.error("Error leaving voice channel: #{error_msg}")
+
+          # If rate limited, retry after delay
+          if is_binary(error_msg) and String.contains?(error_msg, "rate limit") do
+            Logger.warning("Rate limited while trying to leave voice channel, retrying in 5 seconds...")
+            Process.sleep(5000)
+            Voice.leave_channel(guild_id)
+          end
+      end
+
+      # Update AudioPlayer
+      GenServer.cast(
+        SoundboardWeb.AudioPlayer,
+        {:set_voice_channel, nil, nil}
+      )
+    else
+      Logger.warning("Skipping leave_voice_channel - not connected to Discord")
+    end
   end
 
   # Add helper function for joining voice channel
   defp join_voice_channel(guild_id, channel_id) do
-    Logger.info("Bot joining voice channel #{channel_id} in guild #{guild_id}")
-    Process.put(:current_voice_channel, {guild_id, channel_id})
-    Voice.join_channel(guild_id, channel_id)
+    if connected_to_discord?() do
+      Logger.info("Bot joining voice channel #{channel_id} in guild #{guild_id}")
+      Process.put(:current_voice_channel, {guild_id, channel_id})
 
-    # Update AudioPlayer
-    GenServer.cast(
-      SoundboardWeb.AudioPlayer,
-      {:set_voice_channel, guild_id, channel_id}
-    )
+      # Add rate limit protection
+      try do
+        Voice.join_channel(guild_id, channel_id)
+      rescue
+        e ->
+          error_msg = Exception.message(e)
+          Logger.error("Error joining voice channel: #{error_msg}")
+
+          # If rate limited, retry after delay
+          if is_binary(error_msg) and String.contains?(error_msg, "rate limit") do
+            Logger.warning("Rate limited while trying to join voice channel, retrying in 5 seconds...")
+            Process.sleep(5000)
+            Voice.join_channel(guild_id, channel_id)
+          end
+      end
+
+      # Update AudioPlayer
+      GenServer.cast(
+        SoundboardWeb.AudioPlayer,
+        {:set_voice_channel, guild_id, channel_id}
+      )
+    else
+      Logger.warning("Skipping join_voice_channel - not connected to Discord")
+    end
+  end
+
+  # Add this helper function to check Discord connection state
+  defp connected_to_discord? do
+    # Check if the shard connection is alive and ready
+    case Process.whereis(Nostrum.Shard.Supervisor) do
+      nil -> false
+      pid when is_pid(pid) ->
+        try do
+          # Check if we have a valid gateway connection
+          Nostrum.Api.get_current_user()
+          |> case do
+            {:ok, _} -> true
+            _ -> false
+          end
+        rescue
+          _ -> false
+        end
+    end
   end
 
   # Simplified check_users_in_voice function - no bot token needed
