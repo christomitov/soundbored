@@ -66,6 +66,7 @@ defmodule SoundboardWeb.Router do
 
     get "/sounds", SoundController, :index
     post "/sounds/:id/play", SoundController, :play
+    post "/sounds/stop", SoundController, :stop
   end
 
   def fetch_current_user(conn, _) do

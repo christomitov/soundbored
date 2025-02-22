@@ -34,6 +34,15 @@ defmodule SoundboardWeb.API.SoundController do
     end
   end
 
+  def stop(conn, _params) do
+    SoundboardWeb.AudioPlayer.stop_sound()
+
+    json(conn, %{
+      status: "success",
+      message: "Stopped all sounds"
+    })
+  end
+
   defp format_sound(sound) do
     %{
       id: sound.id,
