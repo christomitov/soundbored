@@ -7,6 +7,8 @@
     "lib/soundboard_web/router.ex",
     "lib/soundboard_web/components/",
     "lib/soundboard_web/live/",
+    "lib/soundboard_web/audio_player.ex",
+    "lib/soundboard_web/discord_handler.ex",
     "lib/soundboard_web/controllers/error_html.ex",
     "lib/soundboard_web/controllers/error_json.ex",
     "lib/soundboard/repo.ex",

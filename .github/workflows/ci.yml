@@ -50,7 +50,7 @@ jobs:
       - name: Verify minimum coverage
         run: |
           COVERAGE=$(mix coveralls | grep "\[TOTAL\]" | awk '{print $2}' | sed 's/%//')
-          MINIMUM=40.0
+          MINIMUM=80.0
           
           if (( $(echo "$COVERAGE < $MINIMUM" | bc -l) )); then
             echo "Test coverage is below minimum: $COVERAGE% < $MINIMUM%"
