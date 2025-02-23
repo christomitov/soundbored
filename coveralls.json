@@ -9,6 +9,7 @@
     "lib/soundboard_web/live/",
     "lib/soundboard_web/audio_player.ex",
     "lib/soundboard_web/discord_handler.ex",
+    "lib/soundboard_web/controllers/upload_controller.ex",
     "lib/soundboard_web/controllers/error_html.ex",
     "lib/soundboard_web/controllers/error_json.ex",
     "lib/soundboard/repo.ex",
