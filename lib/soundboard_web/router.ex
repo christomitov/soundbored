@@ -12,9 +12,7 @@ defmodule SoundboardWeb.Router do
   end
 
   pipeline :require_basic_auth do
-    if System.get_env("BASIC_AUTH_USERNAME") && System.get_env("BASIC_AUTH_PASSWORD") do
-      plug SoundboardWeb.Plugs.BasicAuth
-    end
+    plug SoundboardWeb.Plugs.BasicAuth
   end
 
   pipeline :auth do
@@ -46,7 +44,12 @@ defmodule SoundboardWeb.Router do
 
   # Protected routes
   scope "/", SoundboardWeb do
-    pipe_through [:browser, :auth, :ensure_authenticated_user, :require_basic_auth]
+    # Only apply basic auth in non-test environments
+    if Mix.env() == :test do
+      pipe_through [:browser, :auth, :ensure_authenticated_user]
+    else
+      pipe_through [:browser, :auth, :ensure_authenticated_user, :require_basic_auth]
+    end
 
     live "/", SoundboardLive
     live "/stats", LeaderboardLive

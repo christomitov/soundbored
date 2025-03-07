@@ -8,15 +8,22 @@ defmodule SoundboardWeb.Plugs.BasicAuth do
   def init(opts), do: opts
 
   def call(conn, _opts) do
-    username = System.get_env("BASIC_AUTH_USERNAME")
-    password = System.get_env("BASIC_AUTH_PASSWORD")
-
-    if is_nil(username) or is_nil(password) do
-      # Skip basic auth if credentials are not configured
-      Logger.info("Basic auth credentials not configured - skipping authentication")
+    # Always bypass basic auth in test environment
+    if Application.get_env(:soundboard, :env) == :test do
+      Logger.info("Test environment detected - skipping basic auth")
       conn
     else
-      authenticate(conn, username, password)
+      username = System.get_env("BASIC_AUTH_USERNAME")
+      password = System.get_env("BASIC_AUTH_PASSWORD")
+
+      if is_nil(username) or is_nil(password) do
+        # Skip basic auth if credentials are not configured
+        Logger.info("Basic auth credentials not configured - skipping authentication")
+        conn
+      else
+        Logger.info("Basic auth enabled with configured credentials")
+        authenticate(conn, username, password)
+      end
     end
   end
 
