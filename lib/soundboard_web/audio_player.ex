@@ -161,5 +161,4 @@ defmodule SoundboardWeb.AudioPlayer do
         {:error, "Invalid sound configuration"}
     end
   end
-
 end
