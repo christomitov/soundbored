@@ -55,7 +55,7 @@ defmodule Soundboard.MixProject do
   def application do
     [
       mod: {Soundboard.Application, []},
-      extra_applications: [:logger, :runtime_tools, :nostrum]
+      extra_applications: [:logger, :runtime_tools]
     ]
   end
 
@@ -88,7 +88,7 @@ defmodule Soundboard.MixProject do
       {:jason, "~> 1.2"},
       {:dns_cluster, "~> 0.1.1"},
       {:bandit, "~> 1.5"},
-      {:nostrum, git: "https://github.com/BrandtHill/nostrum", branch: "master"},
+      {:nostrum, github: "christomitov/nostrum", branch: "master"},
       {:ecto_sqlite3, "~> 0.18.0"},
       {:number, "~> 1.0"},
       {:ueberauth, "~> 0.10.5"},

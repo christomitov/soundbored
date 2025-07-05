@@ -80,7 +80,9 @@ defmodule SoundboardWeb.AudioPlayer do
               Voice.stop(guild_id)
               ensure_voice_connected(guild_id, channel_id)
 
-              Voice.play(guild_id, path_or_url, :url, get_ffmpeg_options())
+              # Try using the file path directly with :url type
+              # This should work if ffmpeg is properly configured
+              Voice.play(guild_id, path_or_url, :url)
 
               # Track play only after successful playback
               case Soundboard.Repo.get_by(User, username: username) do
@@ -160,58 +162,4 @@ defmodule SoundboardWeb.AudioPlayer do
     end
   end
 
-  defp get_ffmpeg_options do
-    [
-      volume: 0.7,
-      ffmpeg_args: [
-        # Standard sample rate for Opus
-        "-ar",
-        "48000",
-        # Stereo channels
-        "-ac",
-        "2",
-        # Use the Opus codec
-        "-c:a",
-        "libopus",
-        # Lower bitrate for efficiency
-        "-b:a",
-        "96k",
-        # Enable variable bitrate
-        "-vbr",
-        "on",
-        # Optimize for general audio use
-        "-application",
-        "audio",
-        # Standard 20ms frame duration
-        "-frame_duration",
-        "20",
-        # Reduced packet loss simulation
-        "-packet_loss",
-        "3",
-        # Enable forward error correction
-        "-fec",
-        "1",
-        # Lower buffer size for reduced latency
-        "-buffer_size",
-        "960k",
-        # Lower max bitrate for bandwidth control
-        "-maxrate",
-        "128k",
-        # Fewer threads for efficiency
-        "-threads",
-        "4",
-        # Optimize seeking
-        "-fflags",
-        "+fastseek",
-        # Reduced probe size for faster startup
-        "-probesize",
-        "128k",
-        # Lower analysis duration for quick initialization
-        "-analyzeduration",
-        "2000000",
-        "-af",
-        "loudnorm=I=-14:LRA=1:TP=-1:dual_mono=true,compand=attacks=0:points=-70/-70|-40/-40|-20/-12|0/-6|20/-6:gain=8"
-      ]
-    ]
-  end
 end

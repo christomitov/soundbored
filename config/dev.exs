@@ -106,3 +106,7 @@ config :ueberauth, Ueberauth.Strategy.Discord.OAuth,
   client_id: System.get_env("DISCORD_CLIENT_ID"),
   client_secret: System.get_env("DISCORD_CLIENT_SECRET"),
   redirect_uri: "#{scheme}://#{host}/auth/discord/callback"
+
+# Store token for application use (not for Nostrum directly)
+config :soundboard,
+  discord_token: System.get_env("DISCORD_TOKEN")

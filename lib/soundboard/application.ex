@@ -14,28 +14,27 @@ defmodule Soundboard.Application do
     # Initialize presence handler state
     PresenceHandler.init()
 
-    case Application.ensure_all_started(:nostrum) do
-      {:ok, started_apps} ->
-        Logger.info("Started Nostrum and dependencies: #{inspect(started_apps)}")
+    # Configure the Nostrum bot
+    bot_options = %{
+      name: SoundboardBot,
+      consumer: SoundboardWeb.DiscordHandler,
+      intents: [:guilds, :guild_messages, :guild_voice_states, :message_content],
+      wrapped_token: fn -> Application.fetch_env!(:soundboard, :discord_token) end
+    }
 
-        children = [
-          SoundboardWeb.Telemetry,
-          {Phoenix.PubSub, name: Soundboard.PubSub},
-          SoundboardWeb.Presence,
-          SoundboardWeb.Endpoint,
-          {SoundboardWeb.AudioPlayer, []},
-          Soundboard.Repo,
-          SoundboardWeb.DiscordHandler.State,
-          SoundboardWeb.DiscordHandler
-        ]
+    children = [
+      SoundboardWeb.Telemetry,
+      {Phoenix.PubSub, name: Soundboard.PubSub},
+      SoundboardWeb.Presence,
+      SoundboardWeb.Endpoint,
+      {SoundboardWeb.AudioPlayer, []},
+      Soundboard.Repo,
+      SoundboardWeb.DiscordHandler.State,
+      {Nostrum.Bot, bot_options}
+    ]
 
-        opts = [strategy: :one_for_one, name: Soundboard.Supervisor]
-        Supervisor.start_link(children, opts)
-
-      {:error, {app, reason}} ->
-        Logger.error("Failed to start Nostrum dependency #{app}: #{inspect(reason)}")
-        {:error, reason}
-    end
+    opts = [strategy: :one_for_one, name: Soundboard.Supervisor]
+    Supervisor.start_link(children, opts)
   end
 
   # Tell Phoenix to update the endpoint configuration

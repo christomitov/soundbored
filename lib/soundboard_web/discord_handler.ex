@@ -2,10 +2,9 @@ defmodule SoundboardWeb.DiscordHandler do
   @moduledoc """
   Handles the Discord events.
   """
-  use Nostrum.Consumer
+  @behaviour Nostrum.Consumer
   require Logger
 
-  alias Nostrum.Api
   alias Nostrum.Cache.GuildCache
   alias Nostrum.Voice
   alias Soundboard.{Accounts.User, Repo, Sound, UserSoundSetting}
@@ -145,38 +144,52 @@ defmodule SoundboardWeb.DiscordHandler do
 
   # Add this helper function to check Discord connection state
   defp connected_to_discord? do
-    # Check if the shard connection is alive and ready
-    case Process.whereis(Nostrum.Shard.Supervisor) do
-      nil -> false
-      pid when is_pid(pid) ->
-        try do
-          # Check if we have a valid gateway connection
-          case Nostrum.Api.get_current_user() do
-            {:ok, _} -> true
-            _ -> false
-          end
-        rescue
-          _ -> false
+    # Check if bot has received READY event
+    ready = :persistent_term.get(:soundboard_bot_ready, false)
+    
+    if ready do
+      try do
+        case Nostrum.Api.Self.get() do
+          {:ok, _} -> 
+            Logger.debug("Discord connection check: Connected and ready")
+            true
+          error -> 
+            Logger.debug("Discord connection check failed: #{inspect(error)}")
+            false
         end
-      _ -> false
+      rescue
+        error -> 
+          Logger.debug("Discord connection check error: #{inspect(error)}")
+          false
+      end
+    else
+      Logger.debug("Discord connection check: Bot not ready (READY event not received)")
+      false
     end
   end
 
   # Simplified check_users_in_voice function - no bot token needed
   defp check_users_in_voice(guild_id, channel_id) do
     guild = GuildCache.get!(guild_id)
+    
+    # Get bot ID to exclude it from count
+    bot_id = case Nostrum.Api.Self.get() do
+      {:ok, %{id: id}} -> id
+      _ -> nil
+    end
 
-    # Count total users in the specified channel
+    # Count total users in the specified channel (excluding the bot)
     users_in_channel =
       guild.voice_states
       |> Enum.count(fn vs ->
-        vs.channel_id == channel_id
+        vs.channel_id == channel_id && vs.user_id != bot_id
       end)
 
     Logger.info("""
     Voice state check:
     Channel ID: #{channel_id}
-    Users in channel: #{users_in_channel}
+    Users in channel: #{users_in_channel} (excluding bot)
+    Bot ID: #{bot_id}
     Voice states: #{inspect(guild.voice_states)}
     """)
 
@@ -196,6 +209,15 @@ defmodule SoundboardWeb.DiscordHandler do
 
   def handle_event({:VOICE_STATE_UPDATE, payload, _ws_state}) do
     Logger.info("Voice state update received: #{inspect(payload)}")
+    
+    # Check if this is the bot's own voice state update
+    case Nostrum.Api.Self.get() do
+      {:ok, %{id: bot_id}} when bot_id == payload.user_id ->
+        Logger.info("BOT VOICE STATE UPDATE - Bot (#{bot_id}) joined channel #{payload.channel_id} in guild #{payload.guild_id}")
+      _ ->
+        :ok
+    end
+    
     previous_state = State.get_state(payload.user_id)
     State.update_state(payload.user_id, payload.channel_id, payload.session_id)
 
@@ -204,6 +226,12 @@ defmodule SoundboardWeb.DiscordHandler do
     end
 
     handle_join_sound(payload.user_id, previous_state, payload.channel_id)
+  end
+
+  def handle_event({:READY, _payload, _ws_state}) do
+    Logger.info("Bot is READY - gateway connection established")
+    :persistent_term.put(:soundboard_bot_ready, true)
+    :noop
   end
 
   def handle_event({:VOICE_READY, payload, _ws_state}) do
@@ -225,7 +253,7 @@ defmodule SoundboardWeb.DiscordHandler do
       "!join" ->
         case get_user_voice_channel(msg.guild_id, msg.author.id) do
           nil ->
-            Api.create_message(msg.channel_id, "You need to be in a voice channel!")
+            Nostrum.Api.Message.create(msg.channel_id, "You need to be in a voice channel!")
 
           channel_id ->
             join_voice_channel(msg.guild_id, channel_id)
@@ -238,7 +266,7 @@ defmodule SoundboardWeb.DiscordHandler do
 
             url = "#{scheme}://#{web_url}"
 
-            Api.create_message(msg.channel_id, """
+            Nostrum.Api.Message.create(msg.channel_id, """
             Joined your voice channel!
             Access the soundboard here: #{url}
             """)
@@ -247,7 +275,7 @@ defmodule SoundboardWeb.DiscordHandler do
       "!leave" ->
         if msg.guild_id do
           leave_voice_channel(msg.guild_id)
-          Api.create_message(msg.channel_id, "Left the voice channel!")
+          Nostrum.Api.Message.create(msg.channel_id, "Left the voice channel!")
         end
 
       _ ->
@@ -355,31 +383,39 @@ defmodule SoundboardWeb.DiscordHandler do
 
   defp handle_auto_join_leave(payload) do
     Logger.info("Handling auto join/leave for payload: #{inspect(payload)}")
-
-    case get_current_voice_channel() do
-      nil when payload.channel_id != nil ->
-        # Only join if there are actually users in the channel
-        users_in_channel = check_users_in_voice(payload.guild_id, payload.channel_id)
-        Logger.info("Found #{users_in_channel} users in channel #{payload.channel_id}")
-
-        if users_in_channel > 0 do
-          Logger.info("Joining channel #{payload.channel_id} with #{users_in_channel} users")
-          join_voice_channel(payload.guild_id, payload.channel_id)
-        end
-
-      {guild_id, current_channel_id} when current_channel_id != payload.channel_id ->
-        # Only check current channel if the update was for a different channel
-        users = check_users_in_voice(guild_id, current_channel_id)
-        Logger.info("Current channel #{current_channel_id} has #{users} users")
-
-        if users <= 1 do
-          Logger.info("Bot is alone in channel #{current_channel_id}, leaving")
-          leave_voice_channel(guild_id)
-        end
-
+    
+    # Check if this is the bot's own voice state update - RETURN EARLY if it is
+    case Nostrum.Api.Self.get() do
+      {:ok, %{id: bot_id}} when bot_id == payload.user_id ->
+        Logger.debug("Ignoring bot's own voice state update in auto-join logic")
+        :noop  # Return early - don't process auto-join logic for bot's own updates
       _ ->
-        Logger.debug("No action needed for voice state update")
-        :noop
+        # Only process auto-join logic for other users
+        case get_current_voice_channel() do
+          nil when payload.channel_id != nil ->
+            # Only join if there are actually users in the channel (excluding the bot)
+            users_in_channel = check_users_in_voice(payload.guild_id, payload.channel_id)
+            Logger.info("Found #{users_in_channel} users in channel #{payload.channel_id}")
+
+            if users_in_channel > 0 do
+              Logger.info("Joining channel #{payload.channel_id} with #{users_in_channel} users")
+              join_voice_channel(payload.guild_id, payload.channel_id)
+            end
+
+          {guild_id, current_channel_id} when current_channel_id != payload.channel_id ->
+            # Only check current channel if the update was for a different channel
+            users = check_users_in_voice(guild_id, current_channel_id)
+            Logger.info("Current channel #{current_channel_id} has #{users} users")
+
+            if users <= 1 do
+              Logger.info("Bot is alone in channel #{current_channel_id}, leaving")
+              leave_voice_channel(guild_id)
+            end
+
+          _ ->
+            Logger.debug("No action needed for voice state update")
+            :noop
+        end
     end
   end
 

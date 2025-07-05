@@ -12,17 +12,8 @@ import Config
 #   generators: [timestamp_type: :utc_datetime],
 #   token: System.get_env("DISCORD_TOKEN")
 
-# Keep just the token config
-config :nostrum,
-  token: System.get_env("DISCORD_TOKEN"),
-  gateway_intents: [
-    :guilds,
-    :guild_messages,
-    :message_content,
-    :guild_voice_states
-  ],
-  youtubedl: false,
-  streamlink: false
+# Nostrum config removed - using Nostrum.Bot module instead
+# Only ffmpeg path is configured in runtime.exs
 
 # Configures the endpoint
 config :soundboard, SoundboardWeb.Endpoint,
