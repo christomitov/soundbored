@@ -107,6 +107,13 @@ defmodule SoundboardWeb.AudioPlayer do
   end
 
   @impl true
+  def handle_info({:play_delayed_sound, sound}, state) do
+    Logger.info("Playing delayed join sound: #{sound}")
+    # Play the sound as System user
+    handle_cast({:play_sound, sound, "System"}, state)
+  end
+
+  @impl true
   def handle_info({ref, _result}, %{current_playback: %Task{ref: ref}} = state) do
     Process.demonitor(ref, [:flush])
     {:noreply, %{state | current_playback: nil}}

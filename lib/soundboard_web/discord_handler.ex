@@ -308,13 +308,6 @@ defmodule SoundboardWeb.DiscordHandler do
     end
   end
 
-  # Handle delayed sound playback
-  def handle_info({:play_delayed_sound, sound}, state) do
-    Logger.info("Playing delayed join sound: #{sound}")
-    SoundboardWeb.AudioPlayer.play_sound(sound, "System")
-    {:noreply, state}
-  end
-
   # Handle Nostrum events
   def handle_info({:event, {event_name, payload, ws_state}}, state) do
     handle_event({event_name, payload, ws_state})
@@ -449,6 +442,10 @@ defmodule SoundboardWeb.DiscordHandler do
         {prev_channel, _} -> prev_channel != new_channel_id
       end
 
+    Logger.info(
+      "Join sound check - User: #{user_id}, Previous: #{inspect(previous_state)}, New channel: #{new_channel_id}, Is join: #{is_join_event}"
+    )
+
     if is_join_event do
       play_join_sound(user_id)
     end
@@ -467,11 +464,16 @@ defmodule SoundboardWeb.DiscordHandler do
       )
       |> Repo.one()
 
+    Logger.info("Join sound query result for user #{user_id}: #{inspect(user_with_sounds)}")
+
     case user_with_sounds do
       {_user_id, join_sound} when not is_nil(join_sound) ->
-        Process.send_after(self(), {:play_delayed_sound, join_sound}, 1000)
+        Logger.info("Scheduling join sound: #{join_sound}")
+        # Send delayed sound to AudioPlayer instead of self()
+        Process.send_after(SoundboardWeb.AudioPlayer, {:play_delayed_sound, join_sound}, 1000)
 
       _ ->
+        Logger.info("No join sound found for user #{user_id}")
         :noop
     end
   end
