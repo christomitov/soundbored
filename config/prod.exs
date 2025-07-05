@@ -26,3 +26,20 @@ config :soundboard,
 
 config :soundboard,
   env: :prod
+
+# Configure logging for production
+config :logger,
+  level: :debug,
+  format: "$time $metadata[$level] $message\n",
+  metadata: [:request_id, :mfa, :bot, :guild, :channel]
+
+# Configure console backend for more verbose logging
+config :logger, :console,
+  format: "$time $metadata[$level] $message\n",
+  metadata: [:request_id, :mfa, :bot, :guild, :channel]
+
+# Nostrum configuration for voice debugging
+config :nostrum,
+  youtubedl: nil,
+  streamlink: nil,
+  ffmpeg: "/usr/bin/ffmpeg"
