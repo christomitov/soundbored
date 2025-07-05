@@ -27,16 +27,8 @@ config :soundboard,
 config :soundboard,
   env: :prod
 
-# Configure logging for production
-config :logger,
-  level: :debug,
-  format: "$time $metadata[$level] $message\n",
-  metadata: [:request_id, :mfa, :bot, :guild, :channel]
-
-# Configure console backend for more verbose logging
-config :logger, :console,
-  format: "$time $metadata[$level] $message\n",
-  metadata: [:request_id, :mfa, :bot, :guild, :channel]
+# Configure logging for production - enable debug level for voice troubleshooting
+config :logger, level: :debug
 
 # Nostrum configuration for voice debugging
 config :nostrum,
