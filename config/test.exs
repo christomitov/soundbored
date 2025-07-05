@@ -45,3 +45,9 @@ config :soundboard, :sql_sandbox, true
 config :soundboard, Soundboard.PubSub,
   adapter: Phoenix.PubSub.PG2,
   name: Soundboard.PubSub
+
+# Disable Nostrum in test environment
+config :nostrum,
+  ffmpeg: nil,
+  youtubedl: nil,
+  streamlink: nil

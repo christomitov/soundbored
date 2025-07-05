@@ -3,21 +3,19 @@ defmodule SoundboardWeb.DiscordHandlerTest do
   Tests the DiscordHandler module.
   """
   use Soundboard.DataCase
-  alias Ecto.Adapters.SQL.Sandbox
   alias SoundboardWeb.DiscordHandler
   import Mock
 
   describe "handle_event/1" do
     test "handles voice state updates" do
-      # Start with name registration
-      start_supervised!({SoundboardWeb.DiscordHandler, name: SoundboardWeb.DiscordHandler})
+      # State GenServer is already started by the application
+      # Set up the persistent term to simulate bot being ready
+      :persistent_term.put(:soundboard_bot_ready, true)
 
-      # Then allow sandbox access
-      Sandbox.allow(
-        Soundboard.Repo,
-        self(),
-        Process.whereis(SoundboardWeb.DiscordHandler)
-      )
+      # Clean up after test
+      on_exit(fn ->
+        :persistent_term.erase(:soundboard_bot_ready)
+      end)
 
       mock_guild = %{
         id: "456",
@@ -33,7 +31,8 @@ defmodule SoundboardWeb.DiscordHandlerTest do
 
       with_mocks([
         {Nostrum.Voice, [], [join_channel: fn _, _ -> :ok end]},
-        {Nostrum.Cache.GuildCache, [], [get!: fn _guild_id -> mock_guild end]}
+        {Nostrum.Cache.GuildCache, [], [get!: fn _guild_id -> mock_guild end]},
+        {Nostrum.Api.Self, [], [get: fn -> {:ok, %{id: "999"}} end]}
       ]) do
         payload = %{
           channel_id: "123",
@@ -42,6 +41,7 @@ defmodule SoundboardWeb.DiscordHandlerTest do
           session_id: "abc"
         }
 
+        # Call the handle_event function directly since it's a callback, not a GenServer
         DiscordHandler.handle_event({:VOICE_STATE_UPDATE, payload, nil})
 
         # Assert that appropriate actions were taken
