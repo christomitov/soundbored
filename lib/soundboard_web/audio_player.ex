@@ -82,7 +82,12 @@ defmodule SoundboardWeb.AudioPlayer do
 
               # Try using the file path directly with :url type
               # This should work if ffmpeg is properly configured
-              Voice.play(guild_id, path_or_url, :url)
+              play_type = case Soundboard.Repo.get_by(Sound, filename: sound_name) do
+                %{source_type: "url"} -> :url
+                %{source_type: "local"} -> :path
+                _ -> :url
+              end
+              Voice.play(guild_id, path_or_url, play_type)
 
               # Track play only after successful playback
               case Soundboard.Repo.get_by(User, username: username) do
