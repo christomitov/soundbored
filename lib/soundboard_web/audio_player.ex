@@ -122,40 +122,43 @@ defmodule SoundboardWeb.AudioPlayer do
     Voice.stop(guild_id)
     ensure_voice_connected(guild_id, channel_id)
 
-    play_type = determine_play_type(sound_name, path_or_url)
-    Voice.play(guild_id, path_or_url, play_type)
+    {play_input, play_type} = prepare_play_input(sound_name, path_or_url)
+
+    Logger.info(
+      "Calling Voice.play with guild_id: #{guild_id}, input: #{play_input}, type: #{play_type}"
+    )
+
+    Voice.play(guild_id, play_input, play_type)
 
     track_play_if_needed(sound_name, username)
     broadcast_success(sound_name, username)
   rescue
     e ->
       Logger.error("Error playing sound: #{inspect(e)}")
+      Logger.error("Stack trace: #{inspect(__STACKTRACE__)}")
       broadcast_error("Failed to play sound")
   end
 
-  defp determine_play_type(sound_name, path_or_url) do
+  defp prepare_play_input(sound_name, path_or_url) do
     sound = Soundboard.Repo.get_by(Sound, filename: sound_name)
     Logger.info("Playing sound: #{inspect(sound)}")
-    Logger.info("Path/URL: #{path_or_url}")
+    Logger.info("Original path/URL: #{path_or_url}")
 
-    play_type =
-      case sound do
-        %{source_type: "url"} ->
-          Logger.info("Using :url play type for URL sound")
-          :url
+    case sound do
+      %{source_type: "url"} ->
+        Logger.info("Using URL directly for remote sound")
+        {path_or_url, :url}
 
-        %{source_type: "local"} ->
-          Logger.info("Using :path play type for local file")
-          :path
+      %{source_type: "local"} ->
+        # For local files, Nostrum expects a file:// URL or just the path
+        # Since ffmpeg can handle direct paths, we'll use :url type
+        Logger.info("Using local file path with :url type")
+        {path_or_url, :url}
 
-        _ ->
-          Logger.warning("Unknown source type, defaulting to :path")
-          :path
-      end
-
-    Logger.info("Calling Voice.play with play_type: #{play_type}")
-
-    play_type
+      _ ->
+        Logger.warning("Unknown source type, defaulting to :url type with direct path")
+        {path_or_url, :url}
+    end
   end
 
   defp track_play_if_needed(sound_name, username) do
