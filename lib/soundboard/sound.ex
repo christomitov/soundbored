@@ -102,16 +102,20 @@ defmodule Soundboard.Sound do
 
   def get_user_join_sound(user_id) do
     Repo.one(
-      from s in __MODULE__,
-        where: s.user_id == ^user_id and s.is_join_sound == true,
+      from uss in Soundboard.UserSoundSetting,
+        join: s in __MODULE__,
+        on: uss.sound_id == s.id,
+        where: uss.user_id == ^user_id and uss.is_join_sound == true,
         select: s.filename
     )
   end
 
   def get_user_leave_sound(user_id) do
     Repo.one(
-      from s in __MODULE__,
-        where: s.user_id == ^user_id and s.is_leave_sound == true,
+      from uss in Soundboard.UserSoundSetting,
+        join: s in __MODULE__,
+        on: uss.sound_id == s.id,
+        where: uss.user_id == ^user_id and uss.is_leave_sound == true,
         select: s.filename
     )
   end
@@ -120,9 +124,11 @@ defmodule Soundboard.Sound do
     Repo.one(
       from u in User,
         where: u.discord_id == ^to_string(discord_id),
+        left_join: uss in Soundboard.UserSoundSetting,
+        on: uss.user_id == u.id,
         left_join: s in __MODULE__,
-        on: s.user_id == u.id and (s.is_join_sound == true or s.is_leave_sound == true),
-        select: {u.id, s.filename, s.is_join_sound, s.is_leave_sound}
+        on: uss.sound_id == s.id and (uss.is_join_sound == true or uss.is_leave_sound == true),
+        select: {u.id, s.filename, uss.is_join_sound, uss.is_leave_sound}
     )
   end
 

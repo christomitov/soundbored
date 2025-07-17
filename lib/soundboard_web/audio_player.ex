@@ -80,13 +80,30 @@ defmodule SoundboardWeb.AudioPlayer do
               Voice.stop(guild_id)
               ensure_voice_connected(guild_id, channel_id)
 
-              # Try using the file path directly with :url type
-              # This should work if ffmpeg is properly configured
-              play_type = case Soundboard.Repo.get_by(Sound, filename: sound_name) do
-                %{source_type: "url"} -> :url
-                %{source_type: "local"} -> :path
-                _ -> :url
-              end
+              # Determine play type based on sound source
+              sound = Soundboard.Repo.get_by(Sound, filename: sound_name)
+              Logger.info("Playing sound: #{inspect(sound)}")
+              Logger.info("Path/URL: #{path_or_url}")
+
+              play_type =
+                case sound do
+                  %{source_type: "url"} ->
+                    Logger.info("Using :url play type for URL sound")
+                    :url
+
+                  %{source_type: "local"} ->
+                    Logger.info("Using :path play type for local file")
+                    :path
+
+                  _ ->
+                    Logger.warning("Unknown source type, defaulting to :path")
+                    :path
+                end
+
+              Logger.info(
+                "Calling Voice.play with guild_id: #{guild_id}, path_or_url: #{path_or_url}, play_type: #{play_type}"
+              )
+
               Voice.play(guild_id, path_or_url, play_type)
 
               # Track play only after successful playback
@@ -160,16 +177,32 @@ defmodule SoundboardWeb.AudioPlayer do
   end
 
   defp get_sound_path(sound_name) do
+    Logger.info("Getting sound path for: #{sound_name}")
+
     case Soundboard.Repo.get_by(Sound, filename: sound_name) do
+      nil ->
+        Logger.error("Sound not found in database: #{sound_name}")
+        {:error, "Sound not found"}
+
       %{source_type: "url", url: url} when not is_nil(url) ->
+        Logger.info("Found URL sound: #{url}")
         {:ok, url}
 
       %{source_type: "local", filename: filename} when not is_nil(filename) ->
         priv_dir = :code.priv_dir(:soundboard)
         path = Path.join([priv_dir, "static/uploads", filename])
-        if File.exists?(path), do: {:ok, path}, else: {:error, "Sound file not found"}
+        Logger.info("Checking local file path: #{path}")
 
-      _ ->
+        if File.exists?(path) do
+          Logger.info("Local file exists: #{path}")
+          {:ok, path}
+        else
+          Logger.error("Local file not found: #{path}")
+          {:error, "Sound file not found at #{path}"}
+        end
+
+      sound ->
+        Logger.error("Invalid sound configuration: #{inspect(sound)}")
         {:error, "Invalid sound configuration"}
     end
   end
