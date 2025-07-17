@@ -8,6 +8,9 @@ defmodule SoundboardWeb.AudioPlayer do
   alias Soundboard.Accounts.User
   alias Soundboard.Sound
 
+  # System users that don't need play tracking
+  @system_users ["System", "API User"]
+
   defmodule State do
     @moduledoc """
     The state of the audio player.
@@ -76,48 +79,7 @@ defmodule SoundboardWeb.AudioPlayer do
       {:ok, path_or_url} ->
         task =
           Task.async(fn ->
-            try do
-              Voice.stop(guild_id)
-              ensure_voice_connected(guild_id, channel_id)
-
-              # Determine play type based on sound source
-              sound = Soundboard.Repo.get_by(Sound, filename: sound_name)
-              Logger.info("Playing sound: #{inspect(sound)}")
-              Logger.info("Path/URL: #{path_or_url}")
-
-              play_type =
-                case sound do
-                  %{source_type: "url"} ->
-                    Logger.info("Using :url play type for URL sound")
-                    :url
-
-                  %{source_type: "local"} ->
-                    Logger.info("Using :path play type for local file")
-                    :path
-
-                  _ ->
-                    Logger.warning("Unknown source type, defaulting to :path")
-                    :path
-                end
-
-              Logger.info(
-                "Calling Voice.play with guild_id: #{guild_id}, path_or_url: #{path_or_url}, play_type: #{play_type}"
-              )
-
-              Voice.play(guild_id, path_or_url, play_type)
-
-              # Track play only after successful playback
-              case Soundboard.Repo.get_by(User, username: username) do
-                %{id: user_id} -> Soundboard.Stats.track_play(sound_name, user_id)
-                nil -> Logger.warning("Could not find user_id for #{username}")
-              end
-
-              broadcast_success(sound_name, username)
-            rescue
-              e ->
-                Logger.error("Error playing sound: #{inspect(e)}")
-                broadcast_error("Failed to play sound")
-            end
+            play_sound_task(guild_id, channel_id, sound_name, path_or_url, username)
           end)
 
         {:noreply, %{state | current_playback: task}}
@@ -152,6 +114,60 @@ defmodule SoundboardWeb.AudioPlayer do
 
   @impl true
   def handle_info(_, state), do: {:noreply, state}
+
+  # Helper function to check if a username is a system user
+  defp system_user?(username), do: username in @system_users
+
+  defp play_sound_task(guild_id, channel_id, sound_name, path_or_url, username) do
+    Voice.stop(guild_id)
+    ensure_voice_connected(guild_id, channel_id)
+
+    play_type = determine_play_type(sound_name, path_or_url)
+    Voice.play(guild_id, path_or_url, play_type)
+
+    track_play_if_needed(sound_name, username)
+    broadcast_success(sound_name, username)
+  rescue
+    e ->
+      Logger.error("Error playing sound: #{inspect(e)}")
+      broadcast_error("Failed to play sound")
+  end
+
+  defp determine_play_type(sound_name, path_or_url) do
+    sound = Soundboard.Repo.get_by(Sound, filename: sound_name)
+    Logger.info("Playing sound: #{inspect(sound)}")
+    Logger.info("Path/URL: #{path_or_url}")
+
+    play_type =
+      case sound do
+        %{source_type: "url"} ->
+          Logger.info("Using :url play type for URL sound")
+          :url
+
+        %{source_type: "local"} ->
+          Logger.info("Using :path play type for local file")
+          :path
+
+        _ ->
+          Logger.warning("Unknown source type, defaulting to :path")
+          :path
+      end
+
+    Logger.info("Calling Voice.play with play_type: #{play_type}")
+
+    play_type
+  end
+
+  defp track_play_if_needed(sound_name, username) do
+    if system_user?(username) do
+      Logger.info("Skipping play tracking for system user: #{username}")
+    else
+      case Soundboard.Repo.get_by(User, username: username) do
+        %{id: user_id} -> Soundboard.Stats.track_play(sound_name, user_id)
+        nil -> Logger.warning("Could not find user_id for #{username}")
+      end
+    end
+  end
 
   defp ensure_voice_connected(guild_id, channel_id) do
     unless Voice.ready?(guild_id) do
