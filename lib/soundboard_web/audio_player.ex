@@ -119,19 +119,34 @@ defmodule SoundboardWeb.AudioPlayer do
   defp system_user?(username), do: username in @system_users
 
   defp play_sound_task(guild_id, channel_id, sound_name, path_or_url, username) do
+    # Stop any currently playing sound
     Voice.stop(guild_id)
-    ensure_voice_connected(guild_id, channel_id)
 
+    # Ensure we're connected and ready
+    if ensure_voice_ready(guild_id, channel_id) do
+      play_sound_with_connection(guild_id, sound_name, path_or_url, username)
+    else
+      Logger.error("Failed to establish voice connection")
+      broadcast_error("Failed to connect to voice channel")
+    end
+  end
+
+  defp play_sound_with_connection(guild_id, sound_name, path_or_url, username) do
     {play_input, play_type} = prepare_play_input(sound_name, path_or_url)
 
     Logger.info(
       "Calling Voice.play with guild_id: #{guild_id}, input: #{play_input}, type: #{play_type}"
     )
 
-    Voice.play(guild_id, play_input, play_type)
+    case Voice.play(guild_id, play_input, play_type) do
+      :ok ->
+        track_play_if_needed(sound_name, username)
+        broadcast_success(sound_name, username)
 
-    track_play_if_needed(sound_name, username)
-    broadcast_success(sound_name, username)
+      {:error, reason} ->
+        Logger.error("Voice.play failed: #{inspect(reason)}")
+        broadcast_error("Failed to play sound: #{reason}")
+    end
   rescue
     e ->
       Logger.error("Error playing sound: #{inspect(e)}")
@@ -172,10 +187,33 @@ defmodule SoundboardWeb.AudioPlayer do
     end
   end
 
-  defp ensure_voice_connected(guild_id, channel_id) do
-    unless Voice.ready?(guild_id) do
-      Voice.join_channel(guild_id, channel_id)
-      # Process.sleep(100)  # Brief pause to allow connection
+  defp ensure_voice_ready(guild_id, channel_id) do
+    if Voice.ready?(guild_id) do
+      Logger.info("Voice connection ready for guild #{guild_id}")
+      true
+    else
+      Logger.info("Voice not ready, attempting to join channel #{channel_id}")
+      join_and_verify_channel(guild_id, channel_id)
+    end
+  end
+
+  defp join_and_verify_channel(guild_id, channel_id) do
+    case Voice.join_channel(guild_id, channel_id) do
+      :ok ->
+        # Give the connection a moment to establish
+        Process.sleep(200)
+
+        if Voice.ready?(guild_id) do
+          Logger.info("Successfully connected to voice channel")
+          true
+        else
+          Logger.error("Voice connection not ready after join attempt")
+          false
+        end
+
+      {:error, reason} ->
+        Logger.error("Failed to join voice channel: #{inspect(reason)}")
+        false
     end
   end
 
