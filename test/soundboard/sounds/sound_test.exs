@@ -267,6 +267,203 @@ defmodule Soundboard.Sounds.SoundTest do
     end
   end
 
+  describe "get_sound_id/1" do
+    test "returns sound id when sound exists", %{sound: sound} do
+      assert Sound.get_sound_id(sound.filename) == sound.id
+    end
+
+    test "returns nil when sound doesn't exist" do
+      assert Sound.get_sound_id("nonexistent.mp3") == nil
+    end
+  end
+
+  describe "get_recent_uploads/1" do
+    test "returns recent uploads with default limit", %{user: user} do
+      # Create multiple sounds
+      _sounds =
+        for _i <- 1..12 do
+          {:ok, sound} = insert_sound(user)
+          sound
+        end
+
+      results = Sound.get_recent_uploads()
+
+      # Should return 10 most recent
+      assert length(results) >= 10
+
+      # Verify the structure of results
+      {filename, username, timestamp} = hd(results)
+      assert is_binary(filename)
+      assert is_binary(username)
+      assert %NaiveDateTime{} = timestamp
+
+      # At least one should belong to our test user
+      user_results = Enum.filter(results, fn {_, uname, _} -> uname == user.username end)
+      assert length(user_results) > 0
+    end
+
+    test "returns recent uploads with custom limit", %{user: user} do
+      # Create 5 sounds
+      for _ <- 1..5, do: insert_sound(user)
+
+      results = Sound.get_recent_uploads(limit: 3)
+      assert length(results) == 3
+    end
+
+    test "returns empty list when no sounds exist" do
+      # Delete all sounds
+      Repo.delete_all(Sound)
+
+      results = Sound.get_recent_uploads()
+      assert results == []
+    end
+  end
+
+  describe "update_sound/2" do
+    test "updates sound attributes", %{sound: sound, tag: tag} do
+      # Preload tags to avoid association error
+      sound = Repo.preload(sound, :tags)
+
+      attrs = %{
+        description: "Updated description",
+        tags: [tag]
+      }
+
+      {:ok, updated_sound} = Sound.update_sound(sound, attrs)
+
+      assert updated_sound.description == "Updated description"
+      assert length(updated_sound.tags) == 1
+      assert hd(updated_sound.tags).id == tag.id
+    end
+
+    test "validates on update", %{sound: sound} do
+      attrs = %{source_type: "invalid"}
+
+      {:error, changeset} = Sound.update_sound(sound, attrs)
+      assert "must be either 'local' or 'url'" in errors_on(changeset).source_type
+    end
+  end
+
+  describe "user join/leave sounds" do
+    test "get_user_join_sound/1 returns join sound filename", %{user: user, sound: sound} do
+      # Create join sound setting
+      {:ok, _} =
+        UserSoundSetting.changeset(
+          %UserSoundSetting{},
+          %{
+            user_id: user.id,
+            sound_id: sound.id,
+            is_join_sound: true,
+            is_leave_sound: false
+          }
+        )
+        |> Repo.insert()
+
+      assert Sound.get_user_join_sound(user.id) == sound.filename
+    end
+
+    test "get_user_join_sound/1 returns nil when no join sound", %{user: user} do
+      assert Sound.get_user_join_sound(user.id) == nil
+    end
+
+    test "get_user_leave_sound/1 returns leave sound filename", %{user: user, sound: sound} do
+      # Create leave sound setting
+      {:ok, _} =
+        UserSoundSetting.changeset(
+          %UserSoundSetting{},
+          %{
+            user_id: user.id,
+            sound_id: sound.id,
+            is_join_sound: false,
+            is_leave_sound: true
+          }
+        )
+        |> Repo.insert()
+
+      assert Sound.get_user_leave_sound(user.id) == sound.filename
+    end
+
+    test "get_user_leave_sound/1 returns nil when no leave sound", %{user: user} do
+      assert Sound.get_user_leave_sound(user.id) == nil
+    end
+  end
+
+  describe "get_user_sounds_by_discord_id/1" do
+    test "returns user sounds when user has join/leave sounds", %{user: user, sound: sound} do
+      # Create setting with both join and leave
+      {:ok, _} =
+        UserSoundSetting.changeset(
+          %UserSoundSetting{},
+          %{
+            user_id: user.id,
+            sound_id: sound.id,
+            is_join_sound: true,
+            is_leave_sound: true
+          }
+        )
+        |> Repo.insert()
+
+      result = Sound.get_user_sounds_by_discord_id(user.discord_id)
+      {user_id, filename, is_join, is_leave} = result
+
+      assert user_id == user.id
+      assert filename == sound.filename
+      assert is_join == true
+      assert is_leave == true
+    end
+
+    test "returns user with nil sound when no join/leave sounds", %{user: user} do
+      result = Sound.get_user_sounds_by_discord_id(user.discord_id)
+      {user_id, filename, is_join, is_leave} = result
+
+      assert user_id == user.id
+      assert filename == nil
+      assert is_join == nil
+      assert is_leave == nil
+    end
+
+    test "returns nil when user doesn't exist" do
+      assert Sound.get_user_sounds_by_discord_id("nonexistent_discord_id") == nil
+    end
+  end
+
+  describe "changeset with tags" do
+    test "associates tags when provided in attrs", %{user: user, tag: tag} do
+      attrs = %{
+        filename: "tagged_sound.mp3",
+        source_type: "local",
+        user_id: user.id,
+        tags: [tag]
+      }
+
+      changeset = Sound.changeset(%Sound{}, attrs)
+      assert changeset.valid?
+
+      {:ok, sound} = Repo.insert(changeset)
+      sound = Repo.preload(sound, :tags)
+
+      assert length(sound.tags) == 1
+      assert hd(sound.tags).id == tag.id
+    end
+
+    test "handles empty tags list", %{user: user} do
+      attrs = %{
+        filename: "no_tags_sound.mp3",
+        source_type: "local",
+        user_id: user.id,
+        tags: []
+      }
+
+      changeset = Sound.changeset(%Sound{}, attrs)
+      assert changeset.valid?
+
+      {:ok, sound} = Repo.insert(changeset)
+      sound = Repo.preload(sound, :tags)
+
+      assert sound.tags == []
+    end
+  end
+
   # Helper functions
   defp insert_user do
     {:ok, user} =
