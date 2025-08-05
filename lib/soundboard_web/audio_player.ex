@@ -132,6 +132,9 @@ defmodule SoundboardWeb.AudioPlayer do
   end
 
   defp play_sound_with_connection(guild_id, sound_name, path_or_url, username) do
+    # Check if we need to reconnect for multi-user scenarios
+    ensure_stable_connection_for_multiuser(guild_id)
+    
     {play_input, play_type} = prepare_play_input(sound_name, path_or_url)
 
     Logger.info(
@@ -215,6 +218,67 @@ defmodule SoundboardWeb.AudioPlayer do
         Logger.error("Failed to join voice channel: #{inspect(reason)}")
         false
     end
+  end
+
+  defp ensure_stable_connection_for_multiuser(guild_id) do
+    case get_current_voice_channel() do
+      {^guild_id, channel_id} ->
+        # Check if there are multiple users in the channel
+        users_count = count_users_in_channel(guild_id, channel_id)
+        
+        if users_count > 1 do
+          Logger.info("Multi-user scenario detected (#{users_count} users), forcing voice reconnection")
+          
+          # Force reconnection to refresh voice server connection
+          Voice.leave_channel(guild_id)
+          Process.sleep(500)
+          
+          case Voice.join_channel(guild_id, channel_id) do
+            :ok ->
+              # Wait longer for multi-user connections to stabilize
+              Process.sleep(2000)
+              Logger.info("Voice reconnection completed for multi-user scenario")
+            
+            {:error, reason} ->
+              Logger.error("Failed to reconnect for multi-user scenario: #{inspect(reason)}")
+          end
+        else
+          Logger.debug("Single user scenario, keeping existing connection")
+        end
+      
+      _ ->
+        Logger.debug("No current voice channel or different guild, skipping reconnection")
+    end
+  end
+
+  defp count_users_in_channel(guild_id, channel_id) do
+    # Import the required modules for guild cache access
+    alias Nostrum.Cache.GuildCache
+    alias Nostrum.Api.Self
+    
+    try do
+      guild = GuildCache.get!(guild_id)
+      
+      # Get bot ID to exclude it from count
+      bot_id = case Self.get() do
+        {:ok, %{id: id}} -> id
+        _ -> nil
+      end
+      
+      # Count users in the specified channel (excluding the bot)
+      guild.voice_states
+      |> Enum.count(fn vs ->
+        vs.channel_id == channel_id && vs.user_id != bot_id
+      end)
+    rescue
+      error ->
+        Logger.warning("Failed to count users in channel: #{inspect(error)}")
+        0
+    end
+  end
+
+  defp get_current_voice_channel do
+    Process.get(:current_voice_channel)
   end
 
   defp broadcast_success(sound_name, username) do
