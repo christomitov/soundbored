@@ -134,8 +134,10 @@ defmodule SoundboardWeb.AudioPlayer do
   defp play_sound_with_connection(guild_id, sound_name, path_or_url, username) do
     {play_input, play_type} = prepare_play_input(sound_name, path_or_url)
 
+    # Don't log binary data for :pipe type
+    log_input = if play_type == :pipe, do: "<binary audio data>", else: play_input
     Logger.info(
-      "Calling Voice.play with guild_id: #{guild_id}, input: #{play_input}, type: #{play_type}"
+      "Calling Voice.play with guild_id: #{guild_id}, input: #{log_input}, type: #{play_type}"
     )
 
     case Voice.play(guild_id, play_input, play_type) do
