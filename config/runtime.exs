@@ -93,7 +93,7 @@ if config_env() == :prod do
   # Configure Nostrum with both token and ffmpeg path
   case System.cmd("which", ["ffmpeg"]) do
     {path, 0} ->
-      config :nostrum, 
+      config :nostrum,
         token: discord_token,
         ffmpeg: String.trim(path)
 

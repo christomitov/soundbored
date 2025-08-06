@@ -10,7 +10,7 @@ defmodule Soundboard.Application do
   @impl true
   def start(_type, _args) do
     Logger.info("Starting Soundboard Application")
-    
+
     # Start Nostrum application manually after runtime config is loaded
     if Mix.env() != :test do
       Logger.info("Starting Nostrum application...")

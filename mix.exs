@@ -54,9 +54,9 @@ defmodule Soundboard.MixProject do
   # Type `mix help compile.app` for more information.
   def application do
     apps = [:logger, :runtime_tools]
-    
+
     # Don't auto-start nostrum - let it start after runtime config loads
-    
+
     [
       mod: {Soundboard.Application, []},
       extra_applications: apps,
