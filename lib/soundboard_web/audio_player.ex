@@ -168,7 +168,8 @@ defmodule SoundboardWeb.AudioPlayer do
         {path_or_url, :url}
 
       %{source_type: "local"} ->
-        # For local files, convert to file:// URL for better compatibility
+        # For local files, use file:// URL format for ffmpeg
+        # This ensures proper handling of paths with spaces and special characters
         file_url = "file://#{path_or_url}"
         Logger.info("Using file:// URL for local file: #{file_url}")
         {file_url, :url}
