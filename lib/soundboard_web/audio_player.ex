@@ -134,10 +134,8 @@ defmodule SoundboardWeb.AudioPlayer do
   defp play_sound_with_connection(guild_id, sound_name, path_or_url, username) do
     {play_input, play_type} = prepare_play_input(sound_name, path_or_url)
 
-    # Don't log binary data for :pipe type
-    log_input = if play_type == :pipe, do: "<binary audio data>", else: play_input
     Logger.info(
-      "Calling Voice.play with guild_id: #{guild_id}, input: #{log_input}, type: #{play_type}"
+      "Calling Voice.play with guild_id: #{guild_id}, input: #{play_input}, type: #{play_type}"
     )
 
     case Voice.play(guild_id, play_input, play_type) do
@@ -167,18 +165,10 @@ defmodule SoundboardWeb.AudioPlayer do
         {path_or_url, :url}
 
       %{source_type: "local"} ->
-        # For local files, read the file and pipe it to ffmpeg
-        Logger.info("Reading local file for pipe type: #{path_or_url}")
-        case File.read(path_or_url) do
-          {:ok, data} ->
-            Logger.info("Successfully read file, using :pipe type")
-            {data, :pipe}
-          {:error, reason} ->
-            Logger.error("Failed to read file: #{inspect(reason)}")
-            # Fallback to URL type
-            Logger.info("Falling back to :url type with raw path")
-            {path_or_url, :url}
-        end
+        # For local files, use raw path with :url type
+        # ffmpeg can read local files directly
+        Logger.info("Using raw path for local file with :url type")
+        {path_or_url, :url}
 
       _ ->
         # Default to raw path for unknown types (likely local files)
@@ -258,8 +248,15 @@ defmodule SoundboardWeb.AudioPlayer do
         {:ok, url}
 
       %{source_type: "local", filename: filename} when not is_nil(filename) ->
-        priv_dir = :code.priv_dir(:soundboard)
-        path = Path.join([priv_dir, "static/uploads", filename])
+        # In production (Docker), files are in /app/priv/static/uploads
+        # In development, they're in the compiled priv directory
+        path = if Mix.env() == :prod do
+          "/app/priv/static/uploads/#{filename}"
+        else
+          priv_dir = :code.priv_dir(:soundboard)
+          Path.join([priv_dir, "static/uploads", filename])
+        end
+        
         Logger.info("Checking local file path: #{path}")
 
         if File.exists?(path) do
