@@ -165,16 +165,23 @@ defmodule SoundboardWeb.AudioPlayer do
         {path_or_url, :url}
 
       %{source_type: "local"} ->
-        # For local files, prefix with file:// for ffmpeg
-        file_url = "file://#{path_or_url}"
-        Logger.info("Using file:// URL for local file: #{file_url}")
-        {file_url, :url}
+        # For local files, read the file and pipe it to ffmpeg
+        Logger.info("Reading local file for pipe type: #{path_or_url}")
+        case File.read(path_or_url) do
+          {:ok, data} ->
+            Logger.info("Successfully read file, using :pipe type")
+            {data, :pipe}
+          {:error, reason} ->
+            Logger.error("Failed to read file: #{inspect(reason)}")
+            # Fallback to URL type
+            Logger.info("Falling back to :url type with raw path")
+            {path_or_url, :url}
+        end
 
       _ ->
-        # Default to file:// for unknown types (likely local files)
-        file_url = "file://#{path_or_url}"
-        Logger.warning("Unknown source type, defaulting to file:// URL: #{file_url}")
-        {file_url, :url}
+        # Default to raw path for unknown types (likely local files)
+        Logger.warning("Unknown source type, defaulting to raw path with :url type")
+        {path_or_url, :url}
     end
   end
 
