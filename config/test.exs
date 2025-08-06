@@ -46,8 +46,10 @@ config :soundboard, Soundboard.PubSub,
   adapter: Phoenix.PubSub.PG2,
   name: Soundboard.PubSub
 
-# Disable Nostrum in test environment
+# Configure Nostrum for test environment
+# Using a dummy token that won't connect to Discord
 config :nostrum,
-  ffmpeg: nil,
-  youtubedl: nil,
-  streamlink: nil
+  token: System.get_env("DISCORD_TOKEN") || "NzI5MjM0NzI5MzQ3MjM0.dummy.tokenfortestingpurposes",
+  num_shards: :manual,
+  session_controller_pid: self(),
+  dev: false

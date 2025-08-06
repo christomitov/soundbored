@@ -53,9 +53,15 @@ defmodule Soundboard.MixProject do
   #
   # Type `mix help compile.app` for more information.
   def application do
+    apps = [:logger, :runtime_tools]
+    
+    # Only include nostrum in non-test environments
+    apps = if Mix.env() == :test, do: apps, else: apps ++ [:nostrum]
+    
     [
       mod: {Soundboard.Application, []},
-      extra_applications: [:logger, :runtime_tools]
+      extra_applications: apps,
+      included_applications: if(Mix.env() == :test, do: [:nostrum], else: [])
     ]
   end
 
