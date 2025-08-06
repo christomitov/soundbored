@@ -102,7 +102,8 @@ defmodule Soundboard.MixProject do
       {:httpoison, "~> 2.0"},
       {:mock, "~> 0.3.9", only: :test},
       {:excoveralls, "~> 0.18.5", only: :test},
-      {:credo, "~> 1.7", only: [:dev, :test], runtime: false}
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
+      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false}
     ]
   end
 

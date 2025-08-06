@@ -42,6 +42,8 @@ config :phoenix_live_view,
 
 config :soundboard, :sql_sandbox, true
 
+config :soundboard, env: :test
+
 config :soundboard, Soundboard.PubSub,
   adapter: Phoenix.PubSub.PG2,
   name: Soundboard.PubSub

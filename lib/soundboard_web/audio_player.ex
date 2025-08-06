@@ -199,23 +199,24 @@ defmodule SoundboardWeb.AudioPlayer do
   end
 
   defp join_and_verify_channel(guild_id, channel_id) do
-    case Voice.join_channel(guild_id, channel_id) do
-      :ok ->
-        # Give the connection a moment to establish
-        Process.sleep(200)
+    # Voice.join_channel returns :ok or crashes (no_return)
+    # Using rescue to handle potential crashes
+    Voice.join_channel(guild_id, channel_id)
 
-        if Voice.ready?(guild_id) do
-          Logger.info("Successfully connected to voice channel")
-          true
-        else
-          Logger.error("Voice connection not ready after join attempt")
-          false
-        end
+    # Give the connection a moment to establish
+    Process.sleep(200)
 
-      {:error, reason} ->
-        Logger.error("Failed to join voice channel: #{inspect(reason)}")
-        false
+    if Voice.ready?(guild_id) do
+      Logger.info("Successfully connected to voice channel")
+      true
+    else
+      Logger.error("Voice connection not ready after join attempt")
+      false
     end
+  rescue
+    error ->
+      Logger.error("Failed to join voice channel: #{inspect(error)}")
+      false
   end
 
   defp broadcast_success(sound_name, username) do

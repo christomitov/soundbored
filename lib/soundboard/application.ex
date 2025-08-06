@@ -12,7 +12,7 @@ defmodule Soundboard.Application do
     Logger.info("Starting Soundboard Application")
 
     # Start Nostrum application manually after runtime config is loaded
-    if Mix.env() != :test do
+    if Application.get_env(:soundboard, :env) != :test do
       Logger.info("Starting Nostrum application...")
       Application.ensure_all_started(:nostrum)
     end
@@ -33,7 +33,7 @@ defmodule Soundboard.Application do
 
     # Add Discord consumer only in non-test environments
     children =
-      if Mix.env() != :test do
+      if Application.get_env(:soundboard, :env) != :test do
         # Add the Discord consumer directly as a supervised child
         base_children ++ [SoundboardWeb.DiscordHandler]
       else
