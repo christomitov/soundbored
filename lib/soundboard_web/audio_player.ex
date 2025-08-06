@@ -168,14 +168,16 @@ defmodule SoundboardWeb.AudioPlayer do
         {path_or_url, :url}
 
       %{source_type: "local"} ->
-        # For local files, Nostrum expects a file:// URL or just the path
-        # Since ffmpeg can handle direct paths, we'll use :url type
-        Logger.info("Using local file path with :url type")
-        {path_or_url, :url}
+        # For local files, convert to file:// URL for better compatibility
+        file_url = "file://#{path_or_url}"
+        Logger.info("Using file:// URL for local file: #{file_url}")
+        {file_url, :url}
 
       _ ->
-        Logger.warning("Unknown source type, defaulting to :url type with direct path")
-        {path_or_url, :url}
+        # Default to file:// URL for unknown types (likely local files)
+        file_url = "file://#{path_or_url}"
+        Logger.warning("Unknown source type, defaulting to file:// URL: #{file_url}")
+        {file_url, :url}
     end
   end
 
