@@ -25,18 +25,11 @@ defmodule Soundboard.Application do
       SoundboardWeb.DiscordHandler.State
     ]
 
-    # Add Discord bot only in non-test environments
+    # Add Discord consumer only in non-test environments
     children =
       if Mix.env() != :test do
-        # Configure the Nostrum bot
-        bot_options = %{
-          name: SoundboardBot,
-          consumer: SoundboardWeb.DiscordHandler,
-          intents: [:guilds, :guild_messages, :guild_voice_states, :message_content],
-          wrapped_token: fn -> Application.fetch_env!(:soundboard, :discord_token) end
-        }
-
-        base_children ++ [{Nostrum.Bot, bot_options}]
+        # Add the Discord consumer directly as a supervised child
+        base_children ++ [SoundboardWeb.DiscordHandler]
       else
         base_children
       end

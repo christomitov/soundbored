@@ -2,7 +2,7 @@ defmodule SoundboardWeb.DiscordHandler do
   @moduledoc """
   Handles the Discord events.
   """
-  @behaviour Nostrum.Consumer
+  use Nostrum.Consumer
   require Logger
 
   alias Nostrum.Api.{Message, Self}
