@@ -55,8 +55,7 @@ defmodule Soundboard.MixProject do
   def application do
     apps = [:logger, :runtime_tools]
     
-    # Only include nostrum in non-test environments
-    apps = if Mix.env() == :test, do: apps, else: apps ++ [:nostrum]
+    # Don't auto-start nostrum - let it start after runtime config loads
     
     [
       mod: {Soundboard.Application, []},
