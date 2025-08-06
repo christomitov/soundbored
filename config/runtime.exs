@@ -86,15 +86,14 @@ if config_env() == :prod do
       Please set your Discord bot token.
       """
 
-  # Store token for application use (not for Nostrum directly)
+  # Store token for application use (bot will fetch it from here)
   config :soundboard,
     discord_token: discord_token
 
-  # Configure Nostrum with both token and ffmpeg path
+  # Configure ffmpeg path for Nostrum
   case System.cmd("which", ["ffmpeg"]) do
     {path, 0} ->
       config :nostrum,
-        token: discord_token,
         ffmpeg: String.trim(path)
 
     _ ->

@@ -48,10 +48,5 @@ config :soundboard, Soundboard.PubSub,
   adapter: Phoenix.PubSub.PG2,
   name: Soundboard.PubSub
 
-# Configure Nostrum for test environment
-# Using a dummy token that won't connect to Discord
-config :nostrum,
-  token: System.get_env("DISCORD_TOKEN") || "NzI5MjM0NzI5MzQ3MjM0.dummy.tokenfortestingpurposes",
-  num_shards: :manual,
-  session_controller_pid: self(),
-  dev: false
+# Nostrum configuration is now handled by Nostrum.Bot in the application supervisor
+# No token configuration needed here for test environment

@@ -11,12 +11,6 @@ defmodule Soundboard.Application do
   def start(_type, _args) do
     Logger.info("Starting Soundboard Application")
 
-    # Start Nostrum application manually after runtime config is loaded
-    if Application.get_env(:soundboard, :env) != :test do
-      Logger.info("Starting Nostrum application...")
-      Application.ensure_all_started(:nostrum)
-    end
-
     # Initialize presence handler state
     PresenceHandler.init()
 
@@ -31,11 +25,18 @@ defmodule Soundboard.Application do
       SoundboardWeb.DiscordHandler.State
     ]
 
-    # Add Discord consumer only in non-test environments
+    # Add Discord bot only in non-test environments
     children =
       if Application.get_env(:soundboard, :env) != :test do
-        # Add the Discord consumer directly as a supervised child
-        base_children ++ [SoundboardWeb.DiscordHandler]
+        # Configure the Nostrum bot with the new API
+        bot_options = %{
+          name: SoundboardBot,
+          consumer: SoundboardWeb.DiscordHandler,
+          intents: [:guilds, :guild_messages, :guild_voice_states, :message_content],
+          wrapped_token: fn -> Application.fetch_env!(:soundboard, :discord_token) end
+        }
+
+        base_children ++ [{Nostrum.Bot, bot_options}]
       else
         base_children
       end
