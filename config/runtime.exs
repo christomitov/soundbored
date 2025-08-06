@@ -90,10 +90,12 @@ if config_env() == :prod do
   config :soundboard,
     discord_token: discord_token
 
-  # Configure ffmpeg path for Nostrum (this is still needed)
+  # Configure Nostrum with both token and ffmpeg path
   case System.cmd("which", ["ffmpeg"]) do
     {path, 0} ->
-      config :nostrum, ffmpeg: String.trim(path)
+      config :nostrum, 
+        token: discord_token,
+        ffmpeg: String.trim(path)
 
     _ ->
       raise "ffmpeg not found in PATH. Please install ffmpeg."
