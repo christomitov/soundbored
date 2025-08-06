@@ -168,17 +168,15 @@ defmodule SoundboardWeb.AudioPlayer do
         {path_or_url, :url}
 
       %{source_type: "local"} ->
-        # Try file:// URL format for local files
-        # This is the standard way to reference local files in URLs
-        file_url = "file://#{path_or_url}"
-        Logger.info("Using file:// URL for local file: #{file_url}")
-        {file_url, :url}
+        # For local files, use raw path with :url type
+        # ffmpeg doesn't accept file:// URLs, it needs raw paths
+        Logger.info("Using raw path for local file with :url type")
+        {path_or_url, :url}
 
       _ ->
-        # Default to file:// URL for unknown types (likely local files)
-        file_url = "file://#{path_or_url}"
-        Logger.warning("Unknown source type, defaulting to file:// URL: #{file_url}")
-        {file_url, :url}
+        # Default to raw path for unknown types (likely local files)
+        Logger.warning("Unknown source type, defaulting to raw path with :url type")
+        {path_or_url, :url}
     end
   end
 
