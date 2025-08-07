@@ -248,15 +248,15 @@ defmodule SoundboardWeb.AudioPlayer do
         {:ok, url}
 
       %{source_type: "local", filename: filename} when not is_nil(filename) ->
-        # In production (Docker), files are in /app/priv/static/uploads
-        # In development, they're in the compiled priv directory
-        path = if Mix.env() == :prod do
-          "/app/priv/static/uploads/#{filename}"
-        else
-          priv_dir = :code.priv_dir(:soundboard)
-          Path.join([priv_dir, "static/uploads", filename])
-        end
-        
+        # Check if we're in Docker production environment
+        path =
+          if File.exists?("/app/priv/static/uploads") do
+            "/app/priv/static/uploads/#{filename}"
+          else
+            priv_dir = :code.priv_dir(:soundboard)
+            Path.join([priv_dir, "static/uploads", filename])
+          end
+
         Logger.info("Checking local file path: #{path}")
 
         if File.exists?(path) do
