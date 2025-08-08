@@ -315,9 +315,26 @@ defmodule SoundboardWeb.DiscordHandler do
   end
 
   # Catch-all for other info messages
-  def handle_info(_msg, state) do
+  def handle_info({:recheck_alone, guild_id, channel_id}, state) do
+    case get_current_voice_channel() do
+      {gid, cid} when gid == guild_id and cid == channel_id ->
+        users = check_users_in_voice(guild_id, channel_id)
+        Logger.info("Recheck alone: channel #{channel_id} now has #{users} non-bot users")
+
+        if users == 0 do
+          Logger.info("Recheck confirms bot is alone; leaving channel #{channel_id}")
+          leave_voice_channel(guild_id)
+        end
+
+      _ ->
+        Logger.debug("Recheck skipped; voice target changed")
+    end
+
     {:noreply, state}
   end
+
+  # Catch-all for other info messages
+  def handle_info(_msg, state), do: {:noreply, state}
 
   def get_current_voice_channel do
     Process.get(:current_voice_channel)
@@ -380,9 +397,17 @@ defmodule SoundboardWeb.DiscordHandler do
   defp check_and_maybe_leave(guild_id, channel_id) do
     users = check_users_in_voice(guild_id, channel_id)
 
-    if users <= 1 do
-      Logger.info("Only bot remaining in channel, forcing disconnect")
-      leave_voice_channel(guild_id)
+    cond do
+      # We count only non-bot users; leave only when there are zero
+      users == 0 ->
+        Logger.info("No non-bot users remaining in channel, leaving now")
+        leave_voice_channel(guild_id)
+
+      true ->
+        # GuildCache may lag briefly after a VOICE_STATE_UPDATE; recheck shortly
+        Logger.info("Non-bot users detected (#{users}); scheduling recheck in 1.5s")
+        Process.send_after(self(), {:recheck_alone, guild_id, channel_id}, 1_500)
+        :noop
     end
   end
 
@@ -428,9 +453,12 @@ defmodule SoundboardWeb.DiscordHandler do
     users = check_users_in_voice(guild_id, current_channel_id)
     Logger.info("Current channel #{current_channel_id} has #{users} users")
 
-    if users <= 1 do
+    if users == 0 do
       Logger.info("Bot is alone in channel #{current_channel_id}, leaving")
       leave_voice_channel(guild_id)
+    else
+      # Recheck shortly to avoid cache staleness keeping the bot around
+      Process.send_after(self(), {:recheck_alone, guild_id, current_channel_id}, 1_500)
     end
   end
 
