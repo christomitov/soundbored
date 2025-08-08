@@ -337,7 +337,19 @@ defmodule SoundboardWeb.DiscordHandler do
   def handle_info(_msg, state), do: {:noreply, state}
 
   def get_current_voice_channel do
-    Process.get(:current_voice_channel)
+    # Prefer authoritative state from AudioPlayer; fall back to process dictionary
+    case safe_audio_player_voice_channel() do
+      nil -> Process.get(:current_voice_channel)
+      other -> other
+    end
+  end
+
+  defp safe_audio_player_voice_channel do
+    try do
+      SoundboardWeb.AudioPlayer.current_voice_channel()
+    catch
+      _, _ -> nil
+    end
   end
 
   # Add this helper function

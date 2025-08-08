@@ -39,6 +39,12 @@ defmodule SoundboardWeb.AudioPlayer do
     GenServer.cast(__MODULE__, {:set_voice_channel, guild_id, channel_id})
   end
 
+  def current_voice_channel do
+    GenServer.call(__MODULE__, :get_voice_channel)
+  rescue
+    _ -> nil
+  end
+
   # Server Callbacks
   @impl true
   def init(state) do
@@ -49,6 +55,11 @@ defmodule SoundboardWeb.AudioPlayer do
   @impl true
   def handle_cast({:set_voice_channel, guild_id, channel_id}, state) do
     {:noreply, %{state | voice_channel: {guild_id, channel_id}}}
+  end
+
+  @impl true
+  def handle_call(:get_voice_channel, _from, state) do
+    {:reply, state.voice_channel, state}
   end
 
   @impl true
