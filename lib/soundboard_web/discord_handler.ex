@@ -213,14 +213,12 @@ defmodule SoundboardWeb.DiscordHandler do
   end
 
   defp safe_guild_fetch(guild_id) do
-    try do
-      case GuildCache.get(guild_id) do
-        {:ok, guild} -> {:ok, guild}
-        _ -> :error
-      end
-    rescue
+    case GuildCache.get(guild_id) do
+      {:ok, guild} -> {:ok, guild}
       _ -> :error
     end
+  rescue
+    _ -> :error
   end
 
   def handle_event({:VOICE_STATE_UPDATE, %{channel_id: nil} = payload, _ws_state}) do
@@ -374,11 +372,11 @@ defmodule SoundboardWeb.DiscordHandler do
   end
 
   defp safe_audio_player_voice_channel do
-    try do
-      SoundboardWeb.AudioPlayer.current_voice_channel()
-    catch
-      _, _ -> nil
-    end
+    SoundboardWeb.AudioPlayer.current_voice_channel()
+  catch
+    :exit, _ -> nil
+    :error, _ -> nil
+    _ -> nil
   end
 
   # Add this helper function
@@ -439,17 +437,14 @@ defmodule SoundboardWeb.DiscordHandler do
        when is_integer(guild_id) and not is_nil(channel_id) do
     users = check_users_in_voice(guild_id, channel_id)
 
-    cond do
-      # We count only non-bot users; leave only when there are zero
-      users == 0 ->
-        Logger.info("No non-bot users remaining in channel, leaving now")
-        leave_voice_channel(guild_id)
-
-      true ->
-        # GuildCache may lag briefly after a VOICE_STATE_UPDATE; recheck shortly
-        Logger.info("Non-bot users detected (#{users}); scheduling recheck in 1.5s")
-        Process.send_after(self(), {:recheck_alone, guild_id, channel_id}, 1_500)
-        :noop
+    if users == 0 do
+      Logger.info("No non-bot users remaining in channel, leaving now")
+      leave_voice_channel(guild_id)
+    else
+      # GuildCache may lag briefly after a VOICE_STATE_UPDATE; recheck shortly
+      Logger.info("Non-bot users detected (#{users}); scheduling recheck in 1.5s")
+      Process.send_after(self(), {:recheck_alone, guild_id, channel_id}, 1_500)
+      :noop
     end
   end
 
