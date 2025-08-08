@@ -206,6 +206,7 @@ defmodule SoundboardWeb.DiscordHandler do
         Logger.warning(
           "check_users_in_voice: cache not ready or invalid target (guild_id=#{inspect(guild_id)}, channel_id=#{inspect(channel_id)})"
         )
+
         # Non-zero to avoid false positives; a delayed recheck will handle the leave
         1
     end
@@ -434,7 +435,8 @@ defmodule SoundboardWeb.DiscordHandler do
     end
   end
 
-  defp check_and_maybe_leave(guild_id, channel_id) when is_integer(guild_id) and not is_nil(channel_id) do
+  defp check_and_maybe_leave(guild_id, channel_id)
+       when is_integer(guild_id) and not is_nil(channel_id) do
     users = check_users_in_voice(guild_id, channel_id)
 
     cond do
@@ -455,6 +457,7 @@ defmodule SoundboardWeb.DiscordHandler do
     Logger.debug(
       "Skipping check_and_maybe_leave due to invalid target: guild_id=#{inspect(guild_id)}, channel_id=#{inspect(channel_id)}"
     )
+
     :noop
   end
 
@@ -514,6 +517,7 @@ defmodule SoundboardWeb.DiscordHandler do
     Logger.debug(
       "Skipping handle_bot_in_different_channel due to invalid target: guild_id=#{inspect(guild_id)}, channel_id=#{inspect(current_channel_id)}"
     )
+
     :noop
   end
 
