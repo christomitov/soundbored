@@ -49,6 +49,8 @@ defmodule SoundboardWeb.AudioPlayer do
   @impl true
   def init(state) do
     Logger.info("Initializing AudioPlayer with state: #{inspect(state)}")
+    # Schedule periodic voice connection check
+    schedule_voice_check()
     {:ok, state}
   end
 
@@ -105,6 +107,26 @@ defmodule SoundboardWeb.AudioPlayer do
     # Play the sound as System user
     handle_cast({:play_sound, sound, "System"}, state)
   end
+  
+  @impl true
+  def handle_info(:check_voice_connection, state) do
+    # Check and maintain voice connection health
+    case state.voice_channel do
+      {guild_id, channel_id} ->
+        if Voice.ready?(guild_id) do
+          Logger.debug("Voice connection healthy for guild #{guild_id}")
+        else
+          Logger.warning("Voice connection not ready for guild #{guild_id}, attempting to rejoin")
+          Voice.join_channel(guild_id, channel_id)
+        end
+      _ ->
+        Logger.debug("No voice channel set")
+    end
+    
+    # Schedule next check
+    schedule_voice_check()
+    {:noreply, state}
+  end
 
   @impl true
   def handle_info({ref, _result}, %{current_playback: %Task{ref: ref}} = state) do
@@ -147,8 +169,11 @@ defmodule SoundboardWeb.AudioPlayer do
       "Calling Voice.play with guild_id: #{guild_id}, input: #{play_input}, type: #{play_type}"
     )
 
-    # Note: Pre-play silence removed as Voice.send_opus is not a public API
-    # The Voice.play function handles speaking state internally
+    # Check if audio is currently playing and wait if necessary
+    if Voice.playing?(guild_id) do
+      Logger.info("Audio currently playing, waiting for it to finish...")
+      wait_for_audio_to_finish(guild_id)
+    end
 
     # Add volume option to ensure audio is audible
     play_options = [volume: 1.0, realtime: true]
@@ -160,6 +185,22 @@ defmodule SoundboardWeb.AudioPlayer do
         track_play_if_needed(sound_name, username)
         broadcast_success(sound_name, username)
 
+      {:error, "Audio already playing in voice channel."} = error ->
+        Logger.warning("Audio still playing, attempting to stop and retry")
+        Voice.stop(guild_id)
+        Process.sleep(100)
+        
+        case Voice.play(guild_id, play_input, play_type, play_options) do
+          :ok ->
+            Logger.info("Voice.play succeeded after retry for #{sound_name}")
+            track_play_if_needed(sound_name, username)
+            broadcast_success(sound_name, username)
+            
+          {:error, reason} ->
+            Logger.error("Voice.play failed after retry: #{inspect(reason)}")
+            broadcast_error("Failed to play sound: #{reason}")
+        end
+
       {:error, reason} ->
         Logger.error("Voice.play failed: #{inspect(reason)}")
         broadcast_error("Failed to play sound: #{reason}")
@@ -169,6 +210,29 @@ defmodule SoundboardWeb.AudioPlayer do
       Logger.error("Error playing sound: #{inspect(e)}")
       Logger.error("Stack trace: #{inspect(__STACKTRACE__)}")
       broadcast_error("Failed to play sound")
+  end
+  
+  defp wait_for_audio_to_finish(guild_id, max_wait \\ 5000) do
+    start_time = System.monotonic_time(:millisecond)
+    
+    Stream.repeatedly(fn ->
+      if Voice.playing?(guild_id) do
+        Process.sleep(100)
+        :waiting
+      else
+        :done
+      end
+    end)
+    |> Stream.take_while(fn status ->
+      elapsed = System.monotonic_time(:millisecond) - start_time
+      status == :waiting and elapsed < max_wait
+    end)
+    |> Stream.run()
+  end
+  
+  defp schedule_voice_check do
+    # Check voice connection every 30 seconds
+    Process.send_after(self(), :check_voice_connection, 30_000)
   end
 
   defp prepare_play_input(sound_name, path_or_url) do
