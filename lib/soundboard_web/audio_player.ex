@@ -169,66 +169,75 @@ defmodule SoundboardWeb.AudioPlayer do
       "Calling Voice.play with guild_id: #{guild_id}, input: #{play_input}, type: #{play_type}"
     )
 
-    # Check if audio is currently playing and wait if necessary
+    # Check if audio is currently playing and stop it
     if Voice.playing?(guild_id) do
-      Logger.info("Audio currently playing, waiting for it to finish...")
-      wait_for_audio_to_finish(guild_id)
+      Logger.info("Audio currently playing, stopping it first...")
+      Voice.stop(guild_id)
+      Process.sleep(200)  # Give it time to clean up
     end
 
     # Add volume option to ensure audio is audible
     play_options = [volume: 1.0, realtime: true]
     Logger.info("Play options: #{inspect(play_options)}")
-
+    
+    # Keep track of attempts
+    play_with_retries(guild_id, play_input, play_type, play_options, sound_name, username, 0)
+  end
+  
+  defp play_with_retries(guild_id, play_input, play_type, play_options, sound_name, username, attempt) when attempt < 3 do
     case Voice.play(guild_id, play_input, play_type, play_options) do
       :ok ->
-        Logger.info("Voice.play succeeded for #{sound_name}")
+        Logger.info("Voice.play succeeded for #{sound_name} (attempt #{attempt + 1})")
         track_play_if_needed(sound_name, username)
         broadcast_success(sound_name, username)
+        :ok
 
-      {:error, "Audio already playing in voice channel."} = error ->
-        Logger.warning("Audio still playing, attempting to stop and retry")
+      {:error, "Audio already playing in voice channel."} ->
+        Logger.warning("Audio still playing on attempt #{attempt + 1}, stopping and retrying")
         Voice.stop(guild_id)
-        Process.sleep(100)
-        
-        case Voice.play(guild_id, play_input, play_type, play_options) do
-          :ok ->
-            Logger.info("Voice.play succeeded after retry for #{sound_name}")
-            track_play_if_needed(sound_name, username)
-            broadcast_success(sound_name, username)
-            
-          {:error, reason} ->
-            Logger.error("Voice.play failed after retry: #{inspect(reason)}")
-            broadcast_error("Failed to play sound: #{reason}")
+        Process.sleep(300)
+        play_with_retries(guild_id, play_input, play_type, play_options, sound_name, username, attempt + 1)
+
+      {:error, "Must be connected to voice channel to play audio."} = error ->
+        Logger.error("Voice connection lost, attempting to reconnect...")
+        # Get the channel from state
+        case GenServer.call(__MODULE__, :get_voice_channel) do
+          {^guild_id, channel_id} ->
+            Voice.leave_channel(guild_id)
+            Process.sleep(500)
+            case Voice.join_channel(guild_id, channel_id) do
+              :ok ->
+                Process.sleep(1000)  # Give it time to connect
+                play_with_retries(guild_id, play_input, play_type, play_options, sound_name, username, attempt + 1)
+              _ ->
+                Logger.error("Failed to rejoin voice channel")
+                broadcast_error("Failed to reconnect to voice channel")
+                :error
+            end
+          _ ->
+            Logger.error("No voice channel info available")
+            broadcast_error("Voice channel not configured")
+            :error
         end
 
       {:error, reason} ->
-        Logger.error("Voice.play failed: #{inspect(reason)}")
-        broadcast_error("Failed to play sound: #{reason}")
+        Logger.error("Voice.play failed: #{inspect(reason)} (attempt #{attempt + 1})")
+        if attempt < 2 do
+          Process.sleep(500)
+          play_with_retries(guild_id, play_input, play_type, play_options, sound_name, username, attempt + 1)
+        else
+          broadcast_error("Failed to play sound after #{attempt + 1} attempts: #{reason}")
+          :error
+        end
     end
-  rescue
-    e ->
-      Logger.error("Error playing sound: #{inspect(e)}")
-      Logger.error("Stack trace: #{inspect(__STACKTRACE__)}")
-      broadcast_error("Failed to play sound")
   end
   
-  defp wait_for_audio_to_finish(guild_id, max_wait \\ 5000) do
-    start_time = System.monotonic_time(:millisecond)
-    
-    Stream.repeatedly(fn ->
-      if Voice.playing?(guild_id) do
-        Process.sleep(100)
-        :waiting
-      else
-        :done
-      end
-    end)
-    |> Stream.take_while(fn status ->
-      elapsed = System.monotonic_time(:millisecond) - start_time
-      status == :waiting and elapsed < max_wait
-    end)
-    |> Stream.run()
+  defp play_with_retries(_guild_id, _play_input, _play_type, _play_options, sound_name, _username, attempt) do
+    Logger.error("Exceeded max retries (#{attempt}) for playing #{sound_name}")
+    broadcast_error("Failed to play sound after multiple attempts")
+    :error
   end
+  
   
   defp schedule_voice_check do
     # Check voice connection every 30 seconds
