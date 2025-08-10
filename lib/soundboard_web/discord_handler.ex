@@ -104,7 +104,7 @@ defmodule SoundboardWeb.DiscordHandler do
           end
       end
 
-      # Update AudioPlayer
+      # Update AudioPlayer - set to nil (not {nil, nil})
       GenServer.cast(
         SoundboardWeb.AudioPlayer,
         {:set_voice_channel, nil, nil}
