@@ -147,14 +147,8 @@ defmodule SoundboardWeb.AudioPlayer do
       "Calling Voice.play with guild_id: #{guild_id}, input: #{play_input}, type: #{play_type}"
     )
 
-    # Send a brief silence before playing to ensure Discord recognizes the bot is speaking
-    # This helps with audio detection issues
-    try do
-      Voice.send_opus(guild_id, Nostrum.Voice.Opus.generate_silence(5))
-      Process.sleep(100)
-    rescue
-      e -> Logger.warning("Failed to send pre-play silence: #{inspect(e)}")
-    end
+    # Note: Pre-play silence removed as Voice.send_opus is not a public API
+    # The Voice.play function handles speaking state internally
 
     # Add volume option to ensure audio is audible
     play_options = [volume: 1.0, realtime: true]
