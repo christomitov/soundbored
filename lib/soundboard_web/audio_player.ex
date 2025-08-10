@@ -172,8 +172,9 @@ defmodule SoundboardWeb.AudioPlayer do
     # Check voice state
     Logger.info("Voice ready: #{Voice.ready?(guild_id)}, Playing: #{Voice.playing?(guild_id)}")
 
-    # Add volume option to ensure audio is audible
-    play_options = [volume: 1.0, realtime: true]
+    # Don't use realtime flag for local files, it can cause issues
+    # Only use realtime for streaming/URL sources
+    play_options = [volume: 1.0]
     Logger.info("Play options: #{inspect(play_options)}")
     
     # Keep track of attempts
