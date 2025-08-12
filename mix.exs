@@ -93,7 +93,7 @@ defmodule Soundboard.MixProject do
       {:jason, "~> 1.2"},
       {:dns_cluster, "~> 0.1.1"},
       {:bandit, "~> 1.5"},
-      {:nostrum, github: "christomitov/nostrum", ref: "e778c10"},
+      {:nostrum, github: "christomitov/nostrum", ref: "ae3b95c"},
       {:ecto_sqlite3, "~> 0.18.0"},
       {:number, "~> 1.0"},
       {:ueberauth, "~> 0.10.5"},
