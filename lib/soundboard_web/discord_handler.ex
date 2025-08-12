@@ -358,16 +358,35 @@ defmodule SoundboardWeb.DiscordHandler do
   def handle_info(_msg, state), do: {:noreply, state}
 
   def get_current_voice_channel do
-    # Prefer authoritative state from AudioPlayer; fall back to process dictionary
-    candidate =
-      case safe_audio_player_voice_channel() do
-        nil -> Process.get(:current_voice_channel)
-        other -> other
-      end
+    # Check all voice states for bot's current channel
+    case Self.get() do
+      {:ok, %{id: bot_id}} ->
+        # Check all guilds for bot's voice state
+        case GuildCache.select_all({0, :infinite}) do
+          guilds when is_list(guilds) ->
+            Enum.find_value(guilds, fn guild ->
+              case Enum.find(guild.voice_states || [], fn vs -> vs.user_id == bot_id end) do
+                %{channel_id: channel_id} when not is_nil(channel_id) ->
+                  {guild.id, channel_id}
+                _ ->
+                  nil
+              end
+            end)
+          _ ->
+            # Fall back to process dictionary or AudioPlayer state
+            candidate =
+              case safe_audio_player_voice_channel() do
+                nil -> Process.get(:current_voice_channel)
+                other -> other
+              end
 
-    case candidate do
-      {gid, cid} when is_integer(gid) and not is_nil(cid) -> {gid, cid}
-      _ -> nil
+            case candidate do
+              {gid, cid} when is_integer(gid) and not is_nil(cid) -> {gid, cid}
+              _ -> nil
+            end
+        end
+      _ ->
+        nil
     end
   end
 
@@ -489,8 +508,13 @@ defmodule SoundboardWeb.DiscordHandler do
     Logger.info("Found #{users_in_channel} users in channel #{payload.channel_id}")
 
     if users_in_channel > 0 do
-      Logger.info("Joining channel #{payload.channel_id} with #{users_in_channel} users")
-      join_voice_channel(payload.guild_id, payload.channel_id)
+      # Check if bot is actually already in this channel (Voice.ready? check)
+      if Voice.ready?(payload.guild_id) do
+        Logger.debug("Bot already connected to voice in guild #{payload.guild_id}, skipping join")
+      else
+        Logger.info("Joining channel #{payload.channel_id} with #{users_in_channel} users")
+        join_voice_channel(payload.guild_id, payload.channel_id)
+      end
     end
   end
 
