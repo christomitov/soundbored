@@ -84,6 +84,9 @@ defmodule SoundboardWeb.DiscordHandler do
     if connected_to_discord?() do
       Logger.info("Bot leaving voice channel in guild #{guild_id}")
       Process.delete(:current_voice_channel)
+      
+      # Clear the AudioPlayer's voice channel
+      SoundboardWeb.AudioPlayer.set_voice_channel(nil, nil)
 
       # Add rate limit protection
       try do
@@ -119,6 +122,9 @@ defmodule SoundboardWeb.DiscordHandler do
     if connected_to_discord?() do
       Logger.info("Bot joining voice channel #{channel_id} in guild #{guild_id}")
       Process.put(:current_voice_channel, {guild_id, channel_id})
+      
+      # Set the AudioPlayer's voice channel so join sounds can play
+      SoundboardWeb.AudioPlayer.set_voice_channel(guild_id, channel_id)
 
       # Add rate limit protection
       try do
@@ -362,8 +368,16 @@ defmodule SoundboardWeb.DiscordHandler do
     case Self.get() do
       {:ok, %{id: bot_id}} ->
         # Check all guilds for bot's voice state
-        case GuildCache.select_all({0, :infinite}) do
-          guilds when is_list(guilds) ->
+        # Try to get guilds from cache
+        guilds = try do
+          # Get all cached guilds
+          GuildCache.all()
+        rescue
+          _ -> []
+        end
+        
+        case guilds do
+          guilds when is_list(guilds) and length(guilds) > 0 ->
             Enum.find_value(guilds, fn guild ->
               case Enum.find(guild.voice_states || [], fn vs -> vs.user_id == bot_id end) do
                 %{channel_id: channel_id} when not is_nil(channel_id) ->
