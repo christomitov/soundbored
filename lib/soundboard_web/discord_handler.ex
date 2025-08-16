@@ -84,7 +84,7 @@ defmodule SoundboardWeb.DiscordHandler do
     if connected_to_discord?() do
       Logger.info("Bot leaving voice channel in guild #{guild_id}")
       Process.delete(:current_voice_channel)
-      
+
       # Clear the AudioPlayer's voice channel
       SoundboardWeb.AudioPlayer.set_voice_channel(nil, nil)
 
@@ -122,7 +122,7 @@ defmodule SoundboardWeb.DiscordHandler do
     if connected_to_discord?() do
       Logger.info("Bot joining voice channel #{channel_id} in guild #{guild_id}")
       Process.put(:current_voice_channel, {guild_id, channel_id})
-      
+
       # Set the AudioPlayer's voice channel so join sounds can play
       SoundboardWeb.AudioPlayer.set_voice_channel(guild_id, channel_id)
 
@@ -364,43 +364,50 @@ defmodule SoundboardWeb.DiscordHandler do
   def handle_info(_msg, state), do: {:noreply, state}
 
   def get_current_voice_channel do
-    # Check all voice states for bot's current channel
     case Self.get() do
-      {:ok, %{id: bot_id}} ->
-        # Check all guilds for bot's voice state
-        # Try to get guilds from cache
-        guilds = try do
-          # Get all cached guilds
-          GuildCache.all()
-        rescue
-          _ -> []
-        end
-        
-        case guilds do
-          guilds when is_list(guilds) and length(guilds) > 0 ->
-            Enum.find_value(guilds, fn guild ->
-              case Enum.find(guild.voice_states || [], fn vs -> vs.user_id == bot_id end) do
-                %{channel_id: channel_id} when not is_nil(channel_id) ->
-                  {guild.id, channel_id}
-                _ ->
-                  nil
-              end
-            end)
-          _ ->
-            # Fall back to process dictionary or AudioPlayer state
-            candidate =
-              case safe_audio_player_voice_channel() do
-                nil -> Process.get(:current_voice_channel)
-                other -> other
-              end
+      {:ok, %{id: bot_id}} -> find_bot_voice_channel(bot_id)
+      _ -> nil
+    end
+  end
 
-            case candidate do
-              {gid, cid} when is_integer(gid) and not is_nil(cid) -> {gid, cid}
-              _ -> nil
-            end
-        end
-      _ ->
-        nil
+  defp find_bot_voice_channel(bot_id) do
+    case get_cached_guilds() do
+      [] -> get_fallback_voice_channel()
+      guilds -> find_voice_channel_in_guilds(guilds, bot_id) || get_fallback_voice_channel()
+    end
+  end
+
+  defp get_cached_guilds do
+    GuildCache.all() || []
+  rescue
+    _ -> []
+  end
+
+  defp find_voice_channel_in_guilds(guilds, bot_id) do
+    Enum.find_value(guilds, fn guild ->
+      find_bot_voice_state(guild, bot_id)
+    end)
+  end
+
+  defp find_bot_voice_state(guild, bot_id) do
+    voice_states = guild.voice_states || []
+
+    case Enum.find(voice_states, fn vs -> vs.user_id == bot_id end) do
+      %{channel_id: channel_id} when not is_nil(channel_id) -> {guild.id, channel_id}
+      _ -> nil
+    end
+  end
+
+  defp get_fallback_voice_channel do
+    candidate =
+      case safe_audio_player_voice_channel() do
+        nil -> Process.get(:current_voice_channel)
+        other -> other
+      end
+
+    case candidate do
+      {gid, cid} when is_integer(gid) and not is_nil(cid) -> {gid, cid}
+      _ -> nil
     end
   end
 

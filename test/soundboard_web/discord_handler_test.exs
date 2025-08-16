@@ -30,7 +30,10 @@ defmodule SoundboardWeb.DiscordHandlerTest do
       }
 
       with_mocks([
-        {Nostrum.Voice, [], [join_channel: fn _, _ -> :ok end]},
+        {Nostrum.Voice, [], [
+          join_channel: fn _, _ -> :ok end,
+          ready?: fn _ -> false end
+        ]},
         {Nostrum.Cache.GuildCache, [], [get!: fn _guild_id -> mock_guild end]},
         {Nostrum.Api.Self, [], [get: fn -> {:ok, %{id: "999"}} end]}
       ]) do
