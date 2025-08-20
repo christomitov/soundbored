@@ -174,8 +174,10 @@ defmodule SoundboardWeb.AudioPlayer do
   defp system_user?(username), do: username in @system_users
 
   defp play_sound_task(guild_id, channel_id, sound_name, path_or_url, username) do
-    # Stop any currently playing sound
-    Voice.stop(guild_id)
+    # Stop any currently playing sound (only if something is playing)
+    if Voice.playing?(guild_id) do
+      Voice.stop(guild_id)
+    end
 
     # Ensure we're connected and ready
     if ensure_voice_ready(guild_id, channel_id) do
@@ -224,8 +226,8 @@ defmodule SoundboardWeb.AudioPlayer do
 
       {:error, "Audio already playing in voice channel."} ->
         Logger.warning("Audio still playing on attempt #{attempt + 1}, waiting...")
-        # Wait for current audio to finish
-        wait_for_audio_to_finish(guild_id, 3000)
+        # Wait for current audio to finish (reduced timeout)
+        wait_for_audio_to_finish(guild_id, 1000)
 
         play_with_retries(
           guild_id,
@@ -288,8 +290,8 @@ defmodule SoundboardWeb.AudioPlayer do
         # Voice.join_channel returns :ok or crashes (no_return)
         try do
           Voice.join_channel(guild_id, channel_id)
-          # Give it more time to fully connect
-          Process.sleep(2000)
+          # Small delay to ensure connection is established
+          Process.sleep(200)
 
           play_with_retries(
             guild_id,
@@ -386,15 +388,21 @@ defmodule SoundboardWeb.AudioPlayer do
     # Using rescue to handle potential crashes
     Voice.join_channel(guild_id, channel_id)
 
-    # Give the connection a moment to establish
-    Process.sleep(200)
-
+    # Check immediately if ready, no sleep needed
     if Voice.ready?(guild_id) do
       Logger.info("Successfully connected to voice channel")
       true
     else
-      Logger.error("Voice connection not ready after join attempt")
-      false
+      # Only sleep if not ready yet
+      Process.sleep(50)
+
+      if Voice.ready?(guild_id) do
+        Logger.info("Successfully connected to voice channel after brief wait")
+        true
+      else
+        Logger.error("Voice connection not ready after join attempt")
+        false
+      end
     end
   rescue
     error ->
