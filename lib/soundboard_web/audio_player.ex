@@ -218,8 +218,6 @@ defmodule SoundboardWeb.AudioPlayer do
     case Voice.play(guild_id, play_input, play_type, play_options) do
       :ok ->
         Logger.info("Voice.play succeeded for #{sound_name} (attempt #{attempt + 1})")
-        # Add a small delay to ensure audio starts properly
-        Process.sleep(100)
         track_play_if_needed(sound_name, username)
         broadcast_success(sound_name, username)
         :ok
