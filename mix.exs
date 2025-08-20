@@ -4,7 +4,7 @@ defmodule Soundboard.MixProject do
   def project do
     [
       app: :soundboard,
-      version: "1.3.0",
+      version: "1.4.0",
       elixir: "~> 1.18",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
@@ -73,37 +73,37 @@ defmodule Soundboard.MixProject do
   # Type `mix help deps` for examples and options.
   defp deps do
     [
-      {:phoenix, "~> 1.7.18"},
-      {:phoenix_ecto, "~> 4.5"},
+      {:phoenix, "~> 1.8.0"},
+      {:phoenix_ecto, "~> 4.6.5"},
       {:ecto_sql, "~> 3.10"},
-      {:postgrex, ">= 0.0.0"},
+      {:postgrex, "~> 0.21"},
       {:phoenix_html, "~> 4.1"},
-      {:phoenix_live_reload, "~> 1.2", only: :dev},
+      {:phoenix_live_reload, "~> 1.6", only: :dev},
       {:phoenix_live_view, "~> 1.0.0"},
       {:floki, ">= 0.30.0", only: :test},
-      {:phoenix_live_dashboard, "~> 0.8.3"},
-      {:esbuild, "~> 0.8", runtime: Mix.env() == :dev},
-      {:tailwind, "~> 0.2", runtime: Mix.env() == :dev},
+      {:phoenix_live_dashboard, "~> 0.8.7"},
+      {:esbuild, "~> 0.10", runtime: Mix.env() == :dev},
+      {:tailwind, "~> 0.3", runtime: Mix.env() == :dev},
       {:heroicons, github: "tailwindlabs/heroicons", tag: "v2.1.1", app: false},
-      {:swoosh, "~> 1.5"},
-      {:finch, "~> 0.13"},
-      {:telemetry_metrics, "~> 1.0"},
-      {:telemetry_poller, "~> 1.0"},
+      {:swoosh, "~> 1.19"},
+      {:finch, "~> 0.20"},
+      {:telemetry_metrics, "~> 1.1"},
+      {:telemetry_poller, "~> 1.3"},
       {:gettext, "~> 0.26"},
       {:jason, "~> 1.2"},
       {:dns_cluster, "~> 0.1.1"},
-      {:bandit, "~> 1.5"},
+      {:bandit, "~> 1.8"},
       {:nostrum, github: "Kraigie/nostrum", branch: "master"},
       {:ecto_sqlite3, "~> 0.18.0"},
       {:number, "~> 1.0"},
       {:ueberauth, "~> 0.10.5"},
       {:ueberauth_discord, "~> 0.6"},
       {:plug_cowboy, "~> 2.6"},
-      {:httpoison, "~> 2.0"},
+      {:httpoison, "~> 2.2"},
       {:mock, "~> 0.3.9", only: :test},
       {:excoveralls, "~> 0.18.5", only: :test},
-      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
-      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false}
+      {:credo, "~> 1.7.12", only: [:dev, :test], runtime: false},
+      {:dialyxir, "~> 1.4.6", only: [:dev, :test], runtime: false}
     ]
   end
 
