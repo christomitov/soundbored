@@ -378,7 +378,10 @@ defmodule SoundboardWeb.DiscordHandler do
   end
 
   defp get_cached_guilds do
-    GuildCache.all() || []
+    case GuildCache.all() do
+      nil -> []
+      guilds -> guilds
+    end
   rescue
     _ -> []
   end
