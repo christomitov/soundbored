@@ -90,11 +90,14 @@ if config_env() == :prod do
   config :soundboard,
     discord_token: discord_token
 
-  # Configure ffmpeg path for Nostrum
+  # Configure ffmpeg path for Nostrum with optimized audio settings
   case System.cmd("which", ["ffmpeg"]) do
     {path, 0} ->
       config :nostrum,
-        ffmpeg: String.trim(path)
+        ffmpeg: String.trim(path),
+        # Reduce audio buffering for faster playback
+        audio_frames_per_burst: 2,  # Reduced from default 10 (40ms instead of 200ms)
+        audio_timeout: 5_000  # Reduced from default 20_000ms
 
     _ ->
       raise "ffmpeg not found in PATH. Please install ffmpeg."

@@ -174,9 +174,12 @@ defmodule SoundboardWeb.AudioPlayer do
   defp system_user?(username), do: username in @system_users
 
   defp play_sound_task(guild_id, channel_id, sound_name, path_or_url, username) do
-    # Stop any currently playing sound (only if something is playing)
+    # Stop any currently playing sound WITHOUT waiting
+    # This is now fire-and-forget for speed
     if Voice.playing?(guild_id) do
-      Voice.stop(guild_id)
+      Task.start(fn -> Voice.stop(guild_id) end)
+      # Minimal delay to let stop command process
+      Process.sleep(10)
     end
 
     # Ensure we're connected and ready
@@ -198,9 +201,9 @@ defmodule SoundboardWeb.AudioPlayer do
     # Check voice state
     Logger.info("Voice ready: #{Voice.ready?(guild_id)}, Playing: #{Voice.playing?(guild_id)}")
 
-    # Don't use realtime flag for local files, it can cause issues
-    # Only use realtime for streaming/URL sources
-    play_options = [volume: 1.0]
+    # Use realtime flag for faster playback start
+    # This reduces internal buffering in ffmpeg
+    play_options = [volume: 1.0, realtime: true]
     Logger.info("Play options: #{inspect(play_options)}")
 
     # Keep track of attempts
@@ -225,9 +228,11 @@ defmodule SoundboardWeb.AudioPlayer do
         :ok
 
       {:error, "Audio already playing in voice channel."} ->
-        Logger.warning("Audio still playing on attempt #{attempt + 1}, waiting...")
-        # Wait for current audio to finish (reduced timeout)
-        wait_for_audio_to_finish(guild_id, 1000)
+        Logger.warning("Audio still playing on attempt #{attempt + 1}, stopping and retrying...")
+        # Force stop the current audio instead of waiting
+        Voice.stop(guild_id)
+        # Minimal delay to let stop process
+        Process.sleep(20)
 
         play_with_retries(
           guild_id,
@@ -290,8 +295,8 @@ defmodule SoundboardWeb.AudioPlayer do
         # Voice.join_channel returns :ok or crashes (no_return)
         try do
           Voice.join_channel(guild_id, channel_id)
-          # Small delay to ensure connection is established
-          Process.sleep(200)
+          # Reduced delay - just enough for connection handshake
+          Process.sleep(50)
 
           play_with_retries(
             guild_id,
@@ -321,7 +326,8 @@ defmodule SoundboardWeb.AudioPlayer do
 
     Stream.repeatedly(fn ->
       if Voice.playing?(guild_id) do
-        Process.sleep(100)
+        # Reduced polling interval for faster response
+        Process.sleep(10)
         :waiting
       else
         :done
@@ -393,8 +399,8 @@ defmodule SoundboardWeb.AudioPlayer do
       Logger.info("Successfully connected to voice channel")
       true
     else
-      # Only sleep if not ready yet
-      Process.sleep(50)
+      # Minimal sleep - just 20ms for network round-trip
+      Process.sleep(20)
 
       if Voice.ready?(guild_id) do
         Logger.info("Successfully connected to voice channel after brief wait")
