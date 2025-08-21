@@ -49,6 +49,8 @@ defmodule SoundboardWeb.AudioPlayer do
   @impl true
   def init(state) do
     Logger.info("Initializing AudioPlayer with state: #{inspect(state)}")
+    # Create a fast in-memory cache for sound metadata
+    ensure_sound_cache()
     # Schedule periodic voice connection check
     schedule_voice_check()
     {:ok, state}
@@ -174,12 +176,10 @@ defmodule SoundboardWeb.AudioPlayer do
   defp system_user?(username), do: username in @system_users
 
   defp play_sound_task(guild_id, channel_id, sound_name, path_or_url, username) do
-    # Stop any currently playing sound WITHOUT waiting
-    # This is now fire-and-forget for speed
+    # Stop any currently playing sound immediately
+    # Direct call is fast enough, no need for Task.start which causes process leaks
     if Voice.playing?(guild_id) do
-      Task.start(fn -> Voice.stop(guild_id) end)
-      # Minimal delay to let stop command process
-      Process.sleep(10)
+      Voice.stop(guild_id)
     end
 
     # Ensure we're connected and ready
@@ -201,9 +201,9 @@ defmodule SoundboardWeb.AudioPlayer do
     # Check voice state
     Logger.info("Voice ready: #{Voice.ready?(guild_id)}, Playing: #{Voice.playing?(guild_id)}")
 
-    # Use realtime flag for faster playback start
-    # This reduces internal buffering in ffmpeg
-    play_options = [volume: 1.0, realtime: true]
+    # Don't use realtime flag - it can cause FFmpeg process cleanup issues
+    # The frames_per_burst config already reduces buffering
+    play_options = [volume: 1.0]
     Logger.info("Play options: #{inspect(play_options)}")
 
     # Keep track of attempts
@@ -229,10 +229,10 @@ defmodule SoundboardWeb.AudioPlayer do
 
       {:error, "Audio already playing in voice channel."} ->
         Logger.warning("Audio still playing on attempt #{attempt + 1}, stopping and retrying...")
-        # Force stop the current audio instead of waiting
+        # Force stop the current audio
         Voice.stop(guild_id)
-        # Minimal delay to let stop process
-        Process.sleep(20)
+        # Small delay to ensure stop completes
+        Process.sleep(50)
 
         play_with_retries(
           guild_id,
@@ -321,50 +321,53 @@ defmodule SoundboardWeb.AudioPlayer do
     end
   end
 
-  defp wait_for_audio_to_finish(guild_id, max_wait) do
-    start_time = System.monotonic_time(:millisecond)
-
-    Stream.repeatedly(fn ->
-      if Voice.playing?(guild_id) do
-        # Reduced polling interval for faster response
-        Process.sleep(10)
-        :waiting
-      else
-        :done
-      end
-    end)
-    |> Stream.take_while(fn status ->
-      elapsed = System.monotonic_time(:millisecond) - start_time
-      status == :waiting and elapsed < max_wait
-    end)
-    |> Stream.run()
-  end
+  # Removed unused wait_for_audio_to_finish/2 to keep compile clean and hot path lean
 
   defp schedule_voice_check do
     # Check voice connection every 30 seconds
     Process.send_after(self(), :check_voice_connection, 30_000)
   end
 
-  defp prepare_play_input(sound_name, path_or_url) do
-    sound = Soundboard.Repo.get_by(Sound, filename: sound_name)
-    Logger.info("Playing sound: #{inspect(sound)}")
-    Logger.info("Original path/URL: #{path_or_url}")
+  # Ensure ETS table exists (idempotent)
+  defp ensure_sound_cache do
+    case :ets.info(:sound_meta_cache) do
+      :undefined ->
+        :ets.new(:sound_meta_cache, [:set, :named_table, :public, read_concurrency: true])
 
-    case sound do
-      %{source_type: "url"} ->
-        Logger.info("Using URL directly for remote sound")
+      _ ->
+        :ok
+    end
+  end
+
+  defp prepare_play_input(sound_name, path_or_url) do
+    # Prefer cached metadata to avoid DB on hot path
+    case :ets.lookup(:sound_meta_cache, sound_name) do
+      [{^sound_name, %{source_type: "url"}}] ->
+        Logger.info("Using URL directly for remote sound (cached)")
         {path_or_url, :url}
 
-      %{source_type: "local"} ->
-        # For local files, use raw path with :url type
-        # ffmpeg can read local files directly
-        Logger.info("Using raw path for local file with :url type")
+      [{^sound_name, %{source_type: "local"}}] ->
+        Logger.info("Using raw path for local file with :url type (cached)")
         {path_or_url, :url}
 
       _ ->
-        # Default to raw path for unknown types (likely local files)
-        Logger.warning("Unknown source type, defaulting to raw path with :url type")
-        {path_or_url, :url}
+        sound = Soundboard.Repo.get_by(Sound, filename: sound_name)
+        Logger.info("Playing sound (uncached): #{inspect(sound)}")
+        Logger.info("Original path/URL: #{path_or_url}")
+
+        case sound do
+          %{source_type: "url"} ->
+            Logger.info("Using URL directly for remote sound")
+            {path_or_url, :url}
+
+          %{source_type: "local"} ->
+            Logger.info("Using raw path for local file with :url type")
+            {path_or_url, :url}
+
+          _ ->
+            Logger.warning("Unknown source type, defaulting to raw path with :url type")
+            {path_or_url, :url}
+        end
     end
   end
 
@@ -434,30 +437,46 @@ defmodule SoundboardWeb.AudioPlayer do
 
   defp get_sound_path(sound_name) do
     Logger.info("Getting sound path for: #{sound_name}")
+    ensure_sound_cache()
 
+    case lookup_cached_sound(sound_name) do
+      {:hit, {_type, input}} -> {:ok, input}
+      :miss -> resolve_and_cache_sound(sound_name)
+    end
+  end
+
+  defp lookup_cached_sound(sound_name) do
+    case :ets.lookup(:sound_meta_cache, sound_name) do
+      [{^sound_name, %{source_type: "url", input: url}}] ->
+        Logger.info("Found URL sound in cache: #{url}")
+        {:hit, {:url, url}}
+
+      [{^sound_name, %{source_type: "local", input: path}}] ->
+        Logger.info("Found local path in cache: #{path}")
+        {:hit, {:local, path}}
+
+      _ ->
+        :miss
+    end
+  end
+
+  defp resolve_and_cache_sound(sound_name) do
     case Soundboard.Repo.get_by(Sound, filename: sound_name) do
       nil ->
         Logger.error("Sound not found in database: #{sound_name}")
         {:error, "Sound not found"}
 
-      %{source_type: "url", url: url} when not is_nil(url) ->
+      %{source_type: "url", url: url} when is_binary(url) ->
         Logger.info("Found URL sound: #{url}")
+        cache_sound(sound_name, :url, url)
         {:ok, url}
 
-      %{source_type: "local", filename: filename} when not is_nil(filename) ->
-        # Check if we're in Docker production environment
-        path =
-          if File.exists?("/app/priv/static/uploads") do
-            "/app/priv/static/uploads/#{filename}"
-          else
-            priv_dir = :code.priv_dir(:soundboard)
-            Path.join([priv_dir, "static/uploads", filename])
-          end
-
-        Logger.info("Checking local file path: #{path}")
+      %{source_type: "local", filename: filename} when is_binary(filename) ->
+        path = resolve_upload_path(filename)
+        Logger.info("Resolved local file path: #{path}")
 
         if File.exists?(path) do
-          Logger.info("Local file exists: #{path}")
+          cache_sound(sound_name, :local, path)
           {:ok, path}
         else
           Logger.error("Local file not found: #{path}")
@@ -468,5 +487,22 @@ defmodule SoundboardWeb.AudioPlayer do
         Logger.error("Invalid sound configuration: #{inspect(sound)}")
         {:error, "Invalid sound configuration"}
     end
+  end
+
+  defp resolve_upload_path(filename) do
+    if File.exists?("/app/priv/static/uploads") do
+      "/app/priv/static/uploads/#{filename}"
+    else
+      priv_dir = :code.priv_dir(:soundboard)
+      Path.join([priv_dir, "static/uploads", filename])
+    end
+  end
+
+  defp cache_sound(sound_name, :url, url) do
+    :ets.insert(:sound_meta_cache, {sound_name, %{source_type: "url", input: url}})
+  end
+
+  defp cache_sound(sound_name, :local, path) do
+    :ets.insert(:sound_meta_cache, {sound_name, %{source_type: "local", input: path}})
   end
 end

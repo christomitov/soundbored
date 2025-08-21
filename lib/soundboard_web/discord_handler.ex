@@ -463,7 +463,11 @@ defmodule SoundboardWeb.DiscordHandler do
 
   # Add this helper function to check if auto-join is disabled
   defp auto_join_disabled? do
-    System.get_env("DISABLE_AUTO_JOIN") == "true"
+    # Never disable auto-join in tests, regardless of env vars
+    case Application.get_env(:soundboard, :env) do
+      :test -> false
+      _ -> System.get_env("DISABLE_AUTO_JOIN") == "true"
+    end
   end
 
   defp handle_bot_alone_check(_guild_id) do
