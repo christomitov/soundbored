@@ -201,9 +201,10 @@ defmodule SoundboardWeb.AudioPlayer do
     # Check voice state
     Logger.info("Voice ready: #{Voice.ready?(guild_id)}, Playing: #{Voice.playing?(guild_id)}")
 
-    # Don't use realtime flag - it can cause FFmpeg process cleanup issues
-    # The frames_per_burst config already reduces buffering
-    play_options = [volume: 1.0]
+    # Disable ffmpeg realtime processing to avoid `-re` pacing.
+    # Nostrum already paces via bursts; `-re` can cause latency buildup
+    # and slower cleanup of ffmpeg processes over time.
+    play_options = [volume: 1.0, realtime: false]
     Logger.info("Play options: #{inspect(play_options)}")
 
     # Keep track of attempts
