@@ -30,8 +30,11 @@ config :soundboard,
 # Configure logging for production - enable debug level for voice troubleshooting
 config :logger, level: :debug
 
-# Nostrum configuration for voice debugging
+# Nostrum configuration for voice debugging with optimized audio settings
 config :nostrum,
   youtubedl: nil,
   streamlink: nil,
-  ffmpeg: "/usr/bin/ffmpeg"
+  ffmpeg: "/usr/bin/ffmpeg",
+  # Reduce audio buffering for faster playback
+  audio_frames_per_burst: 2,  # Reduced from default 10 (40ms instead of 200ms)
+  audio_timeout: 5_000  # Reduced from default 20_000ms
