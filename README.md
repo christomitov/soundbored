@@ -19,6 +19,7 @@ Soundbored is an unlimited, no-cost, self-hosted soundboard for Discord. It allo
 [API](#api)
 
 [Changelog](#changelog)
+- [v1.4.0 (2025-08-22)](#v140-2025-08-22)
 - [v1.3.0 (2025-02-18)](#v130-2025-02-18)
 - [v1.2.0 (2025-01-18)](#v120-2025-01-18)
 - [v1.1.0 (2025-01-12)](#v110-2025-01-12)
@@ -143,6 +144,15 @@ curl -X POST https://soundboardurl.com/api/sounds/123/play \
 
 
 ## Changelog
+
+### v1.4.0 (2025-08-22)
+
+#### 🐛 Bug Fixes
+- Fixed sounds not playing due to Discord API changes
+- Optimized audio playback for faster sound loading and playback
+
+#### 🔧 Maintenance
+- Updated all dependencies to latest versions
 
 ### v1.3.0 (2025-02-18)
 
