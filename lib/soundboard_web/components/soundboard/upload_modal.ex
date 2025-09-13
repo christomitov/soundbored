@@ -34,12 +34,7 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
                 Add Sound
               </h3>
 
-              <form
-                phx-submit="save_upload"
-                phx-change="validate_upload"
-                id="upload-form"
-                class="mt-4"
-              >
+              <form phx-submit="save_upload" id="upload-form" class="mt-4">
                 <!-- Source Type -->
                 <div class="mb-4">
                   <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 text-left">
@@ -88,6 +83,8 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
                       value={@url}
                       required
                       placeholder="https://example.com/sound.mp3"
+                      phx-change="validate_upload"
+                      phx-debounce="400"
                       class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm
                              focus:border-blue-500 focus:ring-blue-500 sm:text-sm
                              dark:bg-gray-700 dark:text-gray-100"
@@ -95,7 +92,8 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
                   </div>
                 <% end %>
                 
-    <!-- Name Input -->
+    <!-- Details: shown but inputs are disabled until a file/URL is provided -->
+                  <!-- Name Input -->
                 <div class="mb-4">
                   <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 text-left">
                     Name
@@ -106,12 +104,26 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
                     value={@upload_name}
                     required
                     placeholder="Sound name"
-                    phx-blur="check_filename"
-                    phx-value-name={@upload_name}
+                    phx-change="validate_upload"
+                    phx-debounce="400"
+                    disabled={
+                      (@source_type == "local" and @uploads.audio.entries == []) or
+                        (@source_type == "url" and String.trim(@url || "") == "")
+                    }
                     class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm
-                           focus:border-blue-500 focus:ring-blue-500 sm:text-sm
-                           dark:bg-gray-700 dark:text-gray-100"
+                             focus:border-blue-500 focus:ring-blue-500 sm:text-sm
+                             dark:bg-gray-700 dark:text-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
                   />
+                  <%= if (@source_type == "local" and @uploads.audio.entries == []) do %>
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      Select a file first to name it.
+                    </p>
+                  <% end %>
+                  <%= if (@source_type == "url" and String.trim(@url || "") == "") do %>
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      Enter a URL first to name it.
+                    </p>
+                  <% end %>
                   <%= if @upload_error do %>
                     <p class="mt-1 text-sm text-red-600 dark:text-red-400">{@upload_error}</p>
                   <% end %>
@@ -149,8 +161,12 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
                         phx-keyup="upload_tag_input"
                         phx-keydown="add_upload_tag"
                         phx-value-value={@upload_tag_input}
+                        disabled={
+                          (@source_type == "local" and @uploads.audio.entries == []) or
+                            (@source_type == "url" and String.trim(@url || "") == "")
+                        }
                         class="block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm
-                               dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400"
+                               dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400 disabled:opacity-50 disabled:cursor-not-allowed"
                         placeholder="Type a tag and press Enter or Tab..."
                         autocomplete="off"
                         id="upload-tag-input"
@@ -190,6 +206,10 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
                           value="true"
                           checked={@is_join_sound}
                           phx-click="toggle_join_sound"
+                          disabled={
+                            (@source_type == "local" and @uploads.audio.entries == []) or
+                              (@source_type == "url" and String.trim(@url || "") == "")
+                          }
                           class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-600 dark:border-gray-600 dark:focus:ring-offset-gray-800"
                         />
                       </div>
@@ -208,6 +228,10 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
                           value="true"
                           checked={@is_leave_sound}
                           phx-click="toggle_leave_sound"
+                          disabled={
+                            (@source_type == "local" and @uploads.audio.entries == []) or
+                              (@source_type == "url" and String.trim(@url || "") == "")
+                          }
                           class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-600 dark:border-gray-600 dark:focus:ring-offset-gray-800"
                         />
                       </div>
@@ -224,11 +248,15 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
                   <button
                     type="submit"
                     phx-disable-with="Adding..."
+                    disabled={
+                      (@source_type == "local" and @uploads.audio.entries == []) or
+                        (@source_type == "url" and String.trim(@url || "") == "")
+                    }
                     class="inline-flex w-full justify-center rounded-md bg-blue-600 px-3 py-2
-                           text-sm font-semibold text-white shadow-sm hover:bg-blue-500
-                           focus-visible:outline focus-visible:outline-2
-                           focus-visible:outline-offset-2 focus-visible:outline-blue-600
-                           dark:focus-visible:outline-offset-gray-800"
+                             text-sm font-semibold text-white shadow-sm hover:bg-blue-500
+                             focus-visible:outline focus-visible:outline-2
+                             focus-visible:outline-offset-2 focus-visible:outline-blue-600
+                             dark:focus-visible:outline-offset-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Add Sound
                   </button>

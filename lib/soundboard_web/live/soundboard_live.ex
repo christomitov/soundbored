@@ -273,24 +273,19 @@ defmodule SoundboardWeb.SoundboardLive do
     end
   end
 
+  # removed obsolete "check_filename" handler; validation now covered by validate_upload
+
   @impl true
-  def handle_event("check_filename", %{"name" => name}, socket) do
-    filename = name <> ".mp3"
+  def handle_event("validate_upload", %{"_target" => [field]} = params, socket)
+      when field in ["name", "url", "source_type"] do
+    Logger.info(
+      "Validating upload (target #{field}) with params: #{inspect(Map.take(params, ["name", "url", "source_type"]))}"
+    )
 
-    case Repo.get_by(Sound, filename: filename) do
-      nil ->
-        {:noreply,
-         socket
-         |> assign(:upload_error, nil)}
-
-      _sound ->
-        {:noreply,
-         socket
-         |> assign(:upload_error, "A sound with that name already exists")}
-    end
+    # For simple text/url/source_type changes, skip re-validating upload entries
+    handle_upload_validation(socket, params)
   end
 
-  @impl true
   def handle_event("validate_upload", params, socket) do
     Logger.info("Validating upload with params: #{inspect(params)}")
     socket = validate_existing_entries(socket)

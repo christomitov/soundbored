@@ -29,7 +29,7 @@ defmodule SoundboardWeb.Live.UploadHandler do
     changeset =
       %Sound{}
       |> Sound.changeset(%{
-        filename: name <> ".mp3",
+        filename: name <> url_file_extension(url),
         url: url,
         source_type: "url"
       })
@@ -43,26 +43,43 @@ defmodule SoundboardWeb.Live.UploadHandler do
   end
 
   defp validate_local_upload(socket, name) do
-    if name && name != "" do
-      changeset =
-        %Sound{}
-        |> Sound.changeset(%{
-          filename: name <> get_file_extension(socket),
-          user_id: socket.assigns.current_user.id
-        })
-        |> validate_name_unique()
+    case {name, get_file_extension(socket)} do
+      {n, _} when is_nil(n) or n == "" ->
+        case Phoenix.LiveView.uploaded_entries(socket, :audio) do
+          {[], []} -> {:error, add_error(%Ecto.Changeset{}, :file, "Please select a file")}
+          _ -> {:ok, socket}
+        end
 
-      if changeset.valid? do
-        {:ok, socket}
-      else
-        {:error, changeset}
-      end
-    else
-      case Phoenix.LiveView.uploaded_entries(socket, :audio) do
-        {[], []} -> {:error, add_error(%Ecto.Changeset{}, :file, "Please select a file")}
-        _ -> {:ok, socket}
-      end
+      {_, ""} ->
+        if name_conflicts_across_exts?(name) do
+          {:error, add_error(%Ecto.Changeset{}, :filename, "has already been taken")}
+        else
+          {:ok, socket}
+        end
+
+      {_, ext} ->
+        changeset =
+          %Sound{}
+          |> Sound.changeset(%{
+            filename: name <> ext,
+            user_id: socket.assigns.current_user.id
+          })
+          |> validate_name_unique()
+
+        if changeset.valid? do
+          {:ok, socket}
+        else
+          {:error, changeset}
+        end
     end
+  end
+
+  defp name_conflicts_across_exts?(base) do
+    exts = [".mp3", ".wav", ".ogg", ".m4a"]
+    names = Enum.map(exts, &("#{base}" <> &1))
+
+    from(s in Sound, where: s.filename in ^names)
+    |> Repo.exists?()
   end
 
   def handle_upload(socket, params, consume_uploaded_entries_fn) do
@@ -80,7 +97,7 @@ defmodule SoundboardWeb.Live.UploadHandler do
 
   defp handle_url_upload(socket, params, user_id) do
     sound_params = %{
-      filename: params["name"] <> ".mp3",
+      filename: params["name"] <> url_file_extension(params["url"]),
       url: params["url"],
       source_type: "url",
       user_id: user_id,
@@ -218,6 +235,29 @@ defmodule SoundboardWeb.Live.UploadHandler do
       _ -> ""
     end
   end
+
+  # Extract a safe extension from a URL's path. Only returns extensions
+  # we support for playback; returns "" if none or unsupported.
+  defp url_file_extension(url) when is_binary(url) do
+    ext =
+      url
+      |> URI.parse()
+      |> Map.get(:path)
+      |> case do
+        nil -> ""
+        path -> String.downcase(Path.extname(path || ""))
+      end
+
+    case ext do
+      ".mp3" -> ".mp3"
+      ".wav" -> ".wav"
+      ".ogg" -> ".ogg"
+      ".m4a" -> ".m4a"
+      _ -> ""
+    end
+  end
+
+  defp url_file_extension(_), do: ""
 
   defp get_error_message(changeset) when is_map(changeset) do
     Enum.map_join(changeset.errors, ", ", fn

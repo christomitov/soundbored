@@ -4,9 +4,16 @@ import Config
 if File.exists?(".env") do
   File.stream!(".env")
   |> Stream.map(&String.trim/1)
+  # Ignore blank lines and comments
+  |> Stream.reject(&(&1 == "" or String.starts_with?(&1, "#")))
   |> Enum.each(fn line ->
-    [key, value] = String.split(line, "=")
-    System.put_env(key, value)
+    case String.split(line, "=", parts: 2) do
+      [key, value] ->
+        System.put_env(String.trim(key), String.trim(value))
+
+      _ ->
+        :ok
+    end
   end)
 end
 

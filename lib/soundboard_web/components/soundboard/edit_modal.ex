@@ -102,6 +102,7 @@ defmodule SoundboardWeb.Components.Soundboard.EditModal do
                     }
                     required
                     placeholder="Sound name"
+                    phx-debounce="400"
                     class={"mt-1 block w-full rounded-md shadow-sm sm:text-sm
                            dark:text-gray-100 #{if @flash && @flash.error, do: "border-red-300 focus:border-red-500 focus:ring-red-500", else: "border-gray-300 dark:border-gray-600 focus:border-blue-500 focus:ring-blue-500"}
                            dark:bg-gray-700"}
