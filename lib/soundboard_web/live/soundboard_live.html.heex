@@ -41,33 +41,7 @@
       </button>
     </div>
   </div>
-  
-<!-- Tag Filter Bar -->
-  <div class="mb-4 flex flex-wrap gap-2 items-center">
-    <%= for tag <- all_tags(@uploaded_files) do %>
-      <button
-        phx-click="toggle_tag_filter"
-        phx-value-tag={tag.name}
-        class={[
-          "inline-flex items-center gap-1 rounded-full px-3 py-1 text-sm font-medium",
-          if(tag_selected?(tag, @selected_tags),
-            do: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
-            else:
-              "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-          )
-        ]}
-      >
-        {tag.name}
-        <span class="text-xs">({count_sounds_with_tag(@uploaded_files, tag)})</span>
-      </button>
-    <% end %>
-  </div>
 
-  <div class="flex justify-between items-center mb-2">
-    <div class="text-sm text-gray-600 dark:text-gray-400">
-      <p style="font-weight: bold">Total Sounds: {length(@uploaded_files)}</p>
-    </div>
-  </div>
   <%!-- Search Bar --%>
   <div class="mb-8">
     <form phx-change="search" class="relative">
@@ -98,7 +72,33 @@
       </div>
     </form>
   </div>
+  
+<!-- Tag Filter Bar -->
+  <div class="mb-4 flex flex-wrap gap-2 items-center">
+    <%= for tag <- all_tags(@uploaded_files) do %>
+      <button
+        phx-click="toggle_tag_filter"
+        phx-value-tag={tag.name}
+        class={[
+          "inline-flex items-center gap-1 rounded-full px-3 py-1 text-sm font-medium",
+          if(tag_selected?(tag, @selected_tags),
+            do: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
+            else:
+              "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+          )
+        ]}
+      >
+        {tag.name}
+        <span class="text-xs">({count_sounds_with_tag(@uploaded_files, tag)})</span>
+      </button>
+    <% end %>
+  </div>
 
+  <div class="flex justify-between items-center mb-2">
+    <div class="text-sm text-gray-600 dark:text-gray-400">
+      <p style="font-weight: bold">Total Sounds: {length(@uploaded_files)}</p>
+    </div>
+  </div>
   <%!-- Sound Grid --%>
   <div class="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 gap-4">
     <%= if @loading_sounds do %>

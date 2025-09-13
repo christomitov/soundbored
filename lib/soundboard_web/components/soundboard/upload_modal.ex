@@ -34,7 +34,12 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
                 Add Sound
               </h3>
 
-              <form phx-submit="save_upload" id="upload-form" class="mt-4">
+              <form
+                phx-submit="save_upload"
+                phx-change="validate_upload"
+                id="upload-form"
+                class="mt-4"
+              >
                 <!-- Source Type -->
                 <div class="mb-4">
                   <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 text-left">
