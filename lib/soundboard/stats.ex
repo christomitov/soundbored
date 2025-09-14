@@ -70,8 +70,8 @@ defmodule Soundboard.Stats do
       on: s.filename == p.sound_name,
       join: u in User,
       on: p.user_id == u.id,
-      select: {s.filename, u.username, p.inserted_at},
-      order_by: [desc: p.inserted_at],
+      select: {p.id, s.filename, u.username, p.inserted_at},
+      order_by: [desc: p.inserted_at, desc: p.id],
       limit: ^limit
     )
     |> Repo.all()

@@ -36,9 +36,9 @@ defmodule SoundboardWeb.LeaderboardLive do
   def handle_info({:sound_played, %{filename: filename, played_by: username}}, socket) do
     recent_plays =
       Stats.get_recent_plays(limit: @recent_limit)
-      |> Enum.map(fn {filename, username, timestamp} ->
+      |> Enum.map(fn {id, filename, username, timestamp} ->
         %{
-          id: "#{:erlang.system_time(:millisecond)}",
+          id: id,
           filename: filename,
           username: username,
           timestamp: timestamp
@@ -85,9 +85,9 @@ defmodule SoundboardWeb.LeaderboardLive do
 
     recent_plays =
       Stats.get_recent_plays(limit: @recent_limit)
-      |> Enum.map(fn {filename, username, timestamp} ->
+      |> Enum.map(fn {id, filename, username, timestamp} ->
         %{
-          id: "#{:erlang.system_time(:millisecond)}",
+          id: id,
           filename: filename,
           username: username,
           timestamp: timestamp
@@ -365,9 +365,9 @@ defmodule SoundboardWeb.LeaderboardLive do
 
   defp get_recent_plays do
     Stats.get_recent_plays(limit: @recent_limit)
-    |> Enum.map(fn {filename, username, timestamp} ->
+    |> Enum.map(fn {id, filename, username, timestamp} ->
       %{
-        id: "#{:erlang.system_time(:millisecond)}",
+        id: id,
         filename: filename,
         username: username,
         timestamp: timestamp
