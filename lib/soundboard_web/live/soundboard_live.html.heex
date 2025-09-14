@@ -51,7 +51,7 @@
         value={@search_query}
         placeholder="Search sounds..."
         autofocus
-        phx-debounce="200"
+        phx-debounce="400"
         class="block w-full rounded-md border-gray-300 dark:border-gray-700 shadow-sm pl-4 pr-10 py-2
                focus:border-blue-500 focus:ring-blue-500 sm:text-sm
                dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-400"
@@ -76,8 +76,10 @@
           fill="none"
           viewBox="0 0 24 24"
         >
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4">
+          </circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z">
+          </path>
         </svg>
       </div>
     </form>
