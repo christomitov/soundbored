@@ -65,3 +65,7 @@ body {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
+
+/* Show inline search spinner while server processes phx-change */
+.phx-change-loading .search-spinner { display: inline; }
+.phx-change-loading .search-icon { display: none; }
