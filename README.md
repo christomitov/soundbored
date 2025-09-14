@@ -4,25 +4,29 @@
 
 Soundbored is an unlimited, no-cost, self-hosted soundboard for Discord. It allows you to play sounds in a voice channel.
 
+
+## New
+Check out the newly released [Soundbored cli](https://www.npmjs.com/package/soundbored) with
+
+`npm i -g soundbored`
+
+Code available [here](https://github.com/christomitov/soundbored-cli)
+
 <img width="1468" alt="Screenshot 2025-01-18 at 1 26 07 PM" src="https://github.com/user-attachments/assets/4a504100-5ef9-47bc-b406-35b67837e116" />
 
 ## Table Of Contents
 
-[Prerequisites](#prerequisites)
-
-[Setup](#setup)
-
-[Deployment](#deployment)
-
-[Usage](#usage)
-
-[API](#api)
-
-[Changelog](#changelog)
-- [v1.4.0 (2025-08-22)](#v140-2025-08-22)
-- [v1.3.0 (2025-02-18)](#v130-2025-02-18)
-- [v1.2.0 (2025-01-18)](#v120-2025-01-18)
-- [v1.1.0 (2025-01-12)](#v110-2025-01-12)
+- [Prerequisites](#prerequisites)
+- [Setup](#setup)
+- [Deployment](#deployment)
+- [Usage](#usage)
+- [API](#api)
+- [Changelog](#changelog)
+  - [v1.5.0 (2025-09-14)](#v150-2025-09-14)
+  - [v1.4.0 (2025-08-22)](#v140-2025-08-22)
+  - [v1.3.0 (2025-02-18)](#v130-2025-02-18)
+  - [v1.2.0 (2025-01-18)](#v120-2025-01-18)
+  - [v1.1.0 (2025-01-12)](#v110-2025-01-12)
 
 ## Prerequisites
 
@@ -144,6 +148,26 @@ curl -X POST https://soundboardurl.com/api/sounds/123/play \
 
 
 ## Changelog
+
+### v1.5.0 (2025-09-14)
+
+#### ✨ New Features
+- User-scoped API tokens with DB storage (generate/revoke in Settings > API Tokens).
+- API requests authenticated via `Authorization: Bearer <token>` are attributed to the token’s user and increment stats accordingly.
+- In-app API help with copy-to-clipboard curl commands that auto-fill your site URL and token.
+- Added Settings link in the navbar for quick access.
+- Released a new CLI for easier local and CI integrations.
+
+#### ⚙️ Improvements
+- Search bar: reduced debounce to 200ms and added inline spinner while searching.
+- Recent Plays: fixed item “disappearing” by using stable DB ids and deterministic ordering; clicked items now bump to the top correctly.
+
+#### 🧪 Tests & Quality
+- Added tests for API token lifecycle, API auth with DB tokens, Basic Auth, and the Settings LiveView.
+- Coverage improved to ~96% (via mix coveralls).
+
+#### 🔁 Compatibility
+- Legacy env `API_TOKEN` remains supported for a transition period (logs deprecation); DB tokens are the preferred path going forward.
 
 ### v1.4.0 (2025-08-22)
 

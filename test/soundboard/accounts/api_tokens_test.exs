@@ -1,6 +1,6 @@
 defmodule Soundboard.Accounts.ApiTokensTest do
   use Soundboard.DataCase
-  alias Soundboard.{Repo}
+  alias Soundboard.Repo
   alias Soundboard.Accounts.{ApiTokens, User}
 
   setup do

@@ -1,8 +1,8 @@
 defmodule SoundboardWeb.ApiTokensLiveTest do
   use SoundboardWeb.ConnCase
   import Phoenix.LiveViewTest
-  alias Soundboard.{Repo}
   alias Soundboard.Accounts.User
+  alias Soundboard.Repo
 
   setup %{conn: conn} do
     {:ok, user} =

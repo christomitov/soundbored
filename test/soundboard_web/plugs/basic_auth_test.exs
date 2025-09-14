@@ -24,6 +24,7 @@ defmodule SoundboardWeb.BasicAuthPlugTest do
     System.put_env("BASIC_AUTH_PASSWORD", "p")
 
     header = "Basic " <> Base.encode64("u:p")
+
     conn =
       conn(:get, "/")
       |> put_req_header("authorization", header)
@@ -43,4 +44,3 @@ defmodule SoundboardWeb.BasicAuthPlugTest do
     assert conn.resp_body == "Unauthorized"
   end
 end
-
