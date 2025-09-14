@@ -54,6 +54,7 @@ defmodule SoundboardWeb.Router do
     live "/", SoundboardLive
     live "/stats", LeaderboardLive
     live "/favorites", FavoritesLive
+    live "/settings/api", ApiTokensLive
   end
 
   # Public uploads route

@@ -37,6 +37,14 @@ defmodule SoundboardWeb.Components.Layouts.Navbar do
               <.nav_link navigate="/stats" active={current_page?(@current_path, "/leaderboard")}>
                 Stats
               </.nav_link>
+              <%= if @current_user do %>
+                <.nav_link
+                  navigate="/settings/api"
+                  active={current_page?(@current_path, "/settings/api")}
+                >
+                  Settings
+                </.nav_link>
+              <% end %>
             </div>
           </div>
 
@@ -130,6 +138,14 @@ defmodule SoundboardWeb.Components.Layouts.Navbar do
           <.mobile_nav_link navigate="/stats" active={current_page?(@current_path, "/leaderboard")}>
             Stats
           </.mobile_nav_link>
+          <%= if @current_user do %>
+            <.mobile_nav_link
+              navigate="/settings/api"
+              active={current_page?(@current_path, "/settings/api")}
+            >
+              Settings
+            </.mobile_nav_link>
+          <% end %>
         </div>
         <div class="pt-4 pb-3 border-t border-gray-200 dark:border-gray-700">
           <div class="space-y-2 px-4">

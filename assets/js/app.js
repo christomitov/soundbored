@@ -66,6 +66,49 @@ Hooks.LocalPlayer = {
   }
 }
 
+Hooks.CopyButton = {
+  mounted() {
+    this.handleClick = async (e) => {
+      e.preventDefault()
+      const original = this.el.textContent
+      const text = this.el.dataset.copyText || this.el.getAttribute('data-copy-text')
+        || (this.el.nextElementSibling ? this.el.nextElementSibling.innerText : '')
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(text)
+        } else {
+          // Fallback for insecure contexts
+          const ta = document.createElement('textarea')
+          ta.value = text
+          ta.style.position = 'fixed'
+          ta.style.opacity = '0'
+          document.body.appendChild(ta)
+          ta.select()
+          document.execCommand('copy')
+          document.body.removeChild(ta)
+        }
+        this.el.textContent = 'Copied!'
+        this.el.classList.add('text-green-600')
+        setTimeout(() => {
+          this.el.textContent = original
+          this.el.classList.remove('text-green-600')
+        }, 1500)
+      } catch (_err) {
+        this.el.textContent = 'Copy failed'
+        this.el.classList.add('text-red-600')
+        setTimeout(() => {
+          this.el.textContent = original
+          this.el.classList.remove('text-red-600')
+        }, 1500)
+      }
+    }
+    this.el.addEventListener('click', this.handleClick)
+  },
+  destroyed() {
+    this.el.removeEventListener('click', this.handleClick)
+  }
+}
+
 let liveSocket = new LiveSocket("/live", Socket, {
   params: {_csrf_token: csrfToken},
   hooks: Hooks
@@ -89,4 +132,3 @@ if (window.navigator.standalone) {
   document.documentElement.style.setProperty('--sat', 'env(safe-area-inset-top)');
   document.documentElement.classList.add('standalone');
 }
-

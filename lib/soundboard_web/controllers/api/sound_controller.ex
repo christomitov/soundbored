@@ -21,7 +21,11 @@ defmodule SoundboardWeb.API.SoundController do
         |> json(%{error: "Sound not found"})
 
       sound ->
-        username = get_req_header(conn, "x-username") |> List.first() || "API User"
+        username =
+          case conn.assigns[:current_user] do
+            %Soundboard.Accounts.User{username: uname} -> uname
+            _ -> get_req_header(conn, "x-username") |> List.first() || "API User"
+          end
 
         # Play the sound using the filename from the database
         SoundboardWeb.AudioPlayer.play_sound(sound.filename, username)

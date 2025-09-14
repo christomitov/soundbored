@@ -45,7 +45,7 @@ defmodule Soundboard.StatsTest do
     test "get_recent_plays returns most recent plays", %{user: user, sound: sound} do
       Stats.track_play(sound.filename, user.id)
 
-      assert [{filename, username, _timestamp}] = Stats.get_recent_plays(limit: 1)
+      assert [{_id, filename, username, _timestamp}] = Stats.get_recent_plays(limit: 1)
       assert filename == sound.filename
       assert username == user.username
     end
