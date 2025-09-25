@@ -9,21 +9,28 @@ defmodule SoundboardWeb.Live.UploadHandler do
   require Logger
 
   def validate_upload(socket, params) do
-    source_type = params["source_type"] || "local"
-    name = params["name"]
-    url = params["url"]
+    params =
+      params
+      |> Map.put_new("source_type", Map.get(socket.assigns, :source_type, "local"))
+      |> Map.put_new("name", nil)
+      |> Map.put_new("url", nil)
 
-    cond do
-      source_type == "url" and (is_nil(url) or url == "") and (is_nil(name) or name == "") ->
-        {:ok, socket}
+    do_validate_upload(socket, params)
+  end
 
-      source_type == "url" ->
-        validate_url_upload(socket, name, url)
-
-      true ->
-        validate_local_upload(socket, name)
+  defp do_validate_upload(socket, %{"source_type" => "url", "name" => name, "url" => url}) do
+    if blank?(url) and blank?(name) do
+      {:ok, socket}
+    else
+      validate_url_upload(socket, name, url)
     end
   end
+
+  defp do_validate_upload(socket, %{"name" => name}) do
+    validate_local_upload(socket, name)
+  end
+
+  defp blank?(value), do: value in [nil, ""]
 
   defp validate_url_upload(socket, name, url) do
     changeset =

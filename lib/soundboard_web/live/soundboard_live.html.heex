@@ -138,7 +138,7 @@
             <%!-- Sound title and uploader info --%>
             <div class="flex-1 min-w-0">
               <div class="text-gray-800 dark:text-gray-200 font-medium break-all">
-                {Path.rootname(sound.filename)}
+                {display_name(sound.filename)}
               </div>
               <%= if sound.user && sound.user.username do %>
                 <div class="text-xs text-gray-500 dark:text-gray-400">
