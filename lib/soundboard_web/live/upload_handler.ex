@@ -33,12 +33,17 @@ defmodule SoundboardWeb.Live.UploadHandler do
   defp blank?(value), do: value in [nil, ""]
 
   defp validate_url_upload(socket, name, url) do
+    user_id = socket.assigns.current_user.id
+
+    safe_name = name || ""
+
     changeset =
       %Sound{}
       |> Sound.changeset(%{
-        filename: name <> url_file_extension(url),
+        filename: safe_name <> url_file_extension(url),
         url: url,
-        source_type: "url"
+        source_type: "url",
+        user_id: user_id
       })
       |> validate_name_unique()
 

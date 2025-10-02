@@ -5,6 +5,7 @@ defmodule SoundboardWeb.SoundboardLiveTest do
   use SoundboardWeb.ConnCase
   import Phoenix.LiveViewTest
   alias Soundboard.{Accounts.User, Repo, Sound}
+  import Mock
 
   setup %{conn: conn} do
     # Clean up before tests
@@ -60,13 +61,14 @@ defmodule SoundboardWeb.SoundboardLiveTest do
     test "can play sound", %{conn: conn, sound: sound} do
       {:ok, view, _html} = live(conn, "/")
 
-      # Just verify the click happens without checking the event
-      rendered =
-        view
-        |> element("[phx-click='play'][phx-value-name='#{sound.filename}']")
-        |> render_click()
+      with_mock SoundboardWeb.AudioPlayer, play_sound: fn _, _ -> :ok end do
+        rendered =
+          view
+          |> element("[phx-click='play'][phx-value-name='#{sound.filename}']")
+          |> render_click()
 
-      assert rendered =~ sound.filename
+        assert rendered =~ sound.filename
+      end
     end
 
     test "can open and close upload modal", %{conn: conn} do

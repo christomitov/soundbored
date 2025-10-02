@@ -47,11 +47,13 @@ defmodule SoundboardWeb.APIAuthDBTokenTest do
   end
 
   test "POST /api/sounds/stop authorized via DB token", %{conn: conn} do
-    conn = post(conn, ~p"/api/sounds/stop")
-    assert %{"status" => "success"} = json_response(conn, 200)
+    with_mock SoundboardWeb.AudioPlayer, stop_sound: fn -> :ok end do
+      conn = post(conn, ~p"/api/sounds/stop")
+      assert %{"status" => "success"} = json_response(conn, 200)
+    end
   end
 
-  test "unauthorized when token invalid", %{conn: conn} do
+  test "unauthorized when token invalid", %{conn: _conn} do
     conn = build_conn() |> put_req_header("authorization", "Bearer badtoken")
     conn = get(conn, ~p"/api/sounds")
     assert json_response(conn, 401)

@@ -3,25 +3,23 @@ defmodule SoundboardWeb.API.SoundControllerTest do
   Test for the SoundController.
   """
   use SoundboardWeb.ConnCase
-  alias Soundboard.Accounts.User
+  alias Soundboard.Accounts.{ApiTokens, User}
   alias Soundboard.{Repo, Sound, Tag}
   import Mock
 
   setup %{conn: conn} do
-    # Set test API token in environment
-    System.put_env("API_TOKEN", "test-token")
-    on_exit(fn -> System.delete_env("API_TOKEN") end)
-
     user = insert_user()
     sound = insert_sound(user)
     tag = insert_tag()
+
+    {:ok, raw_token, _token} = ApiTokens.generate_token(user, %{label: "API Test"})
 
     # Add tag to sound
     insert_sound_tag(sound, tag)
 
     conn =
       conn
-      |> put_req_header("authorization", "Bearer test-token")
+      |> put_req_header("authorization", "Bearer " <> raw_token)
 
     %{conn: conn, sound: sound, user: user}
   end
@@ -54,7 +52,7 @@ defmodule SoundboardWeb.API.SoundControllerTest do
   end
 
   describe "play" do
-    test "plays a sound successfully", %{conn: conn, sound: sound} do
+    test "plays a sound successfully", %{conn: conn, sound: sound, user: user} do
       with_mock SoundboardWeb.AudioPlayer, play_sound: fn _filename, _username -> :ok end do
         conn =
           conn
@@ -64,14 +62,17 @@ defmodule SoundboardWeb.API.SoundControllerTest do
         assert %{
                  "status" => "success",
                  "message" => "Playing sound: " <> _,
-                 "played_by" => "TestUser"
+                 "played_by" => played_by
                } = json_response(conn, 200)
+
+        assert played_by == user.username
       end
     end
 
     test "plays a sound with default username when x-username not provided", %{
       conn: conn,
-      sound: sound
+      sound: sound,
+      user: user
     } do
       with_mock SoundboardWeb.AudioPlayer, play_sound: fn _filename, _username -> :ok end do
         conn = post(conn, ~p"/api/sounds/#{sound.id}/play")
@@ -79,8 +80,10 @@ defmodule SoundboardWeb.API.SoundControllerTest do
         assert %{
                  "status" => "success",
                  "message" => "Playing sound: " <> _,
-                 "played_by" => "API User"
+                 "played_by" => played_by
                } = json_response(conn, 200)
+
+        assert played_by == user.username
       end
     end
 

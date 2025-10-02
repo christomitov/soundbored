@@ -8,6 +8,7 @@ defmodule SoundboardWeb.LeaderboardLiveTest do
   alias Soundboard.{Favorites, Repo, Sound, Stats}
   alias Soundboard.Stats.Play
   alias SoundboardWeb.SoundHelpers
+  import Mock
 
   setup %{conn: conn} do
     # Clean the database before each test
@@ -93,8 +94,10 @@ defmodule SoundboardWeb.LeaderboardLiveTest do
   test "handles play_sound event", %{conn: conn, user: user, sound: sound} do
     {:ok, view, _html} = live_as_user(conn, user)
 
-    html = render_click(view, "play_sound", %{"sound" => sound.filename})
-    assert html =~ SoundHelpers.display_name(sound.filename)
+    with_mock SoundboardWeb.AudioPlayer, play_sound: fn _, _ -> :ok end do
+      html = render_click(view, "play_sound", %{"sound" => sound.filename})
+      assert html =~ SoundHelpers.display_name(sound.filename)
+    end
   end
 
   test "handles toggle_favorite event", %{conn: conn, user: user, sound: sound} do
