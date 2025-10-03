@@ -711,10 +711,10 @@ defmodule SoundboardWeb.SoundboardLive do
   end
 
   defp handle_save_sound(sound, user_id, params, socket) do
-    # First rename the file if needed
-    old_path = Path.join("priv/static/uploads", sound.filename)
+    uploads_dir = uploads_dir()
+    old_path = Path.join(uploads_dir, sound.filename)
     new_filename = params["filename"] <> Path.extname(sound.filename)
-    new_path = Path.join("priv/static/uploads", new_filename)
+    new_path = Path.join(uploads_dir, new_filename)
 
     # Start a transaction to handle all database updates
     case update_sound_transaction(sound, user_id, params, old_path, new_path, new_filename) do
@@ -815,6 +815,8 @@ defmodule SoundboardWeb.SoundboardLive do
   end
 
   defp handle_upload_validation(socket, params) do
+    params = normalize_upload_params(socket, params)
+
     case UploadHandler.validate_upload(socket, params) do
       {:ok, _socket} ->
         {:noreply, assign_upload_params(socket, params, nil)}
@@ -822,6 +824,13 @@ defmodule SoundboardWeb.SoundboardLive do
       {:error, changeset} ->
         {:noreply, assign_upload_params(socket, params, get_error_message(changeset))}
     end
+  end
+
+  defp normalize_upload_params(socket, params) do
+    params
+    |> Map.put_new("source_type", socket.assigns.source_type)
+    |> Map.put_new("name", socket.assigns.upload_name)
+    |> Map.put_new("url", socket.assigns.url)
   end
 
   defp assign_upload_params(socket, params, error) do
@@ -834,42 +843,53 @@ defmodule SoundboardWeb.SoundboardLive do
 
   defp update_sound_transaction(sound, user_id, params, old_path, new_path, new_filename) do
     Repo.transaction(fn ->
-      Logger.info("Attempting to rename file from #{old_path} to #{new_path}")
+      sound_params = %{
+        filename: new_filename,
+        source_type: params["source_type"] || sound.source_type,
+        url: params["url"]
+      }
 
-      with :ok <- handle_file_rename(sound, old_path, new_path),
-           sound_params = %{
-             filename: new_filename,
-             source_type: params["source_type"] || sound.source_type,
-             url: params["url"]
-           },
-           {:ok, updated_sound} <- Sound.changeset(sound, sound_params) |> Repo.update() do
-        update_user_settings(sound, user_id, updated_sound, params)
+      updated_sound =
+        case Sound.changeset(sound, sound_params) |> Repo.update() do
+          {:ok, updated_sound} -> update_user_settings(sound, user_id, updated_sound, params)
+          {:error, changeset} -> Repo.rollback(changeset)
+        end
+
+      case maybe_rename_local_file(sound, old_path, new_path) do
+        :ok -> updated_sound
+        {:error, error} -> Repo.rollback(error)
       end
     end)
   end
 
-  defp handle_file_rename(%{source_type: "local"}, old_path, new_path) do
-    case File.exists?(old_path) do
-      true ->
-        rename_file(old_path, new_path)
+  defp maybe_rename_local_file(%{source_type: "local"} = sound, old_path, new_path) do
+    cond do
+      sound.filename == Path.basename(new_path) ->
+        :ok
 
-      false ->
+      old_path == new_path ->
+        :ok
+
+      not File.exists?(old_path) ->
         Logger.error("Source file not found: #{old_path}")
-        Repo.rollback("Source file not found")
+        {:error, "Source file not found"}
+
+      true ->
+        case File.rename(old_path, new_path) do
+          :ok ->
+            :ok
+
+          {:error, reason} ->
+            Logger.error("File rename failed: #{inspect(reason)}")
+            {:error, "Failed to rename file: #{inspect(reason)}"}
+        end
     end
   end
 
-  defp handle_file_rename(_, _, _), do: :ok
+  defp maybe_rename_local_file(_, _, _), do: :ok
 
-  defp rename_file(old_path, new_path) do
-    case File.rename(old_path, new_path) do
-      :ok ->
-        :ok
-
-      {:error, reason} ->
-        Logger.error("File rename failed: #{inspect(reason)}")
-        Repo.rollback("Failed to rename file: #{inspect(reason)}")
-    end
+  defp uploads_dir do
+    Application.get_env(:soundboard, :uploads_dir, "priv/static/uploads")
   end
 
   defp update_user_settings(sound, user_id, updated_sound, params) do

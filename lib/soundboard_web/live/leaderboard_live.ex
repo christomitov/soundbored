@@ -3,6 +3,7 @@ defmodule SoundboardWeb.LeaderboardLive do
   use SoundboardWeb.Live.PresenceLive
   alias SoundboardWeb.Live.PresenceHandler
   import Phoenix.Component
+  import SoundboardWeb.SoundHelpers
   alias Soundboard.{Favorites, Sound, Stats}
   require Logger
 
@@ -27,7 +28,7 @@ defmodule SoundboardWeb.LeaderboardLive do
      |> assign(:force_update, 0)
      |> assign(:selected_week, current_week)
      |> assign(:current_week, current_week)
-     |> stream_configure(:recent_plays, dom_id: &"recent-play-#{&1.filename}-#{&1.id}")
+     |> stream_configure(:recent_plays, dom_id: &recent_play_dom_id/1)
      |> stream(:recent_plays, [])
      |> assign_stats()}
   end
@@ -48,7 +49,7 @@ defmodule SoundboardWeb.LeaderboardLive do
     {:noreply,
      socket
      |> stream(:recent_plays, recent_plays, reset: true)
-     |> put_flash(:info, "#{username} played #{filename}")
+     |> put_flash(:info, "#{username} played #{display_name(filename)}")
      |> clear_flash_after_timeout()}
   end
 
@@ -193,7 +194,7 @@ defmodule SoundboardWeb.LeaderboardLive do
                 <div class="flex items-center gap-3 min-w-0">
                   <div class="min-w-0">
                     <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
-                      {sound_name}
+                      {display_name(sound_name)}
                     </p>
                     <p class="text-xs text-gray-500 dark:text-gray-400">
                       {count} plays
@@ -242,7 +243,7 @@ defmodule SoundboardWeb.LeaderboardLive do
                   </div>
                   <div class="min-w-0">
                     <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
-                      {play.filename}
+                      {display_name(play.filename)}
                     </p>
                     <p class="text-xs text-gray-500 dark:text-gray-400">
                       {play.username}
@@ -294,7 +295,7 @@ defmodule SoundboardWeb.LeaderboardLive do
                   </div>
                   <div class="min-w-0">
                     <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
-                      {sound_name}
+                      {display_name(sound_name)}
                     </p>
                     <p class="text-xs text-gray-500 dark:text-gray-400">
                       {username}
@@ -373,6 +374,11 @@ defmodule SoundboardWeb.LeaderboardLive do
         timestamp: timestamp
       }
     end)
+  end
+
+  defp recent_play_dom_id(play) do
+    base = slugify(play.filename)
+    "recent-play-#{base}-#{play.id}"
   end
 
   @impl true

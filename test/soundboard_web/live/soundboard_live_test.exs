@@ -5,6 +5,7 @@ defmodule SoundboardWeb.SoundboardLiveTest do
   use SoundboardWeb.ConnCase
   import Phoenix.LiveViewTest
   alias Soundboard.{Accounts.User, Repo, Sound}
+  import Mock
 
   setup %{conn: conn} do
     # Clean up before tests
@@ -60,13 +61,14 @@ defmodule SoundboardWeb.SoundboardLiveTest do
     test "can play sound", %{conn: conn, sound: sound} do
       {:ok, view, _html} = live(conn, "/")
 
-      # Just verify the click happens without checking the event
-      rendered =
-        view
-        |> element("[phx-click='play'][phx-value-name='#{sound.filename}']")
-        |> render_click()
+      with_mock SoundboardWeb.AudioPlayer, play_sound: fn _, _ -> :ok end do
+        rendered =
+          view
+          |> element("[phx-click='play'][phx-value-name='#{sound.filename}']")
+          |> render_click()
 
-      assert rendered =~ sound.filename
+        assert rendered =~ sound.filename
+      end
     end
 
     test "can open and close upload modal", %{conn: conn} do
@@ -161,6 +163,126 @@ defmodule SoundboardWeb.SoundboardLiveTest do
       assert Repo.get(Sound, sound.id) == nil
     end
 
+    test "url upload allows setting url before name", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/")
+
+      view
+      |> element("[phx-click='show_upload_modal']")
+      |> render_click()
+
+      view
+      |> element("select[name='source_type']")
+      |> render_change(%{"source_type" => "url"})
+
+      html =
+        view
+        |> element("#upload-form")
+        |> render_change(%{"url" => "https://example.com/beep.mp3"})
+
+      refute html =~ "Please select a file"
+      refute html =~ "can't be blank"
+      assert html =~ "https://example.com/beep.mp3"
+    end
+
+    test "can upload sound from url", %{conn: conn, user: user} do
+      {:ok, view, _html} = live(conn, "/")
+
+      view
+      |> element("[phx-click='show_upload_modal']")
+      |> render_click()
+
+      view
+      |> element("select[name='source_type']")
+      |> render_change(%{"source_type" => "url"})
+
+      params = %{
+        "url" => "https://example.com/wow.mp3",
+        "name" => "wow"
+      }
+
+      view
+      |> element("#upload-form")
+      |> render_submit(params)
+
+      new_sound = Repo.get_by!(Sound, filename: "wow.mp3")
+      assert new_sound.source_type == "url"
+      assert new_sound.url == "https://example.com/wow.mp3"
+      assert new_sound.user_id == user.id
+
+      Repo.delete!(new_sound)
+    end
+
+    test "deleting a local sound removes the file", %{conn: conn, sound: sound} do
+      {:ok, view, _html} = live(conn, "/")
+
+      uploads_dir = uploads_dir()
+      File.mkdir_p!(uploads_dir)
+      sound_path = Path.join(uploads_dir, sound.filename)
+      File.write!(sound_path, "test content")
+
+      view
+      |> element("[phx-click='edit'][phx-value-id='#{sound.id}']")
+      |> render_click()
+
+      view
+      |> element("[phx-click='show_delete_confirm']")
+      |> render_click()
+
+      view
+      |> element("[phx-click='delete_sound']")
+      |> render_click()
+
+      Process.sleep(100)
+      refute File.exists?(sound_path)
+      assert Repo.get(Sound, sound.id) == nil
+    end
+
+    test "failed rename keeps original file", %{conn: conn, user: user, sound: sound} do
+      {:ok, conflict_sound} =
+        %Sound{}
+        |> Sound.changeset(%{
+          filename: "conflict.mp3",
+          source_type: "local",
+          user_id: user.id
+        })
+        |> Repo.insert()
+
+      uploads_dir = uploads_dir()
+      File.mkdir_p!(uploads_dir)
+
+      original_path = Path.join(uploads_dir, sound.filename)
+      conflict_path = Path.join(uploads_dir, conflict_sound.filename)
+
+      File.write!(original_path, "original")
+      File.rm_rf!(conflict_path)
+
+      on_exit(fn ->
+        uploads_dir = uploads_dir()
+        File.rm_rf!(Path.join(uploads_dir, sound.filename))
+        File.rm_rf!(Path.join(uploads_dir, "conflict.mp3"))
+      end)
+
+      {:ok, view, _html} = live(conn, "/")
+
+      view
+      |> element("[phx-click='edit'][phx-value-id='#{sound.id}']")
+      |> render_click()
+
+      _html =
+        view
+        |> element("#edit-form")
+        |> render_submit(%{
+          "filename" => "conflict",
+          "source_type" => "local",
+          "url" => "",
+          "sound_id" => Integer.to_string(sound.id)
+        })
+
+      assert File.exists?(original_path)
+      refute File.exists?(conflict_path)
+      assert Repo.get!(Sound, sound.id).filename == sound.filename
+    end
+
     test "handles pubsub updates", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/")
 
@@ -173,5 +295,9 @@ defmodule SoundboardWeb.SoundboardLiveTest do
       # Just verify the view is still alive
       assert render(view) =~ "SoundBored"
     end
+  end
+
+  defp uploads_dir do
+    Application.get_env(:soundboard, :uploads_dir, "priv/static/uploads")
   end
 end

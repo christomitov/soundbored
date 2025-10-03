@@ -1,6 +1,7 @@
 defmodule SoundboardWeb.AuthControllerTest do
   use SoundboardWeb.ConnCase
   alias Soundboard.{Accounts.User, Repo}
+  import ExUnit.CaptureLog
 
   setup %{conn: conn} do
     # Clean up users before each test
@@ -99,20 +100,22 @@ defmodule SoundboardWeb.AuthControllerTest do
     end
 
     test "callback/2 handles auth failures", %{conn: conn} do
-      conn =
-        conn
-        |> assign(:ueberauth_failure, %{
-          errors: [
-            %Ueberauth.Failure.Error{
-              message_key: "invalid_credentials",
-              message: "Invalid credentials"
-            }
-          ]
-        })
-        |> get(~p"/auth/discord/callback")
+      capture_log(fn ->
+        conn =
+          conn
+          |> assign(:ueberauth_failure, %{
+            errors: [
+              %Ueberauth.Failure.Error{
+                message_key: "invalid_credentials",
+                message: "Invalid credentials"
+              }
+            ]
+          })
+          |> get(~p"/auth/discord/callback")
 
-      assert redirected_to(conn) == "/"
-      assert Phoenix.Flash.get(conn.assigns.flash, :error) == "Failed to authenticate"
+        assert redirected_to(conn) == "/"
+        assert Phoenix.Flash.get(conn.assigns.flash, :error) == "Failed to authenticate"
+      end)
     end
 
     test "logout/2 clears session and redirects", %{conn: conn} do

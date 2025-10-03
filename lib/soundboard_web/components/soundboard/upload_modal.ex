@@ -3,6 +3,7 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
   The upload modal component.
   """
   use Phoenix.Component
+  alias SoundboardWeb.Components.Soundboard.TagComponents
 
   def upload_modal(assigns) do
     ~H"""
@@ -139,64 +140,36 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
                   <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
                     Tags
                   </label>
-                  <div class="mt-2 flex flex-wrap gap-2">
-                    <%= for tag <- @upload_tags do %>
-                      <span class="inline-flex items-center gap-1 rounded-full bg-blue-50 dark:bg-blue-900 px-2 py-1 text-xs font-semibold text-blue-600 dark:text-blue-300">
-                        {tag.name}
-                        <button
-                          type="button"
-                          phx-click="remove_upload_tag"
-                          phx-value-tag={tag.name}
-                          class="text-blue-600 dark:text-blue-300 hover:text-blue-500 dark:hover:text-blue-200"
-                        >
-                          <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                            <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
-                          </svg>
-                        </button>
-                      </span>
-                    <% end %>
-                  </div>
-                  
-    <!-- Tag Input -->
+                  <TagComponents.tag_badge_list tags={@upload_tags} remove_event="remove_upload_tag" />
+
                   <div class="mt-2 relative">
                     <div>
-                      <input
-                        type="text"
+                      <TagComponents.tag_input_field
                         value={@upload_tag_input}
-                        phx-keyup="upload_tag_input"
-                        phx-keydown="add_upload_tag"
-                        phx-value-value={@upload_tag_input}
+                        placeholder="Type a tag and press Enter or Tab..."
+                        input_id="upload-tag-input"
                         disabled={
                           (@source_type == "local" and @uploads.audio.entries == []) or
                             (@source_type == "url" and String.trim(@url || "") == "")
                         }
-                        class="block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm
-                               dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400 disabled:opacity-50 disabled:cursor-not-allowed"
-                        placeholder="Type a tag and press Enter or Tab..."
-                        autocomplete="off"
-                        id="upload-tag-input"
+                        phx-keyup="upload_tag_input"
+                        phx-keydown="add_upload_tag"
+                        phx-value-value={@upload_tag_input}
                         onkeydown="
                           if(event.key === 'Enter' || event.key === 'Tab') {
                             event.preventDefault();
                           }
                         "
+                        class="disabled:opacity-50 disabled:cursor-not-allowed"
+                        autocomplete="off"
                       />
                     </div>
 
-                    <%= if @upload_tag_input != "" and @upload_tag_suggestions != [] do %>
-                      <div class="absolute z-10 mt-1 w-full bg-white dark:bg-gray-700 shadow-lg max-h-60 rounded-md py-1 text-base overflow-auto focus:outline-none sm:text-sm">
-                        <%= for tag <- @upload_tag_suggestions do %>
-                          <button
-                            type="button"
-                            phx-click="select_upload_tag"
-                            phx-value-tag={tag.name}
-                            class="w-full text-left px-4 py-2 text-sm hover:bg-blue-50 dark:hover:bg-blue-900 dark:text-gray-100"
-                          >
-                            {tag.name}
-                          </button>
-                        <% end %>
-                      </div>
-                    <% end %>
+                    <TagComponents.tag_suggestions_dropdown
+                      tag_input={@upload_tag_input}
+                      tag_suggestions={@upload_tag_suggestions}
+                      select_event="select_upload_tag"
+                    />
                   </div>
                 </div>
                 

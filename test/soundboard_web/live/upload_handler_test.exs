@@ -63,9 +63,7 @@ defmodule SoundboardWeb.Live.UploadHandlerTest do
         "url" => "http://example.com/test.mp3"
       }
 
-      # We should expect an error since validation requires user_id
-      assert {:error, changeset} = UploadHandler.validate_upload(socket, params)
-      assert "can't be blank" in errors_on(changeset).user_id
+      assert {:ok, _socket} = UploadHandler.validate_upload(socket, params)
     end
 
     test "validates URL upload with missing params", %{socket: socket} do

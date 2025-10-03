@@ -7,6 +7,8 @@ defmodule SoundboardWeb.LeaderboardLiveTest do
   alias Soundboard.Accounts.User
   alias Soundboard.{Favorites, Repo, Sound, Stats}
   alias Soundboard.Stats.Play
+  alias SoundboardWeb.SoundHelpers
+  import Mock
 
   setup %{conn: conn} do
     # Clean the database before each test
@@ -54,21 +56,21 @@ defmodule SoundboardWeb.LeaderboardLiveTest do
     assert html =~ "Stats"
     assert html =~ "Top Users"
     assert html =~ user.username
-    assert html =~ sound.filename
+    assert html =~ SoundHelpers.display_name(sound.filename)
   end
 
   test "handles sound_played message", %{conn: conn, sound: sound} do
     {:ok, view, _html} = live(conn, "/stats")
 
     send(view.pid, {:sound_played, %{filename: sound.filename, played_by: "testuser"}})
-    assert render(view) =~ "testuser played #{sound.filename}"
+    assert render(view) =~ "testuser played #{SoundHelpers.display_name(sound.filename)}"
   end
 
   test "handles stats_updated message", %{conn: conn, sound: sound} do
     {:ok, view, _html} = live(conn, "/stats")
 
     send(view.pid, {:stats_updated})
-    assert render(view) =~ sound.filename
+    assert render(view) =~ SoundHelpers.display_name(sound.filename)
   end
 
   test "handles error message", %{conn: conn} do
@@ -92,15 +94,17 @@ defmodule SoundboardWeb.LeaderboardLiveTest do
   test "handles play_sound event", %{conn: conn, user: user, sound: sound} do
     {:ok, view, _html} = live_as_user(conn, user)
 
-    html = render_click(view, "play_sound", %{"sound" => sound.filename})
-    assert html =~ sound.filename
+    with_mock SoundboardWeb.AudioPlayer, play_sound: fn _, _ -> :ok end do
+      html = render_click(view, "play_sound", %{"sound" => sound.filename})
+      assert html =~ SoundHelpers.display_name(sound.filename)
+    end
   end
 
   test "handles toggle_favorite event", %{conn: conn, user: user, sound: sound} do
     {:ok, view, _html} = live_as_user(conn, user)
 
     html = render_click(view, "toggle_favorite", %{"sound" => sound.filename})
-    assert html =~ sound.filename
+    assert html =~ SoundHelpers.display_name(sound.filename)
   end
 
   test "handles week navigation", %{conn: conn} do

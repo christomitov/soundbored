@@ -39,7 +39,7 @@ defmodule Soundboard.Accounts.ApiTokensTest do
     assert {:error, :invalid} == ApiTokens.verify_token(raw)
   end
 
-  test "verify_token returns error for invalid token", %{user: user} do
+  test "verify_token returns error for invalid token", %{user: _user} do
     # ensure user created to avoid false positives
     assert {:error, :invalid} == ApiTokens.verify_token("sb_invalid_token")
   end
