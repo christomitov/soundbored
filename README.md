@@ -4,127 +4,84 @@
 
 Soundbored is an unlimited, no-cost, self-hosted soundboard for Discord. It allows you to play sounds in a voice channel.
 
-
-## New
-Check out the newly released [Soundbored cli](https://www.npmjs.com/package/soundbored) with
-
-`npm i -g soundbored`
-
-Code available [here](https://github.com/christomitov/soundbored-cli)
-
 <img width="1468" alt="Screenshot 2025-01-18 at 1 26 07 PM" src="https://github.com/user-attachments/assets/4a504100-5ef9-47bc-b406-35b67837e116" />
 
-## Table Of Contents
+### CLI Companion
+Install the cross-platform CLI with `npm i -g soundbored` for quick automation. Source: [christomitov/soundbored-cli](https://github.com/christomitov/soundbored-cli).
 
-- [Prerequisites](#prerequisites)
-- [Setup](#setup)
-- [Deployment](#deployment)
-- [Usage](#usage)
-- [API](#api)
-- [Changelog](#changelog)
-  - [v1.5.0 (2025-09-14)](#v150-2025-09-14)
-  - [v1.4.0 (2025-08-22)](#v140-2025-08-22)
-  - [v1.3.0 (2025-02-18)](#v130-2025-02-18)
-  - [v1.2.0 (2025-01-18)](#v120-2025-01-18)
-  - [v1.1.0 (2025-01-12)](#v110-2025-01-12)
+## Quickstart
 
-## Prerequisites
+1. Copy the sample environment and set the minimum values:
+   ```bash
+   cp .env.example .env
+   # Required for local testing
+   # DISCORD_TOKEN=...
+   # DISCORD_CLIENT_ID=...
+   # DISCORD_CLIENT_SECRET=...
+   # API_TOKEN=choose_a_secret
+   # PHX_HOST=localhost
+   # SCHEME=http
+   ```
+2. Run the published container:
+   ```bash
+   docker run -d -p 4000:4000 --env-file ./.env christom/soundbored
+   ```
+3. Visit http://localhost:4000, invite the bot, and trigger your first sound.
 
-1. A bot token with the following permissions:
+> Create the bot in the [Discord Developer Portal](https://discord.com/developers/applications), enable **Presence**, **Server Members**, and **Message Content** intents, and grant Send Messages, Read History, View Channels, Connect, and Speak permissions when you invite it.
 
-- Send Messages
-- Read Message History
-- View Channels
-- Connect
-- Speak
+## Local Development
 
-**NOTE: Also remember to go under Bot and select PRESENCE INTENT, SERVER MEMBERS INTENT and MESSAGE CONTENT INTENT**
-
-You then need to invite the bot to your server by going to `Oauth2`, checking `bot` and then checking the same permisions as above. You can then take the generated URL at the bottom and invite the bot.
-
-2. If you want to host publicly, a domain name is required so people can access your Soundbored instance.
-
-3. Under `Redirect` in `Oauth2` put your domain like `https://your.domain.com/auth/discord/callback` in the Discord Developer Portal. Copy the `Client ID` and `Client Secret` as you will need them for the environment variables below.
-
-4. You will need to host this publicly somewhere for other users to be able to use it. I recommend using [Digital Ocean](https://www.digitalocean.com/) for this as its cheap and you can deploy Docker images directly.
-
-
-## Setup
-The Docker needs the following environment variables, check .env.example:
-
-```
-API_TOKEN=make_up_a_token_here
-
-DISCORD_TOKEN=your_actual_discord_token
-DISCORD_CLIENT_ID=your_actual_client_id
-DISCORD_CLIENT_SECRET=your_actual_client_secret
-# Change this to your domain or to localhost if you're running locally
-PHX_HOST=your.domain.com
-# change this to http if running locally
-SCHEME=https
-# Change these to password protect your soundboard
-BASIC_AUTH_USERNAME=admin
-BASIC_AUTH_PASSWORD=admin
-DISABLE_AUTO_JOIN=true
+```bash
+mix setup        # Fetch deps, prepare DB, build assets
+mix phx.server   # or iex -S mix phx.server
 ```
 
+Useful commands:
+- `mix test` – run the test suite (coverage via `mix coveralls`).
+- `mix credo --strict` – linting.
+- `mix dialyzer` – type analysis.
+
+`docker compose up` also works for a containerized local run; it respects the same `.env` configuration.
+
+## Environment Variables
+
+All available keys live in `.env.example`. Configure the ones that match your setup:
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `DISCORD_TOKEN` | ✔ | Bot token used to play audio in voice channels. |
+| `DISCORD_CLIENT_ID` / `DISCORD_CLIENT_SECRET` | ✔ | OAuth credentials for Discord login. |
+| `API_TOKEN` | ✔ | Shared bearer token for the REST API. |
+| `PHX_HOST` | ✔ | Hostname the app advertises (`localhost` for local runs). |
+| `SCHEME` | ✔ | `http` locally, `https` in production. |
+| `BASIC_AUTH_USERNAME` / `BASIC_AUTH_PASSWORD` | optional | Protect the UI with HTTP basic auth. |
+| `DISABLE_AUTO_JOIN` | optional | Set to `false` to let the bot auto-join voice channels. |
 
 ## Deployment
 
-The application is containerized and published to Docker Hub. You can pull it with `docker pull christom/soundbored:latest`. Or run immediately in localhost with: `docker run -d -p 4000:4000 --env-file ./.env christom/soundbored`.
+The application is published to Docker Hub as `christom/soundbored`.
 
-### Local Deployment
+### Simple Docker Host
 ```bash
-# Create .env file from example
-cp .env.example .env
-
-# Edit .env with your values, make sure:
-PHX_HOST=localhost
-SCHEME=http
-
-
-# With Docker Image, run locally (no Caddy)
-docker run -d -p 4000:4000 --env-file ./.env christom/soundbored
-
-# Or with Project cloned, Run locally (no Caddy)
-docker compose up
-```
-
-### Production Deployment
-```bash
-# Create .env file from example
-cp .env.example .env
-
-# Edit .env with your values, make sure:
-PHX_HOST=your.domain.com
-SCHEME=https
-
-# Modiy the Caddyfile
-your.domain.com {
-    reverse_proxy soundbored:4000
-}
-
-# Pull the latest image
 docker pull christom/soundbored:latest
-
-# Run in production (with Caddy)
-docker compose -f docker-compose.prod.yml up -d
+docker run -d -p 4000:4000 --env-file ./.env christom/soundbored
 ```
 
-The deployment mode is automatically determined by the PHX_HOST value:
-- If PHX_HOST=localhost: Runs without Caddy, accessible at http://localhost:4000
-- If PHX_HOST=domain.com: Runs with Caddy, handles SSL automatically
+### Behind a Reverse Proxy (optional)
+1. Update `.env` with production values (`PHX_HOST=your.domain.com`, `SCHEME=https`).
+2. Point your proxy at the container. Example Caddyfile:
+   ```
+   your.domain.com {
+       reverse_proxy soundbored:4000
+   }
+   ```
+3. Start the stack:
+   ```bash
+   docker compose -f docker-compose.prod.yml up -d
+   ```
 
-Note: Make sure to create a Caddyfile in the same directory as your docker-compose.prod.yml file. The Caddyfile should contain your domain configuration. For example:
-
-```
-your.domain.com {
-    reverse_proxy soundbored:4000
-}
-```
-
-Replace `your.domain.com` with your actual domain name. Caddy will automatically handle SSL certificate generation for your domain.
-
+When `PHX_HOST` is `localhost` the app skips proxy-related configuration; any other value assumes TLS termination is handled externally.
 
 ## Usage
 
@@ -143,7 +100,7 @@ curl https://soundboardurl.com/api/sounds \
 
 # Play a sound by ID
 curl -X POST https://soundboardurl.com/api/sounds/123/play \
-  -H "Authorization: Bearer API_TOKEN" \
+  -H "Authorization: Bearer API_TOKEN"
 ```
 
 
