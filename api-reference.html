@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="x-ua-compatible" content="ie=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="ExDoc v0.38.4">
+    <meta name="project" content="soundboard v1.5.0">
+
+
+    <title>API Reference — soundboard v1.5.0</title>
+
+    <link rel="stylesheet" href="dist/html-elixir-RLZO5U2C.css" />
+
+    <script defer src="dist/sidebar_items-7ADF1472.js"></script>
+    <script defer src="docs_config.js"></script>
+    <script defer src="dist/html-Y223O6DN.js"></script>
+
+  </head>
+  <body>
+    <script>(()=>{var t="ex_doc:settings",e="dark";var o="dark",s="light";var E="sidebar_state",n="closed";var r="sidebar_width";var a="sidebar-open";var i=new URLSearchParams(window.location.search),S=i.get("theme")||JSON.parse(localStorage.getItem(t)||"{}").theme;(S===o||S!==s&&window.matchMedia("(prefers-color-scheme: dark)").matches)&&document.body.classList.add(e);var d=sessionStorage.getItem(E),A=d!==n&&!window.matchMedia(`screen and (max-width: ${768}px)`).matches;document.body.classList.toggle(a,A);var c=sessionStorage.getItem(r);c&&document.body.style.setProperty("--sidebarWidth",`${c}px`);var p=/(Macintosh|iPhone|iPad|iPod)/.test(window.navigator.userAgent);document.documentElement.classList.toggle("apple-os",p);})();
+</script>
+
+<div class="body-wrapper">
+
+<button id="sidebar-menu" class="sidebar-button sidebar-toggle" aria-label="toggle sidebar" aria-controls="sidebar">
+  <i class="ri-menu-line ri-lg" title="Collapse/expand sidebar"></i>
+</button>
+
+<nav id="sidebar" class="sidebar">
+
+  <div class="sidebar-header">
+    <div class="sidebar-projectInfo">
+
+      <div>
+        <a href="api-reference.html" class="sidebar-projectName" translate="no">
+soundboard
+        </a>
+        <div class="sidebar-projectVersion" translate="no">
+          v1.5.0
+        </div>
+      </div>
+    </div>
+    <ul id="sidebar-list-nav" class="sidebar-list-nav" role="tablist" data-extras=""></ul>
+  </div>
+</nav>
+
+<output role="status" id="toast"></output>
+
+<main class="content page-extra" id="main" data-type="extras">
+  <div id="content" class="content-inner">
+    <div class="top-search">
+      <div class="search-settings">
+        <form class="search-bar" action="search.html">
+          <label class="search-label">
+            <span class="sr-only">Search documentation of soundboard</span>
+            <input name="q" type="text" class="search-input" placeholder="Press / to search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />
+          </label>
+          <button type="submit" class="search-button" aria-label="Submit Search" tabindex="-1">
+            <i class="ri-search-2-line ri-lg" aria-hidden="true"></i>
+          </button>
+          <button type="button" tabindex="-1" class="search-close-button" aria-hidden="true">
+            <i class="ri-close-line ri-lg" title="Cancel search"></i>
+          </button>
+        </form>
+        <div class="autocomplete">
+        </div>
+        <button class="icon-settings display-settings">
+          <i class="ri-settings-3-line"></i>
+          <span class="sr-only">Settings</span>
+        </button>
+      </div>
+    </div>
+
+<div id="top-content">
+  <div class="heading-with-actions top-heading">
+    <h1>API Reference <small class="app-vsn">soundboard v#1.5.0</small></h1>
+
+  </div>
+
+    <section class="details-list">
+      <h2 id="modules" class="section-heading">Modules</h2>
+      <div class="summary">
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="Soundboard.html" translate="no">Soundboard</a>
+
+  </div>
+
+    <div class="summary-synopsis"><p>Soundboard keeps the contexts that define your domain
+and business logic.</p></div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="Soundboard.Accounts.ApiToken.html" translate="no">Soundboard.Accounts.ApiToken</a>
+
+  </div>
+
+    <div class="summary-synopsis"><p>API access token bound to a user. Stores only a SHA-256 hash of the token.</p></div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="Soundboard.Accounts.ApiTokens.html" translate="no">Soundboard.Accounts.ApiTokens</a>
+
+  </div>
+
+    <div class="summary-synopsis"><p>Context for managing API tokens bound to users.</p></div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="Soundboard.Accounts.User.html" translate="no">Soundboard.Accounts.User</a>
+
+  </div>
+
+    <div class="summary-synopsis"><p>The User module.</p></div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="Soundboard.Favorites.html" translate="no">Soundboard.Favorites</a>
+
+  </div>
+
+    <div class="summary-synopsis"><p>The Favorites module.</p></div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="Soundboard.Favorites.Favorite.html" translate="no">Soundboard.Favorites.Favorite</a>
+
+  </div>
+
+    <div class="summary-synopsis"><p>The Favorite module.</p></div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="Soundboard.Repo.html" translate="no">Soundboard.Repo</a>
+
+  </div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="Soundboard.Sound.html" translate="no">Soundboard.Sound</a>
+
+  </div>
+
+    <div class="summary-synopsis"><p>The Sound module.</p></div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="Soundboard.SoundTag.html" translate="no">Soundboard.SoundTag</a>
+
+  </div>
+
+    <div class="summary-synopsis"><p>The SoundTag module.</p></div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="Soundboard.Stats.html" translate="no">Soundboard.Stats</a>
+
+  </div>
+
+    <div class="summary-synopsis"><p>Handles the stats of the soundboard.</p></div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="Soundboard.Stats.Play.html" translate="no">Soundboard.Stats.Play</a>
+
+  </div>
+
+    <div class="summary-synopsis"><p>The Play module.</p></div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="Soundboard.Tag.html" translate="no">Soundboard.Tag</a>
+
+  </div>
+
+    <div class="summary-synopsis"><p>The Tag module.</p></div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="Soundboard.UserSoundSetting.html" translate="no">Soundboard.UserSoundSetting</a>
+
+  </div>
+
+    <div class="summary-synopsis"><p>The UserSoundSetting module.</p></div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="SoundboardWeb.html" translate="no">SoundboardWeb</a>
+
+  </div>
+
+    <div class="summary-synopsis"><p>The entrypoint for defining your web interface, such
+as controllers, components, channels, and so on.</p></div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="SoundboardWeb.API.SoundController.html" translate="no">SoundboardWeb.API.SoundController</a>
+
+  </div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="SoundboardWeb.ApiTokensLive.html" translate="no">SoundboardWeb.ApiTokensLive</a>
+
+  </div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="SoundboardWeb.AudioPlayer.html" translate="no">SoundboardWeb.AudioPlayer</a>
+
+  </div>
+
+    <div class="summary-synopsis"><p>Handles the audio playback.</p></div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="SoundboardWeb.AudioPlayer.State.html" translate="no">SoundboardWeb.AudioPlayer.State</a>
+
+  </div>
+
+    <div class="summary-synopsis"><p>The state of the audio player.</p></div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="SoundboardWeb.AuthController.html" translate="no">SoundboardWeb.AuthController</a>
+
+  </div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="SoundboardWeb.Components.FlashComponent.html" translate="no">SoundboardWeb.Components.FlashComponent</a>
+
+  </div>
+
+    <div class="summary-synopsis"><p>The flash component.</p></div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="SoundboardWeb.Components.Layouts.Navbar.html" translate="no">SoundboardWeb.Components.Layouts.Navbar</a>
+
+  </div>
+
+    <div class="summary-synopsis"><p>The navbar component.</p></div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="SoundboardWeb.Components.Soundboard.DeleteModal.html" translate="no">SoundboardWeb.Components.Soundboard.DeleteModal</a>
+
+  </div>
+
+    <div class="summary-synopsis"><p>The delete modal component.</p></div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="SoundboardWeb.Components.Soundboard.EditModal.html" translate="no">SoundboardWeb.Components.Soundboard.EditModal</a>
+
+  </div>
+
+    <div class="summary-synopsis"><p>The edit modal component.</p></div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="SoundboardWeb.Components.Soundboard.Helpers.html" translate="no">SoundboardWeb.Components.Soundboard.Helpers</a>
+
+  </div>
+
+    <div class="summary-synopsis"><p>Helper functions for the soundboard.</p></div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="SoundboardWeb.Components.Soundboard.TagComponents.html" translate="no">SoundboardWeb.Components.Soundboard.TagComponents</a>
+
+  </div>
+
+    <div class="summary-synopsis"><p>Shared tag UI helpers for the soundboard modals.</p></div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="SoundboardWeb.Components.Soundboard.UploadModal.html" translate="no">SoundboardWeb.Components.Soundboard.UploadModal</a>
+
+  </div>
+
+    <div class="summary-synopsis"><p>The upload modal component.</p></div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="SoundboardWeb.CoreComponents.html" translate="no">SoundboardWeb.CoreComponents</a>
+
+  </div>
+
+    <div class="summary-synopsis"><p>Provides core UI components.</p></div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="SoundboardWeb.DiscordHandler.html" translate="no">SoundboardWeb.DiscordHandler</a>
+
+  </div>
+
+    <div class="summary-synopsis"><p>Handles the Discord events.</p></div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="SoundboardWeb.DiscordHandler.State.html" translate="no">SoundboardWeb.DiscordHandler.State</a>
+
+  </div>
+
+    <div class="summary-synopsis"><p>Handles the state of the Discord handler.</p></div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="SoundboardWeb.Endpoint.html" translate="no">SoundboardWeb.Endpoint</a>
+
+  </div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="SoundboardWeb.ErrorHTML.html" translate="no">SoundboardWeb.ErrorHTML</a>
+
+  </div>
+
+    <div class="summary-synopsis"><p>This module is invoked by your endpoint in case of errors on HTML requests.</p></div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="SoundboardWeb.ErrorJSON.html" translate="no">SoundboardWeb.ErrorJSON</a>
+
+  </div>
+
+    <div class="summary-synopsis"><p>This module is invoked by your endpoint in case of errors on JSON requests.</p></div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="SoundboardWeb.FavoritesLive.html" translate="no">SoundboardWeb.FavoritesLive</a>
+
+  </div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="SoundboardWeb.Gettext.html" translate="no">SoundboardWeb.Gettext</a>
+
+  </div>
+
+    <div class="summary-synopsis"><p>A module providing Internationalization with a gettext-based API.</p></div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="SoundboardWeb.Layouts.html" translate="no">SoundboardWeb.Layouts</a>
+
+  </div>
+
+    <div class="summary-synopsis"><p>This module holds different layouts used by your application.</p></div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="SoundboardWeb.LeaderboardLive.html" translate="no">SoundboardWeb.LeaderboardLive</a>
+
+  </div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="SoundboardWeb.Live.FileFilter.html" translate="no">SoundboardWeb.Live.FileFilter</a>
+
+  </div>
+
+    <div class="summary-synopsis"><p>Filters the files based on the selected tags and search query.</p></div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="SoundboardWeb.Live.FileHandler.html" translate="no">SoundboardWeb.Live.FileHandler</a>
+
+  </div>
+
+    <div class="summary-synopsis"><p>Handles the renaming and deletion of files.</p></div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="SoundboardWeb.Live.PresenceHandler.html" translate="no">SoundboardWeb.Live.PresenceHandler</a>
+
+  </div>
+
+    <div class="summary-synopsis"><p>Handles presence tracking for the Soundboard app.</p></div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="SoundboardWeb.Live.PresenceLive.html" translate="no">SoundboardWeb.Live.PresenceLive</a>
+
+  </div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="SoundboardWeb.Live.TagHandler.html" translate="no">SoundboardWeb.Live.TagHandler</a>
+
+  </div>
+
+    <div class="summary-synopsis"><p>Handles the adding and removing of tags from sounds.</p></div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="SoundboardWeb.Live.UploadHandler.html" translate="no">SoundboardWeb.Live.UploadHandler</a>
+
+  </div>
+
+    <div class="summary-synopsis"><p>Handles the upload of sounds from a local file or a URL.</p></div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="SoundboardWeb.Plugs.APIAuth.html" translate="no">SoundboardWeb.Plugs.APIAuth</a>
+
+  </div>
+
+    <div class="summary-synopsis"><p>API authentication plug.</p></div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="SoundboardWeb.Plugs.BasicAuth.html" translate="no">SoundboardWeb.Plugs.BasicAuth</a>
+
+  </div>
+
+    <div class="summary-synopsis"><p>Basic authentication plug.</p></div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="SoundboardWeb.Presence.html" translate="no">SoundboardWeb.Presence</a>
+
+  </div>
+
+    <div class="summary-synopsis"><p>The Presence module.</p></div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="SoundboardWeb.Router.html" translate="no">SoundboardWeb.Router</a>
+
+  </div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="SoundboardWeb.SoundHelpers.html" translate="no">SoundboardWeb.SoundHelpers</a>
+
+  </div>
+
+    <div class="summary-synopsis"><p>Shared helpers for formatting sound metadata for UI rendering.</p></div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="SoundboardWeb.SoundboardLive.html" translate="no">SoundboardWeb.SoundboardLive</a>
+
+  </div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="SoundboardWeb.Telemetry.html" translate="no">SoundboardWeb.Telemetry</a>
+
+  </div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="SoundboardWeb.UploadController.html" translate="no">SoundboardWeb.UploadController</a>
+
+  </div>
+
+</div>
+
+      </div>
+    </section>
+
+
+</div>
+    <footer class="footer">
+      <p>
+
+        <span class="line">
+          <button class="a-main footer-button display-quick-switch" title="Search HexDocs packages">
+            Search HexDocs
+          </button>
+
+            <a href="soundboard.epub" title="ePub version">
+              Download ePub version
+            </a>
+
+        </span>
+      </p>
+
+      <p class="built-using">
+        Built using
+        <a href="https://github.com/elixir-lang/ex_doc" title="ExDoc" target="_blank" rel="help noopener" translate="no">ExDoc</a> (v0.38.4) for the
+
+          <a href="https://elixir-lang.org" title="Elixir" target="_blank" translate="no">Elixir programming language</a>
+
+      </p>
+
+    </footer>
+  </div>
+</main>
+</div>
+
+  </body>
+</html>
