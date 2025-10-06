@@ -8,16 +8,28 @@ defmodule SoundboardWeb.Plugs.BasicAuth do
   def init(opts), do: opts
 
   def call(conn, _opts) do
-    username = System.get_env("BASIC_AUTH_USERNAME")
-    password = System.get_env("BASIC_AUTH_PASSWORD")
+    username = credential("BASIC_AUTH_USERNAME")
+    password = credential("BASIC_AUTH_PASSWORD")
 
     if is_nil(username) or is_nil(password) do
-      # Skip basic auth if credentials are not configured
+      # Skip basic auth if credentials are blank or missing
       Logger.info("Basic auth credentials not configured - skipping authentication")
       conn
     else
       Logger.info("Basic auth enabled with configured credentials")
       authenticate(conn, username, password)
+    end
+  end
+
+  defp credential(key) do
+    case System.get_env(key) do
+      nil -> nil
+      value when is_binary(value) ->
+        if String.trim(value) == "" do
+          nil
+        else
+          value
+        end
     end
   end
 
