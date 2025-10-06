@@ -20,6 +20,14 @@ defmodule SoundboardWeb.BasicAuthPlugTest do
     refute conn.halted
   end
 
+  test "skips when credentials blank" do
+    System.put_env("BASIC_AUTH_USERNAME", "  ")
+    System.put_env("BASIC_AUTH_PASSWORD", "")
+
+    conn = conn(:get, "/") |> BasicAuth.call(%{})
+    refute conn.halted
+  end
+
   test "authorizes with valid Basic header" do
     System.put_env("BASIC_AUTH_USERNAME", "u")
     System.put_env("BASIC_AUTH_PASSWORD", "p")
