@@ -4,13 +4,13 @@
 # https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
 
 version: 2
-  updates:
-    - package-ecosystem: "mix"
-      directory: "/"
-      schedule:
-        interval: "weekly"
+updates:
+  - package-ecosystem: "mix"
+    directory: "/"
+    schedule:
+      interval: "weekly"
 
-    - package-ecosystem: "npm"
-      directory: "/assets"
-      schedule:
-        interval: "weekly"
+  - package-ecosystem: "npm"
+    directory: "/assets"
+    schedule:
+      interval: "weekly"
