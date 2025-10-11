@@ -134,6 +134,11 @@ defmodule SoundboardWeb.SoundboardLive do
   end
 
   @impl true
+  def handle_event("toggle_tag_list", _params, socket) do
+    {:noreply, assign(socket, :show_all_tags, !socket.assigns.show_all_tags)}
+  end
+
+  @impl true
   def handle_event("toggle_edit_join_sound", _params, socket) do
     current_sound = socket.assigns.current_sound
     user_id = socket.assigns.current_user.id
@@ -159,11 +164,6 @@ defmodule SoundboardWeb.SoundboardLive do
       {:error, _changeset} ->
         {:noreply, socket |> put_flash(:error, "Failed to update sound settings")}
     end
-  end
-
-  @impl true
-  def handle_event("toggle_tag_list", _params, socket) do
-    {:noreply, assign(socket, :show_all_tags, !socket.assigns.show_all_tags)}
   end
 
   @impl true
