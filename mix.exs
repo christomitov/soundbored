@@ -94,7 +94,7 @@ defmodule Soundboard.MixProject do
       {:dns_cluster, "~> 0.1.1"},
       {:bandit, "~> 1.8"},
       {:nostrum, github: "Kraigie/nostrum", branch: "master"},
-      {:ecto_sqlite3, "~> 0.18.0"},
+      {:ecto_sqlite3, "~> 0.22.0"},
       {:number, "~> 1.0"},
       {:ueberauth, "~> 0.10.5"},
       {:ueberauth_discord, "~> 0.6"},
