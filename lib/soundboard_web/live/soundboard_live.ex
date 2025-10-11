@@ -85,6 +85,7 @@ defmodule SoundboardWeb.SoundboardLive do
     |> assign(:is_join_sound, false)
     |> assign(:is_leave_sound, false)
     |> assign(:upload_error, nil)
+    |> assign(:show_all_tags, false)
     |> allow_upload(:audio,
       accept: ~w(audio/mpeg audio/wav audio/ogg audio/x-m4a),
       max_entries: 1,
@@ -158,6 +159,11 @@ defmodule SoundboardWeb.SoundboardLive do
       {:error, _changeset} ->
         {:noreply, socket |> put_flash(:error, "Failed to update sound settings")}
     end
+  end
+
+  @impl true
+  def handle_event("toggle_tag_list", _params, socket) do
+    {:noreply, assign(socket, :show_all_tags, !socket.assigns.show_all_tags)}
   end
 
   @impl true

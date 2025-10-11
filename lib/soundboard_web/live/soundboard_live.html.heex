@@ -1,5 +1,5 @@
 <div class="max-w-6xl mx-auto px-4 py-8">
-  <div class="flex justify-between items-center mb-8">
+  <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-8">
     <h1 class="text-3xl font-bold text-gray-800 dark:text-gray-100">
       <span class="group relative cursor-default inline-block">
         Sounds<div class="pointer-events-none fixed inset-0 opacity-0 group-hover:opacity-100 transition-all duration-300 z-[9999]">
@@ -11,31 +11,28 @@
         </div>
       </span>
     </h1>
-    <div class="flex items-center gap-2">
+    <div class="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
       <button
         phx-click="show_upload_modal"
-        class="px-2 py-1 sm:px-4 sm:py-2 bg-blue-600 text-white font-medium rounded-md
-               hover:bg-blue-700 focus:outline-none focus:ring-2 
-               focus:ring-blue-500 focus:ring-offset-2 transition-colors
-               dark:focus:ring-offset-gray-900 text-xs sm:text-base"
+        class="w-full sm:w-auto justify-center px-3 py-2 sm:px-4 sm:py-2 bg-blue-600 text-white font-medium rounded-md
+               hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors
+               dark:focus:ring-offset-gray-900 text-sm sm:text-base flex items-center"
       >
         Add Sound
       </button>
       <button
         phx-click="play_random"
-        class="px-2 py-1 sm:px-4 sm:py-2 bg-blue-900 text-white font-medium rounded-md
-              hover:bg-blue-700 focus:outline-none focus:ring-2 
-              focus:ring-blue-500 focus:ring-offset-2 transition-colors
-              dark:focus:ring-offset-gray-900 text-xs sm:text-base"
+        class="w-full sm:w-auto justify-center px-3 py-2 sm:px-4 sm:py-2 bg-blue-900 text-white font-medium rounded-md
+              hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors
+              dark:focus:ring-offset-gray-900 text-sm sm:text-base flex items-center"
       >
         Play Random Sound
       </button>
       <button
         phx-click="stop_sound"
-        class="px-2 py-1 sm:px-4 sm:py-2 bg-red-600 text-white font-medium rounded-md
-              hover:bg-red-700 focus:outline-none focus:ring-2 
-              focus:ring-red-500 focus:ring-offset-2 transition-colors
-              dark:focus:ring-offset-gray-900 text-xs sm:text-base"
+        class="w-full sm:w-auto justify-center px-3 py-2 sm:px-4 sm:py-2 bg-red-600 text-white font-medium rounded-md
+              hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors
+              dark:focus:ring-offset-gray-900 text-sm sm:text-base flex items-center"
       >
         Stop All Sounds
       </button>
@@ -43,7 +40,7 @@
   </div>
 
   <%!-- Search Bar --%>
-  <div class="mb-8">
+  <div class="mb-8 mt-2 sm:mt-0">
     <form phx-change="search" phx-submit="search" class="relative">
       <input
         type="text"
@@ -86,13 +83,20 @@
   </div>
   
 <!-- Tag Filter Bar -->
-  <div class="mb-4 flex flex-wrap gap-2 items-center">
-    <%= for tag <- all_tags(@uploaded_files) do %>
+  <% tags = all_tags(@uploaded_files) %>
+  <% visible_tags =
+    if @show_all_tags do
+      tags
+    else
+      Enum.take(tags, 12)
+    end %>
+  <div class="mb-4 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
+    <%= for tag <- visible_tags do %>
       <button
         phx-click="toggle_tag_filter"
         phx-value-tag={tag.name}
         class={[
-          "inline-flex items-center gap-1 rounded-full px-3 py-1 text-sm font-medium",
+          "inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs sm:text-sm font-medium",
           if(tag_selected?(tag, @selected_tags),
             do: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
             else:
@@ -104,6 +108,15 @@
         <span class="text-xs">({count_sounds_with_tag(@uploaded_files, tag)})</span>
       </button>
     <% end %>
+    <%= if length(tags) > length(visible_tags) do %>
+      <button
+        phx-click="toggle_tag_list"
+        class="inline-flex items-center justify-center gap-1 rounded-full px-2 py-1 text-xs sm:text-sm font-medium
+               bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
+      >
+        {if @show_all_tags, do: "Show fewer tags", else: "Show more tags"}
+      </button>
+    <% end %>
   </div>
 
   <div class="flex justify-between items-center mb-2">
@@ -112,7 +125,7 @@
     </div>
   </div>
   <%!-- Sound Grid --%>
-  <div class="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+  <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
     <%= if @loading_sounds do %>
       <div class="col-span-full">
         <div class="loading-container">
@@ -134,7 +147,7 @@
           </button>
 
           <%!-- Content container with higher z-index --%>
-          <div class="relative z-10 p-4 flex flex-col min-h-[120px] pointer-events-none">
+          <div class="relative z-10 p-3 sm:p-4 flex flex-col min-h-[120px] pointer-events-none text-sm sm:text-base">
             <%!-- Sound title and uploader info --%>
             <div class="flex-1 min-w-0">
               <div class="text-gray-800 dark:text-gray-200 font-medium break-all">

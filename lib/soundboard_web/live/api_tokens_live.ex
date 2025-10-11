@@ -71,89 +71,96 @@ defmodule SoundboardWeb.ApiTokensLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="max-w-3xl mx-auto p-6">
-      <h1 class="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-4">API Tokens</h1>
+    <div class="max-w-3xl mx-auto px-4 py-6 space-y-6">
+      <h1 class="text-2xl font-bold text-gray-800 dark:text-gray-100">API Tokens</h1>
 
-      <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 mb-6">
+      <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-5 space-y-4">
         <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">
           Create a personal API token to play sounds via HTTP. Requests authenticated with a token
           are attributed to your account and will increment your stats.
         </p>
-        <form phx-submit="create_token" class="flex gap-2 items-end">
+        <form phx-submit="create_token" class="flex flex-col gap-3 sm:flex-row sm:items-end">
           <div class="flex-1">
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Label</label>
             <input
               name="label"
               type="text"
               placeholder="e.g., CI Bot"
-              class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-700 shadow-sm dark:bg-gray-800 dark:text-gray-100"
+              class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-700 shadow-sm dark:bg-gray-900 dark:text-gray-100 focus:border-blue-500 focus:ring-blue-500"
             />
           </div>
-          <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-md">Create</button>
+          <button
+            type="submit"
+            class="w-full sm:w-auto justify-center px-4 py-2 bg-blue-600 text-white rounded-md font-medium hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900 flex items-center"
+          >
+            Create
+          </button>
         </form>
       </div>
 
-      <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
-        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-          <thead>
-            <tr>
-              <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Label
-              </th>
-              <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Token
-              </th>
-              <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Created
-              </th>
-              <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Last Used
-              </th>
-              <th class="px-4 py-2"></th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
-            <%= for token <- @tokens do %>
+      <div class="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
+            <thead class="bg-gray-50 dark:bg-gray-900">
               <tr>
-                <td class="px-4 py-2 text-sm text-gray-900 dark:text-gray-100">
-                  {token.label || "(no label)"}
-                </td>
-                <td class="px-4 py-2">
-                  <div class="relative">
-                    <button
-                      id={"copy-token-#{token.id}"}
-                      type="button"
-                      phx-hook="CopyButton"
-                      data-copy-text={token.token}
-                      class="absolute right-2 top-2 text-xs px-2 py-1 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100 rounded"
-                    >
-                      Copy
-                    </button>
-                    <pre class="p-2 pr-16 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded text-xs whitespace-pre-wrap"><code class="text-gray-800 dark:text-gray-100 font-mono break-all">{token.token}</code></pre>
-                  </div>
-                </td>
-                <td class="px-4 py-2 text-sm text-gray-500 dark:text-gray-400">
-                  {format_dt(token.inserted_at)}
-                </td>
-                <td class="px-4 py-2 text-sm text-gray-500 dark:text-gray-400">
-                  {format_dt(token.last_used_at) || "—"}
-                </td>
-                <td class="px-4 py-2 text-right">
-                  <button
-                    phx-click="revoke_token"
-                    phx-value-id={token.id}
-                    class="px-3 py-1 bg-red-600 text-white rounded"
-                  >
-                    Revoke
-                  </button>
-                </td>
+                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Label
+                </th>
+                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Token
+                </th>
+                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Created
+                </th>
+                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Last Used
+                </th>
+                <th class="px-4 py-2"></th>
               </tr>
-            <% end %>
-          </tbody>
-        </table>
+            </thead>
+            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+              <%= for token <- @tokens do %>
+                <tr class="text-sm">
+                  <td class="px-4 py-2 text-gray-900 dark:text-gray-100 whitespace-nowrap">
+                    {token.label || "(no label)"}
+                  </td>
+                  <td class="px-4 py-2 align-top">
+                    <div class="relative">
+                      <button
+                        id={"copy-token-#{token.id}"}
+                        type="button"
+                        phx-hook="CopyButton"
+                        data-copy-text={token.token}
+                        class="absolute right-2 top-2 text-xs px-2 py-1 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100 rounded"
+                      >
+                        Copy
+                      </button>
+                      <pre class="p-2 pr-20 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded text-xs overflow-x-auto whitespace-nowrap"><code class="text-gray-800 dark:text-gray-100 font-mono">{token.token}</code></pre>
+                    </div>
+                  </td>
+                  <td class="px-4 py-2 text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                    {format_dt(token.inserted_at)}
+                  </td>
+                  <td class="px-4 py-2 text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                    {format_dt(token.last_used_at) || "—"}
+                  </td>
+                  <td class="px-4 py-2 text-right align-top">
+                    <button
+                      phx-click="revoke_token"
+                      phx-value-id={token.id}
+                      class="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900"
+                    >
+                      Revoke
+                    </button>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 mb-6 mt-6">
+      <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-5 space-y-4">
         <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-2">
           How to call the API
         </h2>
@@ -163,7 +170,7 @@ defmodule SoundboardWeb.ApiTokensLive do
             Authorization: Bearer {@example_token || "<token>"}
           </code>
         </p>
-        <div class="space-y-3">
+        <div class="space-y-4">
           <div>
             <div class="text-sm font-medium text-gray-700 dark:text-gray-300">List sounds</div>
             <div class="relative">
@@ -176,7 +183,7 @@ defmodule SoundboardWeb.ApiTokensLive do
               >
                 Copy
               </button>
-              <pre class="mt-1 p-2 pr-16 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded text-xs overflow-y-auto overflow-x-hidden whitespace-pre-wrap min-h-[56px]"><code class="text-gray-800 dark:text-gray-100 font-mono break-words">curl -H \"Authorization: Bearer {(@example_token || "<TOKEN>")}\" {(@base_url || SoundboardWeb.Endpoint.url())}/api/sounds</code></pre>
+              <pre class="mt-1 p-2 pr-16 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded text-xs overflow-x-auto whitespace-nowrap min-h-[56px]"><code class="text-gray-800 dark:text-gray-100 font-mono">curl -H \"Authorization: Bearer {(@example_token || "<TOKEN>")}\" {(@base_url || SoundboardWeb.Endpoint.url())}/api/sounds</code></pre>
             </div>
           </div>
           <div>
@@ -191,7 +198,7 @@ defmodule SoundboardWeb.ApiTokensLive do
               >
                 Copy
               </button>
-              <pre class="mt-1 p-2 pr-16 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded text-xs overflow-y-auto overflow-x-hidden whitespace-pre-wrap min-h-[56px]"><code class="text-gray-800 dark:text-gray-100 font-mono break-words">curl -X POST -H \"Authorization: Bearer {(@example_token || "<TOKEN>")}\" {(@base_url || SoundboardWeb.Endpoint.url())}/api/sounds/&lt;SOUND_ID&gt;/play</code></pre>
+              <pre class="mt-1 p-2 pr-16 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded text-xs overflow-x-auto whitespace-nowrap min-h-[56px]"><code class="text-gray-800 dark:text-gray-100 font-mono">curl -X POST -H \"Authorization: Bearer {(@example_token || "<TOKEN>")}\" {(@base_url || SoundboardWeb.Endpoint.url())}/api/sounds/&lt;SOUND_ID&gt;/play</code></pre>
             </div>
           </div>
           <div>
@@ -206,7 +213,7 @@ defmodule SoundboardWeb.ApiTokensLive do
               >
                 Copy
               </button>
-              <pre class="mt-1 p-2 pr-16 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded text-xs overflow-y-auto overflow-x-hidden whitespace-pre-wrap min-h-[56px]"><code class="text-gray-800 dark:text-gray-100 font-mono break-words">curl -X POST -H \"Authorization: Bearer {(@example_token || "<TOKEN>")}\" {(@base_url || SoundboardWeb.Endpoint.url())}/api/sounds/stop</code></pre>
+              <pre class="mt-1 p-2 pr-16 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded text-xs overflow-x-auto whitespace-nowrap min-h-[56px]"><code class="text-gray-800 dark:text-gray-100 font-mono">curl -X POST -H \"Authorization: Bearer {(@example_token || "<TOKEN>")}\" {(@base_url || SoundboardWeb.Endpoint.url())}/api/sounds/stop</code></pre>
             </div>
           </div>
         </div>

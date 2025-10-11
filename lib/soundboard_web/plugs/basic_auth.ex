@@ -23,7 +23,9 @@ defmodule SoundboardWeb.Plugs.BasicAuth do
 
   defp credential(key) do
     case System.get_env(key) do
-      nil -> nil
+      nil ->
+        nil
+
       value when is_binary(value) ->
         if String.trim(value) == "" do
           nil
