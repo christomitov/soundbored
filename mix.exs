@@ -84,7 +84,7 @@ defmodule Soundboard.MixProject do
       {:phoenix_live_dashboard, "~> 0.8.7"},
       {:esbuild, "~> 0.10", runtime: Mix.env() == :dev},
       {:tailwind, "~> 0.3", runtime: Mix.env() == :dev},
-      {:heroicons, github: "tailwindlabs/heroicons", tag: "v2.1.1", app: false},
+      {:heroicons, github: "tailwindlabs/heroicons", tag: "v2.2.0", app: false},
       {:swoosh, "~> 1.19"},
       {:finch, "~> 0.20"},
       {:telemetry_metrics, "~> 1.1"},
