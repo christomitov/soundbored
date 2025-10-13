@@ -13,7 +13,6 @@ Soundboard.Tag.html
 Soundboard.UserSoundSetting.html
 Soundboard.html
 SoundboardWeb.API.SoundController.html
-SoundboardWeb.ApiTokensLive.html
 SoundboardWeb.AudioPlayer.State.html
 SoundboardWeb.AudioPlayer.html
 SoundboardWeb.AuthController.html
@@ -33,7 +32,6 @@ SoundboardWeb.ErrorJSON.html
 SoundboardWeb.FavoritesLive.html
 SoundboardWeb.Gettext.html
 SoundboardWeb.Layouts.html
-SoundboardWeb.LeaderboardLive.html
 SoundboardWeb.Live.FileFilter.html
 SoundboardWeb.Live.FileHandler.html
 SoundboardWeb.Live.PresenceHandler.html
@@ -44,8 +42,10 @@ SoundboardWeb.Plugs.APIAuth.html
 SoundboardWeb.Plugs.BasicAuth.html
 SoundboardWeb.Presence.html
 SoundboardWeb.Router.html
+SoundboardWeb.SettingsLive.html
 SoundboardWeb.SoundHelpers.html
 SoundboardWeb.SoundboardLive.html
+SoundboardWeb.StatsLive.html
 SoundboardWeb.Telemetry.html
 SoundboardWeb.UploadController.html
 SoundboardWeb.html
@@ -57,7 +57,7 @@ dist/lato-latin-700-normal-2XVSBPG4.woff2
 dist/lato-latin-ext-400-normal-N27NCBWW.woff2
 dist/lato-latin-ext-700-normal-Q2L5DVMW.woff2
 dist/remixicon-QPNJX265.woff2
-dist/search_data-E94190ED.js
-dist/sidebar_items-7ADF1472.js
+dist/search_data-409D6584.js
+dist/sidebar_items-0A98823E.js
 index.html
 search.html
