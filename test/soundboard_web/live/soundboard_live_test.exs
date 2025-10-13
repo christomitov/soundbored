@@ -4,7 +4,7 @@ defmodule SoundboardWeb.SoundboardLiveTest do
   """
   use SoundboardWeb.ConnCase
   import Phoenix.LiveViewTest
-  alias Soundboard.{Accounts.User, Repo, Sound}
+  alias Soundboard.{Accounts.User, Repo, Sound, Tag}
   import Mock
 
   setup %{conn: conn} do
@@ -68,6 +68,60 @@ defmodule SoundboardWeb.SoundboardLiveTest do
           |> render_click()
 
         assert rendered =~ sound.filename
+      end
+    end
+
+    test "play random respects current search results", %{conn: conn, user: user} do
+      %Sound{}
+      |> Sound.changeset(%{
+        filename: "filtered.mp3",
+        source_type: "local",
+        user_id: user.id
+      })
+      |> Repo.insert!()
+
+      {:ok, view, _html} = live(conn, "/")
+
+      view
+      |> element("form")
+      |> render_change(%{"query" => "filtered"})
+
+      with_mock SoundboardWeb.AudioPlayer, play_sound: fn _, _ -> :ok end do
+        view
+        |> element("[phx-click='play_random']")
+        |> render_click()
+
+        assert_called(SoundboardWeb.AudioPlayer.play_sound("filtered.mp3", :_))
+      end
+    end
+
+    test "play random respects selected tags", %{conn: conn, user: user} do
+      tag =
+        %Tag{}
+        |> Tag.changeset(%{name: "funny"})
+        |> Repo.insert!()
+
+      %Sound{}
+      |> Sound.changeset(%{
+        filename: "funny.mp3",
+        source_type: "local",
+        user_id: user.id,
+        tags: [tag]
+      })
+      |> Repo.insert!()
+
+      {:ok, view, _html} = live(conn, "/")
+
+      view
+      |> element("div.hidden.sm\\:flex button[phx-value-tag='funny']")
+      |> render_click()
+
+      with_mock SoundboardWeb.AudioPlayer, play_sound: fn _, _ -> :ok end do
+        view
+        |> element("[phx-click='play_random']")
+        |> render_click()
+
+        assert_called(SoundboardWeb.AudioPlayer.play_sound("funny.mp3", :_))
       end
     end
 

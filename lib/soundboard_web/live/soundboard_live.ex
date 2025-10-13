@@ -630,7 +630,14 @@ defmodule SoundboardWeb.SoundboardLive do
 
   @impl true
   def handle_event("play_random", _params, socket) do
-    case get_random_sound(socket.assigns.uploaded_files) do
+    filtered_sounds =
+      filter_files(
+        socket.assigns.uploaded_files,
+        socket.assigns.search_query,
+        socket.assigns.selected_tags
+      )
+
+    case get_random_sound(filtered_sounds) do
       nil ->
         {:noreply, socket}
 
