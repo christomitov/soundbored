@@ -1,6 +1,6 @@
-defmodule SoundboardWeb.LeaderboardLiveTest do
+defmodule SoundboardWeb.StatsLiveTest do
   @moduledoc """
-  Test for the LeaderboardLive component.
+  Test for the StatsLive component.
   """
   use SoundboardWeb.ConnCase
   import Phoenix.LiveViewTest
@@ -115,6 +115,22 @@ defmodule SoundboardWeb.LeaderboardLiveTest do
 
     html = render_click(view, "next_week")
     assert html =~ "Stats"
+  end
+
+  test "handles week picker input", %{conn: conn} do
+    {:ok, view, _html} = live(conn, "/stats")
+
+    target_date = Date.add(Date.utc_today(), -7)
+    days_since_monday = Date.day_of_week(target_date, :monday) - 1
+    start_date = Date.add(target_date, -days_since_monday)
+    week_value = Date.to_iso8601(target_date)
+
+    view
+    |> element("form[phx-change=\"select_week\"]")
+    |> render_change(%{"week" => week_value})
+
+    html = render(view)
+    assert html =~ Calendar.strftime(start_date, "%b %d")
   end
 
   defp live_as_user(conn, user) do

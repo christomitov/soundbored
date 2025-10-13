@@ -1,4 +1,4 @@
-defmodule SoundboardWeb.ApiTokensLiveTest do
+defmodule SoundboardWeb.SettingsLiveTest do
   use SoundboardWeb.ConnCase
   import Phoenix.LiveViewTest
   alias Soundboard.Accounts.User
@@ -23,7 +23,7 @@ defmodule SoundboardWeb.ApiTokensLiveTest do
   end
 
   test "can create and revoke tokens via live view", %{conn: conn} do
-    {:ok, view, _html} = live(conn, "/settings/api")
+    {:ok, view, _html} = live(conn, "/settings")
 
     # Create token
     view

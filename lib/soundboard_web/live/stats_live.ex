@@ -1,4 +1,4 @@
-defmodule SoundboardWeb.LeaderboardLive do
+defmodule SoundboardWeb.StatsLive do
   use SoundboardWeb, :live_view
   use SoundboardWeb.Live.PresenceLive
   alias SoundboardWeb.Live.PresenceHandler
@@ -23,7 +23,7 @@ defmodule SoundboardWeb.LeaderboardLive do
     {:ok,
      socket
      |> mount_presence(session)
-     |> assign(:current_path, "/leaderboard")
+     |> assign(:current_path, "/stats")
      |> assign(:current_user, get_user_from_session(session))
      |> assign(:force_update, 0)
      |> assign(:selected_week, current_week)
@@ -127,10 +127,24 @@ defmodule SoundboardWeb.LeaderboardLive do
     "#{Calendar.strftime(start_date, "%b %d")} - #{Calendar.strftime(end_date, "%b %d, %Y")}"
   end
 
+  defp date_input_value({start_date, _end_date}) do
+    Date.to_iso8601(start_date)
+  end
+
+  defp parse_week_input(nil), do: :error
+  defp parse_week_input(""), do: :error
+
+  defp parse_week_input(week_value) do
+    case Date.from_iso8601(week_value) do
+      {:ok, date} -> {:ok, get_week_range(date)}
+      _ -> :error
+    end
+  end
+
   @impl true
   def render(assigns) do
     ~H"""
-    <div id="leaderboard" class="max-w-6xl mx-auto px-4 py-8">
+    <div id="stats" class="max-w-6xl mx-auto px-4 py-8">
       <div class="flex justify-between items-center mb-8">
         <h1 class="text-3xl font-bold text-gray-800 dark:text-gray-100">Stats</h1>
         <div class="flex items-center gap-4">
@@ -140,8 +154,28 @@ defmodule SoundboardWeb.LeaderboardLive do
           >
             <.icon name="hero-chevron-left-solid" class="h-5 w-5" />
           </button>
-          <div class="text-sm text-gray-600 dark:text-gray-400">
-            Week of {format_date_range(@selected_week)}
+          <div class="flex flex-col items-start gap-1">
+            <form
+              phx-change="select_week"
+              phx-submit="select_week"
+              class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400"
+            >
+              <label for="week-picker" class="whitespace-nowrap">
+                Week of
+              </label>
+              <input
+                type="date"
+                id="week-picker"
+                name="week"
+                value={date_input_value(@selected_week)}
+                max={date_input_value(@current_week)}
+                phx-debounce="blur"
+                class="border border-gray-300 dark:border-gray-600 rounded-md px-2 py-1 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </form>
+            <span class="text-xs text-gray-500 dark:text-gray-400">
+              {format_date_range(@selected_week)}
+            </span>
           </div>
           <button
             phx-click="next_week"
@@ -423,6 +457,26 @@ defmodule SoundboardWeb.LeaderboardLive do
     case Date.compare(elem(new_week, 1), elem(socket.assigns.current_week, 1)) do
       :gt -> {:noreply, socket}
       _ -> {:noreply, socket |> assign(:selected_week, new_week) |> assign_stats()}
+    end
+  end
+
+  @impl true
+  def handle_event("select_week", %{"week" => week_value}, socket) do
+    current_week = socket.assigns.current_week
+
+    case parse_week_input(week_value) do
+      {:ok, new_week} ->
+        if Date.compare(elem(new_week, 1), elem(current_week, 1)) == :gt do
+          {:noreply, socket}
+        else
+          {:noreply,
+           socket
+           |> assign(:selected_week, new_week)
+           |> assign_stats()}
+        end
+
+      :error ->
+        {:noreply, socket}
     end
   end
 

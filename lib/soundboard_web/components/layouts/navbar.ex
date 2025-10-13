@@ -34,13 +34,13 @@ defmodule SoundboardWeb.Components.Layouts.Navbar do
               <.nav_link navigate="/favorites" active={current_page?(@current_path, "/favorites")}>
                 Favorites
               </.nav_link>
-              <.nav_link navigate="/stats" active={current_page?(@current_path, "/leaderboard")}>
+              <.nav_link navigate="/stats" active={current_page?(@current_path, "/stats")}>
                 Stats
               </.nav_link>
               <%= if @current_user do %>
                 <.nav_link
-                  navigate="/settings/api"
-                  active={current_page?(@current_path, "/settings/api")}
+                  navigate="/settings"
+                  active={current_page?(@current_path, "/settings")}
                 >
                   Settings
                 </.nav_link>
@@ -135,13 +135,13 @@ defmodule SoundboardWeb.Components.Layouts.Navbar do
           <.mobile_nav_link navigate="/favorites" active={current_page?(@current_path, "/favorites")}>
             Favorites
           </.mobile_nav_link>
-          <.mobile_nav_link navigate="/stats" active={current_page?(@current_path, "/leaderboard")}>
+          <.mobile_nav_link navigate="/stats" active={current_page?(@current_path, "/stats")}>
             Stats
           </.mobile_nav_link>
           <%= if @current_user do %>
             <.mobile_nav_link
-              navigate="/settings/api"
-              active={current_page?(@current_path, "/settings/api")}
+              navigate="/settings"
+              active={current_page?(@current_path, "/settings")}
             >
               Settings
             </.mobile_nav_link>
