@@ -108,6 +108,26 @@ curl -X POST https://soundboardurl.com/api/sounds/123/play \
 
 ## Changelog
 
+### v1.6.0 (2025-10-01)
+
+#### ✨ New Features
+- New consolidated `Settings` view replaces the standalone API tokens screen and keeps token creation, revocation, and inline API examples in one place.
+- Stats dashboard adds a week picker, richer recent activity stream, and refreshed layout under the new name “Stats”.
+- “Play Random” now respects whatever filters are active, pulling from the current search results or selected tags only.
+
+#### ⚙️ Improvements
+- Shared tag components and modal tweaks streamline sound management and reduce layout shifts.
+- Navigation highlights the active page and keeps Settings aligned with the rest of the app.
+- Mobile refinements across the main board and settings eliminate horizontal scrolling and polish button spacing.
+- Basic Auth now quietly skips enforcement when credentials are not configured instead of blocking the UI.
+
+#### 🧪 Tests & Quality
+- Expanded LiveView coverage for the new Settings page, Stats interactions, and filtered random playback.
+- Updated CI workflow and Dependabot configuration keep coverage and dependency checks automated.
+
+#### 📦 Dependencies
+- Bumped Phoenix stack and related dependencies, plus cleaned up mix configuration and docs to match the new release.
+
 ### v1.5.0 (2025-09-14)
 
 #### ✨ New Features
