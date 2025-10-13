@@ -138,7 +138,7 @@ defmodule SoundboardWeb.SettingsLive do
                           type="button"
                           phx-hook="CopyButton"
                           data-copy-text={token.token}
-                          class="absolute right-2 top-2 text-xs px-2 py-1 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100 rounded"
+                          class="absolute right-2 top-1/2 -translate-y-1/2 text-xs px-2 py-1 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100 rounded"
                         >
                           Copy
                         </button>
