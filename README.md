@@ -32,6 +32,16 @@ Install the cross-platform CLI with `npm i -g soundbored` for quick automation. 
 
 > Create the bot in the [Discord Developer Portal](https://discord.com/developers/applications), enable **Presence**, **Server Members**, and **Message Content** intents, and grant Send Messages, Read History, View Channels, Connect, and Speak permissions when you invite it.
 
+### Discord App Setup
+
+1. In the Discord Developer Portal, open your application and go to **Bot** → enable **Presence**, **Server Members**, and **Message Content** intents.
+2. Still in the portal, go to **OAuth2 → Redirects** and add every URL that will serve Soundbored to the **Redirects** list. For example:
+   - `http://localhost:4000/auth/discord/callback` (local development)
+   - `https://your.domain.com/auth/discord/callback` (production, replace with your domain)
+   Discord requires the redirect in your app configuration to match exactly what the browser uses during login; otherwise, OAuth will fail.
+3. Copy the **Client ID** and **Client Secret** from the same page—add them to your `.env` file as `DISCORD_CLIENT_ID` and `DISCORD_CLIENT_SECRET`.
+4. Use **OAuth2 → URL Generator** (scope `bot`) to produce the invite link with the permissions listed above.
+
 ## Local Development
 
 ```bash
