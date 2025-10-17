@@ -35,6 +35,9 @@ defmodule Soundboard.Volume do
 
   def decimal_to_percent(decimal) when is_number(decimal) do
     decimal
+    |> max(0.0)
+    |> min(1.0)
+    |> :math.sqrt()
     |> Kernel.*(100)
     |> clamp_percent()
   end
@@ -56,6 +59,15 @@ defmodule Soundboard.Volume do
   defp do_normalize(default, _), do: default
 
   defp convert_percent_to_decimal(percent) when percent in 0..100 do
-    Float.round(percent / 100, 4)
+    case percent do
+      0 ->
+        0.0
+
+      _ ->
+        percent
+        |> Kernel./(100)
+        |> :math.pow(2)
+        |> Float.round(4)
+    end
   end
 end

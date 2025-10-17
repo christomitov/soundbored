@@ -41,7 +41,15 @@ const parsePercent = (value, fallback = 100) => {
   return clamp(Math.round(fallback), 0, 100)
 }
 
-const percentToDecimal = (percent) => clamp(percent / 100, 0, 1)
+const percentToDecimal = (percent) => {
+  const clamped = clamp(percent, 0, 100)
+  if (clamped === 0) {
+    return 0
+  }
+  const normalized = clamped / 100
+  const scaled = normalized * normalized
+  return clamp(Math.round(scaled * 10000) / 10000, 0, 1)
+}
 
 const PlayerState = {
   currentHook: null,
