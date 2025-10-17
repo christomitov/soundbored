@@ -3,7 +3,7 @@ defmodule SoundboardWeb.Live.UploadHandler do
   Handles the upload of sounds from a local file or a URL.
   """
   alias SoundboardWeb.Live.FileHandler
-  alias Soundboard.{Repo, Sound}
+  alias Soundboard.{Repo, Sound, Volume}
   import Ecto.Query
   import Ecto.Changeset
   require Logger
@@ -108,11 +108,15 @@ defmodule SoundboardWeb.Live.UploadHandler do
   end
 
   defp handle_url_upload(socket, params, user_id) do
+    default_percent = socket.assigns[:upload_volume] || 100
+    volume = Volume.percent_to_decimal(Map.get(params, "volume"), default_percent)
+
     sound_params = %{
       filename: params["name"] <> url_file_extension(params["url"]),
       url: params["url"],
       source_type: "url",
       user_id: user_id,
+      volume: volume,
       join_leave_user_id:
         if params["is_join_sound"] == "true" || params["is_leave_sound"] == "true" do
           user_id
@@ -127,10 +131,14 @@ defmodule SoundboardWeb.Live.UploadHandler do
   defp handle_local_upload(socket, params, user_id, consume_uploaded_entries_fn) do
     case FileHandler.save_upload(socket, params["name"], consume_uploaded_entries_fn) do
       {:ok, filename} ->
+        default_percent = socket.assigns[:upload_volume] || 100
+        volume = Volume.percent_to_decimal(Map.get(params, "volume"), default_percent)
+
         sound_params = %{
           filename: filename,
           source_type: "local",
           user_id: user_id,
+          volume: volume,
           join_leave_user_id:
             if params["is_join_sound"] == "true" || params["is_leave_sound"] == "true" do
               user_id

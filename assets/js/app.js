@@ -24,45 +24,381 @@ import topbar from "../vendor/topbar"
 
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 
-// Add this to your hooks
+const clamp = (value, min, max) => Math.min(Math.max(value, min), max)
+
+const parsePercent = (value, fallback = 100) => {
+  if (typeof value === "number" && !Number.isNaN(value)) {
+    return clamp(Math.round(value), 0, 100)
+  }
+
+  if (typeof value === "string") {
+    const parsed = parseFloat(value.trim())
+    if (!Number.isNaN(parsed)) {
+      return clamp(Math.round(parsed), 0, 100)
+    }
+  }
+
+  return clamp(Math.round(fallback), 0, 100)
+}
+
+const percentToDecimal = (percent) => clamp(percent / 100, 0, 1)
+
+const PlayerState = {
+  currentHook: null,
+  currentAudio: null,
+
+  set(hook, audio) {
+    this.currentHook = hook
+    this.currentAudio = audio
+  },
+
+  stopCurrent() {
+    if (this.currentAudio) {
+      this.currentAudio.pause()
+      this.currentAudio.currentTime = 0
+    }
+
+    if (this.currentHook) {
+      this.currentHook.setPlaying(false)
+    }
+
+    this.currentHook = null
+    this.currentAudio = null
+  }
+}
+
+window.addEventListener("phx:stop-all-sounds", () => PlayerState.stopCurrent())
+
 let Hooks = {}
 Hooks.LocalPlayer = {
   mounted() {
-    this.audio = null;
-    
-    this.el.addEventListener("click", e => {
-      e.preventDefault()
-      e.stopPropagation()
-      
-      if (this.audio && !this.audio.paused) {
-        this.audio.pause()
-        this.audio.currentTime = 0
-        this.el.querySelector('.play-icon').classList.remove('hidden')
-        this.el.querySelector('.stop-icon').classList.add('hidden')
+    this.handleClick = this.handleClick.bind(this)
+    this.el.addEventListener("click", this.handleClick)
+  },
+  updated() {
+    if (PlayerState.currentHook === this && PlayerState.currentAudio) {
+      PlayerState.currentAudio.volume = this.getVolume()
+    }
+  },
+  destroyed() {
+    this.el.removeEventListener("click", this.handleClick)
+    if (PlayerState.currentHook === this) {
+      PlayerState.stopCurrent()
+    }
+  },
+  handleClick(event) {
+    event.preventDefault()
+    event.stopPropagation()
+
+    if (PlayerState.currentHook === this && PlayerState.currentAudio) {
+      PlayerState.stopCurrent()
+      return
+    }
+
+    PlayerState.stopCurrent()
+
+    const sourceType = this.el.dataset.sourceType
+    const url = this.el.dataset.url
+    const filename = this.el.dataset.filename
+    const audio = new Audio()
+    audio.volume = this.getVolume()
+
+    if (sourceType === "url" && url) {
+      audio.src = url
+    } else {
+      audio.src = `/uploads/${filename}`
+    }
+
+    audio.onended = () => {
+      if (PlayerState.currentHook === this) {
+        PlayerState.stopCurrent()
+      }
+    }
+
+    audio.onerror = () => {
+      if (PlayerState.currentHook === this) {
+        PlayerState.stopCurrent()
+      }
+    }
+
+    audio
+      .play()
+      .then(() => {
+        this.setPlaying(true)
+        PlayerState.set(this, audio)
+      })
+      .catch((error) => {
+        console.error("Audio playback failed", error)
+        this.setPlaying(false)
+      })
+  },
+  setPlaying(isPlaying) {
+    const playIcon = this.el.querySelector(".play-icon")
+    const stopIcon = this.el.querySelector(".stop-icon")
+
+    if (!playIcon || !stopIcon) {
+      return
+    }
+
+    if (isPlaying) {
+      playIcon.classList.add("hidden")
+      stopIcon.classList.remove("hidden")
+    } else {
+      playIcon.classList.remove("hidden")
+      stopIcon.classList.add("hidden")
+    }
+  },
+  getVolume() {
+    const volume = parseFloat(this.el.dataset.volume)
+    if (Number.isFinite(volume)) {
+      return clamp(volume, 0, 1)
+    }
+
+    return 1
+  }
+}
+
+Hooks.VolumeControl = {
+  mounted() {
+    this.assignElements()
+    this.previewAudio = null
+    this.objectUrl = null
+    this.lastPreviewFile = null
+    this.pushDebounce = null
+    this.boundSlider = null
+    this.boundPreviewButton = null
+
+    this.handleSliderInput = (event) => {
+      const percent = parsePercent(event.target.value)
+      this.updateDisplay(percent)
+      this.updatePreviewVolume(percent)
+      this.queueVolumePush(percent)
+    }
+
+    this.handlePreviewClick = (event) => {
+      event.preventDefault()
+      if (this.previewButton && this.previewButton.disabled) {
         return
       }
-      
-      const filename = this.el.dataset.filename
-      const sourceType = this.el.dataset.sourceType
-      const url = this.el.dataset.url
-      
-      this.audio = new Audio()
-      
-      if (sourceType === "url") {
-        this.audio.src = url
-      } else {
-        this.audio.src = `/uploads/${filename}`
+      this.togglePreview()
+    }
+
+    this.bindSlider()
+    this.bindPreviewButton()
+
+    const initialPercent = parsePercent(this.slider?.value ?? 100)
+    this.updateDisplay(initialPercent)
+    this.updatePreviewVolume(initialPercent)
+  },
+  updated() {
+    this.assignElements()
+    this.bindSlider()
+    this.bindPreviewButton()
+
+    if (this.slider) {
+      const percent = parsePercent(this.slider.value)
+      this.updateDisplay(percent)
+      this.updatePreviewVolume(percent)
+    }
+  },
+  destroyed() {
+    if (this.boundSlider) {
+      this.boundSlider.removeEventListener("input", this.handleSliderInput)
+      this.boundSlider = null
+    }
+
+    if (this.boundPreviewButton) {
+      this.boundPreviewButton.removeEventListener("click", this.handlePreviewClick)
+      this.boundPreviewButton = null
+    }
+
+    this.stopPreview(true)
+
+    if (this.pushDebounce) {
+      clearTimeout(this.pushDebounce)
+      this.pushDebounce = null
+    }
+  },
+  assignElements() {
+    const previousKind = this.previewKind
+    const previousSrc = this.previewSrc
+
+    this.slider = this.el.querySelector("[data-role='volume-slider']")
+    this.display = this.el.querySelector("[data-role='volume-display']")
+    this.previewButton = this.el.querySelector("[data-role='volume-preview']")
+    this.pushEventName = this.el.dataset.pushEvent
+    this.volumeTarget = this.el.dataset.volumeTarget
+    this.previewKind = this.el.dataset.previewKind || "existing"
+    this.fileInputId = this.el.dataset.fileInputId
+    this.urlInputId = this.el.dataset.urlInputId
+    this.previewSrc = this.el.dataset.previewSrc
+
+    if (previousKind && previousKind !== this.previewKind) {
+      this.stopPreview(true)
+    } else if (previousSrc && previousSrc !== this.previewSrc && this.previewKind !== "local-upload") {
+      this.stopPreview()
+    }
+  },
+  updateDisplay(percent) {
+    if (this.display) {
+      this.display.textContent = `${percent}%`
+    }
+  },
+  updatePreviewVolume(percent) {
+    if (this.previewAudio) {
+      this.previewAudio.volume = percentToDecimal(percent)
+    }
+  },
+  queueVolumePush(percent) {
+    if (!this.pushEventName) {
+      return
+    }
+
+    if (this.pushDebounce) {
+      clearTimeout(this.pushDebounce)
+    }
+
+    this.pushDebounce = setTimeout(() => {
+    const payload = {volume: percent}
+    if (this.volumeTarget) {
+      payload.target = this.volumeTarget
+    }
+
+    this.pushEvent(this.pushEventName, payload)
+    }, 100)
+  },
+  bindSlider() {
+    if (!this.slider) {
+      if (this.boundSlider) {
+        this.boundSlider.removeEventListener("input", this.handleSliderInput)
       }
-      
-      this.audio.play()
-      this.el.querySelector('.play-icon').classList.add('hidden')
-      this.el.querySelector('.stop-icon').classList.remove('hidden')
-      
-      this.audio.onended = () => {
-        this.el.querySelector('.play-icon').classList.remove('hidden')
-        this.el.querySelector('.stop-icon').classList.add('hidden')
+      this.boundSlider = null
+      return
+    }
+
+    if (this.boundSlider === this.slider) {
+      return
+    }
+
+    if (this.boundSlider) {
+      this.boundSlider.removeEventListener("input", this.handleSliderInput)
+    }
+
+    this.slider.addEventListener("input", this.handleSliderInput)
+    this.boundSlider = this.slider
+  },
+  bindPreviewButton() {
+    if (!this.previewButton) {
+      if (this.boundPreviewButton) {
+        this.boundPreviewButton.removeEventListener("click", this.handlePreviewClick)
       }
-    })
+      this.boundPreviewButton = null
+      return
+    }
+
+    if (this.boundPreviewButton === this.previewButton) {
+      return
+    }
+
+    if (this.boundPreviewButton) {
+      this.boundPreviewButton.removeEventListener("click", this.handlePreviewClick)
+    }
+
+    this.previewButton.addEventListener("click", this.handlePreviewClick)
+    this.boundPreviewButton = this.previewButton
+  },
+  togglePreview() {
+    if (this.previewAudio && !this.previewAudio.paused) {
+      this.stopPreview()
+      return
+    }
+
+    const src = this.getPreviewSource()
+    if (!src) {
+      return
+    }
+
+    if (!this.previewAudio) {
+      this.previewAudio = new Audio()
+      this.previewAudio.addEventListener("ended", () => this.stopPreview())
+      this.previewAudio.addEventListener("error", () => this.stopPreview())
+    }
+
+    this.previewAudio.src = src
+    this.previewAudio.volume = percentToDecimal(parsePercent(this.slider?.value ?? 100))
+
+    this.previewAudio
+      .play()
+      .then(() => this.setPreviewState(true))
+      .catch((error) => {
+        console.error("Preview playback failed", error)
+        this.setPreviewState(false)
+      })
+  },
+  stopPreview(forceRevoke = false) {
+    if (this.previewAudio) {
+      this.previewAudio.pause()
+      this.previewAudio.currentTime = 0
+    }
+
+    if (forceRevoke && this.objectUrl) {
+      URL.revokeObjectURL(this.objectUrl)
+      this.objectUrl = null
+      this.lastPreviewFile = null
+    }
+
+    if (forceRevoke) {
+      this.previewAudio = null
+    }
+
+    this.setPreviewState(false)
+  },
+  setPreviewState(isPlaying) {
+    if (!this.previewButton) {
+      return
+    }
+
+    this.previewButton.textContent = isPlaying ? "Stop Preview" : "Preview"
+    this.previewButton.dataset.previewState = isPlaying ? "playing" : "stopped"
+
+    if (!isPlaying && this.previewAudio) {
+      this.previewAudio.src = ""
+    }
+  },
+  getPreviewSource() {
+    if (this.previewKind === "local-upload" && this.fileInputId) {
+      const input = document.getElementById(this.fileInputId)
+      const file = input && input.files && input.files[0]
+
+      if (!file) {
+        return null
+      }
+
+      if (this.lastPreviewFile !== file) {
+        if (this.objectUrl) {
+          URL.revokeObjectURL(this.objectUrl)
+        }
+
+        this.objectUrl = URL.createObjectURL(file)
+        this.lastPreviewFile = file
+      }
+
+      return this.objectUrl
+    }
+
+    if (this.previewKind === "url") {
+      if (this.urlInputId) {
+        const urlInput = document.getElementById(this.urlInputId)
+        const value = urlInput && urlInput.value.trim()
+        if (value) {
+          return value
+        }
+      }
+
+      return this.previewSrc || null
+    }
+
+    return this.previewSrc || null
   }
 }
 

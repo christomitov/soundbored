@@ -163,7 +163,8 @@ defmodule SoundboardWeb.SoundboardLiveTest do
 
       params = %{
         "filename" => "updated",
-        "source_type" => "local"
+        "source_type" => "local",
+        "volume" => "80"
       }
 
       # Ensure directory exists
@@ -188,6 +189,7 @@ defmodule SoundboardWeb.SoundboardLiveTest do
 
       updated_sound = Repo.get(Sound, sound.id)
       assert updated_sound.filename == "updated.mp3"
+      assert_in_delta updated_sound.volume, 0.8, 0.0001
     end
 
     test "can delete sound", %{conn: conn, sound: sound} do
@@ -264,6 +266,31 @@ defmodule SoundboardWeb.SoundboardLiveTest do
       assert new_sound.user_id == user.id
 
       Repo.delete!(new_sound)
+    end
+
+    test "upload sound from url saves provided volume", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/")
+
+      view
+      |> element("[phx-click='show_upload_modal']")
+      |> render_click()
+
+      view
+      |> element("select[name='source_type']")
+      |> render_change(%{"source_type" => "url"})
+
+      view
+      |> element("#upload-form")
+      |> render_submit(%{
+        "url" => "https://example.com/soft.mp3",
+        "name" => "soft",
+        "volume" => "25"
+      })
+
+      sound = Repo.get_by!(Sound, filename: "soft.mp3")
+      assert_in_delta sound.volume, 0.25, 0.0001
+
+      Repo.delete!(sound)
     end
 
     test "deleting a local sound removes the file", %{conn: conn, sound: sound} do

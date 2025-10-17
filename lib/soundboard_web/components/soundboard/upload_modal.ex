@@ -3,7 +3,7 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
   The upload modal component.
   """
   use Phoenix.Component
-  alias SoundboardWeb.Components.Soundboard.TagComponents
+  alias SoundboardWeb.Components.Soundboard.{TagComponents, VolumeControl}
 
   def upload_modal(assigns) do
     ~H"""
@@ -67,6 +67,7 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
                     <div class="flex items-center gap-2">
                       <.live_file_input
                         upload={@uploads.audio}
+                        id="upload-audio-input"
                         class="block w-full text-sm text-gray-500 dark:text-gray-400
                                file:mr-4 file:py-2 file:px-4
                                file:rounded-md file:border-0
@@ -88,6 +89,7 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
                       name="url"
                       value={@url}
                       required
+                      id="upload-url-input"
                       placeholder="https://example.com/sound.mp3"
                       phx-change="validate_upload"
                       phx-debounce="400"
@@ -172,6 +174,26 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
                     />
                   </div>
                 </div>
+
+                <% preview_kind = if @source_type == "local", do: "local-upload", else: "url" %>
+                <% preview_disabled =
+                  if @source_type == "local" do
+                    @uploads.audio.entries == []
+                  else
+                    String.trim(@url || "") == ""
+                  end %>
+                <VolumeControl.volume_control
+                  id="upload-volume-control"
+                  value={@upload_volume}
+                  target="upload"
+                  data-preview-kind={preview_kind}
+                  data-file-input-id={
+                    if preview_kind == "local-upload", do: "upload-audio-input", else: nil
+                  }
+                  data-url-input-id={if preview_kind == "url", do: "upload-url-input", else: nil}
+                  data-preview-src={if preview_kind == "url", do: @url, else: nil}
+                  preview_disabled={preview_disabled}
+                />
                 
     <!-- Sound Settings -->
                 <div class="mt-5 mb-4">
