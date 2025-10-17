@@ -480,6 +480,17 @@ defmodule SoundboardWeb.AudioPlayer do
     end
   end
 
+  @doc """
+  Removes any cached metadata for the given `sound_name` so future plays use fresh data.
+  """
+  def invalidate_cache(sound_name) when is_binary(sound_name) do
+    ensure_sound_cache()
+    :ets.delete(:sound_meta_cache, sound_name)
+    :ok
+  end
+
+  def invalidate_cache(_), do: :ok
+
   defp cache_sound(sound_name, meta) do
     :ets.insert(:sound_meta_cache, {sound_name, meta})
   end

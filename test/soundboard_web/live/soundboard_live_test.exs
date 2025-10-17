@@ -178,6 +178,20 @@ defmodule SoundboardWeb.SoundboardLiveTest do
         File.write!(test_file, "test content")
       end
 
+      # Seed playback cache with stale metadata to ensure it is cleared on update
+      SoundboardWeb.AudioPlayer.invalidate_cache(sound.filename)
+      SoundboardWeb.AudioPlayer.invalidate_cache("updated.mp3")
+
+      :ets.insert(
+        :sound_meta_cache,
+        {sound.filename, %{source_type: "local", input: test_file, volume: 0.2}}
+      )
+
+      :ets.insert(
+        :sound_meta_cache,
+        {"updated.mp3", %{source_type: "local", input: updated_file, volume: 0.9}}
+      )
+
       # Target the edit form specifically
       view
       |> element("#edit-form")
@@ -190,6 +204,31 @@ defmodule SoundboardWeb.SoundboardLiveTest do
       updated_sound = Repo.get(Sound, sound.id)
       assert updated_sound.filename == "updated.mp3"
       assert_in_delta updated_sound.volume, 0.8, 0.0001
+      assert :ets.lookup(:sound_meta_cache, sound.filename) == []
+      assert :ets.lookup(:sound_meta_cache, "updated.mp3") == []
+    end
+
+    test "slider volume change persists on save", %{conn: conn, sound: sound} do
+      {:ok, view, _html} = live(conn, "/")
+
+      view
+      |> element("[phx-click='edit'][phx-value-id='#{sound.id}']")
+      |> render_click()
+
+      render_hook(view, :update_volume, %{"volume" => 27, "target" => "edit"})
+
+      base_filename = Path.rootname(sound.filename)
+
+      view
+      |> element("#edit-form")
+      |> render_submit(%{
+        "filename" => base_filename,
+        "source_type" => sound.source_type,
+        "volume" => "27"
+      })
+
+      updated_sound = Repo.get!(Sound, sound.id)
+      assert_in_delta updated_sound.volume, 0.27, 0.0001
     end
 
     test "can delete sound", %{conn: conn, sound: sound} do
@@ -207,6 +246,15 @@ defmodule SoundboardWeb.SoundboardLiveTest do
       |> element("[phx-click='show_delete_confirm']")
       |> render_click()
 
+      # Seed cache entry to confirm deletion clears it
+      SoundboardWeb.AudioPlayer.invalidate_cache(sound.filename)
+
+      :ets.insert(
+        :sound_meta_cache,
+        {sound.filename,
+         %{source_type: "local", input: "priv/static/uploads/test.mp3", volume: 0.5}}
+      )
+
       view
       |> element("[phx-click='delete_sound']")
       |> render_click()
@@ -217,6 +265,7 @@ defmodule SoundboardWeb.SoundboardLiveTest do
       # Give the delete operation time to complete
       Process.sleep(100)
       assert Repo.get(Sound, sound.id) == nil
+      assert :ets.lookup(:sound_meta_cache, sound.filename) == []
     end
 
     test "url upload allows setting url before name", %{conn: conn} do
