@@ -172,6 +172,7 @@ Hooks.VolumeControl = {
       const percent = parsePercent(event.target.value)
       this.updateDisplay(percent)
       this.updatePreviewVolume(percent)
+      this.updateHidden(percent)
       this.queueVolumePush(percent)
     }
 
@@ -186,9 +187,10 @@ Hooks.VolumeControl = {
     this.bindSlider()
     this.bindPreviewButton()
 
-    const initialPercent = parsePercent(this.slider?.value ?? 100)
+    const initialPercent = parsePercent(this.slider?.value ?? this.hiddenInput?.value ?? 100)
     this.updateDisplay(initialPercent)
     this.updatePreviewVolume(initialPercent)
+    this.updateHidden(initialPercent)
   },
   updated() {
     this.assignElements()
@@ -199,6 +201,7 @@ Hooks.VolumeControl = {
       const percent = parsePercent(this.slider.value)
       this.updateDisplay(percent)
       this.updatePreviewVolume(percent)
+      this.updateHidden(percent)
     }
   },
   destroyed() {
@@ -224,6 +227,7 @@ Hooks.VolumeControl = {
     const previousSrc = this.previewSrc
 
     this.slider = this.el.querySelector("[data-role='volume-slider']")
+    this.hiddenInput = this.el.querySelector("[data-role='volume-hidden']")
     this.display = this.el.querySelector("[data-role='volume-display']")
     this.previewButton = this.el.querySelector("[data-role='volume-preview']")
     this.pushEventName = this.el.dataset.pushEvent
@@ -247,6 +251,11 @@ Hooks.VolumeControl = {
   updatePreviewVolume(percent) {
     if (this.previewAudio) {
       this.previewAudio.volume = percentToDecimal(percent)
+    }
+  },
+  updateHidden(percent) {
+    if (this.hiddenInput) {
+      this.hiddenInput.value = percent
     }
   },
   queueVolumePush(percent) {

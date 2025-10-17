@@ -28,8 +28,13 @@ defmodule SoundboardWeb.Components.Soundboard.VolumeControl do
         {@label}
       </label>
       <input
-        type="range"
+        type="hidden"
         name={@input_name}
+        value={@value}
+        data-role="volume-hidden"
+      />
+      <input
+        type="range"
         min="0"
         max="100"
         step="1"
