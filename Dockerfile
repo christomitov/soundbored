@@ -1,27 +1,10 @@
-FROM erlang:27-alpine
+FROM erlang:27-alpine AS build
 
-# Define build arguments
-ARG API_TOKEN
-ARG DISCORD_CLIENT_ID
-ARG DISCORD_CLIENT_SECRET
-ARG DISCORD_TOKEN
-ARG PHX_HOST
-ARG SCHEME
 ARG MIX_ENV=prod
-ARG SECRET_KEY_BASE
-ARG BASIC_AUTH_USERNAME
-ARG BASIC_AUTH_PASSWORD
 
-# Set environment variables from build arguments
-ENV API_TOKEN=$API_TOKEN \
-    DISCORD_CLIENT_ID=$DISCORD_CLIENT_ID \
-    DISCORD_CLIENT_SECRET=$DISCORD_CLIENT_SECRET \
-    DISCORD_TOKEN=$DISCORD_TOKEN \
-    PHX_HOST=$PHX_HOST \
-    MIX_ENV=$MIX_ENV \
-    SCHEME=$SCHEME \
-    BASIC_AUTH_USERNAME=$BASIC_AUTH_USERNAME \
-    BASIC_AUTH_PASSWORD=$BASIC_AUTH_PASSWORD \
+ENV MIX_ENV=$MIX_ENV \
+    MIX_HOME=/app/.mix \
+    HEX_HOME=/app/.hex \
     LANG=C.UTF-8 \
     LC_ALL=C.UTF-8 \
     LC_CTYPE=C.UTF-8 \
@@ -59,54 +42,93 @@ WORKDIR /app
 COPY . .
 
 # Install hex and rebar and get dependencies
-RUN mix local.hex --force && \
+RUN mkdir -p /app/.mix /app/.hex && \
+    mix local.hex --force && \
     mix local.rebar --force && \
     mix deps.get
 
-# Generate and store SECRET_KEY_BASE
+RUN chmod -R a+rwX /app/.mix /app/.hex
+
 RUN bash -c '\
-    if [ -z "$SECRET_KEY_BASE" ]; then \
-        echo "Generating new SECRET_KEY_BASE..."; \
+    if [ ! -f /app/.secret_key_base ]; then \
         generated_key=$(mix phx.gen.secret); \
         echo "$generated_key" > /app/.secret_key_base; \
-    else \
-        echo "Using provided SECRET_KEY_BASE"; \
-        echo "$SECRET_KEY_BASE" > /app/.secret_key_base; \
     fi && \
-    chmod 600 /app/.secret_key_base && \
-    export SECRET_KEY_BASE=$(cat /app/.secret_key_base) && \
-    echo "SECRET_KEY_BASE length: ${#SECRET_KEY_BASE} bytes" && \
-    mix setup && \
-    mix assets.deploy'
+    chmod 444 /app/.secret_key_base && \
+    echo "Prepared SECRET_KEY_BASE file (length: $(wc -c < /app/.secret_key_base) bytes)"'
 
-RUN printf '#!/bin/bash\n\
-set -e\n\
-\n\
-# Enable command tracing for debugging\n\
-set -x\n\
-\n\
-# Debug information\n\
-echo "=== Starting entrypoint script ==="\n\
-echo "Current directory: $(pwd)"\n\
-echo "Directory contents:"\n\
-ls -la\n\
-echo "Environment variables:"\n\
-env | grep -v "SECRET"\n\
-\n\
-# Set up environment\n\
-export SECRET_KEY_BASE=$(cat /app/.secret_key_base)\n\
-echo "Secret key base is configured (length: ${#SECRET_KEY_BASE} bytes)"\n\
-\n\
-# Run migrations\n\
-echo "Running database migrations..."\n\
-mix ecto.migrate\n\
-\n\
-# Start Phoenix server in foreground\n\
-# Using exec ensures proper signal handling and process management\n\
-echo "Starting Phoenix server..."\n\
-exec mix phx.server\n\
-' > /app/entrypoint.sh && chmod +x /app/entrypoint.sh
+RUN export SKIP_RUNTIME_CONFIG=1 && \
+    mix assets.setup && \
+    mix compile && \
+    mix assets.deploy
 
-# Configure shell and entrypoint
+FROM erlang:27-alpine AS runtime
+
+ENV MIX_ENV=prod \
+    MIX_HOME=/app/.mix \
+    HEX_HOME=/app/.hex \
+    LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8 \
+    LC_CTYPE=C.UTF-8
+
+RUN apk add --no-cache \
+    ffmpeg \
+    bash \
+    curl \
+    git
+
+WORKDIR /app
+COPY --from=build /app /app
+COPY --from=build /usr/local /usr/local
+RUN chmod -R a+rwX /app/.mix /app/.hex
+
+RUN cat <<'EOF' > /app/entrypoint.sh
+#!/bin/bash
+set -e
+
+# Enable command tracing for debugging
+set -x
+
+# Debug information
+echo "=== Starting entrypoint script ==="
+echo "Current directory: $(pwd)"
+echo "Directory contents:"
+ls -la
+echo "Environment variables:"
+env | grep -v "SECRET"
+
+# Prepare temporary directories for Phoenix PubSub/etc.
+export TMPDIR=${TMPDIR:-/tmp/mix_pubsub}
+mkdir -p "$TMPDIR"
+chmod 1777 "$TMPDIR" || true
+
+# Force HOME to a writable path inside the image so Mix can cache data
+export HOME=/app
+mkdir -p "$HOME/.mix" "$HOME/.hex"
+chmod -R u+rwX "$HOME/.mix" "$HOME/.hex" || true
+
+# Set up SECRET_KEY_BASE
+if [ -n "${SECRET_KEY_BASE:-}" ]; then
+  echo "SECRET_KEY_BASE provided via environment (length: ${#SECRET_KEY_BASE} bytes)"
+elif [ -r /app/.secret_key_base ]; then
+  export SECRET_KEY_BASE=$(cat /app/.secret_key_base)
+  echo "Secret key base is configured from file (length: ${#SECRET_KEY_BASE} bytes)"
+else
+  echo "SECRET_KEY_BASE is not set and /app/.secret_key_base is unreadable" >&2
+  exit 1
+fi
+
+# Run migrations
+echo "Running database migrations..."
+mix ecto.migrate
+
+# Start Phoenix server in foreground
+# Using exec ensures proper signal handling and process management
+echo "Starting Phoenix server..."
+exec mix phx.server
+EOF
+
+RUN chmod +x /app/entrypoint.sh
+
 SHELL ["/bin/bash", "-c"]
 ENTRYPOINT ["/bin/bash", "/app/entrypoint.sh"]

@@ -65,6 +65,7 @@ All available keys live in `.env.example`. Configure the ones that match your se
 | `DISCORD_TOKEN` | ✔ | Bot token used to play audio in voice channels. |
 | `DISCORD_CLIENT_ID` / `DISCORD_CLIENT_SECRET` | ✔ | OAuth credentials for Discord login. |
 | `API_TOKEN` | ✔ | Shared bearer token for the REST API. |
+| `SECRET_KEY_BASE` | ✔ | Signing/encryption secret; generate via `mix phx.gen.secret`. |
 | `PHX_HOST` | ✔ | Hostname the app advertises (`localhost` for local runs). |
 | `SCHEME` | ✔ | `http` locally, `https` in production. |
 | `BASIC_AUTH_USERNAME` / `BASIC_AUTH_PASSWORD` | optional | Protect the UI with HTTP basic auth. |
@@ -79,21 +80,7 @@ The application is published to Docker Hub as `christom/soundbored`.
 docker pull christom/soundbored:latest
 docker run -d -p 4000:4000 --env-file ./.env christom/soundbored
 ```
-
-### Behind a Reverse Proxy (optional)
-1. Update `.env` with production values (`PHX_HOST=your.domain.com`, `SCHEME=https`).
-2. Point your proxy at the container. Example Caddyfile:
-   ```
-   your.domain.com {
-       reverse_proxy soundbored:4000
-   }
-   ```
-3. Start the stack:
-   ```bash
-   docker compose -f docker-compose.prod.yml up -d
-   ```
-
-When `PHX_HOST` is `localhost` the app skips proxy-related configuration; any other value assumes TLS termination is handled externally.
+If you place the container behind your own reverse proxy, set `PHX_HOST` and `SCHEME` in `.env` to match the external URL and terminate TLS in your proxy. No additional compose files are required.
 
 ## Usage
 

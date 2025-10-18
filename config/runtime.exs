@@ -20,7 +20,8 @@ if System.get_env("PHX_SERVER") do
   config :soundboard, SoundboardWeb.Endpoint, server: true
 end
 
-if config_env() == :prod do
+# Allow build tooling to opt-out to avoid requiring secrets during image builds.
+if config_env() == :prod and is_nil(System.get_env("SKIP_RUNTIME_CONFIG")) do
   # Replace the database_url section with SQLite configuration
   database_path = Path.join(:code.priv_dir(:soundboard), "static/uploads/soundboard_prod.db")
 
@@ -32,13 +33,20 @@ if config_env() == :prod do
   # The secret key base is used to sign/encrypt cookies and other secrets.
   secret_key_base =
     System.get_env("SECRET_KEY_BASE") ||
-      File.read!("/app/.secret_key_base") ||
-      raise """
-      environment variable SECRET_KEY_BASE is missing and no fallback file found.
-      You can generate one by calling: mix phx.gen.secret
-      """
+      case File.read("/app/.secret_key_base") do
+        {:ok, key} ->
+          key
 
-  host = System.get_env("PHX_HOST") || raise "PHX_HOST must be set"
+        _ ->
+          raise """
+          environment variable SECRET_KEY_BASE is missing.
+          Provide it via your environment (recommended) or ensure /app/.secret_key_base exists.
+          Generate one with: mix phx.gen.secret
+          """
+      end
+
+  host = System.get_env("PHX_HOST") || raise("PHX_HOST must be set")
+
   scheme = System.get_env("SCHEME") || "https"
   callback_url = "#{scheme}://#{host}/auth/discord/callback"
 
