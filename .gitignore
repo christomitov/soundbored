@@ -30,6 +30,15 @@ soundboard-*.tar
 
 # Ignore digested assets cache.
 /priv/static/cache_manifest.json
+/priv/static/favicon-*.ico
+/priv/static/manifest-*.json
+/priv/static/manifest-*.json.gz
+/priv/static/manifest.json.gz
+/priv/static/robots-*.txt
+/priv/static/robots-*.txt.gz
+/priv/static/robots.txt.gz
+/priv/static/images/icon-*
+/priv/static/images/*-*
 
 # In case you use Node.js/npm, you want to ignore these.
 npm-debug.log
