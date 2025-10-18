@@ -202,6 +202,10 @@ Hooks.LocalPlayer = {
     } catch (_err) {
       audio.volume = 1
     }
+
+    if (audio.__boostGain) {
+      audio.__boostGain.gain.value = target > 1 ? target : 1
+    }
   },
   async applyBoost(audio, target) {
     const normalized = Math.max(0, Math.min(target, BOOST_CAP))
@@ -230,6 +234,7 @@ Hooks.LocalPlayer = {
       gainNode = this.audioContext.createGain()
       gainNode.gain.value = normalized
       source.connect(gainNode).connect(this.audioContext.destination)
+      audio.__boostGain = gainNode
       this.setElementVolume(audio, 1)
     } catch (error) {
       console.error("Failed to apply local boost", error)
@@ -244,6 +249,9 @@ Hooks.LocalPlayer = {
       try {
         gainNode.disconnect()
       } catch (_err) {}
+      if (audio.__boostGain === gainNode) {
+        delete audio.__boostGain
+      }
     }
   }
 }
