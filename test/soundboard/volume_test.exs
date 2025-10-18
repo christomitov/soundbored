@@ -18,8 +18,8 @@ defmodule Soundboard.VolumeTest do
 
   describe "percent_to_decimal/2" do
     test "converts to decimal with fallback" do
-      assert Volume.percent_to_decimal("50", 100) == 0.25
-      assert Volume.percent_to_decimal(nil, 80) == 0.64
+      assert Volume.percent_to_decimal("50", 100) == 0.5
+      assert Volume.percent_to_decimal(nil, 80) == 0.8
       assert Volume.percent_to_decimal("110", 100) == 1.1
       assert Volume.percent_to_decimal("150", 100) == 1.5
       assert Volume.percent_to_decimal("200", 25) == 1.5
@@ -29,8 +29,8 @@ defmodule Soundboard.VolumeTest do
   describe "decimal_to_percent/1" do
     test "handles nil and bounds" do
       assert Volume.decimal_to_percent(nil) == 100
-      assert Volume.decimal_to_percent(0.0625) == 25
-      assert Volume.decimal_to_percent(0.64) == 80
+      assert Volume.decimal_to_percent(0.0625) == 6
+      assert Volume.decimal_to_percent(0.64) == 64
       assert Volume.decimal_to_percent(1.1) == 110
       assert Volume.decimal_to_percent(1.4) == 140
       assert Volume.decimal_to_percent(1.6) == 150

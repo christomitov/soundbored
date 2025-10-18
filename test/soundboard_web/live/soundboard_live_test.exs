@@ -203,7 +203,7 @@ defmodule SoundboardWeb.SoundboardLiveTest do
 
       updated_sound = Repo.get(Sound, sound.id)
       assert updated_sound.filename == "updated.mp3"
-      assert_in_delta updated_sound.volume, 0.64, 0.0001
+      assert_in_delta updated_sound.volume, 0.8, 0.0001
       assert :ets.lookup(:sound_meta_cache, sound.filename) == []
       assert :ets.lookup(:sound_meta_cache, "updated.mp3") == []
     end
@@ -228,7 +228,7 @@ defmodule SoundboardWeb.SoundboardLiveTest do
       })
 
       updated_sound = Repo.get!(Sound, sound.id)
-      assert_in_delta updated_sound.volume, 0.0729, 0.0001
+      assert_in_delta updated_sound.volume, 0.27, 0.0001
     end
 
     test "can delete sound", %{conn: conn, sound: sound} do
@@ -337,7 +337,7 @@ defmodule SoundboardWeb.SoundboardLiveTest do
       })
 
       sound = Repo.get_by!(Sound, filename: "soft.mp3")
-      assert_in_delta sound.volume, 0.0625, 0.0001
+      assert_in_delta sound.volume, 0.25, 0.0001
 
       Repo.delete!(sound)
     end

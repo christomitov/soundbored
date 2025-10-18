@@ -141,7 +141,7 @@ defmodule SoundboardWeb.Live.UploadHandlerTest do
       }
 
       assert {:ok, sound} = UploadHandler.handle_upload(socket, params, & &1)
-      assert_in_delta sound.volume, 0.16, 0.0001
+      assert_in_delta sound.volume, 0.4, 0.0001
     end
 
     test "handles upload errors", %{socket: socket} do

@@ -25,147 +25,221 @@ import topbar from "../vendor/topbar"
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max)
+const roundTo = (value, decimals = 4) => {
+  const factor = Math.pow(10, decimals)
+  return Math.round(value * factor) / factor
+}
 
-const BASE_PERCENT = 100
 const MAX_VOLUME_PERCENT_DEFAULT = 150
 const BOOST_CAP = 1.5
-const SNAP_PERCENT = 100
-const SNAP_THRESHOLD = 2
 
-const parsePercent = (value, fallback = MAX_VOLUME_PERCENT_DEFAULT, maxPercent = MAX_VOLUME_PERCENT_DEFAULT) => {
-  const normalize = (val) => clamp(Math.round(val), 0, maxPercent)
+const getAudioContextCtor = () => window.AudioContext || window.webkitAudioContext || null
 
-  if (typeof value === "number" && !Number.isNaN(value)) {
-    return normalize(value)
-  }
-
-  if (typeof value === "string") {
-    const parsed = parseFloat(value.trim())
-    if (!Number.isNaN(parsed)) {
-      return normalize(parsed)
+const parsePercent = (
+  value,
+  fallback = MAX_VOLUME_PERCENT_DEFAULT,
+  maxPercent = MAX_VOLUME_PERCENT_DEFAULT
+) => {
+  const parseNumeric = (input) => {
+    if (typeof input === "number" && Number.isFinite(input)) {
+      return input
     }
-  }
-
-  const fallbackNumber = typeof fallback === "string" ? parseFloat(fallback) : fallback
-  return normalize(Number.isFinite(fallbackNumber) ? fallbackNumber : maxPercent)
-}
-
-const percentToDecimal = (percent, maxPercent = MAX_VOLUME_PERCENT_DEFAULT) => {
-  const clamped = clamp(percent, 0, maxPercent)
-
-  if (clamped <= BASE_PERCENT) {
-    const normalized = clamped / BASE_PERCENT
-    const scaled = normalized * normalized
-    return clamp(Math.round(scaled * 10000) / 10000, 0, BOOST_CAP)
-  }
-
-  const boosted = 1 + (clamped - BASE_PERCENT) * 0.01
-  return clamp(Math.round(boosted * 10000) / 10000, 0, BOOST_CAP)
-}
-
-const PlayerState = {
-  currentHook: null,
-  currentAudio: null,
-  currentCleanup: null,
-
-  set(hook, audio, cleanup = null) {
-    this.currentHook = hook
-    this.currentAudio = audio
-    this.currentCleanup = cleanup
-  },
-
-  stopCurrent() {
-    if (this.currentAudio) {
-      this.currentAudio.pause()
-      this.currentAudio.currentTime = 0
-      if (typeof this.currentCleanup === "function") {
-        try {
-          this.currentCleanup()
-        } catch (_err) {}
+    if (typeof input === "string") {
+      const parsed = parseFloat(input.trim())
+      if (!Number.isNaN(parsed)) {
+        return parsed
       }
     }
+    return null
+  }
 
-    if (this.currentHook) {
-      this.currentHook.setPlaying(false)
-    }
+  const parsedValue = parseNumeric(value)
+  const parsedFallback = parseNumeric(fallback)
+  const base = parsedValue === null ? (parsedFallback === null ? maxPercent : parsedFallback) : parsedValue
+  return clamp(Math.round(base), 0, maxPercent)
+}
 
-    this.currentHook = null
-    this.currentAudio = null
-    this.currentCleanup = null
+const percentToGain = (percent, maxPercent = MAX_VOLUME_PERCENT_DEFAULT) => {
+  const clampedPercent = clamp(Math.round(percent), 0, maxPercent)
+  if (clampedPercent <= 100) {
+    return roundTo(clampedPercent / 100)
+  }
+  const boosted = 1 + (clampedPercent - 100) * 0.01
+  return roundTo(Math.min(boosted, BOOST_CAP))
+}
+
+const setElementGain = (audio, gain) => {
+  if (!audio) {
+    return
+  }
+
+  const clampedGain = clamp(gain, 0, BOOST_CAP)
+  const elementVolume = Math.min(clampedGain, 1)
+
+  try {
+    audio.volume = elementVolume
+  } catch (_err) {
+    audio.volume = 1
+  }
+
+  if (audio.__gainNode) {
+    audio.__gainNode.gain.value = clampedGain > 1 ? clampedGain : 1
   }
 }
 
-window.addEventListener("phx:stop-all-sounds", () => PlayerState.stopCurrent())
+let activeLocalPlayer = null
+
+const stopActiveLocalPlayer = () => {
+  if (activeLocalPlayer && typeof activeLocalPlayer.stopPlayback === "function") {
+    activeLocalPlayer.stopPlayback()
+  }
+}
+
+window.addEventListener("phx:stop-all-sounds", stopActiveLocalPlayer)
 
 let Hooks = {}
 Hooks.LocalPlayer = {
   mounted() {
+    this.audio = null
     this.audioContext = null
+    this.cleanup = null
     this.handleClick = this.handleClick.bind(this)
     this.el.addEventListener("click", this.handleClick)
   },
   updated() {
-    if (PlayerState.currentHook === this && PlayerState.currentAudio) {
-      this.setElementVolume(PlayerState.currentAudio, this.getVolume())
+    if (this.audio && !this.audio.paused) {
+      this.configureGain(this.readGain())
     }
   },
   destroyed() {
     this.el.removeEventListener("click", this.handleClick)
-    if (PlayerState.currentHook === this) {
-      PlayerState.stopCurrent()
-    }
+    this.stopPlayback()
+  },
+  readGain() {
+    const raw = parseFloat(this.el.dataset.volume)
+    return Number.isFinite(raw) ? clamp(raw, 0, BOOST_CAP) : 1
   },
   async handleClick(event) {
     event.preventDefault()
     event.stopPropagation()
 
-    if (PlayerState.currentHook === this && PlayerState.currentAudio) {
-      PlayerState.stopCurrent()
+    if (this.audio && !this.audio.paused) {
+      this.stopPlayback()
       return
     }
 
-    PlayerState.stopCurrent()
+    if (activeLocalPlayer && activeLocalPlayer !== this) {
+      activeLocalPlayer.stopPlayback()
+    }
+
+    await this.startPlayback()
+  },
+  async startPlayback() {
+    this.stopPlayback()
 
     const sourceType = this.el.dataset.sourceType
     const url = this.el.dataset.url
     const filename = this.el.dataset.filename
+
     const audio = new Audio()
-    const volume = this.getVolume()
-    const cleanup = await this.applyBoost(audio, volume)
 
     if (sourceType === "url" && url) {
       audio.src = url
-    } else {
+    } else if (filename) {
       audio.src = `/uploads/${filename}`
+    } else {
+      return
     }
 
-    audio.onended = () => {
-      if (PlayerState.currentHook === this) {
-        PlayerState.stopCurrent()
-      }
+    audio.addEventListener("ended", () => this.stopPlayback())
+    audio.addEventListener("error", () => this.stopPlayback())
+
+    this.audio = audio
+
+    await this.configureGain(this.readGain())
+
+    try {
+      await audio.play()
+      this.setPlaying(true)
+      activeLocalPlayer = this
+    } catch (error) {
+      console.error("Audio playback failed", error)
+      this.stopPlayback()
+    }
+  },
+  async configureGain(targetGain) {
+    if (!this.audio) {
+      return
     }
 
-    audio.onerror = () => {
-      if (PlayerState.currentHook === this) {
-        PlayerState.stopCurrent()
-      }
+    this.releaseBoost()
+
+    const normalized = clamp(targetGain, 0, BOOST_CAP)
+    const ContextCtor = getAudioContextCtor()
+
+    if (!ContextCtor || normalized <= 1) {
+      setElementGain(this.audio, normalized)
+      return
     }
 
-    audio
-      .play()
-      .then(() => {
-        this.setPlaying(true)
-        PlayerState.set(this, audio, cleanup)
-      })
-      .catch((error) => {
-        console.error("Audio playback failed", error)
-        this.setPlaying(false)
-        if (typeof cleanup === "function") {
-          try {
-            cleanup()
-          } catch (_err) {}
+    if (!this.audioContext) {
+      this.audioContext = new ContextCtor()
+    }
+
+    if (this.audioContext.state === "suspended") {
+      try {
+        await this.audioContext.resume()
+      } catch (_err) {}
+    }
+
+    try {
+      const source = this.audioContext.createMediaElementSource(this.audio)
+      const gainNode = this.audioContext.createGain()
+      gainNode.gain.value = normalized
+      source.connect(gainNode).connect(this.audioContext.destination)
+      this.audio.__gainNode = gainNode
+      setElementGain(this.audio, normalized)
+
+      this.cleanup = () => {
+        try {
+          source.disconnect()
+        } catch (_err) {}
+        try {
+          gainNode.disconnect()
+        } catch (_err) {}
+        if (this.audio && this.audio.__gainNode === gainNode) {
+          delete this.audio.__gainNode
         }
-      })
+      }
+    } catch (error) {
+      console.warn("Unable to apply playback boost", error)
+      setElementGain(this.audio, Math.min(normalized, 1))
+    }
+  },
+  releaseBoost() {
+    if (typeof this.cleanup === "function") {
+      try {
+        this.cleanup()
+      } catch (_err) {}
+    }
+    this.cleanup = null
+    if (this.audio) {
+      delete this.audio.__gainNode
+    }
+  },
+  stopPlayback() {
+    this.releaseBoost()
+    if (this.audio) {
+      try {
+        this.audio.pause()
+        this.audio.currentTime = 0
+      } catch (_err) {}
+      this.audio = null
+    }
+    this.setPlaying(false)
+    if (activeLocalPlayer === this) {
+      activeLocalPlayer = null
+    }
   },
   setPlaying(isPlaying) {
     const playIcon = this.el.querySelector(".play-icon")
@@ -182,310 +256,171 @@ Hooks.LocalPlayer = {
       playIcon.classList.remove("hidden")
       stopIcon.classList.add("hidden")
     }
-  },
-  getVolume() {
-    const volume = parseFloat(this.el.dataset.volume)
-    if (Number.isFinite(volume)) {
-      return clamp(volume, 0, BOOST_CAP)
-    }
-
-    return 1
-  },
-  setElementVolume(audio, target) {
-    if (!audio) {
-      return
-    }
-
-    const clamped = Math.max(0, Math.min(target, 1))
-    try {
-      audio.volume = clamped
-    } catch (_err) {
-      audio.volume = 1
-    }
-
-    if (audio.__boostGain) {
-      audio.__boostGain.gain.value = target > 1 ? target : 1
-    }
-  },
-  async applyBoost(audio, target) {
-    const normalized = Math.max(0, Math.min(target, BOOST_CAP))
-    const AudioContextCtor = window.AudioContext || window.webkitAudioContext
-
-    if (!AudioContextCtor || normalized <= 1) {
-      this.setElementVolume(audio, normalized)
-      return null
-    }
-
-    if (!this.audioContext) {
-      this.audioContext = new AudioContextCtor()
-    }
-
-    if (this.audioContext.state === "suspended") {
-      try {
-        await this.audioContext.resume()
-      } catch (_err) {}
-    }
-
-    let source
-    let gainNode
-
-    try {
-      source = this.audioContext.createMediaElementSource(audio)
-      gainNode = this.audioContext.createGain()
-      gainNode.gain.value = normalized
-      source.connect(gainNode).connect(this.audioContext.destination)
-      audio.__boostGain = gainNode
-      this.setElementVolume(audio, 1)
-    } catch (error) {
-      console.error("Failed to apply local boost", error)
-      this.setElementVolume(audio, 1)
-      return null
-    }
-
-    return () => {
-      try {
-        source.disconnect()
-      } catch (_err) {}
-      try {
-        gainNode.disconnect()
-      } catch (_err) {}
-      if (audio.__boostGain === gainNode) {
-        delete audio.__boostGain
-      }
-    }
   }
 }
 
 Hooks.VolumeControl = {
   mounted() {
-    this.maxPercent = parseInt(this.el.dataset.maxPercent || `${MAX_VOLUME_PERCENT_DEFAULT}`, 10)
-    if (Number.isNaN(this.maxPercent) || this.maxPercent <= 0) {
-      this.maxPercent = MAX_VOLUME_PERCENT_DEFAULT
-    }
-    this.thumbSize = 18
-    this.audioContext = null
+    this.previewAudio = null
+    this.previewContext = null
     this.previewSource = null
     this.previewGain = null
-    this.previewGraphBlocked = false
-    this.previewGraphBlockedSource = null
-    this.assignElements()
-    this.previewAudio = null
     this.objectUrl = null
-    this.lastPreviewFile = null
-    this.pushDebounce = null
-    this.boundSlider = null
-    this.boundPreviewButton = null
+    this.lastFile = null
+    this.pushTimer = null
+    this.previewLabel = "Preview"
 
-    this.handleSliderInput = (event) => {
-      let percent = parsePercent(event.target.value, this.maxPercent, this.maxPercent)
-      percent = this.maybeSnap(percent)
-      event.target.value = percent
-      this.updateDisplay(percent)
-      this.updatePreviewVolume(percent)
-      this.updateHidden(percent)
-      this.queueVolumePush(percent)
-    }
+    this.handleSliderInput = this.handleSliderInput.bind(this)
+    this.handlePreviewClick = this.handlePreviewClick.bind(this)
 
-    this.handlePreviewClick = async (event) => {
-      event.preventDefault()
-      if (this.previewButton && this.previewButton.disabled) {
-        return
-      }
-      await this.togglePreview()
-    }
+    this.syncDataset()
+    this.bindElements()
 
-    this.bindSlider()
-    this.bindPreviewButton()
-
-    let initialPercent = parsePercent(
-      this.slider?.value ?? this.hiddenInput?.value ?? this.maxPercent,
-      this.maxPercent,
-      this.maxPercent
-    )
-    initialPercent = this.maybeSnap(initialPercent)
-    if (this.slider) {
-      this.slider.value = initialPercent
-    }
-    this.updateDisplay(initialPercent)
-    this.updatePreviewVolume(initialPercent)
-    this.updateHidden(initialPercent)
+    this.setPercent(this.initialPercent(), {emit: false})
   },
   updated() {
-    this.assignElements()
-    this.bindSlider()
-    this.bindPreviewButton()
-
-    if (this.slider) {
-      let percent = parsePercent(this.slider.value, this.maxPercent, this.maxPercent)
-      percent = this.maybeSnap(percent)
-      this.slider.value = percent
-      this.updateDisplay(percent)
-      this.updatePreviewVolume(percent)
-      this.updateHidden(percent)
-    }
-  },
-  destroyed() {
-    if (this.boundSlider) {
-      this.boundSlider.removeEventListener("input", this.handleSliderInput)
-      this.boundSlider = null
-    }
-
-    if (this.boundPreviewButton) {
-      this.boundPreviewButton.removeEventListener("click", this.handlePreviewClick)
-      this.boundPreviewButton = null
-    }
-
-    this.stopPreview(true)
-
-    if (this.pushDebounce) {
-      clearTimeout(this.pushDebounce)
-      this.pushDebounce = null
-    }
-  },
-  assignElements() {
     const previousKind = this.previewKind
     const previousSrc = this.previewSrc
 
-    this.slider = this.el.querySelector("[data-role='volume-slider']")
-    this.track = this.el.querySelector("[data-role='volume-track']")
-    this.marker = this.el.querySelector("[data-role='volume-marker']")
-    this.hiddenInput = this.el.querySelector("[data-role='volume-hidden']")
-    this.display = this.el.querySelector("[data-role='volume-display']")
-    this.previewButton = this.el.querySelector("[data-role='volume-preview']")
-    this.pushEventName = this.el.dataset.pushEvent
-    this.volumeTarget = this.el.dataset.volumeTarget
-    const maxFromDataset = parseInt(this.el.dataset.maxPercent || "", 10)
-    if (!Number.isNaN(maxFromDataset) && maxFromDataset > 0) {
-      this.maxPercent = maxFromDataset
-    }
-    if (this.slider) {
-      const thumb = parseInt(this.slider.dataset.thumbSize || "", 10)
-      if (!Number.isNaN(thumb) && thumb > 0) {
-        this.thumbSize = thumb
-      }
-      this.minPercent = Number(this.slider.min || 0)
-      this.maxPercent = Number(this.slider.max || this.maxPercent)
-    }
-    this.previewKind = this.el.dataset.previewKind || "existing"
-    this.fileInputId = this.el.dataset.fileInputId
-    this.urlInputId = this.el.dataset.urlInputId
-    this.previewSrc = this.el.dataset.previewSrc
+    this.syncDataset()
+    this.bindElements()
+    this.setPercent(this.initialPercent(), {emit: false})
 
     if (previousKind && previousKind !== this.previewKind) {
       this.stopPreview(true)
-    } else if (previousSrc && previousSrc !== this.previewSrc && this.previewKind !== "local-upload") {
+    } else if (previousSrc !== this.previewSrc && this.previewKind !== "local-upload") {
       this.stopPreview()
     }
-
-    const currentPercent = parsePercent(
-      this.hiddenInput?.value ?? this.slider?.value ?? this.maxPercent,
-      this.maxPercent,
-      this.maxPercent
-    )
-    this.positionMarker(this.maybeSnap(currentPercent))
   },
-  updateDisplay(percent) {
-    if (this.display) {
-      this.display.textContent = `${percent}%`
-      if (percent > BASE_PERCENT) {
-        this.display.classList.add("text-amber-500", "font-semibold")
-      } else {
-        this.display.classList.remove("text-amber-500", "font-semibold")
+  destroyed() {
+    if (this.slider) {
+      this.slider.removeEventListener("input", this.handleSliderInput)
+    }
+    if (this.previewButton) {
+      this.previewButton.removeEventListener("click", this.handlePreviewClick)
+    }
+    if (this.pushTimer) {
+      clearTimeout(this.pushTimer)
+      this.pushTimer = null
+    }
+    this.stopPreview(true)
+    if (this.previewSource) {
+      try {
+        this.previewSource.disconnect()
+      } catch (_err) {}
+    }
+    if (this.previewGain) {
+      try {
+        this.previewGain.disconnect()
+      } catch (_err) {}
+    }
+    this.previewSource = null
+    this.previewGain = null
+    if (this.previewContext) {
+      try {
+        this.previewContext.close()
+      } catch (_err) {}
+      this.previewContext = null
+    }
+  },
+  syncDataset() {
+    const dataset = this.el.dataset
+    const parsedMax = parseInt(dataset.maxPercent || "", 10)
+    this.maxPercent =
+      Number.isInteger(parsedMax) && parsedMax > 0 ? parsedMax : MAX_VOLUME_PERCENT_DEFAULT
+    this.pushEventName = dataset.pushEvent || null
+    this.volumeTarget = dataset.volumeTarget || null
+    this.previewKind = dataset.previewKind || "existing"
+    this.fileInputId = dataset.fileInputId || null
+    this.urlInputId = dataset.urlInputId || null
+    this.previewSrc = dataset.previewSrc || ""
+  },
+  bindElements() {
+    const slider = this.el.querySelector("[data-role='volume-slider']")
+    if (this.slider !== slider) {
+      if (this.slider) {
+        this.slider.removeEventListener("input", this.handleSliderInput)
+      }
+      this.slider = slider
+      if (this.slider) {
+        this.slider.addEventListener("input", this.handleSliderInput)
       }
     }
-  },
-  updatePreviewVolume(percent) {
-    const targetGain = percentToDecimal(percent, this.maxPercent)
-    this.ensurePreviewGraph(targetGain).then(() => this.setPreviewLevels(targetGain))
-  },
-  updateHidden(percent) {
-    if (this.hiddenInput) {
-      this.hiddenInput.value = percent
-    }
-    this.positionMarker(percent)
-  },
-  positionMarker(percent) {
-    if (!this.marker || !this.slider) {
-      return
+
+    const previewButton = this.el.querySelector("[data-role='volume-preview']")
+    if (this.previewButton !== previewButton) {
+      if (this.previewButton) {
+        this.previewButton.removeEventListener("click", this.handlePreviewClick)
+      }
+      this.previewButton = previewButton
+      if (this.previewButton) {
+        this.previewButton.addEventListener("click", this.handlePreviewClick)
+      }
     }
 
-    const thumb = this.thumbSize || 18
-    const min = this.minPercent ?? Number(this.slider.min || 0)
-    const max = this.maxPercent ?? Number(this.slider.max || MAX_VOLUME_PERCENT_DEFAULT)
-    const range = max - min
-    const ratio = range <= 0 ? 0 : (percent - min) / range
-    const boundedRatio = clamp(ratio, 0, 1)
-    const containerWidth = (this.track && this.track.clientWidth) || this.slider.clientWidth || 0
-    const offset = boundedRatio * Math.max(containerWidth - thumb, 0) + thumb / 2
-
-    this.marker.style.left = `${offset}px`
-  },
-  maybeSnap(percent) {
-    if (Math.abs(percent - SNAP_PERCENT) <= SNAP_THRESHOLD) {
-      return SNAP_PERCENT
+    if (this.previewButton) {
+      this.previewLabel = this.previewButton.textContent?.trim() || this.previewLabel
     }
 
-    return clamp(percent, this.minPercent ?? 0, this.maxPercent ?? MAX_VOLUME_PERCENT_DEFAULT)
+    this.hiddenInput = this.el.querySelector("[data-role='volume-hidden']")
+    this.display = this.el.querySelector("[data-role='volume-display']")
   },
-  queueVolumePush(percent) {
+  initialPercent() {
+    const hiddenValue = this.hiddenInput?.value
+    const sliderValue = this.slider?.value
+    return parsePercent(hiddenValue ?? sliderValue ?? this.maxPercent, this.maxPercent, this.maxPercent)
+  },
+  setPercent(percent, {emit = false} = {}) {
+    const bounded = clamp(Math.round(percent), 0, this.maxPercent)
+    if (this.slider && Number(this.slider.value) !== bounded) {
+      this.slider.value = bounded
+    }
+
+    if (this.hiddenInput && Number(this.hiddenInput.value) !== bounded) {
+      this.hiddenInput.value = bounded
+    }
+
+    if (this.display) {
+      this.display.textContent = `${bounded}%`
+    }
+
+    if (emit) {
+      this.queuePush(bounded)
+    }
+
+    this.updatePreviewGain(bounded)
+  },
+  async handleSliderInput(event) {
+    const fallback = this.hiddenInput?.value ?? this.slider?.value ?? this.maxPercent
+    const nextPercent = parsePercent(event.target.value, fallback, this.maxPercent)
+    event.target.value = nextPercent
+    this.setPercent(nextPercent, {emit: true})
+  },
+  queuePush(percent) {
     if (!this.pushEventName) {
       return
     }
 
-    if (this.pushDebounce) {
-      clearTimeout(this.pushDebounce)
+    if (this.pushTimer) {
+      clearTimeout(this.pushTimer)
     }
 
-    this.pushDebounce = setTimeout(() => {
-    const payload = {volume: percent}
-    if (this.volumeTarget) {
-      payload.target = this.volumeTarget
-    }
-
-    this.pushEvent(this.pushEventName, payload)
+    this.pushTimer = setTimeout(() => {
+      const payload = {volume: percent}
+      if (this.volumeTarget) {
+        payload.target = this.volumeTarget
+      }
+      this.pushEvent(this.pushEventName, payload)
+      this.pushTimer = null
     }, 100)
   },
-  bindSlider() {
-    if (!this.slider) {
-      if (this.boundSlider) {
-        this.boundSlider.removeEventListener("input", this.handleSliderInput)
-      }
-      this.boundSlider = null
+  async handlePreviewClick(event) {
+    event.preventDefault()
+
+    if (this.previewButton && this.previewButton.disabled) {
       return
     }
 
-    if (this.boundSlider === this.slider) {
-      return
-    }
-
-    if (this.boundSlider) {
-      this.boundSlider.removeEventListener("input", this.handleSliderInput)
-    }
-
-    this.slider.addEventListener("input", this.handleSliderInput)
-    this.boundSlider = this.slider
-  },
-  bindPreviewButton() {
-    if (!this.previewButton) {
-      if (this.boundPreviewButton) {
-        this.boundPreviewButton.removeEventListener("click", this.handlePreviewClick)
-      }
-      this.boundPreviewButton = null
-      return
-    }
-
-    if (this.boundPreviewButton === this.previewButton) {
-      return
-    }
-
-    if (this.boundPreviewButton) {
-      this.boundPreviewButton.removeEventListener("click", this.handlePreviewClick)
-    }
-
-    this.previewButton.addEventListener("click", this.handlePreviewClick)
-    this.boundPreviewButton = this.previewButton
-  },
-  async togglePreview() {
     if (this.previewAudio && !this.previewAudio.paused) {
       this.stopPreview()
       return
@@ -503,72 +438,91 @@ Hooks.VolumeControl = {
     }
 
     this.previewAudio.src = src
-    const currentSrc = this.previewAudio.currentSrc || this.previewAudio.src || src
-    if (
-      this.previewGraphBlocked &&
-      this.previewGraphBlockedSource &&
-      this.previewGraphBlockedSource !== currentSrc
-    ) {
-      this.previewGraphBlocked = false
-      this.previewGraphBlockedSource = null
-    }
-    const previewPercent = this.maybeSnap(
-      parsePercent(this.slider?.value ?? this.maxPercent, this.maxPercent, this.maxPercent)
+
+    const percent = parsePercent(
+      this.hiddenInput?.value ?? this.slider?.value ?? this.maxPercent,
+      this.maxPercent,
+      this.maxPercent
     )
-    const targetGain = percentToDecimal(previewPercent, this.maxPercent)
-    await this.ensurePreviewGraph(targetGain)
-    this.setPreviewLevels(targetGain)
+    const gain = percentToGain(percent, this.maxPercent)
+    await this.ensurePreviewGraph(gain)
+    this.applyPreviewGain(gain)
 
-    this.previewAudio
-      .play()
-      .then(() => this.setPreviewState(true))
-      .catch((error) => {
-        console.error("Preview playback failed", error)
-        this.setPreviewState(false)
-      })
+    try {
+      await this.previewAudio.play()
+      this.setPreviewState(true)
+    } catch (error) {
+      console.error("Preview playback failed", error)
+      this.setPreviewState(false)
+    }
   },
-  stopPreview(forceRevoke = false) {
-    if (this.previewAudio) {
-      this.previewAudio.pause()
-      this.previewAudio.currentTime = 0
-    }
+  async updatePreviewGain(percent) {
+    const gain = percentToGain(percent, this.maxPercent)
 
-    if (forceRevoke && this.objectUrl) {
-      URL.revokeObjectURL(this.objectUrl)
-      this.objectUrl = null
-      this.lastPreviewFile = null
-    }
-
-    if (forceRevoke) {
-      this.previewAudio = null
-      if (this.previewSource) {
-        try {
-          this.previewSource.disconnect()
-        } catch (_err) {}
-        this.previewSource = null
-      }
-      if (this.previewGain) {
-        try {
-          this.previewGain.disconnect()
-        } catch (_err) {}
-        this.previewGain = null
-      }
-      this.previewGraphBlocked = false
-      this.previewGraphBlockedSource = null
-    }
-
-    this.setPreviewState(false)
-  },
-  setPreviewState(isPlaying) {
-    if (!this.previewButton) {
+    if (!this.previewAudio) {
       return
     }
 
-    this.previewButton.textContent = isPlaying ? "Stop Preview" : "Preview"
-    this.previewButton.dataset.previewState = isPlaying ? "playing" : "stopped"
+    await this.ensurePreviewGraph(gain)
+    this.applyPreviewGain(gain)
+  },
+  async ensurePreviewGraph(targetGain) {
+    if (!this.previewAudio) {
+      return
+    }
 
-    if (!isPlaying && this.previewAudio) {
-      this.previewAudio.src = ""
+    const needsBoost = targetGain > 1
+    const ContextCtor = getAudioContextCtor()
+
+    if (!needsBoost || !ContextCtor) {
+      if (this.previewGain) {
+        this.previewGain.gain.value = 1
+      }
+      return
+    }
+
+    if (!this.previewContext) {
+      this.previewContext = new ContextCtor()
+    }
+
+    if (this.previewContext.state === "suspended") {
+      try {
+        await this.previewContext.resume()
+      } catch (_err) {}
+    }
+
+    if (!this.previewSource) {
+      try {
+        this.previewSource = this.previewContext.createMediaElementSource(this.previewAudio)
+      } catch (error) {
+        console.warn("Preview gain setup failed", error)
+        this.previewSource = null
+        this.previewGain = null
+        return
+      }
+    }
+
+    if (!this.previewGain) {
+      this.previewGain = this.previewContext.createGain()
+      this.previewSource.connect(this.previewGain).connect(this.previewContext.destination)
+    }
+  },
+  applyPreviewGain(targetGain) {
+    if (!this.previewAudio) {
+      return
+    }
+
+    const base = clamp(targetGain, 0, BOOST_CAP)
+    const volume = Math.min(base, 1)
+
+    try {
+      this.previewAudio.volume = volume
+    } catch (_err) {
+      this.previewAudio.volume = 1
+    }
+
+    if (this.previewGain) {
+      this.previewGain.gain.value = base > 1 ? base : 1
     }
   },
   getPreviewSource() {
@@ -580,13 +534,12 @@ Hooks.VolumeControl = {
         return null
       }
 
-      if (this.lastPreviewFile !== file) {
+      if (this.lastFile !== file) {
         if (this.objectUrl) {
           URL.revokeObjectURL(this.objectUrl)
         }
-
         this.objectUrl = URL.createObjectURL(file)
-        this.lastPreviewFile = file
+        this.lastFile = file
       }
 
       return this.objectUrl
@@ -595,7 +548,8 @@ Hooks.VolumeControl = {
     if (this.previewKind === "url") {
       if (this.urlInputId) {
         const urlInput = document.getElementById(this.urlInputId)
-        const value = urlInput && urlInput.value.trim()
+        const value =
+          urlInput && typeof urlInput.value === "string" ? urlInput.value.trim() : ""
         if (value) {
           return value
         }
@@ -606,88 +560,29 @@ Hooks.VolumeControl = {
 
     return this.previewSrc || null
   },
-  async ensurePreviewGraph(targetGain) {
-    if (!this.previewAudio) {
-      return
-    }
-
-    const currentSrc = this.previewAudio.currentSrc || this.previewAudio.src || ""
-    if (this.previewGraphBlocked) {
-      if (!this.previewGraphBlockedSource || this.previewGraphBlockedSource === currentSrc) {
-        if (this.previewGain) {
-          this.previewGain.gain.value = 1
-        }
-        return
-      }
-      this.previewGraphBlocked = false
-      this.previewGraphBlockedSource = null
-    }
-
-    const AudioContextCtor = window.AudioContext || window.webkitAudioContext
-    const needsBoost = targetGain > 1
-
-    if (!AudioContextCtor || !needsBoost) {
-      if (this.previewGain) {
-        this.previewGain.gain.value = 1
-      }
-      if (!needsBoost) {
-        return
-      }
-      this.audioContext = null
-      this.previewSource = null
-      this.previewGain = null
-      return
-    }
-
-    if (!this.audioContext) {
-      this.audioContext = new AudioContextCtor()
-    }
-
-    if (this.audioContext.state === "suspended") {
+  stopPreview(forceRevoke = false) {
+    if (this.previewAudio) {
       try {
-        await this.audioContext.resume()
+        this.previewAudio.pause()
+        this.previewAudio.currentTime = 0
       } catch (_err) {}
+      this.previewAudio.src = ""
     }
+    this.setPreviewState(false)
 
-    if (!this.previewSource) {
-      try {
-        this.previewSource = this.audioContext.createMediaElementSource(this.previewAudio)
-        this.previewGain = this.audioContext.createGain()
-        this.previewSource.connect(this.previewGain).connect(this.audioContext.destination)
-      } catch (error) {
-        console.warn("Preview gain fallback: unable to create media element source", error)
-        if (this.previewSource) {
-          try {
-            this.previewSource.disconnect()
-          } catch (_err) {}
-        }
-        if (this.previewGain) {
-          try {
-            this.previewGain.disconnect()
-          } catch (_err) {}
-        }
-        this.previewSource = null
-        this.previewGain = null
-        this.previewGraphBlocked = true
-        this.previewGraphBlockedSource = currentSrc || null
-      }
+    if (forceRevoke && this.objectUrl) {
+      URL.revokeObjectURL(this.objectUrl)
+      this.objectUrl = null
+      this.lastFile = null
     }
   },
-  setPreviewLevels(targetGain) {
-    if (!this.previewAudio) {
+  setPreviewState(isPlaying) {
+    if (!this.previewButton) {
       return
     }
 
-    const elementVolume = Math.max(0, Math.min(targetGain, 1))
-    try {
-      this.previewAudio.volume = elementVolume
-    } catch (_err) {
-      this.previewAudio.volume = 1
-    }
-
-    if (this.previewGain) {
-      this.previewGain.gain.value = targetGain > 1 ? targetGain : 1
-    }
+    this.previewButton.textContent = isPlaying ? "Stop Preview" : this.previewLabel
+    this.previewButton.dataset.previewState = isPlaying ? "playing" : "stopped"
   }
 }
 
@@ -696,41 +591,43 @@ Hooks.CopyButton = {
     this.handleClick = async (e) => {
       e.preventDefault()
       const original = this.el.textContent
-      const text = this.el.dataset.copyText || this.el.getAttribute('data-copy-text')
-        || (this.el.nextElementSibling ? this.el.nextElementSibling.innerText : '')
+      const text =
+        this.el.dataset.copyText ||
+        this.el.getAttribute("data-copy-text") ||
+        (this.el.nextElementSibling ? this.el.nextElementSibling.innerText : "")
       try {
         if (navigator.clipboard && window.isSecureContext) {
           await navigator.clipboard.writeText(text)
         } else {
           // Fallback for insecure contexts
-          const ta = document.createElement('textarea')
+          const ta = document.createElement("textarea")
           ta.value = text
-          ta.style.position = 'fixed'
-          ta.style.opacity = '0'
+          ta.style.position = "fixed"
+          ta.style.opacity = "0"
           document.body.appendChild(ta)
           ta.select()
-          document.execCommand('copy')
+          document.execCommand("copy")
           document.body.removeChild(ta)
         }
-        this.el.textContent = 'Copied!'
-        this.el.classList.add('text-green-600')
+        this.el.textContent = "Copied!"
+        this.el.classList.add("text-green-600")
         setTimeout(() => {
           this.el.textContent = original
-          this.el.classList.remove('text-green-600')
+          this.el.classList.remove("text-green-600")
         }, 1500)
       } catch (_err) {
-        this.el.textContent = 'Copy failed'
-        this.el.classList.add('text-red-600')
+        this.el.textContent = "Copy failed"
+        this.el.classList.add("text-red-600")
         setTimeout(() => {
           this.el.textContent = original
-          this.el.classList.remove('text-red-600')
+          this.el.classList.remove("text-red-600")
         }, 1500)
       }
     }
-    this.el.addEventListener('click', this.handleClick)
+    this.el.addEventListener("click", this.handleClick)
   },
   destroyed() {
-    this.el.removeEventListener('click', this.handleClick)
+    this.el.removeEventListener("click", this.handleClick)
   }
 }
 
@@ -741,8 +638,8 @@ let liveSocket = new LiveSocket("/live", Socket, {
 
 // Show progress bar on live navigation and form submits
 topbar.config({barColors: {0: "#29d"}, shadowColor: "rgba(0, 0, 0, .3)"})
-window.addEventListener("phx:page-loading-start", _info => topbar.show(300))
-window.addEventListener("phx:page-loading-stop", _info => topbar.hide())
+window.addEventListener("phx:page-loading-start", (_info) => topbar.show(300))
+window.addEventListener("phx:page-loading-stop", (_info) => topbar.hide())
 
 // connect if there are any LiveViews on the page
 liveSocket.connect()
@@ -754,6 +651,6 @@ liveSocket.connect()
 window.liveSocket = liveSocket
 
 if (window.navigator.standalone) {
-  document.documentElement.style.setProperty('--sat', 'env(safe-area-inset-top)');
-  document.documentElement.classList.add('standalone');
+  document.documentElement.style.setProperty("--sat", "env(safe-area-inset-top)")
+  document.documentElement.classList.add("standalone")
 }

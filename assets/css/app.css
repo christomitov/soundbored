@@ -66,30 +66,6 @@ body {
   100% { transform: rotate(360deg); }
 }
 
-input.volume-slider {
-  height: 6px;
-  border-radius: 9999px;
-}
-
-input.volume-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  height: 18px;
-  width: 18px;
-  border-radius: 50%;
-}
-
-input.volume-slider::-moz-range-thumb {
-  height: 18px;
-  width: 18px;
-  border-radius: 50%;
-}
-
-input.volume-slider::-ms-thumb {
-  height: 18px;
-  width: 18px;
-  border-radius: 50%;
-}
-
 /* Show inline search spinner while server processes phx-change */
 .phx-change-loading .search-spinner { display: inline; }
 .phx-change-loading .search-icon { display: none; }
