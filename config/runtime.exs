@@ -21,6 +21,8 @@ if System.get_env("PHX_SERVER") do
 end
 
 if config_env() == :prod do
+  build_mode? = System.get_env("SKIP_RUNTIME_VALIDATIONS") == "true"
+
   # Replace the database_url section with SQLite configuration
   database_path = Path.join(:code.priv_dir(:soundboard), "static/uploads/soundboard_prod.db")
 
@@ -32,14 +34,26 @@ if config_env() == :prod do
   # The secret key base is used to sign/encrypt cookies and other secrets.
   secret_key_base =
     System.get_env("SECRET_KEY_BASE") ||
-      File.read!("/app/.secret_key_base") ||
-      raise """
-      environment variable SECRET_KEY_BASE is missing and no fallback file found.
-      You can generate one by calling: mix phx.gen.secret
-      """
+      case File.read("/app/.secret_key_base") do
+        {:ok, key} ->
+          key
 
-  host = System.get_env("PHX_HOST") || raise "PHX_HOST must be set"
-  scheme = System.get_env("SCHEME") || "https"
+        _ when build_mode? ->
+          String.duplicate("0", 64)
+
+        _ ->
+          raise """
+          environment variable SECRET_KEY_BASE is missing.
+          Provide it via your environment (recommended) or ensure /app/.secret_key_base exists.
+          Generate one with: mix phx.gen.secret
+          """
+      end
+
+  host =
+    System.get_env("PHX_HOST") ||
+      if build_mode?, do: "localhost", else: raise("PHX_HOST must be set")
+
+  scheme = System.get_env("SCHEME") || if(build_mode?, do: "http", else: "https")
   callback_url = "#{scheme}://#{host}/auth/discord/callback"
 
   # Configure endpoint first
@@ -81,10 +95,14 @@ if config_env() == :prod do
   # Remove duplicate ffmpeg check and consolidate Nostrum config
   discord_token =
     System.get_env("DISCORD_TOKEN") ||
-      raise """
-      environment variable DISCORD_TOKEN is missing.
-      Please set your Discord bot token.
-      """
+      if build_mode? do
+        "build-token"
+      else
+        raise """
+        environment variable DISCORD_TOKEN is missing.
+        Please set your Discord bot token.
+        """
+      end
 
   # Store token for application use (bot will fetch it from here)
   config :soundboard,

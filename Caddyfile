@@ -1,3 +1,0 @@
-your.domain.com {
-    reverse_proxy soundboard:4000
-}

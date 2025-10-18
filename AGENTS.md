@@ -36,5 +36,4 @@
 ## Security & Configuration Tips
 - Secrets via `.env` (see `.env.example`): Discord tokens, API token, `PHX_HOST`, `SCHEME`.
 - Do not commit real secrets; prefer Docker env files in development and deployment.
-- For production, use `docker-compose.prod.yml` and review `Caddyfile` domain settings.
-
+- For production, keep secrets in `.env` and run the single compose stack; integrate your own reverse proxy/load balancer as needed.
