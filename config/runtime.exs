@@ -20,7 +20,8 @@ if System.get_env("PHX_SERVER") do
   config :soundboard, SoundboardWeb.Endpoint, server: true
 end
 
-if config_env() == :prod do
+# Allow build tooling to opt-out to avoid requiring secrets during image builds.
+if config_env() == :prod and is_nil(System.get_env("SKIP_RUNTIME_CONFIG")) do
   # Replace the database_url section with SQLite configuration
   database_path = Path.join(:code.priv_dir(:soundboard), "static/uploads/soundboard_prod.db")
 

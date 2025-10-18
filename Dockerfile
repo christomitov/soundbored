@@ -57,8 +57,10 @@ RUN bash -c '\
     chmod 444 /app/.secret_key_base && \
     echo "Prepared SECRET_KEY_BASE file (length: $(wc -c < /app/.secret_key_base) bytes)"'
 
-RUN SECRET_KEY_BASE=dummy-build-secret mix setup && \
-    SECRET_KEY_BASE=dummy-build-secret mix assets.deploy
+RUN export SKIP_RUNTIME_CONFIG=1 && \
+    mix assets.setup && \
+    mix compile && \
+    mix assets.deploy
 
 FROM erlang:27-alpine AS runtime
 
@@ -100,8 +102,10 @@ export TMPDIR=${TMPDIR:-/tmp/mix_pubsub}
 mkdir -p "$TMPDIR"
 chmod 1777 "$TMPDIR" || true
 
-# Set HOME so Mix uses a consistent path when running as a non-root user
-export HOME=${HOME:-/app}
+# Force HOME to a writable path inside the image so Mix can cache data
+export HOME=/app
+mkdir -p "$HOME/.mix" "$HOME/.hex"
+chmod -R u+rwX "$HOME/.mix" "$HOME/.hex" || true
 
 # Set up SECRET_KEY_BASE
 if [ -n "${SECRET_KEY_BASE:-}" ]; then
