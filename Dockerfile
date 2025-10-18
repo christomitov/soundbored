@@ -73,7 +73,8 @@ ENV MIX_ENV=prod \
 RUN apk add --no-cache \
     ffmpeg \
     bash \
-    curl
+    curl \
+    git
 
 WORKDIR /app
 COPY --from=build /app /app
