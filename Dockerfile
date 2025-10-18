@@ -5,7 +5,6 @@ ARG MIX_ENV=prod
 ENV MIX_ENV=$MIX_ENV \
     MIX_HOME=/app/.mix \
     HEX_HOME=/app/.hex \
-    SKIP_RUNTIME_VALIDATIONS=true \
     LANG=C.UTF-8 \
     LC_ALL=C.UTF-8 \
     LC_CTYPE=C.UTF-8 \

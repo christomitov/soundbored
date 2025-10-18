@@ -21,8 +21,6 @@ if System.get_env("PHX_SERVER") do
 end
 
 if config_env() == :prod do
-  build_mode? = System.get_env("SKIP_RUNTIME_VALIDATIONS") == "true"
-
   # Replace the database_url section with SQLite configuration
   database_path = Path.join(:code.priv_dir(:soundboard), "static/uploads/soundboard_prod.db")
 
@@ -38,9 +36,6 @@ if config_env() == :prod do
         {:ok, key} ->
           key
 
-        _ when build_mode? ->
-          String.duplicate("0", 64)
-
         _ ->
           raise """
           environment variable SECRET_KEY_BASE is missing.
@@ -49,11 +44,9 @@ if config_env() == :prod do
           """
       end
 
-  host =
-    System.get_env("PHX_HOST") ||
-      if build_mode?, do: "localhost", else: raise("PHX_HOST must be set")
+  host = System.get_env("PHX_HOST") || raise("PHX_HOST must be set")
 
-  scheme = System.get_env("SCHEME") || if(build_mode?, do: "http", else: "https")
+  scheme = System.get_env("SCHEME") || "https"
   callback_url = "#{scheme}://#{host}/auth/discord/callback"
 
   # Configure endpoint first
@@ -95,14 +88,10 @@ if config_env() == :prod do
   # Remove duplicate ffmpeg check and consolidate Nostrum config
   discord_token =
     System.get_env("DISCORD_TOKEN") ||
-      if build_mode? do
-        "build-token"
-      else
-        raise """
-        environment variable DISCORD_TOKEN is missing.
-        Please set your Discord bot token.
-        """
-      end
+      raise """
+      environment variable DISCORD_TOKEN is missing.
+      Please set your Discord bot token.
+      """
 
   # Store token for application use (bot will fetch it from here)
   config :soundboard,
