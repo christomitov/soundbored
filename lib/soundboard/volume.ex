@@ -3,13 +3,13 @@ defmodule Soundboard.Volume do
   Helpers for working with volume percentages and decimal ratios.
   """
 
-  @type percent :: 0..100
+  @type percent :: 0..150
 
   @spec clamp_percent(number()) :: percent()
   def clamp_percent(value) do
     value
     |> round()
-    |> min(100)
+    |> min(150)
     |> max(0)
   end
 
@@ -36,9 +36,21 @@ defmodule Soundboard.Volume do
   def decimal_to_percent(decimal) when is_number(decimal) do
     decimal
     |> max(0.0)
-    |> min(1.0)
-    |> :math.sqrt()
+    |> min(1.5)
+    |> do_decimal_to_percent()
+  end
+
+  defp do_decimal_to_percent(value) when value <= 1.0 do
+    value
     |> Kernel.*(100)
+    |> clamp_percent()
+  end
+
+  defp do_decimal_to_percent(value) do
+    value
+    |> Kernel.-(1.0)
+    |> Kernel.*(100)
+    |> Kernel.+(100)
     |> clamp_percent()
   end
 
@@ -58,16 +70,18 @@ defmodule Soundboard.Volume do
 
   defp do_normalize(default, _), do: default
 
-  defp convert_percent_to_decimal(percent) when percent in 0..100 do
-    case percent do
-      0 ->
+  defp convert_percent_to_decimal(percent) when percent in 0..150 do
+    cond do
+      percent == 0 ->
         0.0
 
-      _ ->
+      percent <= 100 ->
         percent
         |> Kernel./(100)
-        |> :math.pow(2)
         |> Float.round(4)
+
+      true ->
+        Float.round(1.0 + (percent - 100) * 0.01, 4)
     end
   end
 end

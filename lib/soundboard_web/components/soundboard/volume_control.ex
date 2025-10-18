@@ -12,6 +12,7 @@ defmodule SoundboardWeb.Components.Soundboard.VolumeControl do
   attr :input_name, :string, default: "volume"
   attr :preview_disabled, :boolean, default: false
   attr :preview_label, :string, default: "Preview"
+  attr :max_percent, :integer, default: 150
   attr :rest, :global
 
   def volume_control(assigns) do
@@ -22,6 +23,7 @@ defmodule SoundboardWeb.Components.Soundboard.VolumeControl do
       phx-hook="VolumeControl"
       data-push-event={@push_event}
       data-volume-target={@target}
+      data-max-percent={@max_percent}
       {@rest}
     >
       <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -33,15 +35,22 @@ defmodule SoundboardWeb.Components.Soundboard.VolumeControl do
         value={@value}
         data-role="volume-hidden"
       />
-      <input
-        type="range"
-        min="0"
-        max="100"
-        step="1"
-        value={@value}
-        data-role="volume-slider"
-        class="w-full accent-blue-600"
-      />
+      <div class="relative" data-role="volume-track">
+        <input
+          type="range"
+          min="0"
+          max={@max_percent}
+          step="1"
+          value={@value}
+          data-role="volume-slider"
+          data-thumb-size="18"
+          class="volume-slider w-full accent-blue-600"
+        />
+      </div>
+      <div class="flex justify-between text-xs text-gray-500 dark:text-gray-400">
+        <span>0%</span>
+        <span>{@max_percent}%</span>
+      </div>
       <div class="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
         <span data-role="volume-display">{@value}%</span>
         <button

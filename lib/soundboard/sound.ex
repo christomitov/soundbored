@@ -62,7 +62,7 @@ defmodule Soundboard.Sound do
     changeset
     |> validate_number(:volume,
       greater_than_or_equal_to: 0.0,
-      less_than_or_equal_to: 1.0
+      less_than_or_equal_to: 1.5
     )
     |> case do
       %{changes: %{volume: volume}} = cs when is_nil(volume) ->

@@ -26,44 +26,63 @@ let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max)
 
-const parsePercent = (value, fallback = 100) => {
+const BASE_PERCENT = 100
+const MAX_VOLUME_PERCENT_DEFAULT = 150
+const BOOST_CAP = 1.5
+const SNAP_PERCENT = 100
+const SNAP_THRESHOLD = 2
+
+const parsePercent = (value, fallback = MAX_VOLUME_PERCENT_DEFAULT, maxPercent = MAX_VOLUME_PERCENT_DEFAULT) => {
+  const normalize = (val) => clamp(Math.round(val), 0, maxPercent)
+
   if (typeof value === "number" && !Number.isNaN(value)) {
-    return clamp(Math.round(value), 0, 100)
+    return normalize(value)
   }
 
   if (typeof value === "string") {
     const parsed = parseFloat(value.trim())
     if (!Number.isNaN(parsed)) {
-      return clamp(Math.round(parsed), 0, 100)
+      return normalize(parsed)
     }
   }
 
-  return clamp(Math.round(fallback), 0, 100)
+  const fallbackNumber = typeof fallback === "string" ? parseFloat(fallback) : fallback
+  return normalize(Number.isFinite(fallbackNumber) ? fallbackNumber : maxPercent)
 }
 
-const percentToDecimal = (percent) => {
-  const clamped = clamp(percent, 0, 100)
-  if (clamped === 0) {
-    return 0
+const percentToDecimal = (percent, maxPercent = MAX_VOLUME_PERCENT_DEFAULT) => {
+  const clamped = clamp(percent, 0, maxPercent)
+
+  if (clamped <= BASE_PERCENT) {
+    const normalized = clamped / BASE_PERCENT
+    const scaled = normalized * normalized
+    return clamp(Math.round(scaled * 10000) / 10000, 0, BOOST_CAP)
   }
-  const normalized = clamped / 100
-  const scaled = normalized * normalized
-  return clamp(Math.round(scaled * 10000) / 10000, 0, 1)
+
+  const boosted = 1 + (clamped - BASE_PERCENT) * 0.01
+  return clamp(Math.round(boosted * 10000) / 10000, 0, BOOST_CAP)
 }
 
 const PlayerState = {
   currentHook: null,
   currentAudio: null,
+  currentCleanup: null,
 
-  set(hook, audio) {
+  set(hook, audio, cleanup = null) {
     this.currentHook = hook
     this.currentAudio = audio
+    this.currentCleanup = cleanup
   },
 
   stopCurrent() {
     if (this.currentAudio) {
       this.currentAudio.pause()
       this.currentAudio.currentTime = 0
+      if (typeof this.currentCleanup === "function") {
+        try {
+          this.currentCleanup()
+        } catch (_err) {}
+      }
     }
 
     if (this.currentHook) {
@@ -72,6 +91,7 @@ const PlayerState = {
 
     this.currentHook = null
     this.currentAudio = null
+    this.currentCleanup = null
   }
 }
 
@@ -80,12 +100,13 @@ window.addEventListener("phx:stop-all-sounds", () => PlayerState.stopCurrent())
 let Hooks = {}
 Hooks.LocalPlayer = {
   mounted() {
+    this.audioContext = null
     this.handleClick = this.handleClick.bind(this)
     this.el.addEventListener("click", this.handleClick)
   },
   updated() {
     if (PlayerState.currentHook === this && PlayerState.currentAudio) {
-      PlayerState.currentAudio.volume = this.getVolume()
+      this.setElementVolume(PlayerState.currentAudio, this.getVolume())
     }
   },
   destroyed() {
@@ -94,7 +115,7 @@ Hooks.LocalPlayer = {
       PlayerState.stopCurrent()
     }
   },
-  handleClick(event) {
+  async handleClick(event) {
     event.preventDefault()
     event.stopPropagation()
 
@@ -109,7 +130,8 @@ Hooks.LocalPlayer = {
     const url = this.el.dataset.url
     const filename = this.el.dataset.filename
     const audio = new Audio()
-    audio.volume = this.getVolume()
+    const volume = this.getVolume()
+    const cleanup = await this.applyBoost(audio, volume)
 
     if (sourceType === "url" && url) {
       audio.src = url
@@ -133,11 +155,16 @@ Hooks.LocalPlayer = {
       .play()
       .then(() => {
         this.setPlaying(true)
-        PlayerState.set(this, audio)
+        PlayerState.set(this, audio, cleanup)
       })
       .catch((error) => {
         console.error("Audio playback failed", error)
         this.setPlaying(false)
+        if (typeof cleanup === "function") {
+          try {
+            cleanup()
+          } catch (_err) {}
+        }
       })
   },
   setPlaying(isPlaying) {
@@ -159,15 +186,80 @@ Hooks.LocalPlayer = {
   getVolume() {
     const volume = parseFloat(this.el.dataset.volume)
     if (Number.isFinite(volume)) {
-      return clamp(volume, 0, 1)
+      return clamp(volume, 0, BOOST_CAP)
     }
 
     return 1
+  },
+  setElementVolume(audio, target) {
+    if (!audio) {
+      return
+    }
+
+    const clamped = Math.max(0, Math.min(target, 1))
+    try {
+      audio.volume = clamped
+    } catch (_err) {
+      audio.volume = 1
+    }
+  },
+  async applyBoost(audio, target) {
+    const normalized = Math.max(0, Math.min(target, BOOST_CAP))
+    const AudioContextCtor = window.AudioContext || window.webkitAudioContext
+
+    if (!AudioContextCtor || normalized <= 1) {
+      this.setElementVolume(audio, normalized)
+      return null
+    }
+
+    if (!this.audioContext) {
+      this.audioContext = new AudioContextCtor()
+    }
+
+    if (this.audioContext.state === "suspended") {
+      try {
+        await this.audioContext.resume()
+      } catch (_err) {}
+    }
+
+    let source
+    let gainNode
+
+    try {
+      source = this.audioContext.createMediaElementSource(audio)
+      gainNode = this.audioContext.createGain()
+      gainNode.gain.value = normalized
+      source.connect(gainNode).connect(this.audioContext.destination)
+      this.setElementVolume(audio, 1)
+    } catch (error) {
+      console.error("Failed to apply local boost", error)
+      this.setElementVolume(audio, 1)
+      return null
+    }
+
+    return () => {
+      try {
+        source.disconnect()
+      } catch (_err) {}
+      try {
+        gainNode.disconnect()
+      } catch (_err) {}
+    }
   }
 }
 
 Hooks.VolumeControl = {
   mounted() {
+    this.maxPercent = parseInt(this.el.dataset.maxPercent || `${MAX_VOLUME_PERCENT_DEFAULT}`, 10)
+    if (Number.isNaN(this.maxPercent) || this.maxPercent <= 0) {
+      this.maxPercent = MAX_VOLUME_PERCENT_DEFAULT
+    }
+    this.thumbSize = 18
+    this.audioContext = null
+    this.previewSource = null
+    this.previewGain = null
+    this.previewGraphBlocked = false
+    this.previewGraphBlockedSource = null
     this.assignElements()
     this.previewAudio = null
     this.objectUrl = null
@@ -177,25 +269,35 @@ Hooks.VolumeControl = {
     this.boundPreviewButton = null
 
     this.handleSliderInput = (event) => {
-      const percent = parsePercent(event.target.value)
+      let percent = parsePercent(event.target.value, this.maxPercent, this.maxPercent)
+      percent = this.maybeSnap(percent)
+      event.target.value = percent
       this.updateDisplay(percent)
       this.updatePreviewVolume(percent)
       this.updateHidden(percent)
       this.queueVolumePush(percent)
     }
 
-    this.handlePreviewClick = (event) => {
+    this.handlePreviewClick = async (event) => {
       event.preventDefault()
       if (this.previewButton && this.previewButton.disabled) {
         return
       }
-      this.togglePreview()
+      await this.togglePreview()
     }
 
     this.bindSlider()
     this.bindPreviewButton()
 
-    const initialPercent = parsePercent(this.slider?.value ?? this.hiddenInput?.value ?? 100)
+    let initialPercent = parsePercent(
+      this.slider?.value ?? this.hiddenInput?.value ?? this.maxPercent,
+      this.maxPercent,
+      this.maxPercent
+    )
+    initialPercent = this.maybeSnap(initialPercent)
+    if (this.slider) {
+      this.slider.value = initialPercent
+    }
     this.updateDisplay(initialPercent)
     this.updatePreviewVolume(initialPercent)
     this.updateHidden(initialPercent)
@@ -206,7 +308,9 @@ Hooks.VolumeControl = {
     this.bindPreviewButton()
 
     if (this.slider) {
-      const percent = parsePercent(this.slider.value)
+      let percent = parsePercent(this.slider.value, this.maxPercent, this.maxPercent)
+      percent = this.maybeSnap(percent)
+      this.slider.value = percent
       this.updateDisplay(percent)
       this.updatePreviewVolume(percent)
       this.updateHidden(percent)
@@ -235,11 +339,25 @@ Hooks.VolumeControl = {
     const previousSrc = this.previewSrc
 
     this.slider = this.el.querySelector("[data-role='volume-slider']")
+    this.track = this.el.querySelector("[data-role='volume-track']")
+    this.marker = this.el.querySelector("[data-role='volume-marker']")
     this.hiddenInput = this.el.querySelector("[data-role='volume-hidden']")
     this.display = this.el.querySelector("[data-role='volume-display']")
     this.previewButton = this.el.querySelector("[data-role='volume-preview']")
     this.pushEventName = this.el.dataset.pushEvent
     this.volumeTarget = this.el.dataset.volumeTarget
+    const maxFromDataset = parseInt(this.el.dataset.maxPercent || "", 10)
+    if (!Number.isNaN(maxFromDataset) && maxFromDataset > 0) {
+      this.maxPercent = maxFromDataset
+    }
+    if (this.slider) {
+      const thumb = parseInt(this.slider.dataset.thumbSize || "", 10)
+      if (!Number.isNaN(thumb) && thumb > 0) {
+        this.thumbSize = thumb
+      }
+      this.minPercent = Number(this.slider.min || 0)
+      this.maxPercent = Number(this.slider.max || this.maxPercent)
+    }
     this.previewKind = this.el.dataset.previewKind || "existing"
     this.fileInputId = this.el.dataset.fileInputId
     this.urlInputId = this.el.dataset.urlInputId
@@ -250,21 +368,56 @@ Hooks.VolumeControl = {
     } else if (previousSrc && previousSrc !== this.previewSrc && this.previewKind !== "local-upload") {
       this.stopPreview()
     }
+
+    const currentPercent = parsePercent(
+      this.hiddenInput?.value ?? this.slider?.value ?? this.maxPercent,
+      this.maxPercent,
+      this.maxPercent
+    )
+    this.positionMarker(this.maybeSnap(currentPercent))
   },
   updateDisplay(percent) {
     if (this.display) {
       this.display.textContent = `${percent}%`
+      if (percent > BASE_PERCENT) {
+        this.display.classList.add("text-amber-500", "font-semibold")
+      } else {
+        this.display.classList.remove("text-amber-500", "font-semibold")
+      }
     }
   },
   updatePreviewVolume(percent) {
-    if (this.previewAudio) {
-      this.previewAudio.volume = percentToDecimal(percent)
-    }
+    const targetGain = percentToDecimal(percent, this.maxPercent)
+    this.ensurePreviewGraph(targetGain).then(() => this.setPreviewLevels(targetGain))
   },
   updateHidden(percent) {
     if (this.hiddenInput) {
       this.hiddenInput.value = percent
     }
+    this.positionMarker(percent)
+  },
+  positionMarker(percent) {
+    if (!this.marker || !this.slider) {
+      return
+    }
+
+    const thumb = this.thumbSize || 18
+    const min = this.minPercent ?? Number(this.slider.min || 0)
+    const max = this.maxPercent ?? Number(this.slider.max || MAX_VOLUME_PERCENT_DEFAULT)
+    const range = max - min
+    const ratio = range <= 0 ? 0 : (percent - min) / range
+    const boundedRatio = clamp(ratio, 0, 1)
+    const containerWidth = (this.track && this.track.clientWidth) || this.slider.clientWidth || 0
+    const offset = boundedRatio * Math.max(containerWidth - thumb, 0) + thumb / 2
+
+    this.marker.style.left = `${offset}px`
+  },
+  maybeSnap(percent) {
+    if (Math.abs(percent - SNAP_PERCENT) <= SNAP_THRESHOLD) {
+      return SNAP_PERCENT
+    }
+
+    return clamp(percent, this.minPercent ?? 0, this.maxPercent ?? MAX_VOLUME_PERCENT_DEFAULT)
   },
   queueVolumePush(percent) {
     if (!this.pushEventName) {
@@ -324,7 +477,7 @@ Hooks.VolumeControl = {
     this.previewButton.addEventListener("click", this.handlePreviewClick)
     this.boundPreviewButton = this.previewButton
   },
-  togglePreview() {
+  async togglePreview() {
     if (this.previewAudio && !this.previewAudio.paused) {
       this.stopPreview()
       return
@@ -342,7 +495,21 @@ Hooks.VolumeControl = {
     }
 
     this.previewAudio.src = src
-    this.previewAudio.volume = percentToDecimal(parsePercent(this.slider?.value ?? 100))
+    const currentSrc = this.previewAudio.currentSrc || this.previewAudio.src || src
+    if (
+      this.previewGraphBlocked &&
+      this.previewGraphBlockedSource &&
+      this.previewGraphBlockedSource !== currentSrc
+    ) {
+      this.previewGraphBlocked = false
+      this.previewGraphBlockedSource = null
+    }
+    const previewPercent = this.maybeSnap(
+      parsePercent(this.slider?.value ?? this.maxPercent, this.maxPercent, this.maxPercent)
+    )
+    const targetGain = percentToDecimal(previewPercent, this.maxPercent)
+    await this.ensurePreviewGraph(targetGain)
+    this.setPreviewLevels(targetGain)
 
     this.previewAudio
       .play()
@@ -366,6 +533,20 @@ Hooks.VolumeControl = {
 
     if (forceRevoke) {
       this.previewAudio = null
+      if (this.previewSource) {
+        try {
+          this.previewSource.disconnect()
+        } catch (_err) {}
+        this.previewSource = null
+      }
+      if (this.previewGain) {
+        try {
+          this.previewGain.disconnect()
+        } catch (_err) {}
+        this.previewGain = null
+      }
+      this.previewGraphBlocked = false
+      this.previewGraphBlockedSource = null
     }
 
     this.setPreviewState(false)
@@ -416,6 +597,89 @@ Hooks.VolumeControl = {
     }
 
     return this.previewSrc || null
+  },
+  async ensurePreviewGraph(targetGain) {
+    if (!this.previewAudio) {
+      return
+    }
+
+    const currentSrc = this.previewAudio.currentSrc || this.previewAudio.src || ""
+    if (this.previewGraphBlocked) {
+      if (!this.previewGraphBlockedSource || this.previewGraphBlockedSource === currentSrc) {
+        if (this.previewGain) {
+          this.previewGain.gain.value = 1
+        }
+        return
+      }
+      this.previewGraphBlocked = false
+      this.previewGraphBlockedSource = null
+    }
+
+    const AudioContextCtor = window.AudioContext || window.webkitAudioContext
+    const needsBoost = targetGain > 1
+
+    if (!AudioContextCtor || !needsBoost) {
+      if (this.previewGain) {
+        this.previewGain.gain.value = 1
+      }
+      if (!needsBoost) {
+        return
+      }
+      this.audioContext = null
+      this.previewSource = null
+      this.previewGain = null
+      return
+    }
+
+    if (!this.audioContext) {
+      this.audioContext = new AudioContextCtor()
+    }
+
+    if (this.audioContext.state === "suspended") {
+      try {
+        await this.audioContext.resume()
+      } catch (_err) {}
+    }
+
+    if (!this.previewSource) {
+      try {
+        this.previewSource = this.audioContext.createMediaElementSource(this.previewAudio)
+        this.previewGain = this.audioContext.createGain()
+        this.previewSource.connect(this.previewGain).connect(this.audioContext.destination)
+      } catch (error) {
+        console.warn("Preview gain fallback: unable to create media element source", error)
+        if (this.previewSource) {
+          try {
+            this.previewSource.disconnect()
+          } catch (_err) {}
+        }
+        if (this.previewGain) {
+          try {
+            this.previewGain.disconnect()
+          } catch (_err) {}
+        }
+        this.previewSource = null
+        this.previewGain = null
+        this.previewGraphBlocked = true
+        this.previewGraphBlockedSource = currentSrc || null
+      }
+    }
+  },
+  setPreviewLevels(targetGain) {
+    if (!this.previewAudio) {
+      return
+    }
+
+    const elementVolume = Math.max(0, Math.min(targetGain, 1))
+    try {
+      this.previewAudio.volume = elementVolume
+    } catch (_err) {
+      this.previewAudio.volume = 1
+    }
+
+    if (this.previewGain) {
+      this.previewGain.gain.value = targetGain > 1 ? targetGain : 1
+    }
   }
 }
 
