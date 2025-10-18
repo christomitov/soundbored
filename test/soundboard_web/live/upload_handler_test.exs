@@ -132,6 +132,18 @@ defmodule SoundboardWeb.Live.UploadHandlerTest do
       assert Enum.any?(sound.tags, fn t -> t.id == tag1.id end)
     end
 
+    test "persists provided volume percentage", %{socket: socket} do
+      params = %{
+        "source_type" => "url",
+        "name" => "quiet_sound",
+        "url" => "http://example.com/quiet.mp3",
+        "volume" => "40"
+      }
+
+      assert {:ok, sound} = UploadHandler.handle_upload(socket, params, & &1)
+      assert_in_delta sound.volume, 0.4, 0.0001
+    end
+
     test "handles upload errors", %{socket: socket} do
       params = %{
         "source_type" => "local",

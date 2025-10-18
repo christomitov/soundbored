@@ -3,7 +3,8 @@ defmodule SoundboardWeb.Components.Soundboard.EditModal do
   The edit modal component.
   """
   use Phoenix.Component
-  alias SoundboardWeb.Components.Soundboard.TagComponents
+  alias Soundboard.Volume
+  alias SoundboardWeb.Components.Soundboard.{TagComponents, VolumeControl}
 
   def edit_modal(assigns) do
     assigns = assign_new(assigns, :flash, fn -> %{} end)
@@ -112,6 +113,21 @@ defmodule SoundboardWeb.Components.Soundboard.EditModal do
                     <p class="mt-2 text-sm text-red-600 dark:text-red-400">{@flash.error}</p>
                   <% end %>
                 </div>
+
+                <% volume_percent = Volume.decimal_to_percent(@current_sound.volume) %>
+                <% preview_kind = if @current_sound.source_type == "url", do: "url", else: "existing" %>
+                <% preview_src =
+                  if preview_kind == "existing",
+                    do: "/uploads/#{@current_sound.filename}",
+                    else: @current_sound.url %>
+                <VolumeControl.volume_control
+                  id="edit-volume-control"
+                  value={volume_percent}
+                  target="edit"
+                  data-preview-kind={preview_kind}
+                  data-preview-src={preview_src}
+                  preview_disabled={is_nil(preview_src) or preview_src == ""}
+                />
                 
     <!-- Tags -->
                 <div class="text-left">

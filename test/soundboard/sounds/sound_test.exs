@@ -55,6 +55,36 @@ defmodule Soundboard.Sounds.SoundTest do
 
       assert "has already been taken" in errors_on(changeset).filename
     end
+
+    test "validates volume between 0 and 1.5" do
+      user = insert_user()
+
+      high_changeset =
+        Sound.changeset(%Sound{}, %{
+          filename: "loud.mp3",
+          source_type: "local",
+          user_id: user.id,
+          volume: 1.6
+        })
+
+      assert Enum.any?(
+               errors_on(high_changeset).volume,
+               &String.contains?(&1, "less than or equal")
+             )
+
+      low_changeset =
+        Sound.changeset(%Sound{}, %{
+          filename: "quiet.mp3",
+          source_type: "local",
+          user_id: user.id,
+          volume: -0.1
+        })
+
+      assert Enum.any?(
+               errors_on(low_changeset).volume,
+               &String.contains?(&1, "greater than or equal")
+             )
+    end
   end
 
   setup do
