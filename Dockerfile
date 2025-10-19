@@ -8,7 +8,7 @@ ENV MIX_ENV=$MIX_ENV \
     LANG=C.UTF-8 \
     LC_ALL=C.UTF-8 \
     LC_CTYPE=C.UTF-8 \
-    ELIXIR_VERSION="v1.18.0"
+    ELIXIR_VERSION="v1.19.0"
 
 # Install dependencies required for building ffmpeg and system utilities
 RUN apk add --no-cache \
@@ -27,7 +27,7 @@ RUN which bash && \
 # Install Elixir
 RUN set -xe \
     && ELIXIR_DOWNLOAD_URL="https://github.com/elixir-lang/elixir/archive/${ELIXIR_VERSION}.tar.gz" \
-    && ELIXIR_DOWNLOAD_SHA256="f29104ae5a0ea78786b5fb96dce0c569db91df5bd1d3472b365dc2ea14ea784f" \
+    && ELIXIR_DOWNLOAD_SHA256="99a684045b49f9c5005a1aa8278e1bac8c3769e0a5a13c05ef80b69113029234" \
     && curl -fSL -o elixir-src.tar.gz $ELIXIR_DOWNLOAD_URL \
     && echo "$ELIXIR_DOWNLOAD_SHA256  elixir-src.tar.gz" | sha256sum -c - \
     && mkdir -p /usr/local/src/elixir \
