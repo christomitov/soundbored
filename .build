@@ -11,6 +11,7 @@ Soundboard.Stats.Play.html
 Soundboard.Stats.html
 Soundboard.Tag.html
 Soundboard.UserSoundSetting.html
+Soundboard.Volume.html
 Soundboard.html
 SoundboardWeb.API.SoundController.html
 SoundboardWeb.AudioPlayer.State.html
@@ -23,6 +24,7 @@ SoundboardWeb.Components.Soundboard.EditModal.html
 SoundboardWeb.Components.Soundboard.Helpers.html
 SoundboardWeb.Components.Soundboard.TagComponents.html
 SoundboardWeb.Components.Soundboard.UploadModal.html
+SoundboardWeb.Components.Soundboard.VolumeControl.html
 SoundboardWeb.CoreComponents.html
 SoundboardWeb.DiscordHandler.State.html
 SoundboardWeb.DiscordHandler.html
@@ -57,7 +59,7 @@ dist/lato-latin-700-normal-2XVSBPG4.woff2
 dist/lato-latin-ext-400-normal-N27NCBWW.woff2
 dist/lato-latin-ext-700-normal-Q2L5DVMW.woff2
 dist/remixicon-QPNJX265.woff2
-dist/search_data-409D6584.js
-dist/sidebar_items-0A98823E.js
+dist/search_data-59388C21.js
+dist/sidebar_items-88A3CE96.js
 index.html
 search.html
