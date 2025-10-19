@@ -52,7 +52,6 @@ mix phx.server   # or iex -S mix phx.server
 Useful commands:
 - `mix test` – run the test suite (coverage via `mix coveralls`).
 - `mix credo --strict` – linting.
-- `mix dialyzer` – type analysis.
 
 `docker compose up` also works for a containerized local run; it respects the same `.env` configuration.
 

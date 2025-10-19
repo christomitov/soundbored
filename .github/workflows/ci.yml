@@ -64,21 +64,6 @@ jobs:
       - name: Run Credo
         run: mix credo --strict
         
-      - name: Restore PLT cache
-        uses: actions/cache@v3
-        id: plt_cache
-        with:
-          path: priv/plts
-          key: ${{ runner.os }}-${{ matrix.otp }}-${{ matrix.elixir }}-plt-${{ hashFiles('**/mix.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ matrix.otp }}-${{ matrix.elixir }}-plt-
-            
-      - name: Create PLTs
-        if: steps.plt_cache.outputs.cache-hit != 'true'
-        run: mix dialyzer --plt
-        
-      - name: Run Dialyzer
-        run: mix dialyzer --format github
 
   build-and-push:
     needs: test

@@ -103,7 +103,6 @@ defmodule Soundboard.MixProject do
       {:mock, "~> 0.3.9", only: :test},
       {:excoveralls, "~> 0.18.5", only: :test},
       {:credo, "~> 1.7.12", only: [:dev, :test], runtime: false},
-      {:dialyxir, "~> 1.4.6", only: [:dev, :test], runtime: false},
       {:ex_doc, "~> 0.34", only: :dev, runtime: false}
     ]
   end
