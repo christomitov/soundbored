@@ -1,11 +1,17 @@
 defmodule Soundboard.MixProject do
   use Mix.Project
 
+  @moduledoc """
+  Mix project configuration for Soundbored, the self-hosted Discord soundboard
+  that powers audio playback, live dashboards, and API integrations described in
+  the repository README.
+  """
+
   def project do
     [
       app: :soundboard,
       version: "1.6.0",
-      elixir: "~> 1.18",
+      elixir: "~> 1.19",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       listeners: [Phoenix.CodeReloader],
@@ -38,14 +44,6 @@ defmodule Soundboard.MixProject do
           Soundboard.DataCase,
           Soundboard.TestHelpers
         ]
-      ],
-      preferred_cli_env: [
-        coveralls: :test,
-        "coveralls.detail": :test,
-        "coveralls.post": :test,
-        "coveralls.html": :test,
-        "coveralls.json": :test,
-        "coveralls.github": :test
       ]
     ]
   end
@@ -86,7 +84,7 @@ defmodule Soundboard.MixProject do
       {:phoenix_live_dashboard, "~> 0.8.7"},
       {:esbuild, "~> 0.10", runtime: Mix.env() == :dev},
       {:tailwind, "~> 0.3", runtime: Mix.env() == :dev},
-      {:heroicons, github: "tailwindlabs/heroicons", tag: "v2.1.1", app: false},
+      {:heroicons, github: "tailwindlabs/heroicons", tag: "v2.1.1", app: false, compile: false},
       {:swoosh, "~> 1.19"},
       {:finch, "~> 0.20"},
       {:telemetry_metrics, "~> 1.1"},
@@ -128,6 +126,19 @@ defmodule Soundboard.MixProject do
         "tailwind soundboard --minify",
         "esbuild soundboard --minify",
         "phx.digest"
+      ]
+    ]
+  end
+
+  def cli do
+    [
+      preferred_envs: [
+        coveralls: :test,
+        "coveralls.detail": :test,
+        "coveralls.post": :test,
+        "coveralls.html": :test,
+        "coveralls.json": :test,
+        "coveralls.github": :test
       ]
     ]
   end

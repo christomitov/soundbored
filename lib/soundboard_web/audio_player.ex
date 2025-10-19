@@ -458,7 +458,10 @@ defmodule SoundboardWeb.AudioPlayer do
   defp lookup_cached_sound(sound_name) do
     case :ets.lookup(:sound_meta_cache, sound_name) do
       [{^sound_name, %{source_type: source, input: input, volume: volume}}] ->
-        Logger.info("Found sound in cache: #{inspect(%{source_type: source, input: input, volume: volume})}")
+        Logger.info(
+          "Found sound in cache: #{inspect(%{source_type: source, input: input, volume: volume})}"
+        )
+
         {:hit, {source, input, volume}}
 
       _ ->
