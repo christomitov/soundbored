@@ -50,7 +50,12 @@ defmodule SoundboardWeb.DiscordHandler do
 
   def init do
     Logger.info("Starting DiscordHandler...")
-    if not auto_join_disabled?(), do: start_guild_check_task()
+
+    case auto_join_mode() do
+      :enabled -> start_guild_check_task()
+      :disabled -> :ok
+    end
+
     :ok
   end
 
@@ -184,38 +189,57 @@ defmodule SoundboardWeb.DiscordHandler do
 
   # Simplified check_users_in_voice function - safe against cache races
   defp check_users_in_voice(guild_id, channel_id) do
-    with true <- is_integer(guild_id),
-         true <- not is_nil(channel_id),
-         {:ok, guild} <- safe_guild_fetch(guild_id) do
-      # Get bot ID to exclude it from count
-      bot_id =
-        case Self.get() do
-          {:ok, %{id: id}} -> id
-          _ -> nil
-        end
-
-      users_in_channel =
-        guild.voice_states
-        |> Enum.count(fn vs -> vs.channel_id == channel_id && vs.user_id != bot_id end)
-
-      Logger.info("""
-      Voice state check:
-      Channel ID: #{channel_id}
-      Users in channel: #{users_in_channel} (excluding bot)
-      Bot ID: #{bot_id}
-      Voice states: #{inspect(guild.voice_states)}
-      """)
-
-      users_in_channel
-    else
-      _ ->
-        Logger.warning(
-          "check_users_in_voice: cache not ready or invalid target (guild_id=#{inspect(guild_id)}, channel_id=#{inspect(channel_id)})"
-        )
-
-        # Non-zero to avoid false positives; a delayed recheck will handle the leave
-        1
+    cond do
+      not is_integer(guild_id) -> warn_and_default(guild_id, channel_id)
+      is_nil(channel_id) -> warn_and_default(guild_id, channel_id)
+      true -> count_users_in_channel(guild_id, channel_id)
     end
+  end
+
+  defp warn_and_default(guild_id, channel_id) do
+    log_voice_cache_warning(guild_id, channel_id)
+    1
+  end
+
+  defp count_users_in_channel(guild_id, channel_id) do
+    case safe_guild_fetch(guild_id) do
+      {:ok, guild} ->
+        bot_id = maybe_bot_id()
+        voice_states = List.wrap(guild.voice_states)
+
+        users_in_channel =
+          voice_states
+          |> Enum.count(fn vs -> vs.channel_id == channel_id && vs.user_id != bot_id end)
+
+        log_voice_state_snapshot(channel_id, users_in_channel, bot_id, voice_states)
+        users_in_channel
+
+      _ ->
+        warn_and_default(guild_id, channel_id)
+    end
+  end
+
+  defp maybe_bot_id do
+    case Self.get() do
+      {:ok, %{id: id}} -> id
+      _ -> nil
+    end
+  end
+
+  defp log_voice_state_snapshot(channel_id, users_in_channel, bot_id, voice_states) do
+    Logger.info("""
+    Voice state check:
+    Channel ID: #{channel_id}
+    Users in channel: #{users_in_channel} (excluding bot)
+    Bot ID: #{bot_id}
+    Voice states: #{inspect(voice_states)}
+    """)
+  end
+
+  defp log_voice_cache_warning(guild_id, channel_id) do
+    Logger.warning(
+      "check_users_in_voice: cache not ready or invalid target (guild_id=#{inspect(guild_id)}, channel_id=#{inspect(channel_id)})"
+    )
   end
 
   defp safe_guild_fetch(guild_id) do
@@ -231,8 +255,9 @@ defmodule SoundboardWeb.DiscordHandler do
     Logger.info("User #{payload.user_id} disconnected from voice")
     State.update_state(payload.user_id, nil, payload.session_id)
 
-    unless auto_join_disabled?() do
-      handle_bot_alone_check(payload.guild_id)
+    case auto_join_mode() do
+      :enabled -> handle_bot_alone_check(payload.guild_id)
+      :disabled -> :noop
     end
 
     handle_leave_sound(payload.user_id)
@@ -255,8 +280,9 @@ defmodule SoundboardWeb.DiscordHandler do
     previous_state = State.get_state(payload.user_id)
     State.update_state(payload.user_id, payload.channel_id, payload.session_id)
 
-    unless auto_join_disabled?() do
-      handle_auto_join_leave(payload)
+    case auto_join_mode() do
+      :enabled -> handle_auto_join_leave(payload)
+      :disabled -> :noop
     end
 
     handle_join_sound(payload.user_id, previous_state, payload.channel_id)
@@ -378,10 +404,8 @@ defmodule SoundboardWeb.DiscordHandler do
   end
 
   defp get_cached_guilds do
-    case GuildCache.all() do
-      nil -> []
-      guilds -> guilds
-    end
+    GuildCache.all()
+    |> Enum.to_list()
   rescue
     _ -> []
   end
@@ -462,12 +486,25 @@ defmodule SoundboardWeb.DiscordHandler do
   end
 
   # Add this helper function to check if auto-join is disabled
-  defp auto_join_disabled? do
-    # Never disable auto-join in tests, regardless of env vars
+  defp auto_join_mode do
     case Application.get_env(:soundboard, :env) do
-      :test -> false
-      _ -> System.get_env("DISABLE_AUTO_JOIN") == "true"
+      :test -> :enabled
+      _ -> if auto_join_enabled?(), do: :enabled, else: :disabled
     end
+  end
+
+  defp auto_join_enabled? do
+    case System.get_env("AUTO_JOIN") do
+      nil -> false
+      value -> truthy_value?(value)
+    end
+  end
+
+  defp truthy_value?(value) do
+    value
+    |> String.trim()
+    |> String.downcase()
+    |> then(&(&1 in ["true", "1", "yes"]))
   end
 
   defp handle_bot_alone_check(_guild_id) do

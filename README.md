@@ -69,7 +69,7 @@ All available keys live in `.env.example`. Configure the ones that match your se
 | `PHX_HOST` | ✔ | Hostname the app advertises (`localhost` for local runs). |
 | `SCHEME` | ✔ | `http` locally, `https` in production. |
 | `BASIC_AUTH_USERNAME` / `BASIC_AUTH_PASSWORD` | optional | Protect the UI with HTTP basic auth. |
-| `DISABLE_AUTO_JOIN` | optional | Set to `false` to let the bot auto-join voice channels. |
+| `AUTO_JOIN` | optional | Set to `true` to let the bot auto-join voice channels. |
 
 ## Deployment
 
@@ -86,7 +86,7 @@ If you place the container behind your own reverse proxy, set `PHX_HOST` and `SC
 
 After inviting the bot to your server, join a voice channel and type `!join` to have the bot join the voice channel. Type `!leave` to have the bot leave. You can upload sounds to Soundbored and trigger them there and they will play in the voice channel.
 
-The bot is also able to auto-join and auto-leave voice channels. This is controlled by the DISABLE_AUTO_JOIN environment variable. If you set it to false, the bot will join voice channels where users are present and auto-leave when the last user leaves.
+The bot is also able to auto-join and auto-leave voice channels. This is controlled by the `AUTO_JOIN` environment variable. Leave it unset (or `false`) to disable, or set it to `true` to have the bot join voice channels with members and auto-leave when the last user leaves.
 
 ## API
 

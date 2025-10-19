@@ -14,7 +14,7 @@ services:
       SCHEME: ${SCHEME:-http}
       BASIC_AUTH_USERNAME: ${BASIC_AUTH_USERNAME}
       BASIC_AUTH_PASSWORD: ${BASIC_AUTH_PASSWORD}
-      DISABLE_AUTO_JOIN: ${DISABLE_AUTO_JOIN:-true}
+      AUTO_JOIN: ${AUTO_JOIN:-false}
     volumes:
       - soundbored_data:/app/priv/static/uploads
     env_file: .env
