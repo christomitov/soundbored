@@ -1,0 +1,8 @@
+.dockerignore
+.git*
+test
+.env*
+*.md
+coveralls.json
+docker-compose.yml
+Dockerfile
