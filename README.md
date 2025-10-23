@@ -64,7 +64,8 @@ All available keys live in `.env.example`. Configure the ones that match your se
 | `DISCORD_TOKEN` | ✔ | Bot token used to play audio in voice channels. |
 | `DISCORD_CLIENT_ID` / `DISCORD_CLIENT_SECRET` | ✔ | OAuth credentials for Discord login. |
 | `API_TOKEN` | ✔ | Shared bearer token for the REST API. |
-| `SECRET_KEY_BASE` | ✔ | Signing/encryption secret; generate via `mix phx.gen.secret`. |
+| `SECRET_KEY_BASE` | ✔ | Signing/encryption secret; generate via `mix phx.gen.secret` or `openssl rand -base64 48`. Takes precedence over `SECRET_KEY_BASE_FILE`.|
+| `SECRET_KEY_BASE_FILE` | optional | Path to file containing signing/encryption secret (e.g. for docker secrets). Preferred for security. |
 | `PHX_HOST` | ✔ | Hostname the app advertises (`localhost` for local runs). |
 | `SCHEME` | ✔ | `http` locally, `https` in production. |
 | `BASIC_AUTH_USERNAME` / `BASIC_AUTH_PASSWORD` | optional | Protect the UI with HTTP basic auth. |

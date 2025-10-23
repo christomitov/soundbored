@@ -2,22 +2,28 @@ services:
   soundbored:
     image: christom/soundbored:latest
     ports:
-      - "4000:4000"
-    environment:
-      API_TOKEN: ${API_TOKEN}
-      DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID}
-      DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET}
-      DISCORD_TOKEN: ${DISCORD_TOKEN}
-      MIX_ENV: ${MIX_ENV:-prod}
-      PHX_HOST: ${PHX_HOST:-localhost}
-      SECRET_KEY_BASE: ${SECRET_KEY_BASE}
-      SCHEME: ${SCHEME:-http}
-      BASIC_AUTH_USERNAME: ${BASIC_AUTH_USERNAME}
-      BASIC_AUTH_PASSWORD: ${BASIC_AUTH_PASSWORD}
-      AUTO_JOIN: ${AUTO_JOIN:-false}
+      - "127.0.0.1:4000:4000"
+    env_file: .env
     volumes:
       - soundbored_data:/app/priv/static/uploads
-    env_file: .env
+    # the below can be added for improved security
+      - type: tmpfs
+        target: /tmp/mix_pubsub
+        tmpfs:
+          mode: 0777
+    user: 9999:9999 # make sure this user has permissions on the soundbored_data volume
+    read_only: true
+    environment:
+      TMPDIR: /tmp/mix_pubsub
+      SECRET_KEY_BASE_FILE: /run/secrets/soundbored_secret_key_base
+    secrets:
+      - soundbored_secret_key_base
 
 volumes:
   soundbored_data:
+
+secrets:
+  soundbored_secret_key_base:
+    # this file should contain securely-generated random data (see README.md)
+    # and only be readable by root or the user running the docker daemon
+    file: ./secret_key_base.txt
