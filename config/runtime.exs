@@ -33,23 +33,25 @@ if config_env() == :prod and is_nil(System.get_env("SKIP_RUNTIME_CONFIG")) do
   # The secret key base is used to sign/encrypt cookies and other secrets.
   secret_key_base =
     System.get_env("SECRET_KEY_BASE") ||
-      (case System.get_env("SECRET_KEY_BASE_FILE") do
-         file when is_binary(file) and file != "" ->
-           case File.read(file) do
-             {:ok, key} -> String.trim(key)
-             {:error, reason} ->
-               raise """
-               could not read SECRET_KEY_BASE_FILE (#{file}): #{inspect(reason)}
-               """
-           end
+      case System.get_env("SECRET_KEY_BASE_FILE") do
+        file when is_binary(file) and file != "" ->
+          case File.read(file) do
+            {:ok, key} ->
+              String.trim(key)
 
-         _ ->
-           raise """
-           environment variable SECRET_KEY_BASE is missing.
-           Provide it via your environment (recommended) or set SECRET_KEY_BASE_FILE to a file path containing the key.
-           Generate one with: mix phx.gen.secret OR openssl rand -base64 48
-           """
-       end)
+            {:error, reason} ->
+              raise """
+              could not read SECRET_KEY_BASE_FILE (#{file}): #{inspect(reason)}
+              """
+          end
+
+        _ ->
+          raise """
+          environment variable SECRET_KEY_BASE is missing.
+          Provide it via your environment (recommended) or set SECRET_KEY_BASE_FILE to a file path containing the key.
+          Generate one with: mix phx.gen.secret OR openssl rand -base64 48
+          """
+      end
 
   host = System.get_env("PHX_HOST") || raise("PHX_HOST must be set")
 

@@ -90,21 +90,11 @@
     end %>
   <div class="mb-4 flex flex-wrap gap-2 items-center sm:hidden">
     <%= for tag <- limited_tags do %>
-      <button
-        phx-click="toggle_tag_filter"
-        phx-value-tag={tag.name}
-        class={[
-          "inline-flex items-center gap-1 rounded-full px-3 py-1 text-sm font-medium",
-          if(tag_selected?(tag, @selected_tags),
-            do: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
-            else:
-              "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-          )
-        ]}
-      >
-        {tag.name}
-        <span class="text-xs">({count_sounds_with_tag(@uploaded_files, tag)})</span>
-      </button>
+      <.tag_filter_button
+        tag={tag}
+        selected_tags={@selected_tags}
+        uploaded_files={@uploaded_files}
+      />
     <% end %>
     <%= if length(tags) > 12 do %>
       <button
@@ -118,21 +108,11 @@
   </div>
   <div class="mb-4 hidden sm:flex sm:flex-wrap sm:gap-2 sm:items-center">
     <%= for tag <- tags do %>
-      <button
-        phx-click="toggle_tag_filter"
-        phx-value-tag={tag.name}
-        class={[
-          "inline-flex items-center gap-1 rounded-full px-3 py-1 text-sm font-medium",
-          if(tag_selected?(tag, @selected_tags),
-            do: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
-            else:
-              "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-          )
-        ]}
-      >
-        {tag.name}
-        <span class="text-xs">({count_sounds_with_tag(@uploaded_files, tag)})</span>
-      </button>
+      <.tag_filter_button
+        tag={tag}
+        selected_tags={@selected_tags}
+        uploaded_files={@uploaded_files}
+      />
     <% end %>
   </div>
 

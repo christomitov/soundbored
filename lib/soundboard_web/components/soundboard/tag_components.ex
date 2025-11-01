@@ -3,6 +3,7 @@ defmodule SoundboardWeb.Components.Soundboard.TagComponents do
   Shared tag UI helpers for the soundboard modals.
   """
   use Phoenix.Component
+  alias SoundboardWeb.Live.TagHandler
 
   attr :tags, :list, default: []
   attr :remove_event, :string, required: true
@@ -66,6 +67,36 @@ defmodule SoundboardWeb.Components.Soundboard.TagComponents do
         <% end %>
       </div>
     <% end %>
+    """
+  end
+
+  attr :tag, :any, required: true
+  attr :selected_tags, :list, required: true
+  attr :uploaded_files, :list, required: true
+  attr :tag_key, :atom, default: :name
+  attr :click_event, :string, default: "toggle_tag_filter"
+  attr :class, :any, default: []
+
+  def tag_filter_button(assigns) do
+    assigns = assign_new(assigns, :tag_key, fn -> :name end)
+
+    ~H"""
+    <button
+      phx-click={@click_event}
+      phx-value-tag={tag_value(@tag, @tag_key)}
+      class={[
+        "inline-flex items-center gap-1 rounded-full px-3 py-1 text-sm font-medium",
+        if(TagHandler.tag_selected?(@tag, @selected_tags),
+          do: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
+          else:
+            "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+        )
+        | List.wrap(@class)
+      ]}
+    >
+      {tag_value(@tag, @tag_key)}
+      <span class="text-xs">({TagHandler.count_sounds_with_tag(@uploaded_files, @tag)})</span>
+    </button>
     """
   end
 

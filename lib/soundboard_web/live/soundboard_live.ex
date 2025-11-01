@@ -5,18 +5,14 @@ defmodule SoundboardWeb.SoundboardLive do
   import EditModal
   import DeleteModal
   import UploadModal
+  import SoundboardWeb.Components.Soundboard.TagComponents, only: [tag_filter_button: 1]
   alias SoundboardWeb.Presence
   alias Soundboard.{Favorites, Repo, Sound, Volume}
   require Logger
   alias SoundboardWeb.Live.{FileFilter, TagHandler, UploadHandler}
   import Ecto.Query
 
-  import TagHandler,
-    only: [
-      all_tags: 1,
-      count_sounds_with_tag: 2,
-      tag_selected?: 2
-    ]
+  import TagHandler, only: [all_tags: 1, tag_selected?: 2]
 
   import FileFilter, only: [filter_files: 3]
 
@@ -328,20 +324,9 @@ defmodule SoundboardWeb.SoundboardLive do
   @impl true
   def handle_event("add_upload_tag", %{"key" => key, "value" => value}, socket) do
     if key == "Enter" && value != "" do
-      case TagHandler.add_tag(socket, value, socket.assigns.upload_tags) do
-        {:ok, socket} ->
-          {:noreply,
-           socket
-           |> assign(:upload_tag_input, "")
-           |> assign(:upload_tag_suggestions, [])}
-
-        {:error, message} ->
-          {:noreply,
-           socket
-           |> assign(:upload_tag_input, "")
-           |> assign(:upload_tag_suggestions, [])
-           |> put_flash(:error, message)}
-      end
+      socket
+      |> TagHandler.add_tag(value, socket.assigns.upload_tags)
+      |> handle_tag_response(socket, :upload)
     else
       suggestions = TagHandler.search_tags(value)
 
@@ -360,20 +345,9 @@ defmodule SoundboardWeb.SoundboardLive do
 
   @impl true
   def handle_event("select_upload_tag_suggestion", %{"tag" => tag_name}, socket) do
-    case TagHandler.add_tag(socket, tag_name, socket.assigns.upload_tags) do
-      {:ok, socket} ->
-        {:noreply,
-         socket
-         |> assign(:upload_tag_input, "")
-         |> assign(:upload_tag_suggestions, [])}
-
-      {:error, message} ->
-        {:noreply,
-         socket
-         |> assign(:upload_tag_input, "")
-         |> assign(:upload_tag_suggestions, [])
-         |> put_flash(:error, message)}
-    end
+    socket
+    |> TagHandler.add_tag(tag_name, socket.assigns.upload_tags)
+    |> handle_tag_response(socket, :upload)
   end
 
   @impl true
@@ -389,20 +363,9 @@ defmodule SoundboardWeb.SoundboardLive do
   @impl true
   def handle_event("add_tag", %{"key" => key, "value" => value}, socket) do
     if key == "Enter" && value != "" do
-      case TagHandler.add_tag(socket, value, socket.assigns.current_sound.tags) do
-        {:ok, socket} ->
-          {:noreply,
-           socket
-           |> assign(:tag_input, "")
-           |> assign(:tag_suggestions, [])}
-
-        {:error, message} ->
-          {:noreply,
-           socket
-           |> assign(:tag_input, "")
-           |> assign(:tag_suggestions, [])
-           |> put_flash(:error, message)}
-      end
+      socket
+      |> TagHandler.add_tag(value, socket.assigns.current_sound.tags)
+      |> handle_tag_response(socket, :current)
     else
       suggestions = TagHandler.search_tags(value)
 
@@ -428,20 +391,9 @@ defmodule SoundboardWeb.SoundboardLive do
 
   @impl true
   def handle_event("select_tag_suggestion", %{"tag" => tag_name}, socket) do
-    case TagHandler.add_tag(socket, tag_name, socket.assigns.current_sound.tags) do
-      {:ok, socket} ->
-        {:noreply,
-         socket
-         |> assign(:tag_input, "")
-         |> assign(:tag_suggestions, [])}
-
-      {:error, message} ->
-        {:noreply,
-         socket
-         |> assign(:tag_input, "")
-         |> assign(:tag_suggestions, [])
-         |> put_flash(:error, message)}
-    end
+    socket
+    |> TagHandler.add_tag(tag_name, socket.assigns.current_sound.tags)
+    |> handle_tag_response(socket, :current)
   end
 
   @impl true
@@ -543,24 +495,11 @@ defmodule SoundboardWeb.SoundboardLive do
     tag = Enum.find(TagHandler.search_tags(""), &(&1.name == tag_name))
 
     if tag do
-      case TagHandler.add_tag(socket, tag_name, socket.assigns.upload_tags) do
-        {:ok, socket} ->
-          {:noreply,
-           socket
-           |> assign(:upload_tag_input, "")
-           |> assign(:upload_tag_suggestions, [])}
-
-        {:error, message} ->
-          {:noreply,
-           socket
-           |> assign(:upload_tag_input, "")
-           |> assign(:upload_tag_suggestions, [])
-           |> put_flash(:error, message)}
-      end
+      socket
+      |> TagHandler.add_tag(tag_name, socket.assigns.upload_tags)
+      |> handle_tag_response(socket, :upload)
     else
-      {:noreply,
-       socket
-       |> put_flash(:error, "Tag not found")}
+      {:noreply, put_flash(socket, :error, "Tag not found")}
     end
   end
 
@@ -923,6 +862,29 @@ defmodule SoundboardWeb.SoundboardLive do
         {:error, error} -> Repo.rollback(error)
       end
     end)
+  end
+
+  defp handle_tag_response({:ok, updated_socket}, _socket, context) do
+    {:noreply, reset_tag_assigns(updated_socket, context)}
+  end
+
+  defp handle_tag_response({:error, message}, socket, context) do
+    {:noreply,
+     socket
+     |> reset_tag_assigns(context)
+     |> put_flash(:error, message)}
+  end
+
+  defp reset_tag_assigns(socket, :upload) do
+    socket
+    |> assign(:upload_tag_input, "")
+    |> assign(:upload_tag_suggestions, [])
+  end
+
+  defp reset_tag_assigns(socket, :current) do
+    socket
+    |> assign(:tag_input, "")
+    |> assign(:tag_suggestions, [])
   end
 
   defp maybe_rename_local_file(%{source_type: "local"} = sound, old_path, new_path) do
