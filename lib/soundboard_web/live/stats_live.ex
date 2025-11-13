@@ -4,7 +4,7 @@ defmodule SoundboardWeb.StatsLive do
   alias SoundboardWeb.Live.PresenceHandler
   import Phoenix.Component
   import SoundboardWeb.SoundHelpers
-  alias Soundboard.{Favorites, Sound, Stats}
+  alias Soundboard.{Accounts.Tenants, Favorites, Sound, Stats}
   require Logger
 
   @pubsub_topic "soundboard"
@@ -13,8 +13,12 @@ defmodule SoundboardWeb.StatsLive do
 
   @impl true
   def mount(_params, session, socket) do
+    current_user = get_user_from_session(session)
+    tenant_id = derive_tenant_id(session, current_user)
+
     if connected?(socket) do
       :timer.send_interval(60 * 60 * 1000, self(), :check_week_rollover)
+      Phoenix.PubSub.subscribe(Soundboard.PubSub, Stats.stats_topic(tenant_id))
       Phoenix.PubSub.subscribe(Soundboard.PubSub, @pubsub_topic)
     end
 
@@ -24,7 +28,8 @@ defmodule SoundboardWeb.StatsLive do
      socket
      |> mount_presence(session)
      |> assign(:current_path, "/stats")
-     |> assign(:current_user, get_user_from_session(session))
+     |> assign(:current_user, current_user)
+     |> assign(:current_tenant_id, tenant_id)
      |> assign(:force_update, 0)
      |> assign(:selected_week, current_week)
      |> assign(:current_week, current_week)
@@ -34,28 +39,36 @@ defmodule SoundboardWeb.StatsLive do
   end
 
   @impl true
-  def handle_info({:sound_played, %{filename: filename, played_by: username}}, socket) do
-    recent_plays =
-      Stats.get_recent_plays(limit: @recent_limit)
-      |> Enum.map(fn {id, filename, username, timestamp} ->
-        %{
-          id: id,
-          filename: filename,
-          username: username,
-          timestamp: timestamp
-        }
-      end)
+  def handle_info({:sound_played, %{tenant_id: tenant_id} = payload}, socket) do
+    if tenant_id == socket.assigns.current_tenant_id do
+      {:noreply,
+       socket
+       |> stream(:recent_plays, recent_plays(tenant_id), reset: true)
+       |> put_flash(:info, "#{payload.played_by} played #{display_name(payload.filename)}")
+       |> clear_flash_after_timeout()}
+    else
+      {:noreply, socket}
+    end
+  end
 
-    {:noreply,
-     socket
-     |> stream(:recent_plays, recent_plays, reset: true)
-     |> put_flash(:info, "#{username} played #{display_name(filename)}")
-     |> clear_flash_after_timeout()}
+  def handle_info({:sound_played, payload}, socket) do
+    handle_info(
+      {:sound_played, Map.put(payload, :tenant_id, socket.assigns.current_tenant_id)},
+      socket
+    )
   end
 
   @impl true
+  def handle_info({:stats_updated, tenant_id}, socket) do
+    if tenant_id == socket.assigns.current_tenant_id do
+      {:noreply, assign_stats(socket)}
+    else
+      {:noreply, socket}
+    end
+  end
+
   def handle_info({:stats_updated}, socket) do
-    {:noreply, assign_stats(socket)}
+    handle_info({:stats_updated, socket.assigns.current_tenant_id}, socket)
   end
 
   @impl true
@@ -83,22 +96,18 @@ defmodule SoundboardWeb.StatsLive do
 
   defp assign_stats(socket) do
     {start_date, end_date} = socket.assigns.selected_week
-
-    recent_plays =
-      Stats.get_recent_plays(limit: @recent_limit)
-      |> Enum.map(fn {id, filename, username, timestamp} ->
-        %{
-          id: id,
-          filename: filename,
-          username: username,
-          timestamp: timestamp
-        }
-      end)
+    tenant_id = socket.assigns.current_tenant_id
 
     socket
-    |> assign(:top_users, Stats.get_top_users(start_date, end_date, limit: @recent_limit))
-    |> assign(:top_sounds, Stats.get_top_sounds(start_date, end_date, limit: @recent_limit))
-    |> stream(:recent_plays, recent_plays, reset: true)
+    |> assign(
+      :top_users,
+      Stats.get_top_users(tenant_id, start_date, end_date, limit: @recent_limit)
+    )
+    |> assign(
+      :top_sounds,
+      Stats.get_top_sounds(tenant_id, start_date, end_date, limit: @recent_limit)
+    )
+    |> stream(:recent_plays, recent_plays(tenant_id), reset: true)
     |> assign(:recent_uploads, Sound.get_recent_uploads(limit: @recent_limit))
     |> assign(:favorites, get_favorites(socket.assigns.current_user))
   end
@@ -385,7 +394,7 @@ defmodule SoundboardWeb.StatsLive do
     case Favorites.toggle_favorite(user.id, sound_id) do
       {:ok, _favorite} ->
         updated_favorites = Favorites.list_favorites(user.id)
-        recent_plays = get_recent_plays()
+        recent_plays = recent_plays(socket.assigns.current_tenant_id)
 
         {:noreply,
          socket
@@ -398,8 +407,8 @@ defmodule SoundboardWeb.StatsLive do
     end
   end
 
-  defp get_recent_plays do
-    Stats.get_recent_plays(limit: @recent_limit)
+  defp recent_plays(tenant_id) do
+    Stats.get_recent_plays(tenant_id, limit: @recent_limit)
     |> Enum.map(fn {id, filename, username, timestamp} ->
       %{
         id: id,
@@ -413,6 +422,29 @@ defmodule SoundboardWeb.StatsLive do
   defp recent_play_dom_id(play) do
     base = slugify(play.filename)
     "recent-play-#{base}-#{play.id}"
+  end
+
+  defp derive_tenant_id(session, user) do
+    cond do
+      tenant_id = parse_tenant_id(session["tenant_id"]) ->
+        tenant_id
+
+      user && user.tenant_id ->
+        user.tenant_id
+
+      true ->
+        Tenants.ensure_default_tenant!().id
+    end
+  end
+
+  defp parse_tenant_id(nil), do: nil
+  defp parse_tenant_id(tenant_id) when is_integer(tenant_id), do: tenant_id
+
+  defp parse_tenant_id(tenant_id) when is_binary(tenant_id) do
+    case Integer.parse(tenant_id) do
+      {parsed, _} -> parsed
+      :error -> nil
+    end
   end
 
   @impl true

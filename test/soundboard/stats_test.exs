@@ -24,7 +24,7 @@ defmodule Soundboard.StatsTest do
       today = Date.utc_today()
       Enum.each(1..3, fn _ -> Stats.track_play(sound.filename, user.id) end)
 
-      results = Stats.get_top_users(today, today)
+      results = Stats.get_top_users(user.tenant_id, today, today)
       user_plays = Enum.find(results, fn {username, _count} -> username == user.username end)
 
       assert user_plays != nil
@@ -36,7 +36,7 @@ defmodule Soundboard.StatsTest do
       today = Date.utc_today()
       Enum.each(1..3, fn _ -> Stats.track_play(sound.filename, user.id) end)
 
-      results = Stats.get_top_sounds(today, today)
+      results = Stats.get_top_sounds(user.tenant_id, today, today)
       sound_plays = Enum.find(results, fn {filename, _count} -> filename == sound.filename end)
 
       assert sound_plays != nil
@@ -47,7 +47,9 @@ defmodule Soundboard.StatsTest do
     test "get_recent_plays returns most recent plays", %{user: user, sound: sound} do
       Stats.track_play(sound.filename, user.id)
 
-      assert [{_id, filename, username, _timestamp}] = Stats.get_recent_plays(limit: 1)
+      assert [{_id, filename, username, _timestamp}] =
+               Stats.get_recent_plays(user.tenant_id, limit: 1)
+
       assert filename == sound.filename
       assert username == user.username
     end
@@ -72,21 +74,23 @@ defmodule Soundboard.StatsTest do
       Stats.track_play(sound.filename, user.id)
 
       initial_count = length(Repo.all(Play))
-      Stats.reset_weekly_stats()
+      Stats.reset_weekly_stats(user.tenant_id)
       final_count = length(Repo.all(Play))
 
       # Should have at least one less play after reset
       assert final_count < initial_count
     end
 
-    test "broadcast_stats_update sends update message" do
-      Phoenix.PubSub.subscribe(Soundboard.PubSub, "stats")
+    test "broadcast_stats_update sends update message", %{user: user} do
+      tenant_id = user.tenant_id
+      stats_topic = Stats.stats_topic(tenant_id)
+      Phoenix.PubSub.subscribe(Soundboard.PubSub, stats_topic)
       Phoenix.PubSub.subscribe(Soundboard.PubSub, "soundboard")
 
-      Stats.broadcast_stats_update()
+      Stats.broadcast_stats_update(tenant_id)
 
-      assert_receive {:stats_updated}
-      assert_receive {:stats_updated}
+      assert_receive {:stats_updated, ^tenant_id}
+      assert_receive {:stats_updated, ^tenant_id}
     end
   end
 

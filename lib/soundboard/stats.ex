@@ -6,7 +6,8 @@ defmodule Soundboard.Stats do
   alias Phoenix.PubSub
   alias Soundboard.{Accounts.User, Repo, Sound, Stats.Play}
 
-  @pubsub_topic "soundboard"
+  @stats_topic_prefix "stats:"
+  @legacy_pubsub_topic "soundboard"
 
   def track_play(sound_name, %User{} = user) do
     do_track_play(sound_name, user)
@@ -19,17 +20,20 @@ defmodule Soundboard.Stats do
     end
   end
 
-  defp do_track_play(sound_name, %User{id: user_id, tenant_id: tenant_id}) do
+  defp do_track_play(sound_name, %User{id: user_id, tenant_id: tenant_id})
+       when not is_nil(tenant_id) do
     result =
       %Play{}
       |> Play.changeset(%{sound_name: sound_name, user_id: user_id, tenant_id: tenant_id})
       |> Repo.insert()
 
     # Broadcast stats update after tracking play
-    broadcast_stats_update()
+    broadcast_stats_update(tenant_id)
 
     result
   end
+
+  defp do_track_play(_sound_name, _user), do: {:error, :tenant_missing}
 
   defp get_week_range do
     today = Date.utc_today()
@@ -43,10 +47,11 @@ defmodule Soundboard.Stats do
     }
   end
 
-  def get_top_users(start_date, end_date, opts \\ []) do
+  def get_top_users(tenant_id, start_date, end_date, opts \\ []) do
     limit = Keyword.get(opts, :limit, 10)
 
     from(p in Play,
+      where: p.tenant_id == ^tenant_id,
       join: u in assoc(p, :user),
       where: fragment("DATE(?) BETWEEN ? AND ?", p.inserted_at, ^start_date, ^end_date),
       group_by: u.username,
@@ -57,10 +62,11 @@ defmodule Soundboard.Stats do
     |> Repo.all()
   end
 
-  def get_top_sounds(start_date, end_date, opts \\ []) do
+  def get_top_sounds(tenant_id, start_date, end_date, opts \\ []) do
     limit = Keyword.get(opts, :limit, 10)
 
     from(p in Play,
+      where: p.tenant_id == ^tenant_id,
       join: s in Sound,
       on: s.filename == p.sound_name,
       where: fragment("DATE(?) BETWEEN ? AND ?", p.inserted_at, ^start_date, ^end_date),
@@ -72,11 +78,12 @@ defmodule Soundboard.Stats do
     |> Repo.all()
   end
 
-  def get_recent_plays(opts \\ []) do
+  def get_recent_plays(tenant_id, opts \\ []) do
     limit = Keyword.get(opts, :limit, 5)
 
     # Simple query that gets exactly 5 most recent plays
     from(p in Play,
+      where: p.tenant_id == ^tenant_id,
       join: s in Sound,
       on: s.filename == p.sound_name,
       join: u in User,
@@ -88,18 +95,24 @@ defmodule Soundboard.Stats do
     |> Repo.all()
   end
 
-  def reset_weekly_stats do
+  def reset_weekly_stats(tenant_id) do
     {week_start, _week_end} = get_week_range()
 
-    from(p in Play, where: p.inserted_at < ^week_start)
+    from(p in Play, where: p.tenant_id == ^tenant_id and p.inserted_at < ^week_start)
     |> Repo.delete_all()
 
-    broadcast_stats_update()
+    broadcast_stats_update(tenant_id)
   end
 
-  def broadcast_stats_update do
-    # Broadcast to both channels to ensure all stats are updated
-    PubSub.broadcast(Soundboard.PubSub, "stats", {:stats_updated})
-    PubSub.broadcast(Soundboard.PubSub, @pubsub_topic, {:stats_updated})
+  def broadcast_stats_update(tenant_id) do
+    message = {:stats_updated, tenant_id}
+
+    PubSub.broadcast(Soundboard.PubSub, stats_topic(tenant_id), message)
+    # Legacy channel for listeners that haven't moved to per-tenant topics yet
+    PubSub.broadcast(Soundboard.PubSub, @legacy_pubsub_topic, message)
+  end
+
+  def stats_topic(tenant_id) when is_integer(tenant_id) do
+    @stats_topic_prefix <> Integer.to_string(tenant_id)
   end
 end

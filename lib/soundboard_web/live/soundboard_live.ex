@@ -703,8 +703,12 @@ defmodule SoundboardWeb.SoundboardLive do
   end
 
   @impl true
-  def handle_info({:stats_updated}, socket) do
+  def handle_info({:stats_updated, _tenant_id}, socket) do
     {:noreply, load_sound_files(socket)}
+  end
+
+  def handle_info({:stats_updated}, socket) do
+    handle_info({:stats_updated, nil}, socket)
   end
 
   defp handle_save_sound(sound, user_id, params, socket) do

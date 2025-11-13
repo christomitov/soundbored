@@ -185,7 +185,7 @@ defmodule SoundboardWeb.Live.UploadHandler do
   defp create_sound_with_settings(sound_params, user_id, socket) do
     with {:ok, sound} <- create_sound(sound_params, socket.assigns.upload_tags),
          {:ok, _setting} <- create_user_setting(sound, user_id, sound_params) do
-      broadcast_updates()
+      broadcast_updates(sound.tenant_id)
       {:ok, sound}
     end
   end
@@ -201,9 +201,9 @@ defmodule SoundboardWeb.Live.UploadHandler do
     |> Repo.insert()
   end
 
-  defp broadcast_updates do
+  defp broadcast_updates(tenant_id) do
     Phoenix.PubSub.broadcast(Soundboard.PubSub, "uploads", {:sound_uploaded})
-    Phoenix.PubSub.broadcast(Soundboard.PubSub, "stats", {:stats_updated})
+    Soundboard.Stats.broadcast_stats_update(tenant_id)
   end
 
   defp create_sound(params, tags) do

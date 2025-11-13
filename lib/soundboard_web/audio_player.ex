@@ -5,7 +5,7 @@ defmodule SoundboardWeb.AudioPlayer do
   use GenServer
   require Logger
   alias Nostrum.Voice
-  alias Soundboard.Accounts.User
+  alias Soundboard.Accounts.{Tenants, User}
   alias Soundboard.Sound
 
   # System users that don't need play tracking
@@ -427,10 +427,17 @@ defmodule SoundboardWeb.AudioPlayer do
   end
 
   defp broadcast_success(sound_name, username) do
+    tenant_id = tenant_id_for_sound(sound_name)
+
     Phoenix.PubSub.broadcast(
       Soundboard.PubSub,
       "soundboard",
-      {:sound_played, %{filename: sound_name, played_by: username}}
+      {:sound_played,
+       %{
+         filename: sound_name,
+         played_by: username,
+         tenant_id: tenant_id
+       }}
     )
   end
 
@@ -513,6 +520,18 @@ defmodule SoundboardWeb.AudioPlayer do
       priv_dir = :code.priv_dir(:soundboard)
       Path.join([priv_dir, "static/uploads", filename])
     end
+  end
+
+  defp tenant_id_for_sound(sound_name) do
+    case Soundboard.Repo.get_by(Sound, filename: sound_name) do
+      %Sound{tenant_id: tenant_id} when is_integer(tenant_id) ->
+        tenant_id
+
+      _ ->
+        Tenants.ensure_default_tenant!().id
+    end
+  rescue
+    _ -> Tenants.ensure_default_tenant!().id
   end
 
   @doc """

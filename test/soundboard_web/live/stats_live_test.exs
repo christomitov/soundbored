@@ -62,17 +62,21 @@ defmodule SoundboardWeb.StatsLiveTest do
     assert html =~ SoundHelpers.display_name(sound.filename)
   end
 
-  test "handles sound_played message", %{conn: conn, sound: sound} do
+  test "handles sound_played message", %{conn: conn, sound: sound, tenant: tenant} do
     {:ok, view, _html} = live(conn, "/stats")
 
-    send(view.pid, {:sound_played, %{filename: sound.filename, played_by: "testuser"}})
+    send(
+      view.pid,
+      {:sound_played, %{filename: sound.filename, played_by: "testuser", tenant_id: tenant.id}}
+    )
+
     assert render(view) =~ "testuser played #{SoundHelpers.display_name(sound.filename)}"
   end
 
-  test "handles stats_updated message", %{conn: conn, sound: sound} do
+  test "handles stats_updated message", %{conn: conn, sound: sound, tenant: tenant} do
     {:ok, view, _html} = live(conn, "/stats")
 
-    send(view.pid, {:stats_updated})
+    send(view.pid, {:stats_updated, tenant.id})
     assert render(view) =~ SoundHelpers.display_name(sound.filename)
   end
 

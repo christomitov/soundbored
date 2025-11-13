@@ -125,7 +125,7 @@ defmodule SoundboardWeb.FavoritesLive do
   end
 
   @impl true
-  def handle_info({:stats_updated}, socket) do
+  def handle_info({:stats_updated, _tenant_id}, socket) do
     case socket.assigns.current_user do
       nil ->
         {:noreply, socket}
@@ -144,6 +144,10 @@ defmodule SoundboardWeb.FavoritesLive do
          |> assign(:favorites, favorites)
          |> assign(:sounds_with_tags, sounds_with_tags)}
     end
+  end
+
+  def handle_info({:stats_updated}, socket) do
+    handle_info({:stats_updated, nil}, socket)
   end
 
   defp clear_flash_after_timeout(socket) do
