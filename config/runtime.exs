@@ -16,19 +16,56 @@ import Config
 #
 # Alternatively, you can use `mix phx.gen.release` to generate a `bin/server`
 # script that automatically sets the env var above.
+edition =
+  System.get_env("SOUNDBORED_EDITION", "community")
+  |> String.downcase()
+
+edition_atom = if edition == "pro", do: :pro, else: :community
+
+config :soundboard, :edition, edition_atom
+
 if System.get_env("PHX_SERVER") do
   config :soundboard, SoundboardWeb.Endpoint, server: true
 end
 
 # Allow build tooling to opt-out to avoid requiring secrets during image builds.
 if config_env() == :prod and is_nil(System.get_env("SKIP_RUNTIME_CONFIG")) do
-  # Replace the database_url section with SQLite configuration
-  database_path = Path.join(:code.priv_dir(:soundboard), "static/uploads/soundboard_prod.db")
+  pool_size = String.to_integer(System.get_env("POOL_SIZE") || "10")
 
-  config :soundboard, Soundboard.Repo,
-    database: database_path,
-    adapter: Ecto.Adapters.SQLite3,
-    pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10")
+  db_choice =
+    System.get_env("SOUNDBORED_DB")
+    |> case do
+      nil -> edition
+      choice -> String.downcase(choice)
+    end
+
+  case db_choice do
+    choice when choice in ["pro", "postgres", "pg", "postgresql"] ->
+      database_url =
+        System.get_env("DATABASE_URL") ||
+          raise "DATABASE_URL must be set when using the Postgres backend"
+
+      ssl? =
+        System.get_env("DB_SSL", "true")
+        |> String.downcase()
+        |> Kernel.in(["1", "true", "yes"])
+
+      config :soundboard, Soundboard.Repo,
+        adapter: Ecto.Adapters.Postgres,
+        url: database_url,
+        ssl: ssl?,
+        pool_size: pool_size
+
+    _ ->
+      database_path =
+        System.get_env("DATABASE_PATH") ||
+          Path.join(:code.priv_dir(:soundboard), "static/uploads/soundboard_prod.db")
+
+      config :soundboard, Soundboard.Repo,
+        adapter: Ecto.Adapters.SQLite3,
+        database: database_path,
+        pool_size: pool_size
+  end
 
   # The secret key base is used to sign/encrypt cookies and other secrets.
   secret_key_base =

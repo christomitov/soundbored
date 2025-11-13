@@ -1,16 +1,19 @@
 defmodule SoundboardWeb.SettingsLiveTest do
   use SoundboardWeb.ConnCase
   import Phoenix.LiveViewTest
-  alias Soundboard.Accounts.User
+  alias Soundboard.Accounts.{Tenants, User}
   alias Soundboard.Repo
 
   setup %{conn: conn} do
+    tenant = Tenants.ensure_default_tenant!()
+
     {:ok, user} =
       %User{}
       |> User.changeset(%{
         username: "apitok_user_#{System.unique_integer([:positive])}",
         discord_id: Integer.to_string(System.unique_integer([:positive])),
-        avatar: "test.jpg"
+        avatar: "test.jpg",
+        tenant_id: tenant.id
       })
       |> Repo.insert()
 
@@ -19,7 +22,7 @@ defmodule SoundboardWeb.SettingsLiveTest do
       |> Map.replace!(:secret_key_base, SoundboardWeb.Endpoint.config(:secret_key_base))
       |> init_test_session(%{user_id: user.id})
 
-    %{conn: authed_conn, user: user}
+    %{conn: authed_conn, user: user, tenant: tenant}
   end
 
   test "can create and revoke tokens via live view", %{conn: conn} do

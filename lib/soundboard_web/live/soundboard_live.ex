@@ -143,7 +143,11 @@ defmodule SoundboardWeb.SoundboardLive do
     # Find or create user setting
     user_setting =
       Enum.find(current_sound.user_sound_settings, &(&1.user_id == user_id)) ||
-        %Soundboard.UserSoundSetting{sound_id: current_sound.id, user_id: user_id}
+        %Soundboard.UserSoundSetting{
+          sound_id: current_sound.id,
+          user_id: user_id,
+          tenant_id: socket.assigns.current_user.tenant_id
+        }
 
     setting_params = %{
       user_id: user_id,
@@ -171,7 +175,11 @@ defmodule SoundboardWeb.SoundboardLive do
     # Find or create user setting
     user_setting =
       Enum.find(current_sound.user_sound_settings, &(&1.user_id == user_id)) ||
-        %Soundboard.UserSoundSetting{sound_id: current_sound.id, user_id: user_id}
+        %Soundboard.UserSoundSetting{
+          sound_id: current_sound.id,
+          user_id: user_id,
+          tenant_id: socket.assigns.current_user.tenant_id
+        }
 
     setting_params = %{
       user_id: user_id,
@@ -328,7 +336,7 @@ defmodule SoundboardWeb.SoundboardLive do
       |> TagHandler.add_tag(value, socket.assigns.upload_tags)
       |> handle_tag_response(socket, :upload)
     else
-      suggestions = TagHandler.search_tags(value)
+      suggestions = TagHandler.search_tags(socket, value)
 
       {:noreply,
        socket
@@ -352,7 +360,7 @@ defmodule SoundboardWeb.SoundboardLive do
 
   @impl true
   def handle_event("upload_tag_input", %{"key" => _key, "value" => value}, socket) do
-    suggestions = TagHandler.search_tags(value)
+    suggestions = TagHandler.search_tags(socket, value)
 
     {:noreply,
      socket
@@ -367,7 +375,7 @@ defmodule SoundboardWeb.SoundboardLive do
       |> TagHandler.add_tag(value, socket.assigns.current_sound.tags)
       |> handle_tag_response(socket, :current)
     else
-      suggestions = TagHandler.search_tags(value)
+      suggestions = TagHandler.search_tags(socket, value)
 
       {:noreply,
        socket
@@ -398,7 +406,7 @@ defmodule SoundboardWeb.SoundboardLive do
 
   @impl true
   def handle_event("tag_input", %{"key" => _key, "value" => value}, socket) do
-    suggestions = TagHandler.search_tags(value)
+    suggestions = TagHandler.search_tags(socket, value)
 
     {:noreply,
      socket
@@ -408,7 +416,7 @@ defmodule SoundboardWeb.SoundboardLive do
 
   @impl true
   def handle_event("select_tag", %{"tag" => tag_name}, socket) do
-    tag = Enum.find(TagHandler.search_tags(""), &(&1.name == tag_name))
+    tag = Enum.find(TagHandler.search_tags(socket, ""), &(&1.name == tag_name))
     sound = socket.assigns.current_sound
 
     if tag do
@@ -492,7 +500,7 @@ defmodule SoundboardWeb.SoundboardLive do
 
   @impl true
   def handle_event("select_upload_tag", %{"tag" => tag_name}, socket) do
-    tag = Enum.find(TagHandler.search_tags(""), &(&1.name == tag_name))
+    tag = Enum.find(TagHandler.search_tags(socket, ""), &(&1.name == tag_name))
 
     if tag do
       socket
@@ -921,7 +929,11 @@ defmodule SoundboardWeb.SoundboardLive do
     # Find or create user setting
     user_setting =
       Enum.find(sound.user_sound_settings, &(&1.user_id == user_id)) ||
-        %Soundboard.UserSoundSetting{sound_id: sound.id, user_id: user_id}
+        %Soundboard.UserSoundSetting{
+          sound_id: sound.id,
+          user_id: user_id,
+          tenant_id: sound.tenant_id
+        }
 
     # Update the settings using our UserSoundSetting changeset
     setting_params = %{

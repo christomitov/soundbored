@@ -3,15 +3,16 @@ defmodule SoundboardWeb.Live.TagHandler do
   Handles the adding and removing of tags from sounds.
   """
   alias Phoenix.PubSub
+  alias Soundboard.Accounts.Tenants
   alias Soundboard.{Repo, Sound, Tag}
   import Phoenix.Component, only: [assign: 3]
-  import Ecto.Query
 
   def add_tag(socket, tag_name, current_tags) do
+    tenant_id = tenant_id_from_socket(socket)
     tag_name = String.downcase(tag_name)
 
     with {:ok} <- validate_tag_name(tag_name),
-         {:ok, tag} <- find_or_create_tag(tag_name),
+         {:ok, tag} <- find_or_create_tag(tag_name, tenant_id),
          {:ok} <- validate_unique_tag(tag, current_tags) do
       add_tag_to_sound_or_upload(socket, tag, current_tags)
     end
@@ -63,12 +64,16 @@ defmodule SoundboardWeb.Live.TagHandler do
     end
   end
 
-  def search_tags(query) do
+  def search_tags(socket, query) when is_map(socket) do
+    search_tags(query, tenant_id_from_socket(socket))
+  end
+
+  def search_tags(query, tenant_id) do
     query = String.downcase(query)
+    tenant_id = tenant_id || default_tenant_id()
 
     Tag
-    |> where([t], like(fragment("lower(?)", t.name), ^"%#{query}%"))
-    |> order_by(asc: :name)
+    |> Tag.search(query, tenant_id)
     |> Repo.all()
   end
 
@@ -96,13 +101,13 @@ defmodule SoundboardWeb.Live.TagHandler do
     |> Repo.update()
   end
 
-  def find_or_create_tag(name) do
+  def find_or_create_tag(name, tenant_id \\ default_tenant_id()) do
     name = String.downcase(name)
 
-    case Repo.get_by(Tag, name: name) do
+    case Repo.get_by(Tag, name: name, tenant_id: tenant_id) do
       nil ->
         %Tag{}
-        |> Tag.changeset(%{name: name})
+        |> Tag.changeset(%{name: name, tenant_id: tenant_id})
         |> Repo.insert()
 
       tag ->
@@ -114,8 +119,8 @@ defmodule SoundboardWeb.Live.TagHandler do
     PubSub.broadcast(Soundboard.PubSub, "soundboard", {:files_updated})
   end
 
-  def list_tags_for_sound(filename) do
-    case Repo.get_by(Sound, filename: filename) do
+  def list_tags_for_sound(filename, tenant_id \\ default_tenant_id()) do
+    case Repo.get_by(Sound, filename: filename, tenant_id: tenant_id) do
       nil ->
         []
 
@@ -124,5 +129,22 @@ defmodule SoundboardWeb.Live.TagHandler do
         |> Repo.preload(:tags)
         |> Map.get(:tags)
     end
+  end
+
+  defp tenant_id_from_socket(socket) do
+    cond do
+      tenant = socket.assigns[:current_tenant] ->
+        tenant.id
+
+      user = socket.assigns[:current_user] ->
+        user.tenant_id
+
+      true ->
+        default_tenant_id()
+    end
+  end
+
+  defp default_tenant_id do
+    Tenants.ensure_default_tenant!().id
   end
 end

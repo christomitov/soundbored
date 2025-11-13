@@ -3,7 +3,7 @@ defmodule Soundboard.SoundTagTest do
   Test for the SoundTag module.
   """
   use Soundboard.DataCase
-  alias Soundboard.Accounts.User
+  alias Soundboard.Accounts.{Tenants, User}
   alias Soundboard.{Sound, SoundTag, Tag}
 
   describe "sound_tags" do
@@ -13,7 +13,8 @@ defmodule Soundboard.SoundTagTest do
 
       attrs = %{
         sound_id: sound.id,
-        tag_id: tag.id
+        tag_id: tag.id,
+        tenant_id: sound.tenant_id
       }
 
       changeset = SoundTag.changeset(%SoundTag{}, attrs)
@@ -26,7 +27,7 @@ defmodule Soundboard.SoundTagTest do
     test "changeset enforces unique constraint" do
       sound = insert_sound()
       tag = insert_tag()
-      attrs = %{sound_id: sound.id, tag_id: tag.id}
+      attrs = %{sound_id: sound.id, tag_id: tag.id, tenant_id: sound.tenant_id}
 
       # First insert succeeds
       {:ok, _} = Repo.insert(SoundTag.changeset(%SoundTag{}, attrs))
@@ -44,17 +45,21 @@ defmodule Soundboard.SoundTagTest do
       refute changeset.valid?
       assert "can't be blank" in errors_on(changeset).sound_id
       assert "can't be blank" in errors_on(changeset).tag_id
+      assert "can't be blank" in errors_on(changeset).tenant_id
     end
   end
 
   # Helper functions
   defp insert_sound do
+    user = insert_user()
+
     {:ok, sound} =
       %Sound{}
       |> Sound.changeset(%{
         filename: "test_sound#{System.unique_integer()}.mp3",
         source_type: "local",
-        user_id: insert_user().id
+        user_id: user.id,
+        tenant_id: user.tenant_id
       })
       |> Repo.insert()
 
@@ -62,21 +67,26 @@ defmodule Soundboard.SoundTagTest do
   end
 
   defp insert_tag do
+    tenant = Tenants.ensure_default_tenant!()
+
     {:ok, tag} =
       %Tag{}
-      |> Tag.changeset(%{name: "test_tag#{System.unique_integer()}"})
+      |> Tag.changeset(%{name: "test_tag#{System.unique_integer()}", tenant_id: tenant.id})
       |> Repo.insert()
 
     tag
   end
 
   defp insert_user do
+    tenant = Tenants.ensure_default_tenant!()
+
     {:ok, user} =
       %User{}
       |> User.changeset(%{
         username: "testuser#{System.unique_integer()}",
         discord_id: "123456789",
-        avatar: "test_avatar.jpg"
+        avatar: "test_avatar.jpg",
+        tenant_id: tenant.id
       })
       |> Repo.insert()
 

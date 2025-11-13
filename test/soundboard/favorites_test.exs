@@ -4,6 +4,7 @@ defmodule Soundboard.FavoritesTest do
   """
   use Soundboard.DataCase
   alias Soundboard.{Accounts.User, Favorites, Sound}
+  alias Soundboard.Accounts.Tenants
 
   describe "favorites" do
     setup do
@@ -59,6 +60,8 @@ defmodule Soundboard.FavoritesTest do
 
   # Helper functions
   defp insert_user(attrs \\ %{}) do
+    tenant = Tenants.ensure_default_tenant!()
+
     {:ok, user} =
       %User{}
       |> User.changeset(
@@ -66,7 +69,8 @@ defmodule Soundboard.FavoritesTest do
           %{
             username: "testuser",
             discord_id: "123456789",
-            avatar: "test_avatar.jpg"
+            avatar: "test_avatar.jpg",
+            tenant_id: tenant.id
           },
           attrs
         )

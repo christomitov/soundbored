@@ -4,6 +4,7 @@ defmodule Soundboard.StatsTest do
   """
   use Soundboard.DataCase
   alias Soundboard.{Accounts.User, Sound, Stats, Stats.Play}
+  alias Soundboard.Accounts.Tenants
 
   describe "stats" do
     setup do
@@ -16,6 +17,7 @@ defmodule Soundboard.StatsTest do
       assert {:ok, play} = Stats.track_play(sound.filename, user.id)
       assert play.sound_name == sound.filename
       assert play.user_id == user.id
+      assert play.tenant_id == user.tenant_id
     end
 
     test "get_top_users returns users ordered by play count", %{user: user, sound: sound} do
@@ -57,7 +59,13 @@ defmodule Soundboard.StatsTest do
         |> NaiveDateTime.add(-8, :day)
         |> NaiveDateTime.truncate(:second)
 
-      play = %Play{sound_name: sound.filename, user_id: user.id, inserted_at: old_date}
+      play = %Play{
+        sound_name: sound.filename,
+        user_id: user.id,
+        tenant_id: user.tenant_id,
+        inserted_at: old_date
+      }
+
       Repo.insert!(play)
 
       # Create a recent play
@@ -97,12 +105,15 @@ defmodule Soundboard.StatsTest do
   end
 
   defp insert_user do
+    tenant = Tenants.ensure_default_tenant!()
+
     {:ok, user} =
       %User{}
       |> User.changeset(%{
         username: "testuser#{System.unique_integer()}",
         discord_id: "123456789",
-        avatar: "test_avatar.jpg"
+        avatar: "test_avatar.jpg",
+        tenant_id: tenant.id
       })
       |> Repo.insert()
 

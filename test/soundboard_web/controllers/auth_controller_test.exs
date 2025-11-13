@@ -1,11 +1,13 @@
 defmodule SoundboardWeb.AuthControllerTest do
   use SoundboardWeb.ConnCase
   alias Soundboard.{Accounts.User, Repo}
+  alias Soundboard.Accounts.Tenants
   import ExUnit.CaptureLog
 
   setup %{conn: conn} do
     # Clean up users before each test
     Repo.delete_all(User)
+    tenant = Tenants.ensure_default_tenant!()
 
     # Initialize session and CSRF token for all tests
     conn =
@@ -24,7 +26,7 @@ defmodule SoundboardWeb.AuthControllerTest do
       Application.delete_env(:ueberauth, Ueberauth.Strategy.Discord.OAuth)
     end)
 
-    {:ok, conn: conn}
+    {:ok, conn: conn, tenant: tenant}
   end
 
   describe "auth flow" do
@@ -40,7 +42,7 @@ defmodule SoundboardWeb.AuthControllerTest do
              )
     end
 
-    test "callback/2 creates new user on successful auth", %{conn: conn} do
+    test "callback/2 creates new user on successful auth", %{conn: conn, tenant: tenant} do
       auth_data = %{
         uid: "12345",
         info: %{
@@ -57,13 +59,13 @@ defmodule SoundboardWeb.AuthControllerTest do
       assert redirected_to(conn) == "/"
       assert get_session(conn, :user_id)
 
-      user = Repo.get_by(User, discord_id: "12345")
+      user = Repo.get_by(User, discord_id: "12345", tenant_id: tenant.id)
       assert user
       assert user.username == "TestUser"
       assert user.avatar == "test_avatar.jpg"
     end
 
-    test "callback/2 uses existing user if found", %{conn: conn} do
+    test "callback/2 uses existing user if found", %{conn: conn, tenant: tenant} do
       # Get initial user count
       initial_count = Repo.aggregate(User, :count)
 
@@ -73,7 +75,8 @@ defmodule SoundboardWeb.AuthControllerTest do
         |> User.changeset(%{
           discord_id: "12345",
           username: "ExistingUser",
-          avatar: "old_avatar.jpg"
+          avatar: "old_avatar.jpg",
+          tenant_id: tenant.id
         })
         |> Repo.insert()
 
@@ -128,8 +131,8 @@ defmodule SoundboardWeb.AuthControllerTest do
       refute get_session(conn, :user_id)
     end
 
-    test "debug_session/2 returns session info", %{conn: conn} do
-      user = insert_user()
+    test "debug_session/2 returns session info", %{conn: conn, tenant: tenant} do
+      user = insert_user(tenant)
 
       conn =
         conn
@@ -143,13 +146,14 @@ defmodule SoundboardWeb.AuthControllerTest do
   end
 
   # Helper function
-  defp insert_user do
+  defp insert_user(tenant) do
     {:ok, user} =
       %User{}
       |> User.changeset(%{
         username: "testuser#{System.unique_integer([:positive])}",
         discord_id: "#{System.unique_integer([:positive])}",
-        avatar: "test_avatar.jpg"
+        avatar: "test_avatar.jpg",
+        tenant_id: tenant.id
       })
       |> Repo.insert()
 

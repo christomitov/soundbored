@@ -3,7 +3,7 @@ defmodule Soundboard.Sounds.SoundTest do
   Tests the Sound module.
   """
   use Soundboard.DataCase
-  alias Soundboard.Accounts.User
+  alias Soundboard.Accounts.{Tenants, User}
   alias Soundboard.{Repo, Sound, Tag, UserSoundSetting}
 
   describe "changeset validation" do
@@ -12,6 +12,7 @@ defmodule Soundboard.Sounds.SoundTest do
 
       assert errors_on(changeset) == %{
                filename: ["can't be blank"],
+               tenant_id: ["can't be blank"],
                user_id: ["can't be blank"]
              }
     end
@@ -89,7 +90,12 @@ defmodule Soundboard.Sounds.SoundTest do
 
   setup do
     user = insert_user()
-    {:ok, tag} = %Tag{name: "test_tag"} |> Tag.changeset(%{}) |> Repo.insert()
+
+    {:ok, tag} =
+      %Tag{}
+      |> Tag.changeset(%{name: "test_tag", tenant_id: user.tenant_id})
+      |> Repo.insert()
+
     {:ok, sound} = insert_sound(user)
     %{user: user, sound: sound, tag: tag}
   end
@@ -111,8 +117,8 @@ defmodule Soundboard.Sounds.SoundTest do
 
       # Insert directly into join table with timestamps
       Repo.query!(
-        "INSERT INTO sound_tags (sound_id, tag_id, inserted_at, updated_at) VALUES (?, ?, ?, ?)",
-        [sound.id, tag.id, now, now]
+        "INSERT INTO sound_tags (sound_id, tag_id, tenant_id, inserted_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+        [sound.id, tag.id, sound.tenant_id, now, now]
       )
 
       sound = Repo.preload(sound, :tags)
@@ -126,8 +132,8 @@ defmodule Soundboard.Sounds.SoundTest do
 
       # Insert directly into join table with timestamps
       Repo.query!(
-        "INSERT INTO sound_tags (sound_id, tag_id, inserted_at, updated_at) VALUES (?, ?, ?, ?)",
-        [sound.id, tag.id, now, now]
+        "INSERT INTO sound_tags (sound_id, tag_id, tenant_id, inserted_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+        [sound.id, tag.id, sound.tenant_id, now, now]
       )
 
       result = Sound.with_tags() |> Repo.all() |> Enum.find(&(&1.id == sound.id))
@@ -139,8 +145,8 @@ defmodule Soundboard.Sounds.SoundTest do
 
       # Insert directly into join table with timestamps
       Repo.query!(
-        "INSERT INTO sound_tags (sound_id, tag_id, inserted_at, updated_at) VALUES (?, ?, ?, ?)",
-        [sound.id, tag.id, now, now]
+        "INSERT INTO sound_tags (sound_id, tag_id, tenant_id, inserted_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+        [sound.id, tag.id, sound.tenant_id, now, now]
       )
 
       results = Sound.by_tag("test_tag") |> Repo.all()
@@ -153,8 +159,8 @@ defmodule Soundboard.Sounds.SoundTest do
 
       # Insert directly into join table with timestamps
       Repo.query!(
-        "INSERT INTO sound_tags (sound_id, tag_id, inserted_at, updated_at) VALUES (?, ?, ?, ?)",
-        [sound.id, tag.id, now, now]
+        "INSERT INTO sound_tags (sound_id, tag_id, tenant_id, inserted_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+        [sound.id, tag.id, sound.tenant_id, now, now]
       )
 
       result = Sound.list_files() |> Enum.find(&(&1.id == sound.id))
@@ -167,8 +173,8 @@ defmodule Soundboard.Sounds.SoundTest do
 
       # Insert directly into join table with timestamps
       Repo.query!(
-        "INSERT INTO sound_tags (sound_id, tag_id, inserted_at, updated_at) VALUES (?, ?, ?, ?)",
-        [sound.id, tag.id, now, now]
+        "INSERT INTO sound_tags (sound_id, tag_id, tenant_id, inserted_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+        [sound.id, tag.id, sound.tenant_id, now, now]
       )
 
       result = Sound.get_sound!(sound.id)
@@ -496,12 +502,15 @@ defmodule Soundboard.Sounds.SoundTest do
 
   # Helper functions
   defp insert_user do
+    tenant = Tenants.ensure_default_tenant!()
+
     {:ok, user} =
       %Soundboard.Accounts.User{}
       |> User.changeset(%{
         username: "test_user_#{System.unique_integer()}",
         discord_id: "123456_#{System.unique_integer()}",
-        avatar: "test.jpg"
+        avatar: "test.jpg",
+        tenant_id: tenant.id
       })
       |> Repo.insert()
 
@@ -513,7 +522,8 @@ defmodule Soundboard.Sounds.SoundTest do
     |> Sound.changeset(%{
       filename: "test_sound_#{System.unique_integer()}.mp3",
       source_type: "local",
-      user_id: user.id
+      user_id: user.id,
+      tenant_id: user.tenant_id
     })
     |> Repo.insert()
   end

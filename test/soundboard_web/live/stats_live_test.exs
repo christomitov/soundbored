@@ -4,7 +4,7 @@ defmodule SoundboardWeb.StatsLiveTest do
   """
   use SoundboardWeb.ConnCase
   import Phoenix.LiveViewTest
-  alias Soundboard.Accounts.User
+  alias Soundboard.Accounts.{Tenants, User}
   alias Soundboard.{Favorites, Repo, Sound, Stats}
   alias Soundboard.Stats.Play
   alias SoundboardWeb.SoundHelpers
@@ -16,13 +16,16 @@ defmodule SoundboardWeb.StatsLiveTest do
     Repo.delete_all(Sound)
     Repo.delete_all(User)
 
+    tenant = Tenants.ensure_default_tenant!()
+
     # Create a test user
     {:ok, user} =
       %User{}
       |> User.changeset(%{
         username: "testuser",
         discord_id: "123",
-        avatar: "test.jpg"
+        avatar: "test.jpg",
+        tenant_id: tenant.id
       })
       |> Repo.insert()
 
@@ -46,9 +49,9 @@ defmodule SoundboardWeb.StatsLiveTest do
     authed_conn =
       conn
       |> Map.replace!(:secret_key_base, SoundboardWeb.Endpoint.config(:secret_key_base))
-      |> init_test_session(%{user_id: user.id})
+      |> init_test_session(%{user_id: user.id, tenant_id: tenant.id})
 
-    {:ok, conn: authed_conn, user: user, sound: sound}
+    {:ok, conn: authed_conn, user: user, sound: sound, tenant: tenant}
   end
 
   test "mounts successfully with user session", %{conn: conn, user: user, sound: sound} do
@@ -134,9 +137,12 @@ defmodule SoundboardWeb.StatsLiveTest do
   end
 
   defp live_as_user(conn, user) do
+    tenant = Tenants.ensure_default_tenant!()
+
     conn
     |> Plug.Test.init_test_session(%{})
     |> put_session(:user_id, user.id)
+    |> put_session(:tenant_id, tenant.id)
     |> live("/stats")
   end
 end

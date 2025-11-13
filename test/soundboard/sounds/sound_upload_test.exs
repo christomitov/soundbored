@@ -4,7 +4,7 @@ defmodule Soundboard.Sounds.UploadTest do
   """
   use Soundboard.DataCase
 
-  alias Soundboard.Accounts.User
+  alias Soundboard.Accounts.{Tenants, User}
   alias Soundboard.Repo
   alias Soundboard.Sound
 
@@ -71,12 +71,15 @@ defmodule Soundboard.Sounds.UploadTest do
 
   # Helper functions
   defp insert_user do
+    tenant = Tenants.ensure_default_tenant!()
+
     {:ok, user} =
       %Soundboard.Accounts.User{}
       |> User.changeset(%{
         username: "test_user",
         discord_id: "123456",
-        avatar: "test.jpg"
+        avatar: "test.jpg",
+        tenant_id: tenant.id
       })
       |> Repo.insert()
 

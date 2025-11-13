@@ -3,7 +3,7 @@ defmodule SoundboardWeb.API.SoundControllerTest do
   Test for the SoundController.
   """
   use SoundboardWeb.ConnCase
-  alias Soundboard.Accounts.{ApiTokens, User}
+  alias Soundboard.Accounts.{ApiTokens, Tenants, User}
   alias Soundboard.{Repo, Sound, Tag}
   import Mock
 
@@ -116,21 +116,29 @@ defmodule SoundboardWeb.API.SoundControllerTest do
   end
 
   defp insert_tag do
+    tenant = Tenants.ensure_default_tenant!()
+
     {:ok, tag} =
       %Tag{}
-      |> Tag.changeset(%{name: "test_tag#{System.unique_integer([:positive])}"})
+      |> Tag.changeset(%{
+        name: "test_tag#{System.unique_integer([:positive])}",
+        tenant_id: tenant.id
+      })
       |> Repo.insert()
 
     tag
   end
 
   defp insert_user do
+    tenant = Tenants.ensure_default_tenant!()
+
     {:ok, user} =
       %User{}
       |> User.changeset(%{
         username: "testuser#{System.unique_integer([:positive])}",
         discord_id: "#{System.unique_integer([:positive])}",
-        avatar: "test_avatar.jpg"
+        avatar: "test_avatar.jpg",
+        tenant_id: tenant.id
       })
       |> Repo.insert()
 
@@ -142,7 +150,8 @@ defmodule SoundboardWeb.API.SoundControllerTest do
       %Soundboard.SoundTag{}
       |> Soundboard.SoundTag.changeset(%{
         sound_id: sound.id,
-        tag_id: tag.id
+        tag_id: tag.id,
+        tenant_id: sound.tenant_id
       })
       |> Repo.insert()
   end

@@ -5,6 +5,7 @@ defmodule SoundboardWeb.SoundboardLiveTest do
   use SoundboardWeb.ConnCase
   import Phoenix.LiveViewTest
   alias Soundboard.{Accounts.User, Repo, Sound, Tag}
+  alias Soundboard.Accounts.Tenants
   import Mock
 
   setup %{conn: conn} do
@@ -12,13 +13,16 @@ defmodule SoundboardWeb.SoundboardLiveTest do
     Repo.delete_all(Sound)
     Repo.delete_all(User)
 
+    tenant = Tenants.ensure_default_tenant!()
+
     # Create a test user
     {:ok, user} =
       %User{}
       |> User.changeset(%{
         username: "testuser",
         discord_id: "123",
-        avatar: "test.jpg"
+        avatar: "test.jpg",
+        tenant_id: tenant.id
       })
       |> Repo.insert()
 
@@ -33,9 +37,9 @@ defmodule SoundboardWeb.SoundboardLiveTest do
       |> Repo.insert()
 
     # Set up the connection with a user session
-    conn = conn |> init_test_session(%{user_id: user.id})
+    conn = conn |> init_test_session(%{user_id: user.id, tenant_id: tenant.id})
 
-    {:ok, conn: conn, user: user, sound: sound}
+    {:ok, conn: conn, user: user, sound: sound, tenant: tenant}
   end
 
   describe "Soundboard LiveView" do
@@ -95,10 +99,10 @@ defmodule SoundboardWeb.SoundboardLiveTest do
       end
     end
 
-    test "play random respects selected tags", %{conn: conn, user: user} do
+    test "play random respects selected tags", %{conn: conn, user: user, tenant: tenant} do
       tag =
         %Tag{}
-        |> Tag.changeset(%{name: "funny"})
+        |> Tag.changeset(%{name: "funny", tenant_id: tenant.id})
         |> Repo.insert!()
 
       %Sound{}

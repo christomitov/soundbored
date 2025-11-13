@@ -8,10 +8,21 @@ defmodule Soundboard.Stats do
 
   @pubsub_topic "soundboard"
 
-  def track_play(sound_name, user_id) do
+  def track_play(sound_name, %User{} = user) do
+    do_track_play(sound_name, user)
+  end
+
+  def track_play(sound_name, user_id) when is_integer(user_id) do
+    case Repo.get(User, user_id) do
+      %User{} = user -> do_track_play(sound_name, user)
+      nil -> {:error, :user_not_found}
+    end
+  end
+
+  defp do_track_play(sound_name, %User{id: user_id, tenant_id: tenant_id}) do
     result =
       %Play{}
-      |> Play.changeset(%{sound_name: sound_name, user_id: user_id})
+      |> Play.changeset(%{sound_name: sound_name, user_id: user_id, tenant_id: tenant_id})
       |> Repo.insert()
 
     # Broadcast stats update after tracking play

@@ -141,7 +141,9 @@ defmodule SoundboardWeb.Live.FileHandler do
     |> Multi.update(:sound, Sound.changeset(sound, %{filename: new_name}))
     |> Multi.update_all(
       :plays,
-      from(p in Soundboard.Stats.Play, where: p.sound_name == ^old_name),
+      from(p in Soundboard.Stats.Play,
+        where: p.sound_name == ^old_name and p.tenant_id == ^sound.tenant_id
+      ),
       set: [sound_name: new_name]
     )
     |> Repo.transaction()

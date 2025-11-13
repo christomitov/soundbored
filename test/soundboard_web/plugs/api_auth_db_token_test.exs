@@ -3,18 +3,21 @@ defmodule SoundboardWeb.APIAuthDBTokenTest do
   import Phoenix.ConnTest
   import Mock
   alias Soundboard.{Repo, Sound}
-  alias Soundboard.Accounts.{ApiTokens, User}
+  alias Soundboard.Accounts.{ApiTokens, Tenants, User}
 
   setup %{conn: conn} do
     # Ensure legacy token does not interfere
     System.delete_env("API_TOKEN")
+
+    tenant = Tenants.ensure_default_tenant!()
 
     {:ok, user} =
       %User{}
       |> User.changeset(%{
         username: "apitok_user_#{System.unique_integer([:positive])}",
         discord_id: Integer.to_string(System.unique_integer([:positive])),
-        avatar: "test.jpg"
+        avatar: "test.jpg",
+        tenant_id: tenant.id
       })
       |> Repo.insert()
 

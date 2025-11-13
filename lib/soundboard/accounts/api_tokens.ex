@@ -16,7 +16,7 @@ defmodule Soundboard.Accounts.ApiTokens do
     |> Repo.all()
   end
 
-  def generate_token(%User{id: user_id}, attrs \\ %{}) do
+  def generate_token(%User{id: user_id} = user, attrs \\ %{}) do
     raw = random_token()
     hash = hash_token(raw)
 
@@ -24,6 +24,7 @@ defmodule Soundboard.Accounts.ApiTokens do
       %ApiToken{}
       |> ApiToken.changeset(%{
         user_id: user_id,
+        tenant_id: user.tenant_id,
         token_hash: hash,
         token: raw,
         label: Map.get(attrs, "label") || Map.get(attrs, :label)

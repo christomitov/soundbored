@@ -1,6 +1,7 @@
 defmodule Soundboard.Sounds.SoundManagementTest do
   use Soundboard.DataCase
   alias Soundboard.{Accounts.User, Repo, Sound}
+  alias Soundboard.Accounts.Tenants
 
   describe "sound management" do
     setup do
@@ -38,6 +39,8 @@ defmodule Soundboard.Sounds.SoundManagementTest do
 
   # Helper functions
   defp insert_user(attrs \\ %{}) do
+    tenant = Tenants.ensure_default_tenant!()
+
     {:ok, user} =
       %Soundboard.Accounts.User{}
       |> User.changeset(
@@ -45,7 +48,8 @@ defmodule Soundboard.Sounds.SoundManagementTest do
           %{
             username: "testuser",
             discord_id: "123456789",
-            avatar: "test_avatar.jpg"
+            avatar: "test_avatar.jpg",
+            tenant_id: tenant.id
           },
           attrs
         )

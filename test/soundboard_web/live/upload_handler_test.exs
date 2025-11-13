@@ -4,7 +4,7 @@ defmodule SoundboardWeb.Live.UploadHandlerTest do
   """
   use SoundboardWeb.ConnCase
 
-  alias Soundboard.Accounts.User
+  alias Soundboard.Accounts.{Tenants, User}
   alias SoundboardWeb.Live.UploadHandler
   alias Soundboard.{Repo, Sound, Tag}
   import Soundboard.DataCase, only: [errors_on: 1]
@@ -15,18 +15,28 @@ defmodule SoundboardWeb.Live.UploadHandlerTest do
     Repo.delete_all(Tag)
 
     # Create a test user
+    tenant = Tenants.ensure_default_tenant!()
+
     {:ok, user} =
       %User{}
       |> User.changeset(%{
         username: "testuser",
         discord_id: "123",
-        avatar: "test.jpg"
+        avatar: "test.jpg",
+        tenant_id: tenant.id
       })
       |> Repo.insert()
 
     # Create test tags
-    {:ok, tag1} = %Tag{name: "test_tag1"} |> Repo.insert()
-    {:ok, tag2} = %Tag{name: "test_tag2"} |> Repo.insert()
+    {:ok, tag1} =
+      %Tag{}
+      |> Tag.changeset(%{name: "test_tag1", tenant_id: tenant.id})
+      |> Repo.insert()
+
+    {:ok, tag2} =
+      %Tag{}
+      |> Tag.changeset(%{name: "test_tag2", tenant_id: tenant.id})
+      |> Repo.insert()
 
     # Create a mock socket with necessary assigns and valid upload entry
     socket = %Phoenix.LiveView.Socket{
@@ -52,7 +62,7 @@ defmodule SoundboardWeb.Live.UploadHandlerTest do
       }
     }
 
-    {:ok, socket: socket, user: user, tags: [tag1, tag2]}
+    {:ok, socket: socket, user: user, tags: [tag1, tag2], tenant: tenant}
   end
 
   describe "validate_upload/2" do

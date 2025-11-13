@@ -1,19 +1,22 @@
 defmodule Soundboard.Accounts.ApiTokensTest do
   use Soundboard.DataCase
   alias Soundboard.Repo
-  alias Soundboard.Accounts.{ApiTokens, User}
+  alias Soundboard.Accounts.{ApiTokens, Tenants, User}
 
   setup do
+    tenant = Tenants.ensure_default_tenant!()
+
     {:ok, user} =
       %User{}
       |> User.changeset(%{
         username: "apitok_user_#{System.unique_integer([:positive])}",
         discord_id: Integer.to_string(System.unique_integer([:positive])),
-        avatar: "test.jpg"
+        avatar: "test.jpg",
+        tenant_id: tenant.id
       })
       |> Repo.insert()
 
-    %{user: user}
+    %{user: user, tenant: tenant}
   end
 
   test "generate, verify, revoke token lifecycle", %{user: user} do
@@ -22,6 +25,7 @@ defmodule Soundboard.Accounts.ApiTokensTest do
     assert token_rec.user_id == user.id
     assert token_rec.token == raw
     assert token_rec.token_hash != nil
+    assert token_rec.tenant_id == user.tenant_id
 
     # verify returns user and updates last_used_at
     assert {:ok, ^user, verified_token} = ApiTokens.verify_token(raw)
@@ -32,6 +36,7 @@ defmodule Soundboard.Accounts.ApiTokensTest do
     # list_tokens includes it while active
     assert [listed] = ApiTokens.list_tokens(user)
     assert listed.id == token_rec.id
+    assert listed.tenant_id == user.tenant_id
 
     # revoke and ensure it's hidden and cannot verify
     assert {:ok, _} = ApiTokens.revoke_token(user, token_rec.id)
@@ -52,7 +57,8 @@ defmodule Soundboard.Accounts.ApiTokensTest do
       |> User.changeset(%{
         username: "apitok_other_#{System.unique_integer([:positive])}",
         discord_id: Integer.to_string(System.unique_integer([:positive]) + 1),
-        avatar: "a.jpg"
+        avatar: "a.jpg",
+        tenant_id: Tenants.ensure_default_tenant!().id
       })
       |> Repo.insert()
 
@@ -65,7 +71,8 @@ defmodule Soundboard.Accounts.ApiTokensTest do
       |> User.changeset(%{
         username: "apitok_empty_#{System.unique_integer([:positive])}",
         discord_id: Integer.to_string(System.unique_integer([:positive]) + 2),
-        avatar: "b.jpg"
+        avatar: "b.jpg",
+        tenant_id: Tenants.ensure_default_tenant!().id
       })
       |> Repo.insert()
 

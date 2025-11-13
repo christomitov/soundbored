@@ -377,8 +377,14 @@ defmodule SoundboardWeb.AudioPlayer do
       Logger.info("Skipping play tracking for system user: #{username}")
     else
       case Soundboard.Repo.get_by(User, username: username) do
-        %{id: user_id} -> Soundboard.Stats.track_play(sound_name, user_id)
-        nil -> Logger.warning("Could not find user_id for #{username}")
+        %{id: user_id} ->
+          case Soundboard.Stats.track_play(sound_name, user_id) do
+            {:ok, _play} -> :ok
+            {:error, reason} -> Logger.warning("Failed to track play: #{inspect(reason)}")
+          end
+
+        nil ->
+          Logger.warning("Could not find user_id for #{username}")
       end
     end
   end
