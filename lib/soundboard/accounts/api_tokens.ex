@@ -46,7 +46,7 @@ defmodule Soundboard.Accounts.ApiTokens do
         {:error, :invalid}
 
       token ->
-        token = Repo.preload(token, :user)
+        token = Repo.preload(token, [:user, :tenant])
         # update last_used_at asynchronously
         _ = update_last_used_at(token)
         {:ok, token.user, token}

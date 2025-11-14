@@ -3,7 +3,7 @@ defmodule Soundboard.Sounds.SoundTest do
   Tests the Sound module.
   """
   use Soundboard.DataCase
-  alias Soundboard.Accounts.{Tenants, User}
+  alias Soundboard.Accounts.{Tenant, Tenants, User}
   alias Soundboard.{Repo, Sound, Tag, UserSoundSetting}
 
   describe "changeset validation" do
@@ -353,6 +353,28 @@ defmodule Soundboard.Sounds.SoundTest do
       results = Sound.get_recent_uploads()
       assert results == []
     end
+
+    test "scopes results by tenant_id", %{user: user} do
+      slug = "recent-#{System.unique_integer([:positive])}"
+
+      {:ok, other_tenant} =
+        %Tenant{}
+        |> Tenant.changeset(%{name: "Recent Tenant", slug: slug, plan: :pro})
+        |> Repo.insert()
+
+      other_user = insert_user_for_tenant(other_tenant)
+
+      # Existing setup inserted sounds for default tenant; add a couple for the other tenant
+      for _ <- 1..3, do: insert_sound(other_user)
+
+      results = Sound.get_recent_uploads(tenant_id: other_tenant.id)
+
+      assert Enum.all?(results, fn {_filename, username, _ts} ->
+               username == other_user.username
+             end)
+
+      refute Enum.any?(results, fn {_filename, username, _ts} -> username == user.username end)
+    end
   end
 
   describe "update_sound/2" do
@@ -503,7 +525,10 @@ defmodule Soundboard.Sounds.SoundTest do
   # Helper functions
   defp insert_user do
     tenant = Tenants.ensure_default_tenant!()
+    insert_user_for_tenant(tenant)
+  end
 
+  defp insert_user_for_tenant(tenant) do
     {:ok, user} =
       %Soundboard.Accounts.User{}
       |> User.changeset(%{

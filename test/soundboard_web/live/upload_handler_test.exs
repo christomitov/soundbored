@@ -4,7 +4,7 @@ defmodule SoundboardWeb.Live.UploadHandlerTest do
   """
   use SoundboardWeb.ConnCase
 
-  alias Soundboard.Accounts.{Tenants, User}
+  alias Soundboard.Accounts.{Tenant, Tenants, User}
   alias SoundboardWeb.Live.UploadHandler
   alias Soundboard.{Repo, Sound, Tag}
   import Soundboard.DataCase, only: [errors_on: 1]
@@ -42,6 +42,7 @@ defmodule SoundboardWeb.Live.UploadHandlerTest do
     socket = %Phoenix.LiveView.Socket{
       assigns: %{
         current_user: user,
+        current_tenant: tenant,
         upload_tags: [tag1, tag2],
         uploads: %{
           audio: %Phoenix.LiveView.UploadConfig{
@@ -111,6 +112,24 @@ defmodule SoundboardWeb.Live.UploadHandlerTest do
   end
 
   describe "handle_upload/3" do
+    test "returns an error when tenant sound limit is reached", %{socket: socket, tenant: tenant} do
+      {:ok, updated_tenant} =
+        tenant
+        |> Tenant.changeset(%{max_sounds: 0})
+        |> Repo.update()
+
+      socket = put_in(socket.assigns.current_tenant, updated_tenant)
+
+      params = %{
+        "source_type" => "url",
+        "name" => "limited",
+        "url" => "http://example.com/test.mp3"
+      }
+
+      assert {:error, message, _socket} = UploadHandler.handle_upload(socket, params, & &1)
+      assert message =~ "Sound limit"
+    end
+
     test "handles URL upload successfully", %{socket: socket, user: user} do
       params = %{
         "source_type" => "url",

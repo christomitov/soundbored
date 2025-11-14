@@ -4,7 +4,8 @@ defmodule SoundboardWeb.StatsLive do
   alias SoundboardWeb.Live.PresenceHandler
   import Phoenix.Component
   import SoundboardWeb.SoundHelpers
-  alias Soundboard.{Accounts.Tenants, Favorites, Sound, Stats}
+  alias Soundboard.{Favorites, PubSubTopics, Sound, Stats}
+  alias SoundboardWeb.Live.TenantHelpers
   require Logger
 
   @pubsub_topic "soundboard"
@@ -14,11 +15,12 @@ defmodule SoundboardWeb.StatsLive do
   @impl true
   def mount(_params, session, socket) do
     current_user = get_user_from_session(session)
-    tenant_id = derive_tenant_id(session, current_user)
+    tenant_id = TenantHelpers.tenant_id_from_session(session, current_user)
 
     if connected?(socket) do
       :timer.send_interval(60 * 60 * 1000, self(), :check_week_rollover)
       Phoenix.PubSub.subscribe(Soundboard.PubSub, Stats.stats_topic(tenant_id))
+      Phoenix.PubSub.subscribe(Soundboard.PubSub, PubSubTopics.soundboard_topic(tenant_id))
       Phoenix.PubSub.subscribe(Soundboard.PubSub, @pubsub_topic)
     end
 
@@ -108,7 +110,10 @@ defmodule SoundboardWeb.StatsLive do
       Stats.get_top_sounds(tenant_id, start_date, end_date, limit: @recent_limit)
     )
     |> stream(:recent_plays, recent_plays(tenant_id), reset: true)
-    |> assign(:recent_uploads, Sound.get_recent_uploads(limit: @recent_limit))
+    |> assign(
+      :recent_uploads,
+      Sound.get_recent_uploads(limit: @recent_limit, tenant_id: tenant_id)
+    )
     |> assign(:favorites, get_favorites(socket.assigns.current_user))
   end
 
@@ -422,29 +427,6 @@ defmodule SoundboardWeb.StatsLive do
   defp recent_play_dom_id(play) do
     base = slugify(play.filename)
     "recent-play-#{base}-#{play.id}"
-  end
-
-  defp derive_tenant_id(session, user) do
-    cond do
-      tenant_id = parse_tenant_id(session["tenant_id"]) ->
-        tenant_id
-
-      user && user.tenant_id ->
-        user.tenant_id
-
-      true ->
-        Tenants.ensure_default_tenant!().id
-    end
-  end
-
-  defp parse_tenant_id(nil), do: nil
-  defp parse_tenant_id(tenant_id) when is_integer(tenant_id), do: tenant_id
-
-  defp parse_tenant_id(tenant_id) when is_binary(tenant_id) do
-    case Integer.parse(tenant_id) do
-      {parsed, _} -> parsed
-      :error -> nil
-    end
   end
 
   @impl true

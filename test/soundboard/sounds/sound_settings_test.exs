@@ -3,8 +3,8 @@ defmodule Soundboard.Sounds.SoundSettingsTest do
   The SoundSettingsTest module.
   """
   use Soundboard.DataCase
-  alias Soundboard.{Accounts.User, Repo, Sound, UserSoundSetting}
   alias Soundboard.Accounts.Tenants
+  alias Soundboard.{Accounts.User, Repo, Sound, UserSoundSetting}
   import Ecto.Changeset
 
   setup do

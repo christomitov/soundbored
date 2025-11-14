@@ -105,14 +105,14 @@ defmodule Soundboard.Sound do
 
   def get_recent_uploads(opts \\ []) do
     limit = Keyword.get(opts, :limit, 10)
+    tenant_id = Keyword.get(opts, :tenant_id)
 
-    from(s in Soundboard.Sound,
-      join: u in User,
-      on: s.user_id == u.id,
-      select: {s.filename, u.username, s.inserted_at},
-      order_by: [desc: s.inserted_at],
-      limit: ^limit
-    )
+    Soundboard.Sound
+    |> maybe_scope_tenant(tenant_id)
+    |> join(:inner, [s], u in User, on: s.user_id == u.id)
+    |> select([s, u], {s.filename, u.username, s.inserted_at})
+    |> order_by([s], desc: s.inserted_at)
+    |> limit(^limit)
     |> Repo.all()
   end
 
@@ -185,5 +185,11 @@ defmodule Soundboard.Sound do
             changeset
         end
     end
+  end
+
+  defp maybe_scope_tenant(query, nil), do: query
+
+  defp maybe_scope_tenant(query, tenant_id) when is_integer(tenant_id) do
+    from s in query, where: s.tenant_id == ^tenant_id
   end
 end

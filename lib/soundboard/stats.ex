@@ -4,9 +4,8 @@ defmodule Soundboard.Stats do
   """
   import Ecto.Query
   alias Phoenix.PubSub
-  alias Soundboard.{Accounts.User, Repo, Sound, Stats.Play}
+  alias Soundboard.{Accounts.User, PubSubTopics, Repo, Sound, Stats.Play}
 
-  @stats_topic_prefix "stats:"
   @legacy_pubsub_topic "soundboard"
 
   def track_play(sound_name, %User{} = user) do
@@ -107,12 +106,12 @@ defmodule Soundboard.Stats do
   def broadcast_stats_update(tenant_id) do
     message = {:stats_updated, tenant_id}
 
-    PubSub.broadcast(Soundboard.PubSub, stats_topic(tenant_id), message)
+    PubSub.broadcast(Soundboard.PubSub, PubSubTopics.stats_topic(tenant_id), message)
     # Legacy channel for listeners that haven't moved to per-tenant topics yet
     PubSub.broadcast(Soundboard.PubSub, @legacy_pubsub_topic, message)
   end
 
   def stats_topic(tenant_id) when is_integer(tenant_id) do
-    @stats_topic_prefix <> Integer.to_string(tenant_id)
+    PubSubTopics.stats_topic(tenant_id)
   end
 end

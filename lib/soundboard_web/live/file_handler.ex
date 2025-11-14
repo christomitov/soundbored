@@ -5,6 +5,8 @@ defmodule SoundboardWeb.Live.FileHandler do
 
   alias Ecto.Multi
   alias Phoenix.PubSub
+  alias Soundboard.Accounts.Tenants
+  alias Soundboard.PubSubTopics
   alias Soundboard.{Repo, Sound}
   import Ecto.Query
 
@@ -36,7 +38,7 @@ defmodule SoundboardWeb.Live.FileHandler do
     Repo.transaction(fn ->
       with :ok <- File.rename(old_path, new_path),
            {:ok, _updated_sound} <- update_sound_filename(socket.assigns.current_sound, new_name) do
-        broadcast_update()
+        broadcast_update(tenant_from_socket(socket))
         {:ok, "File renamed successfully!"}
       else
         error ->
@@ -58,7 +60,7 @@ defmodule SoundboardWeb.Live.FileHandler do
         # For URL sounds, just delete the database record
         case Repo.delete(sound) do
           {:ok, _} ->
-            broadcast_update()
+            broadcast_update(tenant_from_socket(socket))
             {:ok, "Sound deleted successfully!"}
 
           {:error, _} ->
@@ -71,7 +73,7 @@ defmodule SoundboardWeb.Live.FileHandler do
 
         with :ok <- File.rm(file_path),
              {:ok, _} <- maybe_delete_record(sound) do
-          broadcast_update()
+          broadcast_update(sound.tenant_id)
           {:ok, "Sound deleted successfully!"}
         else
           _ -> {:error, "Failed to delete sound"}
@@ -161,7 +163,15 @@ defmodule SoundboardWeb.Live.FileHandler do
     extension in ~w(.mp3 .wav .ogg .m4a)
   end
 
-  defp broadcast_update do
-    PubSub.broadcast(Soundboard.PubSub, "soundboard", {:files_updated})
+  defp broadcast_update(tenant_id) do
+    message = {:files_updated, tenant_id}
+    PubSub.broadcast(Soundboard.PubSub, "soundboard", message)
+    PubSub.broadcast(Soundboard.PubSub, PubSubTopics.soundboard_topic(tenant_id), message)
   end
+
+  defp tenant_from_socket(%{assigns: %{current_tenant: %{id: id}}}), do: id
+
+  defp tenant_from_socket(%{assigns: %{current_sound: %{tenant_id: id}}}), do: id
+
+  defp tenant_from_socket(_), do: Tenants.ensure_default_tenant!().id
 end

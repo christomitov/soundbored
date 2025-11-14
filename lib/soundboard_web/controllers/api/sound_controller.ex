@@ -1,11 +1,16 @@
 defmodule SoundboardWeb.API.SoundController do
   use SoundboardWeb, :controller
 
+  import Ecto.Query
+  alias Soundboard.Accounts.Tenants
   alias Soundboard.{Repo, Sound}
 
   def index(conn, _params) do
+    tenant = current_tenant(conn)
+
     sounds =
       Sound
+      |> where([s], s.tenant_id == ^tenant.id)
       |> Sound.with_tags()
       |> Repo.all()
       |> Enum.map(&format_sound/1)
@@ -14,7 +19,9 @@ defmodule SoundboardWeb.API.SoundController do
   end
 
   def play(conn, %{"id" => id}) do
-    case Repo.get(Sound, id) do
+    tenant = current_tenant(conn)
+
+    case Repo.get_by(Sound, id: normalize_id(id), tenant_id: tenant.id) do
       nil ->
         conn
         |> put_status(:not_found)
@@ -57,4 +64,19 @@ defmodule SoundboardWeb.API.SoundController do
       updated_at: sound.updated_at
     }
   end
+
+  defp current_tenant(conn) do
+    conn.assigns[:current_tenant] || Tenants.ensure_default_tenant!()
+  end
+
+  defp normalize_id(id) when is_integer(id), do: id
+
+  defp normalize_id(id) when is_binary(id) do
+    case Integer.parse(id) do
+      {int, _} -> int
+      :error -> -1
+    end
+  end
+
+  defp normalize_id(_), do: -1
 end

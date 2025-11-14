@@ -8,7 +8,8 @@ defmodule SoundboardWeb.DiscordHandler do
   alias Nostrum.Api.{Message, Self}
   alias Nostrum.Cache.GuildCache
   alias Nostrum.Voice
-  alias Soundboard.{Accounts.User, Repo, Sound, UserSoundSetting}
+  alias Soundboard.Accounts.{Guilds, Tenants, User}
+  alias Soundboard.{Repo, Sound, UserSoundSetting}
   import Ecto.Query
 
   # State GenServer
@@ -252,6 +253,7 @@ defmodule SoundboardWeb.DiscordHandler do
   end
 
   def handle_event({:VOICE_STATE_UPDATE, %{channel_id: nil} = payload, _ws_state}) do
+    tenant = tenant_for_guild(payload.guild_id)
     Logger.info("User #{payload.user_id} disconnected from voice")
     State.update_state(payload.user_id, nil, payload.session_id)
 
@@ -260,10 +262,11 @@ defmodule SoundboardWeb.DiscordHandler do
       :disabled -> :noop
     end
 
-    handle_leave_sound(payload.user_id)
+    handle_leave_sound(payload.user_id, tenant)
   end
 
   def handle_event({:VOICE_STATE_UPDATE, payload, _ws_state}) do
+    tenant = tenant_for_guild(payload.guild_id)
     Logger.info("Voice state update received: #{inspect(payload)}")
 
     # Check if this is the bot's own voice state update
@@ -285,7 +288,7 @@ defmodule SoundboardWeb.DiscordHandler do
       :disabled -> :noop
     end
 
-    handle_join_sound(payload.user_id, previous_state, payload.channel_id)
+    handle_join_sound(payload.user_id, previous_state, payload.channel_id, tenant)
   end
 
   def handle_event({:READY, _payload, _ws_state}) do
@@ -605,7 +608,23 @@ defmodule SoundboardWeb.DiscordHandler do
     :noop
   end
 
-  defp handle_join_sound(user_id, previous_state, new_channel_id) do
+  defp tenant_for_guild(nil), do: Tenants.ensure_default_tenant!()
+
+  defp tenant_for_guild(guild_id) do
+    case Guilds.get_tenant_for_guild(guild_id) do
+      {:ok, tenant} ->
+        tenant
+
+      {:error, reason} ->
+        Logger.warning(
+          "Missing guild mapping for #{inspect(guild_id)} (#{inspect(reason)}), defaulting tenant"
+        )
+
+        Tenants.ensure_default_tenant!()
+    end
+  end
+
+  defp handle_join_sound(user_id, previous_state, new_channel_id, tenant) do
     is_join_event =
       case previous_state do
         nil -> true
@@ -618,18 +637,20 @@ defmodule SoundboardWeb.DiscordHandler do
     )
 
     if is_join_event do
-      play_join_sound(user_id)
+      play_join_sound(user_id, tenant)
     end
   end
 
-  defp play_join_sound(user_id) do
+  defp play_join_sound(user_id, tenant) do
     user_with_sounds =
       from(u in User,
-        where: u.discord_id == ^to_string(user_id),
+        where: u.discord_id == ^to_string(user_id) and u.tenant_id == ^tenant.id,
         left_join: uss in UserSoundSetting,
-        on: uss.user_id == u.id and uss.is_join_sound == true,
+        on:
+          uss.user_id == u.id and uss.tenant_id == ^tenant.id and
+            uss.is_join_sound == true,
         left_join: s in Sound,
-        on: s.id == uss.sound_id,
+        on: s.id == uss.sound_id and s.tenant_id == ^tenant.id,
         select: {u.id, s.filename},
         limit: 1
       )
@@ -649,15 +670,17 @@ defmodule SoundboardWeb.DiscordHandler do
     end
   end
 
-  defp handle_leave_sound(user_id) do
+  defp handle_leave_sound(user_id, tenant) do
     # Handle leave sound (keep this functionality regardless of auto-join setting)
     user_with_sounds =
       from(u in User,
-        where: u.discord_id == ^to_string(user_id),
+        where: u.discord_id == ^to_string(user_id) and u.tenant_id == ^tenant.id,
         left_join: uss in UserSoundSetting,
-        on: uss.user_id == u.id and uss.is_leave_sound == true,
+        on:
+          uss.user_id == u.id and uss.tenant_id == ^tenant.id and
+            uss.is_leave_sound == true,
         left_join: s in Sound,
-        on: s.id == uss.sound_id,
+        on: s.id == uss.sound_id and s.tenant_id == ^tenant.id,
         select: {u.id, s.filename},
         limit: 1
       )

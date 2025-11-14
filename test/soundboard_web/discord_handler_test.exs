@@ -3,6 +3,7 @@ defmodule SoundboardWeb.DiscordHandlerTest do
   Tests the DiscordHandler module.
   """
   use Soundboard.DataCase
+  alias Soundboard.Accounts.{Guilds, Tenants}
   alias SoundboardWeb.DiscordHandler
   import Mock
   import ExUnit.CaptureLog
@@ -46,6 +47,9 @@ defmodule SoundboardWeb.DiscordHandlerTest do
             user_id: "789",
             session_id: "abc"
           }
+
+          tenant = Tenants.ensure_default_tenant!()
+          {:ok, _} = Guilds.associate_guild(tenant, payload.guild_id)
 
           # Call the handle_event function directly since it's a callback, not a GenServer
           DiscordHandler.handle_event({:VOICE_STATE_UPDATE, payload, nil})

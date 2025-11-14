@@ -24,6 +24,16 @@ edition_atom = if edition == "pro", do: :pro, else: :community
 
 config :soundboard, :edition, edition_atom
 
+billing_upgrade_url =
+  System.get_env("BILLING_UPGRADE_URL") ||
+    "https://soundbored.app/pricing"
+
+billing_portal_url = System.get_env("BILLING_PORTAL_URL")
+
+config :soundboard, :billing,
+  upgrade_url: billing_upgrade_url,
+  portal_url: billing_portal_url
+
 if System.get_env("PHX_SERVER") do
   config :soundboard, SoundboardWeb.Endpoint, server: true
 end

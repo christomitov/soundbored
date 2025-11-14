@@ -3,8 +3,8 @@ defmodule Soundboard.FavoritesTest do
   Test for the Favorites module.
   """
   use Soundboard.DataCase
-  alias Soundboard.{Accounts.User, Favorites, Sound}
   alias Soundboard.Accounts.Tenants
+  alias Soundboard.{Accounts.User, Favorites, Sound}
 
   describe "favorites" do
     setup do

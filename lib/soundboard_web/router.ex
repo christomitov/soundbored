@@ -1,10 +1,13 @@
 defmodule SoundboardWeb.Router do
   use SoundboardWeb, :router
   require Logger
+  alias Soundboard.Accounts.{Tenants, User}
+  alias Soundboard.Repo
 
   pipeline :browser do
     plug :accepts, ["html"]
     plug :fetch_session
+    plug SoundboardWeb.Plugs.Tenant
     plug :fetch_live_flash
     plug :put_root_layout, html: {SoundboardWeb.Layouts, :root}
     plug :protect_from_forgery
@@ -31,6 +34,11 @@ defmodule SoundboardWeb.Router do
   pipeline :api do
     plug :accepts, ["json"]
     plug SoundboardWeb.Plugs.APIAuth
+  end
+
+  pipeline :webhook do
+    plug :accepts, ["json"]
+    plug SoundboardWeb.Plugs.BasicAuth
   end
 
   # Discord OAuth routes - must come before protected routes
@@ -80,11 +88,20 @@ defmodule SoundboardWeb.Router do
     post "/sounds/stop", SoundController, :stop
   end
 
+  scope "/webhooks", SoundboardWeb do
+    pipe_through :webhook
+
+    post "/billing", BillingWebhookController, :create
+  end
+
   def fetch_current_user(conn, _) do
     user_id = get_session(conn, :user_id)
+    tenant = conn.assigns[:current_tenant] || Tenants.ensure_default_tenant!()
 
-    if user_id do
-      case Soundboard.Repo.get(Soundboard.Accounts.User, user_id) do
+    if is_nil(user_id) do
+      assign(conn, :current_user, nil)
+    else
+      case Repo.get_by(User, id: user_id, tenant_id: tenant.id) do
         nil ->
           conn
           |> clear_session()
@@ -93,8 +110,6 @@ defmodule SoundboardWeb.Router do
         user ->
           assign(conn, :current_user, user)
       end
-    else
-      assign(conn, :current_user, nil)
     end
   end
 

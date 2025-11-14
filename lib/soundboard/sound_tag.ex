@@ -38,18 +38,16 @@ defmodule Soundboard.SoundTag do
   defp put_tenant_from_associations(changeset) do
     sound_id = get_field(changeset, :sound_id)
 
-    cond do
-      sound_id ->
-        case Repo.get(Sound, sound_id) do
-          %Sound{tenant_id: tid} when not is_nil(tid) ->
-            put_change(changeset, :tenant_id, tid)
+    if sound_id do
+      case Repo.get(Sound, sound_id) do
+        %Sound{tenant_id: tid} when not is_nil(tid) ->
+          put_change(changeset, :tenant_id, tid)
 
-          _ ->
-            maybe_put_tenant_from_tag(changeset)
-        end
-
-      true ->
-        maybe_put_tenant_from_tag(changeset)
+        _ ->
+          maybe_put_tenant_from_tag(changeset)
+      end
+    else
+      maybe_put_tenant_from_tag(changeset)
     end
   end
 

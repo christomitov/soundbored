@@ -6,7 +6,7 @@ defmodule SoundboardWeb.AudioPlayer do
   require Logger
   alias Nostrum.Voice
   alias Soundboard.Accounts.{Tenants, User}
-  alias Soundboard.Sound
+  alias Soundboard.{PubSubTopics, Sound}
 
   # System users that don't need play tracking
   @system_users ["System", "API User"]
@@ -72,7 +72,7 @@ defmodule SoundboardWeb.AudioPlayer do
   def handle_cast(:stop_sound, %{voice_channel: {guild_id, _channel_id}} = state) do
     Logger.info("Stopping all sounds in guild: #{guild_id}")
     Voice.stop(guild_id)
-    broadcast_success("All sounds stopped", "System")
+    broadcast_success("All sounds stopped", "System", nil)
     {:noreply, state}
   end
 
@@ -101,7 +101,7 @@ defmodule SoundboardWeb.AudioPlayer do
         {:noreply, %{state | current_playback: task}}
 
       {:error, reason} ->
-        broadcast_error(reason)
+        broadcast_error(reason, tenant_id_for_sound(sound_name))
         {:noreply, state}
     end
   end
@@ -187,7 +187,7 @@ defmodule SoundboardWeb.AudioPlayer do
       play_sound_with_connection(guild_id, sound_name, path_or_url, volume, username)
     else
       Logger.error("Failed to establish voice connection")
-      broadcast_error("Failed to connect to voice channel")
+      broadcast_error("Failed to connect to voice channel", tenant_id_for_sound(sound_name))
     end
   end
 
@@ -260,7 +260,7 @@ defmodule SoundboardWeb.AudioPlayer do
 
       {:error, reason} ->
         Logger.error("Voice.play failed: #{inspect(reason)} (attempt #{attempt + 1})")
-        broadcast_error("Failed to play sound: #{reason}")
+        broadcast_error("Failed to play sound: #{reason}", tenant_id_for_sound(sound_name))
         :error
     end
   end
@@ -275,7 +275,12 @@ defmodule SoundboardWeb.AudioPlayer do
          attempt
        ) do
     Logger.error("Exceeded max retries (#{attempt}) for playing #{sound_name}")
-    broadcast_error("Failed to play sound after multiple attempts")
+
+    broadcast_error(
+      "Failed to play sound after multiple attempts",
+      tenant_id_for_sound(sound_name)
+    )
+
     :error
   end
 
@@ -311,7 +316,12 @@ defmodule SoundboardWeb.AudioPlayer do
         rescue
           error ->
             Logger.error("Failed to rejoin voice channel: #{inspect(error)}")
-            broadcast_error("Failed to reconnect to voice channel")
+
+            broadcast_error(
+              "Failed to reconnect to voice channel",
+              tenant_id_for_sound(sound_name)
+            )
+
             :error
         end
 
@@ -373,19 +383,22 @@ defmodule SoundboardWeb.AudioPlayer do
   end
 
   defp track_play_if_needed(sound_name, username) do
-    if system_user?(username) do
-      Logger.info("Skipping play tracking for system user: #{username}")
-    else
-      case Soundboard.Repo.get_by(User, username: username) do
-        %{id: user_id} ->
-          case Soundboard.Stats.track_play(sound_name, user_id) do
-            {:ok, _play} -> :ok
-            {:error, reason} -> Logger.warning("Failed to track play: #{inspect(reason)}")
-          end
+    cond do
+      system_user?(username) ->
+        Logger.info("Skipping play tracking for system user: #{username}")
 
-        nil ->
-          Logger.warning("Could not find user_id for #{username}")
-      end
+      user = Soundboard.Repo.get_by(User, username: username) ->
+        track_user_play(sound_name, user.id)
+
+      true ->
+        Logger.warning("Could not find user_id for #{username}")
+    end
+  end
+
+  defp track_user_play(sound_name, user_id) do
+    case Soundboard.Stats.track_play(sound_name, user_id) do
+      {:ok, _play} -> :ok
+      {:error, reason} -> Logger.warning("Failed to track play: #{inspect(reason)}")
     end
   end
 
@@ -426,27 +439,38 @@ defmodule SoundboardWeb.AudioPlayer do
       false
   end
 
-  defp broadcast_success(sound_name, username) do
-    tenant_id = tenant_id_for_sound(sound_name)
+  defp broadcast_success(sound_name, username, tenant_id \\ nil)
 
-    Phoenix.PubSub.broadcast(
-      Soundboard.PubSub,
-      "soundboard",
+  defp broadcast_success(sound_name, username, nil) do
+    broadcast_success(sound_name, username, tenant_id_for_sound(sound_name))
+  end
+
+  defp broadcast_success(sound_name, username, tenant_id) do
+    message =
       {:sound_played,
        %{
          filename: sound_name,
          played_by: username,
          tenant_id: tenant_id
        }}
-    )
+
+    broadcast_to_soundboard_topics(message, tenant_id)
   end
 
-  defp broadcast_error(message) do
-    Phoenix.PubSub.broadcast(
-      Soundboard.PubSub,
-      "soundboard",
-      {:error, message}
-    )
+  defp broadcast_error(message, tenant_id \\ nil) do
+    broadcast_to_soundboard_topics({:error, message}, tenant_id)
+  end
+
+  defp broadcast_to_soundboard_topics(message, tenant_id) do
+    Phoenix.PubSub.broadcast(Soundboard.PubSub, "soundboard", message)
+
+    if tenant_id do
+      Phoenix.PubSub.broadcast(
+        Soundboard.PubSub,
+        PubSubTopics.soundboard_topic(tenant_id),
+        message
+      )
+    end
   end
 
   defp clamp_volume(value) when is_number(value) do

@@ -30,21 +30,25 @@ defmodule Soundboard.Accounts.ApiToken do
   end
 
   defp ensure_tenant_from_user(changeset) do
-    case get_field(changeset, :tenant_id) do
-      nil ->
-        case get_field(changeset, :user_id) do
-          nil ->
-            changeset
+    tenant_id = get_field(changeset, :tenant_id)
+    user_id = get_field(changeset, :user_id)
 
-          user_id ->
-            case Repo.get(User, user_id) do
-              %User{tenant_id: tid} when not is_nil(tid) ->
-                put_change(changeset, :tenant_id, tid)
+    cond do
+      not is_nil(tenant_id) ->
+        changeset
 
-              _ ->
-                changeset
-            end
-        end
+      is_nil(user_id) ->
+        changeset
+
+      true ->
+        apply_user_tenant(changeset, user_id)
+    end
+  end
+
+  defp apply_user_tenant(changeset, user_id) do
+    case Repo.get(User, user_id) do
+      %User{tenant_id: tid} when not is_nil(tid) ->
+        put_change(changeset, :tenant_id, tid)
 
       _ ->
         changeset

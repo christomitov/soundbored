@@ -1,7 +1,7 @@
 defmodule SoundboardWeb.AuthControllerTest do
   use SoundboardWeb.ConnCase
   alias Soundboard.{Accounts.User, Repo}
-  alias Soundboard.Accounts.Tenants
+  alias Soundboard.Accounts.{Tenant, Tenants}
   import ExUnit.CaptureLog
 
   setup %{conn: conn} do
@@ -63,6 +63,43 @@ defmodule SoundboardWeb.AuthControllerTest do
       assert user
       assert user.username == "TestUser"
       assert user.avatar == "test_avatar.jpg"
+    end
+
+    test "callback/2 rejects new user when tenant is at max capacity", %{
+      conn: conn,
+      tenant: tenant
+    } do
+      {:ok, limited} =
+        tenant
+        |> Tenant.changeset(%{max_users: 1})
+        |> Repo.update()
+
+      {:ok, _existing} =
+        %User{}
+        |> User.changeset(%{
+          discord_id: "existing",
+          username: "Existing",
+          avatar: "existing.jpg",
+          tenant_id: limited.id
+        })
+        |> Repo.insert()
+
+      auth_data = %{
+        uid: "limit-test",
+        info: %{
+          nickname: "Overflow",
+          image: "overflow.jpg"
+        }
+      }
+
+      conn =
+        conn
+        |> assign(:ueberauth_auth, auth_data)
+        |> get(~p"/auth/discord/callback")
+
+      assert redirected_to(conn) == "/"
+      assert Phoenix.Flash.get(conn.assigns.flash, :error) =~ "user limit"
+      refute Repo.get_by(User, discord_id: "limit-test", tenant_id: limited.id)
     end
 
     test "callback/2 uses existing user if found", %{conn: conn, tenant: tenant} do

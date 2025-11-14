@@ -5,7 +5,7 @@ defmodule SoundboardWeb.SoundboardLiveTest do
   use SoundboardWeb.ConnCase
   import Phoenix.LiveViewTest
   alias Soundboard.{Accounts.User, Repo, Sound, Tag}
-  alias Soundboard.Accounts.Tenants
+  alias Soundboard.Accounts.{Tenant, Tenants}
   import Mock
 
   setup %{conn: conn} do
@@ -73,6 +73,37 @@ defmodule SoundboardWeb.SoundboardLiveTest do
 
         assert rendered =~ sound.filename
       end
+    end
+
+    test "does not show sounds from other tenants", %{conn: conn} do
+      slug = "other-#{System.unique_integer([:positive])}"
+
+      {:ok, other_tenant} =
+        %Tenant{}
+        |> Tenant.changeset(%{name: "Other", slug: slug, plan: :pro})
+        |> Repo.insert()
+
+      {:ok, other_user} =
+        %User{}
+        |> User.changeset(%{
+          username: "other_user",
+          discord_id: "other-#{System.unique_integer([:positive])}",
+          avatar: "other.jpg",
+          tenant_id: other_tenant.id
+        })
+        |> Repo.insert()
+
+      {:ok, other_sound} =
+        %Sound{}
+        |> Sound.changeset(%{
+          filename: "other_sound_#{System.unique_integer([:positive])}.mp3",
+          source_type: "local",
+          user_id: other_user.id
+        })
+        |> Repo.insert()
+
+      {:ok, _view, html} = live(conn, "/")
+      refute html =~ other_sound.filename
     end
 
     test "play random respects current search results", %{conn: conn, user: user} do
@@ -417,13 +448,13 @@ defmodule SoundboardWeb.SoundboardLiveTest do
       assert Repo.get!(Sound, sound.id).filename == sound.filename
     end
 
-    test "handles pubsub updates", %{conn: conn} do
+    test "handles pubsub updates", %{conn: conn, tenant: tenant} do
       {:ok, view, _html} = live(conn, "/")
 
       Phoenix.PubSub.broadcast(
         Soundboard.PubSub,
         "soundboard",
-        {:files_updated}
+        {:files_updated, tenant.id}
       )
 
       # Just verify the view is still alive

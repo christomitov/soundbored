@@ -1,15 +1,24 @@
 defmodule SoundboardWeb.SettingsLive do
   use SoundboardWeb, :live_view
   use SoundboardWeb.Live.PresenceLive
-  alias Soundboard.Accounts.ApiTokens
+  alias Soundboard.Accounts
+  alias Soundboard.Accounts.{ApiTokens, Tenants}
+  alias SoundboardWeb.Live.TenantHelpers
 
   @impl true
   def mount(_params, session, socket) do
+    current_user = get_user_from_session(session)
+    tenant_id = TenantHelpers.tenant_id_from_session(session, current_user)
+    tenant = Tenants.get_tenant!(tenant_id)
+
     socket =
       socket
       |> mount_presence(session)
       |> assign(:current_path, "/settings")
-      |> assign(:current_user, get_user_from_session(session))
+      |> assign(:current_user, current_user)
+      |> assign(:current_tenant, tenant)
+      |> assign(:edition, Accounts.edition())
+      |> assign(:plan_usage, Accounts.plan_usage(tenant))
       |> assign(:tokens, [])
       |> assign(:new_token, nil)
       |> assign(:base_url, nil)
@@ -51,6 +60,39 @@ defmodule SoundboardWeb.SettingsLive do
     end
   end
 
+  defp plan_resource_list(%{sounds: sounds, users: users, guilds: guilds}) do
+    [
+      {"Sounds", sounds},
+      {"Members", users},
+      {"Discord Guilds", guilds}
+    ]
+  end
+
+  defp plan_name(nil), do: "Community"
+  defp plan_name(plan) when is_atom(plan), do: plan |> Atom.to_string() |> String.capitalize()
+  defp plan_name(plan), do: to_string(plan)
+
+  defp usage_display(%{limit: nil, count: count}), do: "#{count} used · Unlimited"
+
+  defp usage_display(%{limit: limit, count: count}) when is_integer(limit) do
+    "#{count} / #{limit} used"
+  end
+
+  defp usage_display(%{count: count}), do: "#{count} used"
+
+  defp usage_percent(%{limit: nil}), do: 0
+  defp usage_percent(%{limit: limit}) when not is_integer(limit) or limit <= 0, do: 100
+
+  defp usage_percent(%{limit: limit, count: count}) do
+    percent = count / limit * 100
+    percent |> min(100.0) |> Float.round(2)
+  end
+
+  defp usage_remaining_text(%{limit: nil}), do: nil
+  defp usage_remaining_text(%{remaining: nil}), do: nil
+  defp usage_remaining_text(%{remaining: remaining}) when remaining <= 0, do: "No remaining slots"
+  defp usage_remaining_text(%{remaining: remaining}), do: "#{remaining} remaining"
+
   defp load_tokens(%{assigns: %{current_user: nil}} = socket), do: socket
 
   defp load_tokens(%{assigns: %{current_user: user}} = socket) do
@@ -73,6 +115,78 @@ defmodule SoundboardWeb.SettingsLive do
     ~H"""
     <div class="max-w-6xl mx-auto px-4 py-6 space-y-6">
       <h1 class="text-2xl font-bold text-gray-800 dark:text-gray-100">Settings</h1>
+
+      <%= if @edition == :pro do %>
+        <section aria-labelledby="plan-heading" class="space-y-4">
+          <header class="space-y-2">
+            <h2 id="plan-heading" class="text-xl font-semibold text-gray-800 dark:text-gray-100">
+              Plan &amp; Billing
+            </h2>
+            <p class="text-sm text-gray-600 dark:text-gray-400">
+              Monitor usage limits and quickly jump to your billing portal when running the Pro edition.
+            </p>
+          </header>
+
+          <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-5 space-y-6">
+            <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div>
+                <div class="text-sm text-gray-500 dark:text-gray-400">Current plan</div>
+                <div class="text-2xl font-semibold text-gray-900 dark:text-gray-100">
+                  {plan_name(@current_tenant.plan)}
+                </div>
+                <%= if @current_tenant.subscription_ends_at do %>
+                  <div class="text-sm text-gray-500 dark:text-gray-400">
+                    Renews {format_dt(@current_tenant.subscription_ends_at)}
+                  </div>
+                <% end %>
+              </div>
+
+              <div class="flex flex-wrap gap-3">
+                <%= if upgrade_url = Accounts.upgrade_url() do %>
+                  <.link
+                    href={upgrade_url}
+                    target="_blank"
+                    class="inline-flex items-center px-4 py-2 rounded-md border border-blue-600 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950"
+                  >
+                    Upgrade Plan
+                  </.link>
+                <% end %>
+
+                <%= if manage_url = Accounts.manage_subscription_url(@current_tenant) do %>
+                  <.link
+                    href={manage_url}
+                    target="_blank"
+                    class="inline-flex items-center px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700"
+                  >
+                    Manage Subscription
+                  </.link>
+                <% end %>
+              </div>
+            </div>
+
+            <dl class="grid gap-4 md:grid-cols-3">
+              <%= for {label, usage} <- plan_resource_list(@plan_usage) do %>
+                <div class="space-y-2">
+                  <dt class="text-sm text-gray-600 dark:text-gray-400">{label}</dt>
+                  <dd class="text-lg font-medium text-gray-900 dark:text-gray-100">
+                    {usage_display(usage)}
+                  </dd>
+                  <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                    <div
+                      class="h-2 rounded-full bg-blue-600"
+                      style={"width: #{usage_percent(usage)}%;"}
+                    >
+                    </div>
+                  </div>
+                  <%= if remaining = usage_remaining_text(usage) do %>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">{remaining}</p>
+                  <% end %>
+                </div>
+              <% end %>
+            </dl>
+          </div>
+        </section>
+      <% end %>
 
       <section aria-labelledby="api-tokens-heading" class="space-y-6">
         <header class="space-y-2">

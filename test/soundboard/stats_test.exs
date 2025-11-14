@@ -3,8 +3,8 @@ defmodule Soundboard.StatsTest do
   Test for the Stats module.
   """
   use Soundboard.DataCase
-  alias Soundboard.{Accounts.User, Sound, Stats, Stats.Play}
   alias Soundboard.Accounts.Tenants
+  alias Soundboard.{Accounts.User, Sound, Stats, Stats.Play}
 
   describe "stats" do
     setup do

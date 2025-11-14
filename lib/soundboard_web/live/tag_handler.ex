@@ -4,6 +4,7 @@ defmodule SoundboardWeb.Live.TagHandler do
   """
   alias Phoenix.PubSub
   alias Soundboard.Accounts.Tenants
+  alias Soundboard.PubSubTopics
   alias Soundboard.{Repo, Sound, Tag}
   import Phoenix.Component, only: [assign: 3]
 
@@ -40,7 +41,7 @@ defmodule SoundboardWeb.Live.TagHandler do
   defp add_tag_to_sound(socket, tag, current_tags) do
     case update_sound_tags(socket.assigns.current_sound, [tag | current_tags]) do
       {:ok, updated_sound} ->
-        broadcast_update()
+        broadcast_update(socket)
         {:ok, assign(socket, :current_sound, Repo.preload(updated_sound, :tags))}
 
       {:error, _} ->
@@ -56,7 +57,7 @@ defmodule SoundboardWeb.Live.TagHandler do
          })
          |> Repo.update() do
       {:ok, updated_sound} ->
-        broadcast_update()
+        broadcast_update(socket)
         {:ok, updated_sound}
 
       {:error, _} ->
@@ -115,8 +116,12 @@ defmodule SoundboardWeb.Live.TagHandler do
     end
   end
 
-  defp broadcast_update do
-    PubSub.broadcast(Soundboard.PubSub, "soundboard", {:files_updated})
+  defp broadcast_update(socket) do
+    tenant_id = tenant_id_from_socket(socket) || default_tenant_id()
+    message = {:files_updated, tenant_id}
+
+    PubSub.broadcast(Soundboard.PubSub, "soundboard", message)
+    PubSub.broadcast(Soundboard.PubSub, PubSubTopics.soundboard_topic(tenant_id), message)
   end
 
   def list_tags_for_sound(filename, tenant_id \\ default_tenant_id()) do

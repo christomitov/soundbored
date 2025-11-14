@@ -2,11 +2,16 @@ defmodule SoundboardWeb.Live.UploadHandler do
   @moduledoc """
   Handles the upload of sounds from a local file or a URL.
   """
+  alias Soundboard.Accounts
+  alias Soundboard.Accounts.Tenants
   alias SoundboardWeb.Live.FileHandler
   alias Soundboard.{Repo, Sound, Volume}
   import Ecto.Query
   import Ecto.Changeset
   require Logger
+
+  @limit_error "Sound limit reached for your plan. Consider upgrading or deleting older uploads"
+  @tenant_error "Unable to determine tenant for upload"
 
   def validate_upload(socket, params) do
     params =
@@ -99,13 +104,23 @@ defmodule SoundboardWeb.Live.UploadHandler do
   def handle_upload(socket, params, consume_uploaded_entries_fn) do
     %{id: user_id, tenant_id: tenant_id} = socket.assigns.current_user
     source_type = params["source_type"] || "local"
+    tenant = tenant_from_socket(socket, tenant_id)
 
-    case source_type do
-      "url" ->
-        handle_url_upload(socket, params, user_id, tenant_id)
+    cond do
+      is_nil(tenant) ->
+        {:error, @tenant_error, socket}
 
-      "local" ->
-        handle_local_upload(socket, params, user_id, tenant_id, consume_uploaded_entries_fn)
+      not Accounts.can_create_sound?(tenant) ->
+        {:error, @limit_error, socket}
+
+      true ->
+        case source_type do
+          "url" ->
+            handle_url_upload(socket, params, user_id, tenant_id)
+
+          "local" ->
+            handle_local_upload(socket, params, user_id, tenant_id, consume_uploaded_entries_fn)
+        end
     end
   end
 
@@ -256,6 +271,17 @@ defmodule SoundboardWeb.Live.UploadHandler do
         end
     end
   end
+
+  defp tenant_from_socket(%{assigns: %{current_tenant: %{} = tenant}}, _tenant_id), do: tenant
+
+  defp tenant_from_socket(_socket, tenant_id) when is_integer(tenant_id) do
+    case Tenants.get_tenant(tenant_id) do
+      {:ok, tenant} -> tenant
+      _ -> nil
+    end
+  end
+
+  defp tenant_from_socket(_socket, _tenant_id), do: nil
 
   defp get_file_extension(socket) do
     case Phoenix.LiveView.uploaded_entries(socket, :audio) do
