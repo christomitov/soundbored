@@ -8,7 +8,8 @@ defmodule SoundboardWeb.DiscordHandler do
   alias Nostrum.Api.{Message, Self}
   alias Nostrum.Cache.GuildCache
   alias Nostrum.Voice
-  alias Soundboard.Accounts.{Guilds, Tenants, User}
+  alias Soundboard.Accounts
+  alias Soundboard.Accounts.{Guilds, Tenant, Tenants, User}
   alias Soundboard.{Repo, Sound, UserSoundSetting}
   import Ecto.Query
 
@@ -253,20 +254,21 @@ defmodule SoundboardWeb.DiscordHandler do
   end
 
   def handle_event({:VOICE_STATE_UPDATE, %{channel_id: nil} = payload, _ws_state}) do
-    tenant = tenant_for_guild(payload.guild_id)
     Logger.info("User #{payload.user_id} disconnected from voice")
-    State.update_state(payload.user_id, nil, payload.session_id)
 
-    case auto_join_mode() do
-      :enabled -> handle_bot_alone_check(payload.guild_id)
-      :disabled -> :noop
+    with {:ok, tenant} <- tenant_for_guild(payload.guild_id) do
+      State.update_state(payload.user_id, nil, payload.session_id)
+
+      case auto_join_mode() do
+        :enabled -> handle_bot_alone_check(payload.guild_id)
+        :disabled -> :noop
+      end
+
+      handle_leave_sound(payload.user_id, tenant)
     end
-
-    handle_leave_sound(payload.user_id, tenant)
   end
 
   def handle_event({:VOICE_STATE_UPDATE, payload, _ws_state}) do
-    tenant = tenant_for_guild(payload.guild_id)
     Logger.info("Voice state update received: #{inspect(payload)}")
 
     # Check if this is the bot's own voice state update
@@ -280,15 +282,17 @@ defmodule SoundboardWeb.DiscordHandler do
         :ok
     end
 
-    previous_state = State.get_state(payload.user_id)
-    State.update_state(payload.user_id, payload.channel_id, payload.session_id)
+    with {:ok, tenant} <- tenant_for_guild(payload.guild_id) do
+      previous_state = State.get_state(payload.user_id)
+      State.update_state(payload.user_id, payload.channel_id, payload.session_id)
 
-    case auto_join_mode() do
-      :enabled -> handle_auto_join_leave(payload)
-      :disabled -> :noop
+      case auto_join_mode() do
+        :enabled -> handle_auto_join_leave(payload)
+        :disabled -> :noop
+      end
+
+      handle_join_sound(payload.user_id, previous_state, payload.channel_id, tenant)
     end
-
-    handle_join_sound(payload.user_id, previous_state, payload.channel_id, tenant)
   end
 
   def handle_event({:READY, _payload, _ws_state}) do
@@ -313,6 +317,21 @@ defmodule SoundboardWeb.DiscordHandler do
 
   # New DAVE voice event sometimes surfaced by Nostrum; ignore for now
   def handle_event({:VOICE_CHANNEL_STATUS_UPDATE, _payload, _ws_state}) do
+    :noop
+  end
+
+  def handle_event({:GUILD_CREATE, guild, _ws_state}) do
+    handle_guild_create(guild)
+    :noop
+  end
+
+  def handle_event({:GUILD_DELETE, %{id: guild_id}, _ws_state}) do
+    case Guilds.remove_guild(guild_id) do
+      {:ok, _} -> Logger.info("Removed guild mapping for #{guild_id}")
+      {:error, :not_found} -> Logger.debug("No guild mapping to remove for #{guild_id}")
+      _ -> :ok
+    end
+
     :noop
   end
 
@@ -608,19 +627,19 @@ defmodule SoundboardWeb.DiscordHandler do
     :noop
   end
 
-  defp tenant_for_guild(nil), do: Tenants.ensure_default_tenant!()
+  defp tenant_for_guild(nil) do
+    Logger.warning("Tenant lookup skipped because guild_id was nil")
+    {:error, :missing_guild_id}
+  end
 
   defp tenant_for_guild(guild_id) do
     case Guilds.get_tenant_for_guild(guild_id) do
       {:ok, tenant} ->
-        tenant
+        {:ok, tenant}
 
       {:error, reason} ->
-        Logger.warning(
-          "Missing guild mapping for #{inspect(guild_id)} (#{inspect(reason)}), defaulting tenant"
-        )
-
-        Tenants.ensure_default_tenant!()
+        Logger.warning("Missing guild mapping for #{inspect(guild_id)} (#{inspect(reason)})")
+        {:error, reason}
     end
   end
 
@@ -693,6 +712,57 @@ defmodule SoundboardWeb.DiscordHandler do
 
       _ ->
         :noop
+    end
+  end
+
+  defp handle_guild_create(%{id: guild_id} = guild) do
+    case Accounts.edition() do
+      :pro -> associate_guild_with_owner(guild)
+      _ -> associate_guild_with_default_tenant(guild_id)
+    end
+  end
+
+  defp associate_guild_with_default_tenant(guild_id) do
+    tenant = Tenants.ensure_default_tenant!()
+
+    case Guilds.associate_guild(tenant, guild_id) do
+      {:ok, _} ->
+        Logger.info("Associated guild #{inspect(guild_id)} with default tenant")
+
+      {:error, reason} ->
+        Logger.warning("Failed to associate guild #{inspect(guild_id)}: #{inspect(reason)}")
+    end
+  end
+
+  defp associate_guild_with_owner(%{id: guild_id, owner_id: owner_id}) do
+    with {:ok, tenant} <- resolve_owner_tenant(owner_id),
+         {:ok, _guild} <- Guilds.associate_guild(tenant, guild_id) do
+      Logger.info("Associated guild #{inspect(guild_id)} with tenant #{tenant.slug}")
+    else
+      {:error, reason} ->
+        Logger.warning(
+          "Unable to associate guild #{inspect(guild_id)} with owner #{inspect(owner_id)}: #{inspect(reason)}"
+        )
+    end
+  end
+
+  defp resolve_owner_tenant(nil), do: {:error, :missing_owner}
+
+  defp resolve_owner_tenant(owner_id) do
+    owner =
+      owner_id
+      |> to_string()
+      |> then(&Repo.get_by(User, discord_id: &1))
+
+    case owner do
+      %User{} = user ->
+        case Repo.preload(user, :tenant) do
+          %{tenant: %Tenant{} = tenant} -> {:ok, tenant}
+          _ -> {:error, :tenant_not_found}
+        end
+
+      nil ->
+        {:error, :owner_not_found}
     end
   end
 end
