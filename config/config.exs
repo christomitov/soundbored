@@ -70,6 +70,7 @@ config :mime, :types, %{
   "audio/ogg" => ["ogg"],
   "audio/wav" => ["wav"],
   "audio/x-wav" => ["wav"],
+  "audio/wave" => ["wav"],
   "audio/x-m4a" => ["m4a"]
 }
 
