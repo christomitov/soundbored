@@ -69,6 +69,7 @@ config :mime, :types, %{
   "audio/mpeg" => ["mp3"],
   "audio/ogg" => ["ogg"],
   "audio/wav" => ["wav"],
+  "audio/x-wav" => ["wav"],
   "audio/x-m4a" => ["m4a"]
 }
 
