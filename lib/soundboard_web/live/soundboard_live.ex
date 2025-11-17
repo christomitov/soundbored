@@ -84,7 +84,7 @@ defmodule SoundboardWeb.SoundboardLive do
     |> assign(:upload_volume, 100)
     |> assign(:show_all_tags, false)
     |> allow_upload(:audio,
-      accept: ~w(audio/mpeg audio/wav audio/ogg audio/x-m4a),
+      accept: ~w(audio/mpeg audio/wav audio/x-wav audio/ogg audio/x-m4a),
       max_entries: 1,
       max_file_size: 25_000_000,
       auto_upload: false,
@@ -1013,7 +1013,7 @@ defmodule SoundboardWeb.SoundboardLive do
 
   defp validate_audio(entry, _socket) do
     case entry.client_type do
-      type when type in ~w(audio/mpeg audio/wav audio/ogg audio/x-m4a) ->
+      type when type in ~w(audio/mpeg audio/wav audio/x-wav audio/ogg audio/x-m4a) ->
         {:ok, entry}
 
       _ ->
