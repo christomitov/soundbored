@@ -638,8 +638,30 @@ defmodule SoundboardWeb.DiscordHandler do
         {:ok, tenant}
 
       {:error, reason} ->
-        Logger.warning("Missing guild mapping for #{inspect(guild_id)} (#{inspect(reason)})")
-        {:error, reason}
+        handle_missing_guild_mapping(guild_id, reason)
+    end
+  end
+
+  defp handle_missing_guild_mapping(guild_id, reason) do
+    Logger.warning("Missing guild mapping for #{inspect(guild_id)} (#{inspect(reason)})")
+
+    if Accounts.edition() == :community do
+      tenant = Tenants.ensure_default_tenant!()
+
+      case Guilds.associate_guild(tenant, guild_id) do
+        {:ok, _} ->
+          Logger.info("Associated guild #{inspect(guild_id)} with default tenant on the fly")
+          {:ok, tenant}
+
+        {:error, assoc_reason} ->
+          Logger.warning(
+            "Failed to associate guild #{inspect(guild_id)} with default tenant: #{inspect(assoc_reason)}"
+          )
+
+          {:error, reason}
+      end
+    else
+      {:error, reason}
     end
   end
 
