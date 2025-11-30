@@ -886,6 +886,8 @@ defmodule SoundboardWeb.SoundboardLive do
         filename: new_filename,
         source_type: params["source_type"] || db_sound.source_type,
         url: params["url"],
+        # Legacy sounds may be missing a user_id; default to the current user to satisfy validation
+        user_id: db_sound.user_id || user_id,
         volume:
           params["volume"]
           |> Volume.percent_to_decimal(Volume.decimal_to_percent(db_sound.volume))
