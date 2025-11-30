@@ -3,7 +3,7 @@ defmodule SoundboardWeb.FavoritesLive do
   use SoundboardWeb.Live.PresenceLive
   import Ecto.Query
   alias Soundboard.Accounts.Tenants
-  alias Soundboard.{Favorites, Repo, Sound, Stats}
+  alias Soundboard.{Favorites, Repo, Sound}
   alias Soundboard.PubSubTopics
   alias SoundboardWeb.Live.TenantHelpers
   require Logger
@@ -25,7 +25,6 @@ defmodule SoundboardWeb.FavoritesLive do
 
     socket =
       if connected?(socket) do
-        Phoenix.PubSub.subscribe(Soundboard.PubSub, Stats.stats_topic(tenant.id))
         Phoenix.PubSub.subscribe(Soundboard.PubSub, PubSubTopics.soundboard_topic(tenant.id))
         socket
       else
@@ -112,19 +111,6 @@ defmodule SoundboardWeb.FavoritesLive do
   @impl true
   def handle_info(:clear_flash, socket) do
     {:noreply, clear_flash(socket)}
-  end
-
-  @impl true
-  def handle_info({:stats_updated, tenant_id}, socket) do
-    if tenant_matches?(socket, tenant_id) do
-      {:noreply, load_favorites(socket)}
-    else
-      {:noreply, socket}
-    end
-  end
-
-  def handle_info({:stats_updated}, socket) do
-    handle_info({:stats_updated, nil}, socket)
   end
 
   defp load_favorites(socket) do

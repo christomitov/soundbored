@@ -29,8 +29,9 @@ Keep this managed block so 'openspec update' can refresh the instructions.
 - Setup: `mix setup` — fetch deps, create/migrate DB, install/build assets.
 - Run dev server: `mix phx.server` (or `iex -S mix phx.server`).
 - Tests: `mix test` — includes DB setup via alias.
+- Pre-commit: `mix precommit` — runs format, credo (strict), and the test suite; run after every change.
 - Coverage: `mix coveralls` or `mix coveralls.html` (outputs to `cover/`).
-- Lint/format: `mix credo` and `mix format`.
+- Lint/format: `mix credo --strict` and `mix format`.
 - Assets prod build: `mix assets.deploy`.
 - Docker local: `docker compose up` (env from `.env`).
 

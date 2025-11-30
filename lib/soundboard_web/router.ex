@@ -167,31 +167,29 @@ defmodule SoundboardWeb.Router do
   end
 
   defp authenticate_api_token(conn, token, tenant) do
-    cond do
-      token == System.get_env("API_TOKEN") ->
-        tenant = tenant || Tenants.ensure_default_tenant!()
+    if token == System.get_env("API_TOKEN") do
+      tenant = tenant || Tenants.ensure_default_tenant!()
 
-        conn
-        |> assign(:api_token, :legacy)
-        |> assign(:current_tenant, tenant)
-        |> put_session(:tenant_id, tenant.id)
-        |> assign(:current_user, nil)
+      conn
+      |> assign(:api_token, :legacy)
+      |> assign(:current_tenant, tenant)
+      |> put_session(:tenant_id, tenant.id)
+      |> assign(:current_user, nil)
+    else
+      case ApiTokens.verify_token(token) do
+        {:ok, user, api_token} ->
+          tenant = api_token.tenant || user.tenant || tenant || Tenants.ensure_default_tenant!()
 
-      true ->
-        case ApiTokens.verify_token(token) do
-          {:ok, user, api_token} ->
-            tenant = api_token.tenant || user.tenant || tenant || Tenants.ensure_default_tenant!()
+          conn
+          |> assign(:api_token, api_token)
+          |> assign(:current_user, user)
+          |> assign(:current_tenant, tenant)
+          |> put_session(:user_id, user.id)
+          |> put_session(:tenant_id, tenant.id)
 
-            conn
-            |> assign(:api_token, api_token)
-            |> assign(:current_user, user)
-            |> assign(:current_tenant, tenant)
-            |> put_session(:user_id, user.id)
-            |> put_session(:tenant_id, tenant.id)
-
-          _ ->
-            assign(conn, :current_user, nil)
-        end
+        _ ->
+          assign(conn, :current_user, nil)
+      end
     end
   end
 

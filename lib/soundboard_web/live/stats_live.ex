@@ -43,7 +43,6 @@ defmodule SoundboardWeb.StatsLive do
     if tenant_id == socket.assigns.current_tenant_id do
       {:noreply,
        socket
-       |> stream(:recent_plays, recent_plays(tenant_id), reset: true)
        |> put_flash(:info, "#{payload.played_by} played #{display_name(payload.filename)}")
        |> clear_flash_after_timeout()}
     else

@@ -3,7 +3,7 @@ defmodule SoundboardWeb.SoundboardLive do
   use SoundboardWeb.Live.PresenceLive
   alias Soundboard.Accounts.Tenants
   alias Soundboard.PubSubTopics
-  alias Soundboard.{Favorites, Repo, Sound, Stats, Volume}
+  alias Soundboard.{Favorites, Repo, Sound, Volume}
   alias SoundboardWeb.Components.Soundboard.{DeleteModal, EditModal, UploadModal}
   import EditModal
   import DeleteModal
@@ -40,7 +40,6 @@ defmodule SoundboardWeb.SoundboardLive do
 
     socket =
       if connected?(socket) do
-        Phoenix.PubSub.subscribe(Soundboard.PubSub, Stats.stats_topic(tenant.id))
         Phoenix.PubSub.subscribe(Soundboard.PubSub, PubSubTopics.soundboard_topic(tenant.id))
         Phoenix.PubSub.subscribe(Soundboard.PubSub, @presence_topic)
         send(self(), :load_sound_files)
@@ -716,19 +715,6 @@ defmodule SoundboardWeb.SoundboardLive do
      socket
      |> load_sound_files()
      |> assign(:loading_sounds, false)}
-  end
-
-  @impl true
-  def handle_info({:stats_updated, tenant_id}, socket) do
-    if tenant_matches?(socket, tenant_id) do
-      {:noreply, load_sound_files(socket)}
-    else
-      {:noreply, socket}
-    end
-  end
-
-  def handle_info({:stats_updated}, socket) do
-    handle_info({:stats_updated, nil}, socket)
   end
 
   defp handle_save_sound(sound, user_id, params, socket) do

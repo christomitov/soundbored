@@ -25,8 +25,8 @@ defmodule SoundboardWeb.Plugs.APIAuth do
     resolution_source = conn.assigns[:tenant_resolution_source]
     resolution_reason = conn.assigns[:tenant_resolution_reason]
 
-    cond do
-      edition == :community and token == System.get_env("API_TOKEN") ->
+    case classify_token(edition, token) do
+      :legacy ->
         tenant = current_tenant || Tenants.ensure_default_tenant!()
 
         conn
@@ -36,39 +36,18 @@ defmodule SoundboardWeb.Plugs.APIAuth do
         |> assign(:tenant_resolution_reason, nil)
         |> persist_session(tenant, nil)
 
-      token == System.get_env("API_TOKEN") ->
+      :deny ->
         unauthorized(conn)
 
-      true ->
-        case verify_db_token(token) do
-          {:ok, user, api_token} ->
-            token_tenant = api_token.tenant || user.tenant
-
-            case authorize_tenant(
-                   edition,
-                   current_tenant,
-                   resolution_source,
-                   resolution_reason,
-                   token_tenant
-                 ) do
-              {:ok, tenant} ->
-                conn
-                |> assign(:current_user, user)
-                |> assign(:api_token, api_token)
-                |> assign(:current_tenant, tenant)
-                |> assign(:tenant_resolution_source, :api_token)
-                |> assign(:tenant_resolution_reason, nil)
-                |> persist_session(tenant, user)
-
-              {:error, :mismatch} ->
-                conn
-                |> clear_auth_session()
-                |> unauthorized()
-            end
-
-          _ ->
-            unauthorized(conn)
-        end
+      :db ->
+        authenticate_with_db_token(
+          conn,
+          token,
+          edition,
+          current_tenant,
+          resolution_source,
+          resolution_reason
+        )
     end
   end
 
@@ -77,6 +56,52 @@ defmodule SoundboardWeb.Plugs.APIAuth do
     |> put_status(:unauthorized)
     |> Phoenix.Controller.json(%{error: "Invalid API token"})
     |> halt()
+  end
+
+  defp authenticate_with_db_token(
+         conn,
+         token,
+         edition,
+         current_tenant,
+         resolution_source,
+         resolution_reason
+       ) do
+    with {:ok, user, api_token} <- verify_db_token(token),
+         token_tenant <- api_token.tenant || user.tenant,
+         {:ok, tenant} <-
+           authorize_tenant(
+             edition,
+             current_tenant,
+             resolution_source,
+             resolution_reason,
+             token_tenant
+           ) do
+      conn
+      |> assign(:current_user, user)
+      |> assign(:api_token, api_token)
+      |> assign(:current_tenant, tenant)
+      |> assign(:tenant_resolution_source, :api_token)
+      |> assign(:tenant_resolution_reason, nil)
+      |> persist_session(tenant, user)
+    else
+      {:error, :mismatch} ->
+        conn
+        |> clear_auth_session()
+        |> unauthorized()
+
+      _ ->
+        unauthorized(conn)
+    end
+  end
+
+  defp classify_token(edition, token) do
+    legacy_token = System.get_env("API_TOKEN")
+
+    cond do
+      edition == :community and token == legacy_token -> :legacy
+      token == legacy_token -> :deny
+      true -> :db
+    end
   end
 
   defp authorize_tenant(:community, current_tenant, _source, _reason, token_tenant) do
