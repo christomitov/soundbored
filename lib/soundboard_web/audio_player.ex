@@ -71,9 +71,28 @@ defmodule SoundboardWeb.AudioPlayer do
 
   def handle_cast({:stop_sound, tenant_id}, %{voice_channel: {guild_id, _channel_id}} = state) do
     Logger.info("Stopping all sounds in guild: #{guild_id}")
-    Voice.stop(guild_id)
-    broadcast_success("All sounds stopped", "System", tenant_id)
-    {:noreply, state}
+
+    result =
+      try do
+        if Voice.ready?(guild_id) do
+          Voice.stop(guild_id)
+          :ok
+        else
+          :not_ready
+        end
+      rescue
+        _ -> :not_ready
+      end
+
+    case result do
+      :ok ->
+        broadcast_success("All sounds stopped", "System", tenant_id)
+        {:noreply, state}
+
+      :not_ready ->
+        broadcast_error("Bot is not connected to a voice channel", tenant_id)
+        {:noreply, %{state | voice_channel: nil}}
+    end
   end
 
   def handle_cast({:stop_sound, tenant_id}, state) do
