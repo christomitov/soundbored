@@ -47,6 +47,34 @@ defmodule Soundboard.SoundTagTest do
       assert "can't be blank" in errors_on(changeset).tag_id
       assert "can't be blank" in errors_on(changeset).tenant_id
     end
+
+    test "changeset infers tenant from sound when missing" do
+      sound = insert_sound()
+      tag = insert_tag()
+
+      changeset =
+        SoundTag.changeset(%SoundTag{}, %{
+          sound_id: sound.id,
+          tag_id: tag.id
+        })
+
+      assert changeset.valid?
+      assert Ecto.Changeset.get_field(changeset, :tenant_id) == sound.tenant_id
+    end
+
+    test "changeset infers tenant from tag when sound not found" do
+      tag = insert_tag()
+      unknown_sound_id = -1
+
+      changeset =
+        SoundTag.changeset(%SoundTag{}, %{
+          sound_id: unknown_sound_id,
+          tag_id: tag.id
+        })
+
+      assert changeset.valid?
+      assert Ecto.Changeset.get_field(changeset, :tenant_id) == tag.tenant_id
+    end
   end
 
   # Helper functions

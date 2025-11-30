@@ -52,6 +52,44 @@ defmodule Soundboard.AccountsTest do
     assert updated.subscription_ends_at
   end
 
+  test "manage_subscription_url replaces placeholders and respects billing config" do
+    tenant =
+      insert_tenant(%{
+        billing_customer_id: "cust123",
+        billing_subscription_id: "sub456"
+      })
+
+    original = Application.get_env(:soundboard, :billing)
+
+    Application.put_env(:soundboard, :billing, portal_url: "https://billing/{subscription_id}")
+
+    on_exit(fn ->
+      Application.put_env(:soundboard, :billing, original)
+    end)
+
+    assert Accounts.manage_subscription_url(tenant) == "https://billing/sub456"
+  end
+
+  test "apply_billing_update rejects invalid payloads" do
+    tenant = insert_tenant(%{})
+
+    assert {:error, :invalid_plan} =
+             Accounts.apply_billing_update(tenant, %{"plan" => "enterprise"})
+
+    assert {:error, :invalid_timestamp} =
+             Accounts.apply_billing_update(tenant, %{"subscription_ends_at" => "bad"})
+  end
+
+  test "plan_usage handles unlimited plan limits" do
+    tenant = insert_tenant(%{max_sounds: nil, max_users: nil, max_guilds: nil})
+
+    usage = Accounts.plan_usage(tenant)
+    refute usage.sounds.at_limit?
+    assert usage.sounds.limit == nil
+    assert usage.users.limit == nil
+    assert usage.guilds.limit == nil
+  end
+
   defp insert_tenant(attrs) do
     slug = "tenant-#{System.unique_integer([:positive])}"
 

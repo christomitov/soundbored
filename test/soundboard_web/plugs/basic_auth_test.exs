@@ -1,11 +1,14 @@
 defmodule SoundboardWeb.BasicAuthPlugTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
   import Plug.Test
   import Plug.Conn
 
   alias SoundboardWeb.Plugs.BasicAuth
 
   setup do
+    System.delete_env("BASIC_AUTH_USERNAME")
+    System.delete_env("BASIC_AUTH_PASSWORD")
+
     # Reset env between tests
     on_exit(fn ->
       System.delete_env("BASIC_AUTH_USERNAME")

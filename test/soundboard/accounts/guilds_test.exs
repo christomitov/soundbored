@@ -48,4 +48,20 @@ defmodule Soundboard.Accounts.GuildsTest do
   test "get_tenant_for_guild returns error when missing" do
     assert {:error, :not_found} = Guilds.get_tenant_for_guild("does-not-exist")
   end
+
+  test "remove_guild deletes existing mappings and normalizes integer ids" do
+    tenant = Tenants.ensure_default_tenant!()
+
+    assert {:ok, _guild} = Guilds.associate_guild(tenant, 54_321)
+    assert {:ok, ^tenant} = Guilds.get_tenant_for_guild("54321")
+
+    assert {:ok, _} = Guilds.remove_guild("54321")
+    assert {:error, :not_found} = Guilds.get_tenant_for_guild("54321")
+    assert {:error, :not_found} = Guilds.remove_guild(98_765)
+  end
+
+  test "associate_guild rejects invalid identifiers" do
+    tenant = Tenants.ensure_default_tenant!()
+    assert {:error, :invalid} = Guilds.associate_guild(tenant, :bad)
+  end
 end
