@@ -165,7 +165,6 @@ defmodule SoundboardWeb.Live.FileHandler do
 
   defp broadcast_update(tenant_id) do
     message = {:files_updated, tenant_id}
-    PubSub.broadcast(Soundboard.PubSub, "soundboard", message)
     PubSub.broadcast(Soundboard.PubSub, PubSubTopics.soundboard_topic(tenant_id), message)
   end
 

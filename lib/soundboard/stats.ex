@@ -6,8 +6,6 @@ defmodule Soundboard.Stats do
   alias Phoenix.PubSub
   alias Soundboard.{Accounts.User, PubSubTopics, Repo, Sound, Stats.Play}
 
-  @legacy_pubsub_topic "soundboard"
-
   def track_play(sound_name, %User{} = user) do
     do_track_play(sound_name, user)
   end
@@ -107,8 +105,6 @@ defmodule Soundboard.Stats do
     message = {:stats_updated, tenant_id}
 
     PubSub.broadcast(Soundboard.PubSub, PubSubTopics.stats_topic(tenant_id), message)
-    # Legacy channel for listeners that haven't moved to per-tenant topics yet
-    PubSub.broadcast(Soundboard.PubSub, @legacy_pubsub_topic, message)
   end
 
   def stats_topic(tenant_id) when is_integer(tenant_id) do

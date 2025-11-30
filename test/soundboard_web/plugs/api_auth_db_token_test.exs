@@ -90,7 +90,7 @@ defmodule SoundboardWeb.APIAuthDBTokenTest do
   end
 
   test "POST /api/sounds/stop authorized via DB token", %{conn: conn} do
-    with_mock SoundboardWeb.AudioPlayer, stop_sound: fn -> :ok end do
+    with_mock SoundboardWeb.AudioPlayer, stop_sound: fn _tenant_id -> :ok end do
       conn = post(conn, ~p"/api/sounds/stop")
       assert %{"status" => "success"} = json_response(conn, 200)
     end

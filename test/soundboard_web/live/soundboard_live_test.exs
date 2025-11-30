@@ -4,7 +4,7 @@ defmodule SoundboardWeb.SoundboardLiveTest do
   """
   use SoundboardWeb.ConnCase
   import Phoenix.LiveViewTest
-  alias Soundboard.{Accounts.User, Repo, Sound, Tag}
+  alias Soundboard.{Accounts.User, PubSubTopics, Repo, Sound, Tag}
   alias Soundboard.Accounts.{Tenant, Tenants}
   import Mock
 
@@ -453,7 +453,7 @@ defmodule SoundboardWeb.SoundboardLiveTest do
 
       Phoenix.PubSub.broadcast(
         Soundboard.PubSub,
-        "soundboard",
+        PubSubTopics.soundboard_topic(tenant.id),
         {:files_updated, tenant.id}
       )
 

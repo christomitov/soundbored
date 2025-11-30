@@ -8,7 +8,6 @@ defmodule SoundboardWeb.StatsLive do
   alias SoundboardWeb.Live.TenantHelpers
   require Logger
 
-  @pubsub_topic "soundboard"
   @presence_topic "soundboard:presence"
   @recent_limit 5
 
@@ -21,7 +20,6 @@ defmodule SoundboardWeb.StatsLive do
       :timer.send_interval(60 * 60 * 1000, self(), :check_week_rollover)
       Phoenix.PubSub.subscribe(Soundboard.PubSub, Stats.stats_topic(tenant_id))
       Phoenix.PubSub.subscribe(Soundboard.PubSub, PubSubTopics.soundboard_topic(tenant_id))
-      Phoenix.PubSub.subscribe(Soundboard.PubSub, @pubsub_topic)
     end
 
     current_week = get_week_range()

@@ -46,7 +46,9 @@ defmodule SoundboardWeb.API.SoundController do
   end
 
   def stop(conn, _params) do
-    SoundboardWeb.AudioPlayer.stop_sound()
+    tenant = current_tenant(conn)
+
+    SoundboardWeb.AudioPlayer.stop_sound(tenant.id)
 
     json(conn, %{
       status: "success",

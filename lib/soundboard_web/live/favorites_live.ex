@@ -8,8 +8,6 @@ defmodule SoundboardWeb.FavoritesLive do
   alias SoundboardWeb.Live.TenantHelpers
   require Logger
 
-  @pubsub_topic "soundboard"
-
   @impl true
   def mount(_params, session, socket) do
     current_user = get_user_from_session(session)
@@ -29,7 +27,6 @@ defmodule SoundboardWeb.FavoritesLive do
       if connected?(socket) do
         Phoenix.PubSub.subscribe(Soundboard.PubSub, Stats.stats_topic(tenant.id))
         Phoenix.PubSub.subscribe(Soundboard.PubSub, PubSubTopics.soundboard_topic(tenant.id))
-        Phoenix.PubSub.subscribe(Soundboard.PubSub, @pubsub_topic)
         socket
       else
         socket

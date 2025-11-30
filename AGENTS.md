@@ -51,6 +51,12 @@ Keep this managed block so 'openspec update' can refresh the instructions.
 - PRs: clear description, linked issues, screenshots for UI changes, reproduction steps, and risk/rollback notes.
 - Checks: ensure `mix test`, `mix credo`, and `mix format --check-formatted` pass.
 
+## Issue Tracking (Beads)
+- Issues live in `.beads/issues.jsonl`; use the `bd` CLI (already vendored) to manage them.
+- Common commands: `bd list`, `bd show <id>`, `bd create "Title" --body "details"`, `bd update <id> --status in-progress|done`.
+- Keep IDs in commits/PRs when relevant; prefer brief, actionable titles and a clear definition of done in the body.
+- No extra setup needed locally; bd.sock is already present in the repo.
+
 ## Security & Configuration Tips
 - Secrets via `.env` (see `.env.example`): Discord tokens, API token, `PHX_HOST`, `SCHEME`.
 - Do not commit real secrets; prefer Docker env files in development and deployment.

@@ -85,12 +85,11 @@ defmodule Soundboard.StatsTest do
       tenant_id = user.tenant_id
       stats_topic = Stats.stats_topic(tenant_id)
       Phoenix.PubSub.subscribe(Soundboard.PubSub, stats_topic)
-      Phoenix.PubSub.subscribe(Soundboard.PubSub, "soundboard")
 
       Stats.broadcast_stats_update(tenant_id)
 
       assert_receive {:stats_updated, ^tenant_id}
-      assert_receive {:stats_updated, ^tenant_id}
+      refute_receive {:stats_updated, ^tenant_id}
     end
   end
 

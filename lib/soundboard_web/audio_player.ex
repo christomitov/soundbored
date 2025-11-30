@@ -29,9 +29,9 @@ defmodule SoundboardWeb.AudioPlayer do
     GenServer.cast(__MODULE__, {:play_sound, sound_name, username})
   end
 
-  def stop_sound do
+  def stop_sound(tenant_id \\ nil) do
     Logger.info("Stopping all sounds")
-    GenServer.cast(__MODULE__, :stop_sound)
+    GenServer.cast(__MODULE__, {:stop_sound, tenant_id})
   end
 
   def set_voice_channel(guild_id, channel_id) do
@@ -69,21 +69,25 @@ defmodule SoundboardWeb.AudioPlayer do
     {:noreply, %{state | voice_channel: voice_channel}}
   end
 
-  def handle_cast(:stop_sound, %{voice_channel: {guild_id, _channel_id}} = state) do
+  def handle_cast({:stop_sound, tenant_id}, %{voice_channel: {guild_id, _channel_id}} = state) do
     Logger.info("Stopping all sounds in guild: #{guild_id}")
     Voice.stop(guild_id)
-    broadcast_success("All sounds stopped", "System", nil)
+    broadcast_success("All sounds stopped", "System", tenant_id)
     {:noreply, state}
   end
 
-  def handle_cast(:stop_sound, state) do
+  def handle_cast({:stop_sound, tenant_id}, state) do
     Logger.info("Attempted to stop sounds but no voice channel connected")
-    broadcast_error("Bot is not connected to a voice channel")
+    broadcast_error("Bot is not connected to a voice channel", tenant_id)
     {:noreply, state}
   end
 
-  def handle_cast({:play_sound, _sound_name, _username}, %{voice_channel: nil} = state) do
-    broadcast_error("Bot is not connected to a voice channel. Use !join in Discord first.")
+  def handle_cast({:play_sound, sound_name, _username}, %{voice_channel: nil} = state) do
+    broadcast_error(
+      "Bot is not connected to a voice channel. Use !join in Discord first.",
+      tenant_id_for_sound(sound_name)
+    )
+
     {:noreply, state}
   end
 
@@ -462,15 +466,13 @@ defmodule SoundboardWeb.AudioPlayer do
   end
 
   defp broadcast_to_soundboard_topics(message, tenant_id) do
-    Phoenix.PubSub.broadcast(Soundboard.PubSub, "soundboard", message)
+    tenant_id = tenant_id || Tenants.ensure_default_tenant!().id
 
-    if tenant_id do
-      Phoenix.PubSub.broadcast(
-        Soundboard.PubSub,
-        PubSubTopics.soundboard_topic(tenant_id),
-        message
-      )
-    end
+    Phoenix.PubSub.broadcast(
+      Soundboard.PubSub,
+      PubSubTopics.soundboard_topic(tenant_id),
+      message
+    )
   end
 
   defp clamp_volume(value) when is_number(value) do

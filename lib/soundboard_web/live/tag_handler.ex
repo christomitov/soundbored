@@ -120,7 +120,6 @@ defmodule SoundboardWeb.Live.TagHandler do
     tenant_id = tenant_id_from_socket(socket) || default_tenant_id()
     message = {:files_updated, tenant_id}
 
-    PubSub.broadcast(Soundboard.PubSub, "soundboard", message)
     PubSub.broadcast(Soundboard.PubSub, PubSubTopics.soundboard_topic(tenant_id), message)
   end
 

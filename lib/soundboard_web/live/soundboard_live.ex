@@ -21,7 +21,6 @@ defmodule SoundboardWeb.SoundboardLive do
   import SoundboardWeb.Live.UploadHandler, only: [handle_upload: 3]
 
   @presence_topic "soundboard:presence"
-  @pubsub_topic "soundboard"
 
   @impl true
   def mount(_params, session, socket) do
@@ -43,7 +42,6 @@ defmodule SoundboardWeb.SoundboardLive do
       if connected?(socket) do
         Phoenix.PubSub.subscribe(Soundboard.PubSub, Stats.stats_topic(tenant.id))
         Phoenix.PubSub.subscribe(Soundboard.PubSub, PubSubTopics.soundboard_topic(tenant.id))
-        Phoenix.PubSub.subscribe(Soundboard.PubSub, @pubsub_topic)
         Phoenix.PubSub.subscribe(Soundboard.PubSub, @presence_topic)
         send(self(), :load_sound_files)
         socket
@@ -651,7 +649,7 @@ defmodule SoundboardWeb.SoundboardLive do
 
     # Stop Discord bot sounds if user is logged in
     if socket.assigns.current_user do
-      SoundboardWeb.AudioPlayer.stop_sound()
+      SoundboardWeb.AudioPlayer.stop_sound(socket.assigns.current_tenant_id)
     end
 
     {:noreply, socket}
@@ -821,8 +819,6 @@ defmodule SoundboardWeb.SoundboardLive do
 
   defp broadcast_update(tenant_id) do
     message = {:files_updated, tenant_id}
-
-    Phoenix.PubSub.broadcast(Soundboard.PubSub, @pubsub_topic, message)
 
     Phoenix.PubSub.broadcast(
       Soundboard.PubSub,
