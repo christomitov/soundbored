@@ -1,5 +1,6 @@
 defmodule SoundboardWeb.RouterAuthFlowTest do
-  use SoundboardWeb.ConnCase, async: true
+  # Not async: manipulates global env and basic auth credentials.
+  use SoundboardWeb.ConnCase, async: false
 
   alias Soundboard.Accounts.Tenants
 

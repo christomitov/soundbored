@@ -1,5 +1,6 @@
 defmodule SoundboardWeb.APIAuthLegacyTest do
-  use SoundboardWeb.ConnCase, async: true
+  # Runs sync because it mutates global env/config for edition and API token.
+  use SoundboardWeb.ConnCase, async: false
 
   alias Soundboard.Accounts.Tenants
   alias SoundboardWeb.Plugs.APIAuth
