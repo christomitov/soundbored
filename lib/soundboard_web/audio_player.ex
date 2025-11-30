@@ -331,7 +331,7 @@ defmodule SoundboardWeb.AudioPlayer do
 
       _ ->
         Logger.error("No voice channel info available")
-        broadcast_error("Voice channel not configured")
+        broadcast_error("Voice channel not configured", tenant_id_for_sound(sound_name))
         :error
     end
   end
@@ -461,12 +461,23 @@ defmodule SoundboardWeb.AudioPlayer do
     broadcast_to_soundboard_topics(message, tenant_id)
   end
 
-  defp broadcast_error(message, tenant_id \\ nil) do
+  defp broadcast_error(message, tenant_id) do
     broadcast_to_soundboard_topics({:error, message}, tenant_id)
   end
 
   defp broadcast_to_soundboard_topics(message, tenant_id) do
-    tenant_id = tenant_id || Tenants.ensure_default_tenant!().id
+    tenant_id =
+      case tenant_id do
+        nil ->
+          Logger.warning(
+            "AudioPlayer broadcast missing tenant id, defaulting to default tenant topic"
+          )
+
+          Tenants.ensure_default_tenant!().id
+
+        id ->
+          id
+      end
 
     Phoenix.PubSub.broadcast(
       Soundboard.PubSub,

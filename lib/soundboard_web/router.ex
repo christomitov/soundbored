@@ -33,6 +33,8 @@ defmodule SoundboardWeb.Router do
 
   pipeline :api do
     plug :accepts, ["json"]
+    plug :fetch_session
+    plug SoundboardWeb.Plugs.Tenant
     plug SoundboardWeb.Plugs.APIAuth
   end
 

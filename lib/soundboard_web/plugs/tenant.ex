@@ -13,121 +13,101 @@ defmodule SoundboardWeb.Plugs.Tenant do
   def call(%Plug.Conn{assigns: %{current_tenant: %{} = tenant}} = conn, _opts) do
     conn
     |> assign(:edition, Accounts.edition())
+    |> assign(:tenant_resolution_source, conn.assigns[:tenant_resolution_source] || :preassigned)
+    |> assign(:tenant_resolution_reason, conn.assigns[:tenant_resolution_reason])
     |> maybe_store_tenant_session(tenant)
   end
 
   def call(conn, opts) do
     edition = Accounts.edition()
 
-    tenant =
+    {tenant, source, reason} =
       case edition do
         :pro -> resolve_pro_tenant(conn, opts)
-        _ -> Tenants.ensure_default_tenant!()
+        _ -> {Tenants.ensure_default_tenant!(), :default, nil}
       end
 
     conn
     |> assign(:edition, edition)
     |> assign(:current_tenant, tenant)
+    |> assign(:tenant_resolution_source, source)
+    |> assign(:tenant_resolution_reason, reason)
     |> maybe_store_tenant_session(tenant)
   end
 
   defp resolve_pro_tenant(conn, _opts) do
-    with nil <- slug_from_params(conn),
-         nil <- host_slug(conn),
-         nil <- slug_from_query(conn),
-         nil <- tenant_from_session(conn) do
-      log_and_default(conn, :missing)
-    else
-      %{} = tenant ->
-        tenant
+    case raw_slug_from_params(conn) do
+      nil ->
+        case raw_slug_from_query(conn) do
+          nil -> resolve_session_or_default(conn)
+          slug -> resolve_slug(conn, slug, :query)
+        end
 
       slug ->
-        slug
-        |> normalize_slug()
-        |> lookup_tenant(conn)
+        resolve_slug(conn, slug, :path)
     end
   end
 
-  defp lookup_tenant(nil, conn), do: log_and_default(conn, :invalid_slug)
+  defp resolve_slug(conn, raw_slug, source) do
+    case normalize_slug(raw_slug) do
+      nil ->
+        warn_and_default(conn, {:invalid_slug, raw_slug, source})
 
-  defp lookup_tenant(slug, conn) do
-    case Tenants.get_tenant_by_slug(slug) do
+      slug ->
+        case Tenants.get_tenant_by_slug(slug) do
+          {:ok, tenant} ->
+            {tenant, source, nil}
+
+          {:error, :not_found} ->
+            warn_and_default(conn, {:not_found, slug, source})
+        end
+    end
+  end
+
+  defp resolve_session_or_default(conn) do
+    case tenant_from_session(conn) do
       {:ok, tenant} ->
-        tenant
+        {tenant, :session, nil}
 
-      {:error, :not_found} ->
-        log_and_default(conn, {:not_found, slug})
+      {:error, reason} ->
+        warn_and_default(conn, reason)
     end
   end
 
-  defp slug_from_params(%Plug.Conn{path_params: %Plug.Conn.Unfetched{}}), do: nil
-
-  defp slug_from_params(%Plug.Conn{path_params: params}) when is_map(params) do
-    normalize_slug(params["tenant_slug"] || params["tenant"])
+  defp warn_and_default(_conn, reason) do
+    Logger.warning("Tenant resolution fallback: #{format_reason(reason)}")
+    {Tenants.ensure_default_tenant!(), :default, reason}
   end
 
-  defp slug_from_params(_), do: nil
+  defp raw_slug_from_params(%Plug.Conn{path_params: %Plug.Conn.Unfetched{}}), do: nil
 
-  defp slug_from_query(%Plug.Conn{params: %Plug.Conn.Unfetched{}}), do: nil
-
-  defp slug_from_query(%Plug.Conn{params: %{} = params}) do
-    normalize_slug(params["tenant"])
+  defp raw_slug_from_params(%Plug.Conn{path_params: params}) when is_map(params) do
+    params["tenant_slug"] || params["tenant"]
   end
 
-  defp slug_from_query(_), do: nil
+  defp raw_slug_from_params(_), do: nil
 
-  defp host_slug(%Plug.Conn{host: host}) when is_binary(host) do
-    root_host = endpoint_host()
+  defp raw_slug_from_query(%Plug.Conn{params: %Plug.Conn.Unfetched{}}), do: nil
 
-    candidate =
-      cond do
-        is_nil(root_host) ->
-          host
-
-        host == root_host ->
-          nil
-
-        String.ends_with?(host, "." <> root_host) ->
-          host
-          |> String.replace_suffix("." <> root_host, "")
-
-        true ->
-          host
-      end
-
-    candidate
-    |> take_left_segment()
-    |> normalize_slug()
+  defp raw_slug_from_query(%Plug.Conn{params: %{} = params}) do
+    params["tenant"]
   end
 
-  defp host_slug(_), do: nil
+  defp raw_slug_from_query(_), do: nil
 
   defp tenant_from_session(conn) do
     case get_session(conn, :tenant_id) do
       nil ->
-        nil
+        {:error, :missing}
 
       tenant_id ->
         case Tenants.get_tenant(tenant_id) do
-          {:ok, tenant} -> tenant
-          _ -> nil
+          {:ok, tenant} -> {:ok, tenant}
+          _ -> {:error, {:stale_session, tenant_id}}
         end
     end
   rescue
-    _ -> nil
-  end
-
-  defp log_and_default(conn, reason) do
-    Logger.warning("Tenant resolution fallback: #{inspect(reason)} for host #{conn.host}")
-    Tenants.ensure_default_tenant!()
-  end
-
-  defp take_left_segment(nil), do: nil
-
-  defp take_left_segment(host) do
-    host
-    |> String.split(".")
-    |> List.first()
+    _ -> {:error, :missing}
   end
 
   defp normalize_slug(nil), do: nil
@@ -144,12 +124,20 @@ defmodule SoundboardWeb.Plugs.Tenant do
 
   defp normalize_slug(_), do: nil
 
-  defp endpoint_host do
-    :soundboard
-    |> Application.get_env(SoundboardWeb.Endpoint, [])
-    |> Keyword.get(:url, [])
-    |> Keyword.get(:host)
-  end
+  defp format_reason(:missing),
+    do: "no tenant params or session present; using default tenant"
+
+  defp format_reason({:invalid_slug, raw_slug, source}),
+    do: "invalid #{source} tenant slug #{inspect(raw_slug)}; using default tenant"
+
+  defp format_reason({:not_found, slug, source}),
+    do: "tenant #{slug} not found from #{source}; using default tenant"
+
+  defp format_reason({:stale_session, tenant_id}),
+    do: "session tenant #{inspect(tenant_id)} missing; using default tenant"
+
+  defp format_reason(_reason),
+    do: "falling back to default tenant"
 
   defp maybe_store_tenant_session(conn, tenant) do
     case get_session(conn, :tenant_id) do
