@@ -55,6 +55,10 @@ Useful commands:
 
 `docker compose up` also works for a containerized local run; it respects the same `.env` configuration.
 
+## Pro Edition / SaaS Mode
+
+Running the hosted, multi-tenant Pro build requires a Postgres database, tenant-aware routing, and billing hooks. Follow the dedicated [PRO_README.md](PRO_README.md) runbook for the end-to-end checklist (env vars, tenant provisioning, guild mapping, and billing webhooks).
+
 ## Environment Variables
 
 All available keys live in `.env.example`. Configure the ones that match your setup:
