@@ -19,7 +19,7 @@ defmodule SoundboardWeb.RouterAuthFlowTest do
     :ok
   end
 
-  test "allows community access via basic auth without Discord", %{conn: conn} do
+  test "redirects to Discord after basic auth in community mode", %{conn: conn} do
     System.put_env("BASIC_AUTH_USERNAME", "u")
     System.put_env("BASIC_AUTH_PASSWORD", "p")
 
@@ -30,7 +30,7 @@ defmodule SoundboardWeb.RouterAuthFlowTest do
       |> put_req_header("authorization", header)
       |> get("/")
 
-    assert html_response(conn, 200) =~ "SoundBored"
+    assert redirected_to(conn, 302) =~ "/auth/discord"
   end
 
   test "allows community access via API token without basic auth challenge", %{conn: conn} do

@@ -194,7 +194,9 @@ defmodule SoundboardWeb.Router do
   end
 
   defp community_passthrough?(%Plug.Conn{assigns: %{edition: :community}} = conn) do
-    conn.assigns[:basic_auth_authenticated] || conn.assigns[:api_token]
+    # Only allow bypass when an API token authenticated the request; basic auth alone
+    # should still redirect users to Discord to establish a session.
+    conn.assigns[:api_token]
   end
 
   defp community_passthrough?(_), do: false
