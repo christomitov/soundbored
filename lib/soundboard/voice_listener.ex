@@ -57,11 +57,22 @@ defmodule Soundboard.VoiceListener do
   end
 
   @impl true
+  @impl true
   def handle_cast({:voice_joined, guild_id, channel_id}, state) do
-    Logger.info("VoiceListener: Bot joined voice in guild #{guild_id}, starting listener")
+    Logger.info("VoiceListener: Bot joined voice in guild #{guild_id}, scheduling listener start")
+    # Delay to let voice connection fully establish
+    Process.send_after(self(), {:start_listening, guild_id, channel_id}, 2_000)
+    {:noreply, %{state | guild_id: guild_id, channel_id: channel_id}}
+  end
 
+  @impl true
+  @impl true
+  def handle_info({:start_listening, guild_id, channel_id}, state) do
+    Logger.info("VoiceListener: Attempting to start listening for guild #{guild_id}")
+    
     case Voice.start_listen_async(guild_id) do
       :ok ->
+        Logger.info("VoiceListener: Successfully started listening!")
         schedule_transcription()
         {:noreply, %{state |
           guild_id: guild_id,
@@ -72,12 +83,13 @@ defmodule Soundboard.VoiceListener do
         }}
 
       {:error, reason} ->
-        Logger.error("VoiceListener: Failed to start listening: #{inspect(reason)}")
+        Logger.error("VoiceListener: Failed to start listening: #{inspect(reason)}, retrying in 2s")
+        Process.send_after(self(), {:start_listening, guild_id, channel_id}, 2_000)
         {:noreply, state}
     end
   end
 
-  @impl true
+
   def handle_cast({:voice_left, guild_id}, state) do
     if state.guild_id == guild_id do
       Logger.info("VoiceListener: Bot left voice, stopping listener")
