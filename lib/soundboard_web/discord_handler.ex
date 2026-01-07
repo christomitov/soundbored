@@ -117,7 +117,7 @@ defmodule SoundboardWeb.DiscordHandler do
         SoundboardWeb.AudioPlayer,
         {:set_voice_channel, nil, nil}
       )
-      
+
       # Stop voice listener
       Soundboard.VoiceListener.on_voice_leave(guild_id)
     else
@@ -158,7 +158,7 @@ defmodule SoundboardWeb.DiscordHandler do
         SoundboardWeb.AudioPlayer,
         {:set_voice_channel, guild_id, channel_id}
       )
-      
+
       # Start voice listener for wake word detection
       Soundboard.VoiceListener.on_voice_join(guild_id, channel_id)
     else
