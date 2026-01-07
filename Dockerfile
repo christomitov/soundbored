@@ -4,6 +4,7 @@
 FROM alpine:3.19 AS whisper-build
 
 RUN apk add --no-cache \
+    libsodium \
     git \
     cmake \
     make \
@@ -35,6 +36,8 @@ ENV MIX_ENV=$MIX_ENV \
     LC_CTYPE=C.UTF-8
 
 RUN apk add --no-cache \
+    libsodium \
+    libsodium-dev \
     git \
     make
 
@@ -65,6 +68,7 @@ ENV MIX_ENV=prod \
 
 # Runtime dependencies including whisper.cpp requirements
 RUN apk add --no-cache \
+    libsodium \
     ffmpeg \
     git \
     libstdc++ \
