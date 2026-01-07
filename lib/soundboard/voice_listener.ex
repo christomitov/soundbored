@@ -68,7 +68,7 @@ defmodule Soundboard.VoiceListener do
   def handle_cast({:voice_left, guild_id}, state) do
     if state.guild_id == guild_id do
       Logger.info("VoiceListener: Bot left voice, stopping listener")
-      Voice.stop_listen(guild_id)
+      # Voice listening stops automatically when leaving channel
       {:noreply, %{state | listening: false, guild_id: nil, channel_id: nil}}
     else
       {:noreply, state}

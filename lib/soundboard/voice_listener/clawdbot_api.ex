@@ -1,25 +1,19 @@
 defmodule Soundboard.VoiceListener.ClawdbotAPI do
   @moduledoc """
-  Handles communication with Clawdbot for processing voice queries.
-  
-  When a wake word is detected, this module sends the query and context
-  to Clawdbot's API and plays the response via ElevenLabs TTS.
+  Handles communication with Clawdbot for processing voice queries
+  and plays responses via ElevenLabs TTS.
   """
   require Logger
   
-  alias SoundboardWeb.AudioPlayer
+  alias Nostrum.Voice
   
   @elevenlabs_api_url "https://api.elevenlabs.io/v1/text-to-speech"
   @clawdbot_timeout 60_000
   
-  @doc """
-  Processes a voice query by sending it to Clawdbot and playing the response.
-  """
   def process_query(query, context, guild_id) do
     Logger.info("Processing voice query: #{query}")
     
     clawdbot_url = Application.get_env(:soundboard, :clawdbot_api_url)
-    clawdbot_token = Application.get_env(:soundboard, :clawdbot_api_token)
     
     if is_nil(clawdbot_url) do
       Logger.warning("Clawdbot API URL not configured")
@@ -27,7 +21,7 @@ defmodule Soundboard.VoiceListener.ClawdbotAPI do
     else
       prompt = build_prompt(query, context)
       
-      case send_to_clawdbot(prompt, clawdbot_url, clawdbot_token) do
+      case send_to_clawdbot(prompt, clawdbot_url) do
         {:ok, response} ->
           Logger.info("Got Clawdbot response: #{String.slice(response, 0, 100)}...")
           speak_response(response, guild_id)
@@ -51,27 +45,24 @@ defmodule Soundboard.VoiceListener.ClawdbotAPI do
     """
   end
   
-  defp send_to_clawdbot(prompt, url, token) do
+  defp send_to_clawdbot(prompt, url) do
+    token = Application.get_env(:soundboard, :clawdbot_api_token)
+    
     headers = [
       {"Content-Type", "application/json"},
       {"Authorization", "Bearer #{token}"}
     ]
     
-    body = Jason.encode!(%{
-      message: prompt,
-      provider: "voice"
-    })
+    body = Jason.encode!(%{message: prompt, provider: "voice"})
     
     case HTTPoison.post(url, body, headers, recv_timeout: @clawdbot_timeout) do
       {:ok, %{status_code: 200, body: resp_body}} ->
         case Jason.decode(resp_body) do
           {:ok, %{"response" => response}} -> {:ok, response}
           {:ok, %{"message" => response}} -> {:ok, response}
-          {:ok, data} -> {:ok, inspect(data)}
           _ -> {:error, :invalid_response}
         end
-      {:ok, %{status_code: code, body: body}} ->
-        Logger.warning("Clawdbot API error (#{code}): #{body}")
+      {:ok, %{status_code: code}} ->
         {:error, {:api_error, code}}
       {:error, reason} ->
         {:error, reason}
@@ -96,19 +87,27 @@ defmodule Soundboard.VoiceListener.ClawdbotAPI do
       body = Jason.encode!(%{
         text: text,
         model_id: "eleven_monolingual_v1",
-        voice_settings: %{
-          stability: 0.5,
-          similarity_boost: 0.75
-        }
+        voice_settings: %{stability: 0.5, similarity_boost: 0.75}
       })
       
       case HTTPoison.post(url, body, headers, recv_timeout: 30_000) do
         {:ok, %{status_code: 200, body: audio_data}} ->
-          # Play audio through AudioPlayer
-          AudioPlayer.play_audio_data(audio_data, "audio/mpeg")
+          # Write to temp file for Nostrum to play
+          tmp_file = "/tmp/clawd_response_#{:erlang.unique_integer([:positive])}.mp3"
+          File.write!(tmp_file, audio_data)
+          
+          # Play via Nostrum Voice
+          Voice.play(guild_id, tmp_file, :url)
+          
+          # Clean up after playback (give it time to finish)
+          Task.start(fn ->
+            Process.sleep(30_000)
+            File.rm(tmp_file)
+          end)
+          
           :ok
-        {:ok, %{status_code: code, body: body}} ->
-          Logger.warning("ElevenLabs API error (#{code}): #{body}")
+        {:ok, %{status_code: code}} ->
+          Logger.warning("ElevenLabs API error: #{code}")
           {:error, {:tts_error, code}}
         {:error, reason} ->
           {:error, reason}

@@ -72,7 +72,7 @@ defmodule SoundboardWeb.Router do
   end
 
   # Add this new scope for API routes before your other scopes
-  scope "/api", SoundboardWeb.Api do
+  scope "/api", SoundboardWeb.API do
     pipe_through :api
 
     get "/sounds", SoundController, :index
