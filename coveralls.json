@@ -15,6 +15,9 @@
     "lib/soundboard/repo.ex",
     "lib/soundboard/application.ex",
     "lib/soundboard_web.ex",
+    "lib/soundboard/voice_listener.ex",
+    "lib/soundboard/voice_listener/",
+    "lib/soundboard/release.ex",
     "test"
   ]
 }
