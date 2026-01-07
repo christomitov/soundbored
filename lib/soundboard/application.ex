@@ -34,7 +34,7 @@ defmodule Soundboard.Application do
           name: SoundboardBot,
           consumer: SoundboardWeb.DiscordHandler,
           intents: [:guilds, :guild_messages, :guild_voice_states, :message_content],
-          voice_encryption_mode: :aead_xchacha20_poly1305_rtpsize,
+          voice_encryption_mode: :xsalsa20_poly1305_lite,
           wrapped_token: fn -> Application.fetch_env!(:soundboard, :discord_token) end
         }
 
