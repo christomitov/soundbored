@@ -79,10 +79,6 @@ defmodule SoundboardWeb.Router do
     post "/sounds/:id/play", SoundController, :play
     post "/sounds/stop", SoundController, :stop
     
-    # Voice Listener API
-    get "/voice-listener/status", VoiceListenerController, :status
-    post "/voice-listener/start", VoiceListenerController, :start
-    post "/voice-listener/stop", VoiceListenerController, :stop
   end
 
   def fetch_current_user(conn, _) do
