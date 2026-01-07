@@ -56,20 +56,28 @@ defmodule Soundboard.VoiceListener do
     {:ok, %__MODULE__{}}
   end
 
-  @impl true
+  # All handle_cast clauses grouped together
   @impl true
   def handle_cast({:voice_joined, guild_id, channel_id}, state) do
     Logger.info("VoiceListener: Bot joined voice in guild #{guild_id}, scheduling listener start")
-    # Delay to let voice connection fully establish
     Process.send_after(self(), {:start_listening, guild_id, channel_id}, 2_000)
     {:noreply, %{state | guild_id: guild_id, channel_id: channel_id}}
   end
 
-  @impl true
+  def handle_cast({:voice_left, guild_id}, state) do
+    if state.guild_id == guild_id do
+      Logger.info("VoiceListener: Bot left voice, stopping listener")
+      {:noreply, %{state | listening: false, guild_id: nil, channel_id: nil}}
+    else
+      {:noreply, state}
+    end
+  end
+
+  # All handle_info clauses grouped together
   @impl true
   def handle_info({:start_listening, guild_id, channel_id}, state) do
     Logger.info("VoiceListener: Attempting to start listening for guild #{guild_id}")
-    
+
     case Voice.start_listen_async(guild_id) do
       :ok ->
         Logger.info("VoiceListener: Successfully started listening!")
@@ -89,29 +97,17 @@ defmodule Soundboard.VoiceListener do
     end
   end
 
-
-  def handle_cast({:voice_left, guild_id}, state) do
-    if state.guild_id == guild_id do
-      Logger.info("VoiceListener: Bot left voice, stopping listener")
-      # Voice listening stops automatically when leaving channel
-      {:noreply, %{state | listening: false, guild_id: nil, channel_id: nil}}
-    else
-      {:noreply, state}
-    end
-  end
-
-  @impl true
   def handle_info({:voice_incoming, _guild_id, user_id, audio_data}, state) do
     timestamp = System.monotonic_time(:millisecond)
     chunk = %{user_id: user_id, data: audio_data, timestamp: timestamp}
 
-    new_buffer = [chunk | state.audio_buffer]
-    |> Enum.filter(& timestamp - &1.timestamp < @buffer_duration_ms)
+    new_buffer =
+      [chunk | state.audio_buffer]
+      |> Enum.filter(&(timestamp - &1.timestamp < @buffer_duration_ms))
 
     {:noreply, %{state | audio_buffer: new_buffer}}
   end
 
-  @impl true
   def handle_info(:transcribe, state) do
     if state.listening and length(state.audio_buffer) > 0 do
       Task.start(fn -> process_audio(state.audio_buffer, state.guild_id) end)
@@ -121,16 +117,16 @@ defmodule Soundboard.VoiceListener do
     {:noreply, state}
   end
 
-  @impl true
   def handle_info({:transcription_result, text}, state) do
     Logger.debug("VoiceListener: Transcribed: #{text}")
 
     timestamp = System.monotonic_time(:millisecond)
     entry = %{text: text, timestamp: timestamp}
 
-    new_text_buffer = [entry | state.text_buffer]
-    |> Enum.filter(& timestamp - &1.timestamp < @buffer_duration_ms)
-    |> Enum.take(50)
+    new_text_buffer =
+      [entry | state.text_buffer]
+      |> Enum.filter(&(timestamp - &1.timestamp < @buffer_duration_ms))
+      |> Enum.take(50)
 
     if contains_wake_word?(text) do
       Logger.info("VoiceListener: Wake word detected!")
@@ -140,6 +136,8 @@ defmodule Soundboard.VoiceListener do
 
     {:noreply, %{state | text_buffer: new_text_buffer}}
   end
+
+  # Private functions
 
   defp schedule_transcription do
     Process.send_after(self(), :transcribe, @transcribe_interval_ms)
