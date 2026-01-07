@@ -29,9 +29,18 @@ defmodule SoundboardWeb.AudioPlayer do
     GenServer.cast(__MODULE__, {:play_sound, sound_name, username})
   end
 
+  @doc """
+  Play audio directly from a file path or URL.
+  """
+  def play_url(path_or_url, volume \\ 1.0, username \\ "API User") do
+    Logger.info("Received play_url request for: #{path_or_url} from #{username}")
+    GenServer.cast(__MODULE__, {:play_url, path_or_url, volume, username})
+  end
+
   def stop_sound(tenant_id \\ nil) do
     Logger.info("Stopping all sounds")
     GenServer.cast(__MODULE__, {:stop_sound, tenant_id})
+  end
   end
 
   def set_voice_channel(guild_id, channel_id) do
@@ -108,6 +117,36 @@ defmodule SoundboardWeb.AudioPlayer do
     )
 
     {:noreply, state}
+  end
+
+  def handle_cast({:play_url, _path, _volume, _username}, %{voice_channel: nil} = state) do
+    broadcast_error("Bot is not connected to a voice channel. Use !join in Discord first.")
+    {:noreply, state}
+  end
+
+  def handle_cast(
+        {:play_url, path_or_url, volume, username},
+        %{voice_channel: {guild_id, channel_id}} = state
+      ) do
+    task =
+      Task.async(fn ->
+        if Voice.playing?(guild_id), do: Voice.stop(guild_id)
+
+        if ensure_voice_ready(guild_id, channel_id) do
+          case Voice.play(guild_id, path_or_url, :url, volume: clamp_volume(volume), realtime: false) do
+            :ok ->
+              Logger.info("Playing streamed audio from: #{path_or_url}")
+              broadcast_success("streamed_audio", username)
+            {:error, reason} ->
+              Logger.error("Failed to play streamed audio: #{inspect(reason)}")
+              broadcast_error("Failed to play audio: #{reason}")
+          end
+        else
+          broadcast_error("Failed to connect to voice channel")
+        end
+      end)
+
+    {:noreply, %{state | current_playback: task}}
   end
 
   def handle_cast(
