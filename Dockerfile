@@ -37,7 +37,7 @@ RUN apk add --no-cache \
     make
 
 WORKDIR /app
-COPY --exclude=entrypoint.sh . .
+COPY . .
 
 # Install hex and rebar and get dependencies
 RUN mkdir -p /app/.mix /app/.hex && \
