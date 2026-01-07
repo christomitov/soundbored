@@ -18,7 +18,8 @@ RUN git clone --depth 1 https://github.com/ggerganov/whisper.cpp.git . && \
     cmake --build build --config Release -j$(nproc)
 
 # Download the base.en model (small and fast for English)
-RUN ./models/download-ggml-model.sh base.en
+RUN apk add --no-cache curl && \
+    curl -L -o models/ggml-base.en.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin
 
 # Elixir build stage
 FROM elixir:1.19-alpine AS build
