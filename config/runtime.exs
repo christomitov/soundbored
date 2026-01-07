@@ -157,5 +157,9 @@ config :soundboard,
   clawdbot_api_token: System.get_env("CLAWDBOT_API_TOKEN"),
   
   # ElevenLabs TTS for voice responses
-  elevenlabs_api_key: System.get_env("ELEVENLABS_API_KEY"),
-  elevenlabs_voice_id: System.get_env("ELEVENLABS_VOICE_ID")
+
+# Voice Listener - Clawdbot integration
+# Clawdbot handles TTS and playback via its own ElevenLabs integration
+config :soundboard,
+  clawdbot_api_url: System.get_env("CLAWDBOT_API_URL"),
+  clawdbot_api_token: System.get_env("CLAWDBOT_API_TOKEN")
