@@ -41,7 +41,6 @@ defmodule SoundboardWeb.AudioPlayer do
     Logger.info("Stopping all sounds")
     GenServer.cast(__MODULE__, {:stop_sound, tenant_id})
   end
-  end
 
   def set_voice_channel(guild_id, channel_id) do
     Logger.info("Setting voice channel - Guild: #{guild_id}, Channel: #{channel_id}")
