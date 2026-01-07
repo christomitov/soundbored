@@ -15,7 +15,8 @@ WORKDIR /whisper
 # Clone and build whisper.cpp
 RUN git clone --depth 1 https://github.com/ggerganov/whisper.cpp.git . && \
     cmake -B build && \
-    cmake --build build --config Release -j$(nproc)
+    cmake --build build --config Release -j$(nproc) && \
+    cp build/bin/main /whisper/whisper-cli
 
 # Download the base.en model (small and fast for English)
 RUN apk add --no-cache curl && \
@@ -72,7 +73,7 @@ RUN apk add --no-cache \
 WORKDIR /app
 
 # Copy whisper.cpp binary and model from build stage
-COPY --from=whisper-build /whisper/build/bin/whisper /usr/local/bin/whisper
+COPY --from=whisper-build /whisper/whisper-cli /usr/local/bin/whisper
 COPY --from=whisper-build /whisper/models/ggml-base.en.bin /usr/local/share/whisper/ggml-base.en.bin
 
 # Copy Elixir app
