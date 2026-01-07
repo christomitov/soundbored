@@ -22,7 +22,8 @@ defmodule Soundboard.Application do
       SoundboardWeb.Endpoint,
       {SoundboardWeb.AudioPlayer, []},
       Soundboard.Repo,
-      SoundboardWeb.DiscordHandler.State
+      SoundboardWeb.DiscordHandler.State,
+      {Soundboard.VoiceListener, []}
     ]
 
     # Add Discord bot only in non-test environments

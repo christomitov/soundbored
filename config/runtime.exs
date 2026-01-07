@@ -144,3 +144,18 @@ if config_env() == :prod and is_nil(System.get_env("SKIP_RUNTIME_CONFIG")) do
 
   config :soundboard, :env, :prod
 end
+
+# Voice Listener Configuration (whisper.cpp local)
+config :soundboard,
+  # Local whisper.cpp configuration
+  whisper_bin: System.get_env("WHISPER_BIN", "/usr/local/bin/whisper"),
+  whisper_model: System.get_env("WHISPER_MODEL", "base.en"),
+  whisper_models_dir: System.get_env("WHISPER_MODELS_DIR", "/usr/local/share/whisper"),
+  
+  # Clawdbot API for processing voice queries
+  clawdbot_api_url: System.get_env("CLAWDBOT_API_URL"),
+  clawdbot_api_token: System.get_env("CLAWDBOT_API_TOKEN"),
+  
+  # ElevenLabs TTS for voice responses
+  elevenlabs_api_key: System.get_env("ELEVENLABS_API_KEY"),
+  elevenlabs_voice_id: System.get_env("ELEVENLABS_VOICE_ID")

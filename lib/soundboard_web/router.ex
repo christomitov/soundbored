@@ -72,12 +72,17 @@ defmodule SoundboardWeb.Router do
   end
 
   # Add this new scope for API routes before your other scopes
-  scope "/api", SoundboardWeb.API do
+  scope "/api", SoundboardWeb.Api do
     pipe_through :api
 
     get "/sounds", SoundController, :index
     post "/sounds/:id/play", SoundController, :play
     post "/sounds/stop", SoundController, :stop
+    
+    # Voice Listener API
+    get "/voice-listener/status", VoiceListenerController, :status
+    post "/voice-listener/start", VoiceListenerController, :start
+    post "/voice-listener/stop", VoiceListenerController, :stop
   end
 
   def fetch_current_user(conn, _) do
