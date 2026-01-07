@@ -12,7 +12,18 @@ defmodule Soundboard.VoiceListener do
   alias Soundboard.VoiceListener.ClawdbotAPI
   alias Soundboard.VoiceListener.Transcriber
 
-  @wake_words ["clawd", "clawdbot", "soundbored"]
+  @wake_words [
+    # Primary wake words
+    "clawd", "clawdbot", "soundbored",
+    # Phonetic variations of "clawd"
+    "cloud", "clod", "clawed", "claude", "claw", "claud",
+    # Phonetic variations of "clawdbot"
+    "cloudbot", "clodbot", "claudbot", "claw bot", "cloud bot",
+    # Phonetic variations of "soundbored"
+    "sound bored", "soundboard", "sound board", "sound bot",
+    # Common mishearings
+    "hey clawd", "hey cloud", "hey claude", "ok clawd", "okay clawd"
+  ]
   @buffer_duration_ms 60_000
   @transcribe_interval_ms 3_000
 
