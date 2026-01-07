@@ -120,7 +120,7 @@ defmodule SoundboardWeb.AudioPlayer do
   end
 
   def handle_cast({:play_url, _path, _volume, _username}, %{voice_channel: nil} = state) do
-    broadcast_error("Bot is not connected to a voice channel. Use !join in Discord first.")
+    broadcast_error("Bot is not connected to a voice channel. Use !join in Discord first.", nil)
     {:noreply, state}
   end
 
@@ -139,10 +139,10 @@ defmodule SoundboardWeb.AudioPlayer do
               broadcast_success("streamed_audio", username)
             {:error, reason} ->
               Logger.error("Failed to play streamed audio: #{inspect(reason)}")
-              broadcast_error("Failed to play audio: #{reason}")
+              broadcast_error("Failed to play audio: #{reason}", nil)
           end
         else
-          broadcast_error("Failed to connect to voice channel")
+          broadcast_error("Failed to connect to voice channel", nil)
         end
       end)
 
