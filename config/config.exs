@@ -7,6 +7,10 @@
 # General application configuration
 import Config
 
+# Default repo adapter can be overridden per-environment (e.g., prod) to
+# compile against Postgres when building the Pro edition.
+config :soundboard, :repo_adapter, Ecto.Adapters.SQLite3
+
 # config :soundboard,
 #   ecto_repos: [Soundboard.Repo],
 #   generators: [timestamp_type: :utc_datetime],
@@ -65,7 +69,13 @@ config :mime, :types, %{
   "audio/mpeg" => ["mp3"],
   "audio/ogg" => ["ogg"],
   "audio/wav" => ["wav"],
+  "audio/x-wav" => ["wav"],
+  "audio/wave" => ["wav"],
   "audio/x-m4a" => ["m4a"]
+}
+
+config :mime, :extensions, %{
+  "wav" => "audio/wav"
 }
 
 # Import environment specific config. This must remain at the bottom

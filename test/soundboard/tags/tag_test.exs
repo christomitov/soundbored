@@ -3,27 +3,27 @@ defmodule Soundboard.Tags.TagTest do
   Tests the Tag module.
   """
   use Soundboard.DataCase
-  alias Soundboard.Accounts.User
+  alias Soundboard.Accounts.{Tenants, User}
   alias Soundboard.{Repo, Sound, Tag}
 
   import Ecto.Changeset
 
   describe "tag validation" do
     test "requires name" do
-      changeset = Tag.changeset(%Tag{}, %{})
+      changeset = Tag.changeset(%Tag{}, %{tenant_id: default_tenant_id()})
       assert %{name: ["can't be blank"]} = errors_on(changeset)
     end
 
     test "enforces unique names" do
       {:ok, _tag} =
-        %Tag{name: "test"}
-        |> Tag.changeset(%{})
+        %Tag{}
+        |> Tag.changeset(%{name: "test", tenant_id: default_tenant_id()})
         |> unique_constraint(:name)
         |> Repo.insert()
 
       {:error, changeset} =
-        %Tag{name: "test"}
-        |> Tag.changeset(%{})
+        %Tag{}
+        |> Tag.changeset(%{name: "test", tenant_id: default_tenant_id()})
         |> unique_constraint(:name)
         |> Repo.insert()
 
@@ -35,7 +35,12 @@ defmodule Soundboard.Tags.TagTest do
     setup do
       user = insert_user()
       {:ok, sound} = insert_sound(user)
-      {:ok, tag} = %Tag{name: "test_tag"} |> Tag.changeset(%{}) |> Repo.insert()
+
+      {:ok, tag} =
+        %Tag{}
+        |> Tag.changeset(%{name: "test_tag", tenant_id: default_tenant_id()})
+        |> Repo.insert()
+
       %{sound: sound, tag: tag}
     end
 
@@ -44,8 +49,8 @@ defmodule Soundboard.Tags.TagTest do
 
       # Insert directly into join table with timestamps
       Repo.query!(
-        "INSERT INTO sound_tags (sound_id, tag_id, inserted_at, updated_at) VALUES (?, ?, ?, ?)",
-        [sound.id, tag.id, now, now]
+        "INSERT INTO sound_tags (sound_id, tag_id, tenant_id, inserted_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+        [sound.id, tag.id, sound.tenant_id, now, now]
       )
 
       updated_sound = Repo.preload(sound, :tags)
@@ -55,20 +60,34 @@ defmodule Soundboard.Tags.TagTest do
 
   describe "tag search" do
     setup do
-      {:ok, _} = Repo.insert(%Tag{name: "test"})
-      {:ok, _} = Repo.insert(%Tag{name: "testing"})
-      {:ok, _} = Repo.insert(%Tag{name: "other"})
+      tenant_id = default_tenant_id()
+
+      {:ok, _} =
+        %Tag{}
+        |> Tag.changeset(%{name: "test", tenant_id: tenant_id})
+        |> Repo.insert()
+
+      {:ok, _} =
+        %Tag{}
+        |> Tag.changeset(%{name: "testing", tenant_id: tenant_id})
+        |> Repo.insert()
+
+      {:ok, _} =
+        %Tag{}
+        |> Tag.changeset(%{name: "other", tenant_id: tenant_id})
+        |> Repo.insert()
+
       :ok
     end
 
     test "finds tags by partial name match" do
-      results = Tag.search("test") |> Repo.all()
+      results = Tag.search("test", default_tenant_id()) |> Repo.all()
       assert length(results) == 2
       assert Enum.map(results, & &1.name) |> Enum.sort() == ["test", "testing"]
     end
 
     test "search is case insensitive" do
-      results = Tag.search("TEST") |> Repo.all()
+      results = Tag.search("TEST", default_tenant_id()) |> Repo.all()
       assert length(results) == 2
       assert Enum.map(results, & &1.name) |> Enum.sort() == ["test", "testing"]
     end
@@ -76,12 +95,15 @@ defmodule Soundboard.Tags.TagTest do
 
   # Helper functions
   defp insert_user do
+    tenant = Tenants.ensure_default_tenant!()
+
     {:ok, user} =
       %Soundboard.Accounts.User{}
       |> User.changeset(%{
         username: "test_user",
         discord_id: "123456",
-        avatar: "test.jpg"
+        avatar: "test.jpg",
+        tenant_id: tenant.id
       })
       |> Repo.insert()
 
@@ -93,8 +115,13 @@ defmodule Soundboard.Tags.TagTest do
     |> Sound.changeset(%{
       filename: "test_sound.mp3",
       source_type: "local",
-      user_id: user.id
+      user_id: user.id,
+      tenant_id: user.tenant_id
     })
     |> Repo.insert()
+  end
+
+  defp default_tenant_id do
+    Tenants.ensure_default_tenant!().id
   end
 end

@@ -119,6 +119,7 @@ defmodule Soundboard.MixProject do
       "ecto.setup": ["ecto.create", "ecto.migrate"],
       "ecto.reset": ["ecto.drop", "ecto.setup"],
       test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
+      precommit: ["format", "credo --strict", "test"],
       "assets.setup": ["tailwind.install --if-missing", "esbuild.install --if-missing"],
       "assets.build": ["tailwind soundboard", "esbuild soundboard"],
       "assets.deploy": [
@@ -132,6 +133,7 @@ defmodule Soundboard.MixProject do
   def cli do
     [
       preferred_envs: [
+        precommit: :test,
         coveralls: :test,
         "coveralls.detail": :test,
         "coveralls.post": :test,

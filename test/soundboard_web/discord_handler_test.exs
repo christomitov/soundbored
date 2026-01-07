@@ -3,9 +3,20 @@ defmodule SoundboardWeb.DiscordHandlerTest do
   Tests the DiscordHandler module.
   """
   use Soundboard.DataCase
+  alias Soundboard.Accounts.{Guilds, Tenant, Tenants, User}
   alias SoundboardWeb.DiscordHandler
   import Mock
   import ExUnit.CaptureLog
+
+  setup do
+    original = Application.get_env(:soundboard, :edition, :community)
+
+    on_exit(fn ->
+      Application.put_env(:soundboard, :edition, original)
+    end)
+
+    :ok
+  end
 
   describe "handle_event/1" do
     test "handles voice state updates" do
@@ -47,6 +58,9 @@ defmodule SoundboardWeb.DiscordHandlerTest do
             session_id: "abc"
           }
 
+          tenant = Tenants.ensure_default_tenant!()
+          {:ok, _} = Guilds.associate_guild(tenant, payload.guild_id)
+
           # Call the handle_event function directly since it's a callback, not a GenServer
           DiscordHandler.handle_event({:VOICE_STATE_UPDATE, payload, nil})
 
@@ -54,6 +68,138 @@ defmodule SoundboardWeb.DiscordHandlerTest do
           assert_called(Nostrum.Voice.join_channel("456", "123"))
         end
       end)
+    end
+
+    test "voice state updates are ignored when guild mapping is missing" do
+      payload = %{
+        channel_id: "123",
+        guild_id: "missing",
+        user_id: "789",
+        session_id: "abc"
+      }
+
+      log =
+        with_mock Nostrum.Api.Self, [], get: fn -> {:ok, %{id: "bot"}} end do
+          capture_log(fn ->
+            DiscordHandler.handle_event({:VOICE_STATE_UPDATE, payload, nil})
+          end)
+        end
+
+      assert log =~ "Missing guild mapping"
+    end
+
+    test "ready event marks the bot as ready" do
+      DiscordHandler.handle_event({:READY, %{}, nil})
+      assert :persistent_term.get(:soundboard_bot_ready)
+      :persistent_term.erase(:soundboard_bot_ready)
+    end
+
+    test "message create handles join and leave commands without hitting Discord" do
+      :persistent_term.put(:soundboard_bot_ready, true)
+
+      with_mocks([
+        {Nostrum.Api.Self, [], [get: fn -> {:ok, %{id: 999}} end]},
+        {Nostrum.Cache.GuildCache, [],
+         [
+           get!: fn _guild_id ->
+             %{
+               id: 1,
+               voice_states: [%{user_id: 42, channel_id: 321}]
+             }
+           end
+         ]},
+        {Nostrum.Voice, [],
+         [
+           join_channel: fn guild_id, channel_id ->
+             send(self(), {:joined, guild_id, channel_id})
+             :ok
+           end,
+           leave_channel: fn guild_id ->
+             send(self(), {:left, guild_id})
+             :ok
+           end
+         ]},
+        {Nostrum.Api.Message, [], [create: fn _channel_id, _content -> :ok end]}
+      ]) do
+        join_msg = %{content: "!join", guild_id: 1, channel_id: 999, author: %{id: 42}}
+        DiscordHandler.handle_event({:MESSAGE_CREATE, join_msg, nil})
+
+        assert_received {:joined, 1, 321}
+
+        leave_msg = %{content: "!leave", guild_id: 1, channel_id: 999, author: %{id: 42}}
+        DiscordHandler.handle_event({:MESSAGE_CREATE, leave_msg, nil})
+
+        assert_received {:left, 1}
+      end
+
+      :persistent_term.erase(:soundboard_bot_ready)
+    end
+  end
+
+  describe "guild lifecycle" do
+    test "community edition associates guilds with the default tenant" do
+      Application.put_env(:soundboard, :edition, :community)
+      tenant = Tenants.ensure_default_tenant!()
+
+      DiscordHandler.handle_event({:GUILD_CREATE, %{id: 123, owner_id: 999}, nil})
+
+      assert {:ok, mapped} = Guilds.get_tenant_for_guild("123")
+      assert mapped.id == tenant.id
+    end
+
+    test "pro edition associates guild using owner tenant" do
+      Application.put_env(:soundboard, :edition, :pro)
+
+      {:ok, tenant} =
+        %Tenant{}
+        |> Tenant.changeset(%{
+          name: "Pro Tenant",
+          slug: "pro-tenant-#{System.unique_integer([:positive])}",
+          plan: :pro
+        })
+        |> Repo.insert()
+
+      owner_id = Integer.to_string(System.unique_integer([:positive]))
+
+      {:ok, _user} =
+        %User{}
+        |> User.changeset(%{
+          discord_id: owner_id,
+          username: "owner",
+          avatar: "owner.jpg",
+          tenant_id: tenant.id
+        })
+        |> Repo.insert()
+
+      DiscordHandler.handle_event({
+        :GUILD_CREATE,
+        %{id: 456, owner_id: String.to_integer(owner_id)},
+        nil
+      })
+
+      assert {:ok, mapped} = Guilds.get_tenant_for_guild("456")
+      assert mapped.id == tenant.id
+    end
+
+    test "pro edition logs when owner tenant cannot be resolved" do
+      Application.put_env(:soundboard, :edition, :pro)
+
+      log =
+        capture_log(fn ->
+          DiscordHandler.handle_event({:GUILD_CREATE, %{id: 789, owner_id: 111}, nil})
+        end)
+
+      assert log =~ "owner"
+      assert {:error, :not_found} = Guilds.get_tenant_for_guild("789")
+    end
+
+    test "guild delete removes mapping" do
+      tenant = Tenants.ensure_default_tenant!()
+      {:ok, _} = Guilds.associate_guild(tenant, "999")
+
+      DiscordHandler.handle_event({:GUILD_DELETE, %{id: "999"}, nil})
+
+      assert {:error, :not_found} = Guilds.get_tenant_for_guild("999")
     end
   end
 end

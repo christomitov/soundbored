@@ -14,11 +14,16 @@ config :swoosh, local: false
 # Configure Swoosh API Client
 config :swoosh, api_client: Swoosh.ApiClient.Finch, finch_name: Soundboard.Finch
 
-config :soundboard, Soundboard.Repo,
-  database: "/app/priv/static/uploads/soundboard_prod.db",
-  pool_size: 5,
-  stacktrace: true,
-  show_sensitive_data_on_connection_error: true
+# Choose the compile-time adapter for the Repo when building production
+# releases. Default to SQLite unless SOUNDBORED_DB explicitly asks for
+# Postgres ("pro" edition).
+repo_adapter =
+  case String.downcase(System.get_env("SOUNDBORED_DB", "sqlite")) do
+    choice when choice in ["pro", "postgres", "pg", "postgresql"] -> Ecto.Adapters.Postgres
+    _ -> Ecto.Adapters.SQLite3
+  end
+
+config :soundboard, :repo_adapter, repo_adapter
 
 # Ensure the uploads directory exists
 config :soundboard,

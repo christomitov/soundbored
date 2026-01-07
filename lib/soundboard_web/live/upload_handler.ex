@@ -2,11 +2,16 @@ defmodule SoundboardWeb.Live.UploadHandler do
   @moduledoc """
   Handles the upload of sounds from a local file or a URL.
   """
+  alias Soundboard.Accounts
+  alias Soundboard.Accounts.Tenants
   alias SoundboardWeb.Live.FileHandler
   alias Soundboard.{Repo, Sound, Volume}
   import Ecto.Query
   import Ecto.Changeset
   require Logger
+
+  @limit_error "Sound limit reached for your plan. Consider upgrading or deleting older uploads"
+  @tenant_error "Unable to determine tenant for upload"
 
   def validate_upload(socket, params) do
     params =
@@ -33,7 +38,7 @@ defmodule SoundboardWeb.Live.UploadHandler do
   defp blank?(value), do: value in [nil, ""]
 
   defp validate_url_upload(socket, name, url) do
-    user_id = socket.assigns.current_user.id
+    %{id: user_id, tenant_id: tenant_id} = socket.assigns.current_user
 
     safe_name = name || ""
 
@@ -43,7 +48,8 @@ defmodule SoundboardWeb.Live.UploadHandler do
         filename: safe_name <> url_file_extension(url),
         url: url,
         source_type: "url",
-        user_id: user_id
+        user_id: user_id,
+        tenant_id: tenant_id
       })
       |> validate_name_unique()
 
@@ -63,7 +69,7 @@ defmodule SoundboardWeb.Live.UploadHandler do
         end
 
       {_, ""} ->
-        if name_conflicts_across_exts?(name) do
+        if name_conflicts_across_exts?(name, socket.assigns.current_user.tenant_id) do
           {:error, add_error(%Ecto.Changeset{}, :filename, "has already been taken")}
         else
           {:ok, socket}
@@ -74,7 +80,8 @@ defmodule SoundboardWeb.Live.UploadHandler do
           %Sound{}
           |> Sound.changeset(%{
             filename: name <> ext,
-            user_id: socket.assigns.current_user.id
+            user_id: socket.assigns.current_user.id,
+            tenant_id: socket.assigns.current_user.tenant_id
           })
           |> validate_name_unique()
 
@@ -86,28 +93,38 @@ defmodule SoundboardWeb.Live.UploadHandler do
     end
   end
 
-  defp name_conflicts_across_exts?(base) do
+  defp name_conflicts_across_exts?(base, tenant_id) do
     exts = [".mp3", ".wav", ".ogg", ".m4a"]
     names = Enum.map(exts, &("#{base}" <> &1))
 
-    from(s in Sound, where: s.filename in ^names)
+    from(s in Sound, where: s.filename in ^names and s.tenant_id == ^tenant_id)
     |> Repo.exists?()
   end
 
   def handle_upload(socket, params, consume_uploaded_entries_fn) do
-    user_id = socket.assigns.current_user.id
+    %{id: user_id, tenant_id: tenant_id} = socket.assigns.current_user
     source_type = params["source_type"] || "local"
+    tenant = tenant_from_socket(socket, tenant_id)
 
-    case source_type do
-      "url" ->
-        handle_url_upload(socket, params, user_id)
+    cond do
+      is_nil(tenant) ->
+        {:error, @tenant_error, socket}
 
-      "local" ->
-        handle_local_upload(socket, params, user_id, consume_uploaded_entries_fn)
+      not Accounts.can_create_sound?(tenant) ->
+        {:error, @limit_error, socket}
+
+      true ->
+        case source_type do
+          "url" ->
+            handle_url_upload(socket, params, user_id, tenant_id)
+
+          "local" ->
+            handle_local_upload(socket, params, user_id, tenant_id, consume_uploaded_entries_fn)
+        end
     end
   end
 
-  defp handle_url_upload(socket, params, user_id) do
+  defp handle_url_upload(socket, params, user_id, tenant_id) do
     default_percent = socket.assigns[:upload_volume] || 100
     volume = Volume.percent_to_decimal(Map.get(params, "volume"), default_percent)
 
@@ -116,6 +133,7 @@ defmodule SoundboardWeb.Live.UploadHandler do
       url: params["url"],
       source_type: "url",
       user_id: user_id,
+      tenant_id: tenant_id,
       volume: volume,
       join_leave_user_id:
         if params["is_join_sound"] == "true" || params["is_leave_sound"] == "true" do
@@ -128,7 +146,7 @@ defmodule SoundboardWeb.Live.UploadHandler do
     handle_sound_transaction(sound_params, user_id, socket)
   end
 
-  defp handle_local_upload(socket, params, user_id, consume_uploaded_entries_fn) do
+  defp handle_local_upload(socket, params, user_id, tenant_id, consume_uploaded_entries_fn) do
     case FileHandler.save_upload(socket, params["name"], consume_uploaded_entries_fn) do
       {:ok, filename} ->
         default_percent = socket.assigns[:upload_volume] || 100
@@ -138,6 +156,7 @@ defmodule SoundboardWeb.Live.UploadHandler do
           filename: filename,
           source_type: "local",
           user_id: user_id,
+          tenant_id: tenant_id,
           volume: volume,
           join_leave_user_id:
             if params["is_join_sound"] == "true" || params["is_leave_sound"] == "true" do
@@ -181,7 +200,7 @@ defmodule SoundboardWeb.Live.UploadHandler do
   defp create_sound_with_settings(sound_params, user_id, socket) do
     with {:ok, sound} <- create_sound(sound_params, socket.assigns.upload_tags),
          {:ok, _setting} <- create_user_setting(sound, user_id, sound_params) do
-      broadcast_updates()
+      broadcast_updates(sound.tenant_id)
       {:ok, sound}
     end
   end
@@ -190,15 +209,16 @@ defmodule SoundboardWeb.Live.UploadHandler do
     %Soundboard.UserSoundSetting{
       user_id: user_id,
       sound_id: sound.id,
+      tenant_id: sound.tenant_id,
       is_join_sound: sound_params.is_join_sound,
       is_leave_sound: sound_params.is_leave_sound
     }
     |> Repo.insert()
   end
 
-  defp broadcast_updates do
+  defp broadcast_updates(tenant_id) do
     Phoenix.PubSub.broadcast(Soundboard.PubSub, "uploads", {:sound_uploaded})
-    Phoenix.PubSub.broadcast(Soundboard.PubSub, "stats", {:stats_updated})
+    Soundboard.Stats.broadcast_stats_update(tenant_id)
   end
 
   defp create_sound(params, tags) do
@@ -224,6 +244,7 @@ defmodule SoundboardWeb.Live.UploadHandler do
         %{
           sound_id: sound.id,
           tag_id: tag.id,
+          tenant_id: sound.tenant_id,
           inserted_at: now,
           updated_at: now
         }
@@ -236,17 +257,31 @@ defmodule SoundboardWeb.Live.UploadHandler do
   end
 
   defp validate_name_unique(changeset) do
-    case get_field(changeset, :filename) do
+    filename = get_field(changeset, :filename)
+    tenant_id = get_field(changeset, :tenant_id)
+
+    case filename do
       nil ->
         changeset
 
-      filename ->
-        case Repo.get_by(Sound, filename: filename) do
+      _ ->
+        case Repo.get_by(Sound, filename: filename, tenant_id: tenant_id) do
           nil -> changeset
           _sound -> add_error(changeset, :filename, "has already been taken")
         end
     end
   end
+
+  defp tenant_from_socket(%{assigns: %{current_tenant: %{} = tenant}}, _tenant_id), do: tenant
+
+  defp tenant_from_socket(_socket, tenant_id) when is_integer(tenant_id) do
+    case Tenants.get_tenant(tenant_id) do
+      {:ok, tenant} -> tenant
+      _ -> nil
+    end
+  end
+
+  defp tenant_from_socket(_socket, _tenant_id), do: nil
 
   defp get_file_extension(socket) do
     case Phoenix.LiveView.uploaded_entries(socket, :audio) do

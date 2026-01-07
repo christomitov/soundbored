@@ -1,19 +1,23 @@
 defmodule Soundboard.Accounts.ApiTokensTest do
   use Soundboard.DataCase
   alias Soundboard.Repo
-  alias Soundboard.Accounts.{ApiTokens, User}
+  import Soundboard.DataCase, only: [errors_on: 1]
+  alias Soundboard.Accounts.{ApiToken, ApiTokens, Tenant, Tenants, User}
 
   setup do
+    tenant = Tenants.ensure_default_tenant!()
+
     {:ok, user} =
       %User{}
       |> User.changeset(%{
         username: "apitok_user_#{System.unique_integer([:positive])}",
         discord_id: Integer.to_string(System.unique_integer([:positive])),
-        avatar: "test.jpg"
+        avatar: "test.jpg",
+        tenant_id: tenant.id
       })
       |> Repo.insert()
 
-    %{user: user}
+    %{user: user, tenant: tenant}
   end
 
   test "generate, verify, revoke token lifecycle", %{user: user} do
@@ -22,6 +26,7 @@ defmodule Soundboard.Accounts.ApiTokensTest do
     assert token_rec.user_id == user.id
     assert token_rec.token == raw
     assert token_rec.token_hash != nil
+    assert token_rec.tenant_id == user.tenant_id
 
     # verify returns user and updates last_used_at
     assert {:ok, ^user, verified_token} = ApiTokens.verify_token(raw)
@@ -32,6 +37,7 @@ defmodule Soundboard.Accounts.ApiTokensTest do
     # list_tokens includes it while active
     assert [listed] = ApiTokens.list_tokens(user)
     assert listed.id == token_rec.id
+    assert listed.tenant_id == user.tenant_id
 
     # revoke and ensure it's hidden and cannot verify
     assert {:ok, _} = ApiTokens.revoke_token(user, token_rec.id)
@@ -52,7 +58,8 @@ defmodule Soundboard.Accounts.ApiTokensTest do
       |> User.changeset(%{
         username: "apitok_other_#{System.unique_integer([:positive])}",
         discord_id: Integer.to_string(System.unique_integer([:positive]) + 1),
-        avatar: "a.jpg"
+        avatar: "a.jpg",
+        tenant_id: Tenants.ensure_default_tenant!().id
       })
       |> Repo.insert()
 
@@ -65,7 +72,8 @@ defmodule Soundboard.Accounts.ApiTokensTest do
       |> User.changeset(%{
         username: "apitok_empty_#{System.unique_integer([:positive])}",
         discord_id: Integer.to_string(System.unique_integer([:positive]) + 2),
-        avatar: "b.jpg"
+        avatar: "b.jpg",
+        tenant_id: Tenants.ensure_default_tenant!().id
       })
       |> Repo.insert()
 
@@ -74,5 +82,44 @@ defmodule Soundboard.Accounts.ApiTokensTest do
     assert {:error, :not_found} == ApiTokens.revoke_token(user, "999999")
     # Passing invalid string normalizes to -1 and should still be not_found
     assert {:error, :not_found} == ApiTokens.revoke_token(user, "not_an_int")
+  end
+
+  test "changeset infers tenant from the user when missing", %{user: user} do
+    changeset =
+      ApiToken.changeset(%ApiToken{}, %{user_id: user.id, token_hash: "hash", label: "from-user"})
+
+    assert changeset.valid?
+    assert Ecto.Changeset.get_change(changeset, :tenant_id) == user.tenant_id
+  end
+
+  test "changeset respects provided tenant_id and errors when user missing", %{
+    user: user,
+    tenant: tenant
+  } do
+    {:ok, other_tenant} =
+      %Tenant{}
+      |> Tenant.changeset(%{
+        name: "Other",
+        slug: "other-#{System.unique_integer([:positive])}",
+        plan: :pro
+      })
+      |> Repo.insert()
+
+    changeset =
+      ApiToken.changeset(%ApiToken{}, %{
+        user_id: user.id,
+        tenant_id: other_tenant.id,
+        token_hash: "hash",
+        label: "explicit"
+      })
+
+    assert changeset.valid?
+    assert Ecto.Changeset.get_field(changeset, :tenant_id) == other_tenant.id
+
+    missing_user =
+      ApiToken.changeset(%ApiToken{}, %{user_id: nil, tenant_id: tenant.id, token_hash: "hash"})
+
+    refute missing_user.valid?
+    assert "can't be blank" in errors_on(missing_user).user_id
   end
 end

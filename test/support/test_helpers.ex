@@ -3,6 +3,7 @@ defmodule Soundboard.TestHelpers do
   Helper functions for testing.
   """
   alias Soundboard.{Accounts, Repo, Sound, Tag}
+  alias Soundboard.Accounts.Tenants
 
   def create_test_file(filename) do
     test_dir = "test/support/fixtures"
@@ -64,8 +65,10 @@ defmodule Soundboard.TestHelpers do
         avatar: "test_avatar.jpg"
       })
 
+    tenant = Tenants.ensure_default_tenant!()
+
     %Soundboard.Accounts.User{}
-    |> Accounts.User.changeset(user_attrs)
+    |> Accounts.User.changeset(Map.put(user_attrs, :tenant_id, tenant.id))
     |> Soundboard.Repo.insert()
   end
 
@@ -75,7 +78,8 @@ defmodule Soundboard.TestHelpers do
         %{
           name: "test_sound#{System.unique_integer()}",
           file_path: setup_test_audio_file(),
-          user_id: user.id
+          user_id: user.id,
+          tenant_id: user.tenant_id
         },
         attrs
       )
@@ -86,8 +90,10 @@ defmodule Soundboard.TestHelpers do
   end
 
   def create_tag(name) when is_binary(name) do
+    tenant = Tenants.ensure_default_tenant!()
+
     %Tag{}
-    |> Tag.changeset(%{name: name})
+    |> Tag.changeset(%{name: name, tenant_id: tenant.id})
     |> Repo.insert()
   end
 end

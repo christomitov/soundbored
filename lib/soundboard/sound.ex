@@ -5,7 +5,7 @@ defmodule Soundboard.Sound do
   use Ecto.Schema
   import Ecto.Changeset
   import Ecto.Query
-  alias Soundboard.Accounts.User
+  alias Soundboard.Accounts.{Tenant, User}
   alias Soundboard.Repo
 
   schema "sounds" do
@@ -16,6 +16,7 @@ defmodule Soundboard.Sound do
     field :source_type, :string, default: "local"
     field :description, :string
     field :volume, :float, default: 1.0
+    belongs_to :tenant, Tenant
     belongs_to :user, Soundboard.Accounts.User
     has_many :user_sound_settings, Soundboard.UserSoundSetting
 
@@ -35,12 +36,15 @@ defmodule Soundboard.Sound do
       :source_type,
       :description,
       :user_id,
-      :volume
+      :volume,
+      :tenant_id
     ])
-    |> validate_required([:user_id])
+    |> ensure_tenant_from_user()
+    |> validate_required([:user_id, :tenant_id])
     |> validate_source_type()
     |> validate_volume()
-    |> unique_constraint(:filename, name: :sounds_filename_index)
+    |> assoc_constraint(:tenant)
+    |> unique_constraint(:filename, name: :sounds_tenant_id_filename_index)
     |> put_tags(attrs)
   end
 
@@ -101,14 +105,14 @@ defmodule Soundboard.Sound do
 
   def get_recent_uploads(opts \\ []) do
     limit = Keyword.get(opts, :limit, 10)
+    tenant_id = Keyword.get(opts, :tenant_id)
 
-    from(s in Soundboard.Sound,
-      join: u in User,
-      on: s.user_id == u.id,
-      select: {s.filename, u.username, s.inserted_at},
-      order_by: [desc: s.inserted_at],
-      limit: ^limit
-    )
+    Soundboard.Sound
+    |> maybe_scope_tenant(tenant_id)
+    |> join(:inner, [s], u in User, on: s.user_id == u.id)
+    |> select([s, u], {s.filename, u.username, s.inserted_at})
+    |> order_by([s], desc: s.inserted_at)
+    |> limit(^limit)
     |> Repo.all()
   end
 
@@ -159,5 +163,33 @@ defmodule Soundboard.Sound do
       :user,
       user_sound_settings: [user: []]
     ])
+  end
+
+  defp ensure_tenant_from_user(changeset) do
+    tenant_id = get_field(changeset, :tenant_id)
+    user_id = get_field(changeset, :user_id)
+
+    cond do
+      not is_nil(tenant_id) ->
+        changeset
+
+      is_nil(user_id) ->
+        changeset
+
+      true ->
+        case Repo.get(User, user_id) do
+          %User{tenant_id: user_tenant_id} when not is_nil(user_tenant_id) ->
+            put_change(changeset, :tenant_id, user_tenant_id)
+
+          _ ->
+            changeset
+        end
+    end
+  end
+
+  defp maybe_scope_tenant(query, nil), do: query
+
+  defp maybe_scope_tenant(query, tenant_id) when is_integer(tenant_id) do
+    from s in query, where: s.tenant_id == ^tenant_id
   end
 end
