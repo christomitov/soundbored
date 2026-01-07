@@ -1,11 +1,14 @@
 defmodule SoundboardWeb.BasicAuthPlugTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
   import Plug.Test
   import Plug.Conn
 
   alias SoundboardWeb.Plugs.BasicAuth
 
   setup do
+    System.delete_env("BASIC_AUTH_USERNAME")
+    System.delete_env("BASIC_AUTH_PASSWORD")
+
     # Reset env between tests
     on_exit(fn ->
       System.delete_env("BASIC_AUTH_USERNAME")
@@ -40,6 +43,7 @@ defmodule SoundboardWeb.BasicAuthPlugTest do
       |> BasicAuth.call(%{})
 
     refute conn.halted
+    assert conn.assigns[:basic_auth_authenticated]
   end
 
   test "rejects with 401 when header invalid" do
@@ -51,5 +55,18 @@ defmodule SoundboardWeb.BasicAuthPlugTest do
     assert conn.status == 401
     assert get_resp_header(conn, "www-authenticate") == [~s(Basic realm="Soundbored")]
     assert conn.resp_body == "Unauthorized"
+  end
+
+  test "skips when bearer auth header present" do
+    System.put_env("BASIC_AUTH_USERNAME", "u")
+    System.put_env("BASIC_AUTH_PASSWORD", "p")
+
+    conn =
+      conn(:get, "/")
+      |> put_req_header("authorization", "Bearer token")
+      |> BasicAuth.call(%{})
+
+    refute conn.halted
+    refute conn.assigns[:basic_auth_authenticated]
   end
 end

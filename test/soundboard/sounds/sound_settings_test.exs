@@ -3,6 +3,7 @@ defmodule Soundboard.Sounds.SoundSettingsTest do
   The SoundSettingsTest module.
   """
   use Soundboard.DataCase
+  alias Soundboard.Accounts.Tenants
   alias Soundboard.{Accounts.User, Repo, Sound, UserSoundSetting}
   import Ecto.Changeset
 
@@ -17,6 +18,7 @@ defmodule Soundboard.Sounds.SoundSettingsTest do
       changeset = UserSoundSetting.changeset(%UserSoundSetting{}, %{})
 
       assert errors_on(changeset) == %{
+               tenant_id: ["can't be blank"],
                user_id: ["can't be blank"],
                sound_id: ["can't be blank"]
              }
@@ -54,6 +56,7 @@ defmodule Soundboard.Sounds.SoundSettingsTest do
         %UserSoundSetting{
           user_id: user.id,
           sound_id: sound.id,
+          tenant_id: user.tenant_id,
           is_join_sound: true
         }
         |> Repo.insert()
@@ -81,6 +84,7 @@ defmodule Soundboard.Sounds.SoundSettingsTest do
         %UserSoundSetting{
           user_id: user.id,
           sound_id: sound.id,
+          tenant_id: user.tenant_id,
           is_leave_sound: true
         }
         |> Repo.insert()
@@ -105,12 +109,15 @@ defmodule Soundboard.Sounds.SoundSettingsTest do
 
   # Helper functions
   defp insert_user do
+    tenant = Tenants.ensure_default_tenant!()
+
     {:ok, user} =
       %User{}
       |> User.changeset(%{
         username: "test_user",
         discord_id: "123456",
-        avatar: "test.jpg"
+        avatar: "test.jpg",
+        tenant_id: tenant.id
       })
       |> Repo.insert()
 

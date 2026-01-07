@@ -1,15 +1,17 @@
 defmodule SoundboardWeb.SoundboardLive do
   use SoundboardWeb, :live_view
   use SoundboardWeb.Live.PresenceLive
+  alias Soundboard.Accounts.Tenants
+  alias Soundboard.PubSubTopics
+  alias Soundboard.{Favorites, Repo, Sound, Volume}
   alias SoundboardWeb.Components.Soundboard.{DeleteModal, EditModal, UploadModal}
   import EditModal
   import DeleteModal
   import UploadModal
   import SoundboardWeb.Components.Soundboard.TagComponents, only: [tag_filter_button: 1]
-  alias SoundboardWeb.Presence
-  alias Soundboard.{Favorites, Repo, Sound, Volume}
   require Logger
-  alias SoundboardWeb.Live.{FileFilter, TagHandler, UploadHandler}
+  alias SoundboardWeb.Live.{FileFilter, TagHandler, TenantHelpers, UploadHandler}
+  alias SoundboardWeb.Presence
   import Ecto.Query
 
   import TagHandler, only: [all_tags: 1, tag_selected?: 2]
@@ -19,37 +21,32 @@ defmodule SoundboardWeb.SoundboardLive do
   import SoundboardWeb.Live.UploadHandler, only: [handle_upload: 3]
 
   @presence_topic "soundboard:presence"
-  @pubsub_topic "soundboard"
 
   @impl true
   def mount(_params, session, socket) do
-    socket =
-      if connected?(socket) do
-        sounds =
-          Soundboard.Sound
-          |> Repo.all()
-          |> Repo.preload([
-            :tags,
-            :user,
-            user_sound_settings: [user: []]
-          ])
-
-        socket = assign(socket, :uploaded_files, sounds)
-        Phoenix.PubSub.subscribe(Soundboard.PubSub, @pubsub_topic)
-        Phoenix.PubSub.subscribe(Soundboard.PubSub, "soundboard:presence")
-        send(self(), :load_sound_files)
-        socket
-      else
-        socket
-      end
+    current_user = get_user_from_session(session)
+    tenant_id = TenantHelpers.tenant_id_from_session(session, current_user)
+    tenant = Tenants.get_tenant!(tenant_id)
 
     socket =
       socket
       |> mount_presence(session)
       |> assign(:current_path, "/")
-      |> assign(:current_user, get_user_from_session(session))
+      |> assign(:current_user, current_user)
+      |> assign(:current_tenant, tenant)
+      |> assign(:current_tenant_id, tenant.id)
       |> assign_initial_state()
-      |> assign_favorites(get_user_from_session(session))
+      |> assign_favorites(current_user)
+
+    socket =
+      if connected?(socket) do
+        Phoenix.PubSub.subscribe(Soundboard.PubSub, PubSubTopics.soundboard_topic(tenant.id))
+        Phoenix.PubSub.subscribe(Soundboard.PubSub, @presence_topic)
+        send(self(), :load_sound_files)
+        socket
+      else
+        socket
+      end
 
     if socket.assigns.flash do
       Process.send_after(self(), :clear_flash, 3000)
@@ -84,7 +81,7 @@ defmodule SoundboardWeb.SoundboardLive do
     |> assign(:upload_volume, 100)
     |> assign(:show_all_tags, false)
     |> allow_upload(:audio,
-      accept: ~w(audio/mpeg audio/wav audio/ogg audio/x-m4a),
+      accept: ~w(audio/mpeg audio/wav audio/x-wav audio/wave audio/ogg audio/x-m4a),
       max_entries: 1,
       max_file_size: 25_000_000,
       auto_upload: false,
@@ -110,11 +107,15 @@ defmodule SoundboardWeb.SoundboardLive do
 
     # Check if filename already exists for another sound
     filename = (params["filename"] || "") <> ".mp3"
-    current_sound_id = params["sound_id"]
+
+    current_sound_id =
+      (socket.assigns.current_sound && socket.assigns.current_sound.id) ||
+        parse_id(params["sound_id"])
 
     existing_sound =
       Sound
-      |> where([s], s.filename == ^filename and s.id != ^current_sound_id)
+      |> where([s], s.filename == ^filename and s.tenant_id == ^tenant_id(socket))
+      |> exclude_sound(current_sound_id)
       |> Repo.one()
 
     if existing_sound do
@@ -143,7 +144,11 @@ defmodule SoundboardWeb.SoundboardLive do
     # Find or create user setting
     user_setting =
       Enum.find(current_sound.user_sound_settings, &(&1.user_id == user_id)) ||
-        %Soundboard.UserSoundSetting{sound_id: current_sound.id, user_id: user_id}
+        %Soundboard.UserSoundSetting{
+          sound_id: current_sound.id,
+          user_id: user_id,
+          tenant_id: socket.assigns.current_user.tenant_id
+        }
 
     setting_params = %{
       user_id: user_id,
@@ -171,7 +176,11 @@ defmodule SoundboardWeb.SoundboardLive do
     # Find or create user setting
     user_setting =
       Enum.find(current_sound.user_sound_settings, &(&1.user_id == user_id)) ||
-        %Soundboard.UserSoundSetting{sound_id: current_sound.id, user_id: user_id}
+        %Soundboard.UserSoundSetting{
+          sound_id: current_sound.id,
+          user_id: user_id,
+          tenant_id: socket.assigns.current_user.tenant_id
+        }
 
     setting_params = %{
       user_id: user_id,
@@ -195,7 +204,7 @@ defmodule SoundboardWeb.SoundboardLive do
   def handle_event("save", %{"name" => custom_name}, socket) do
     case handle_upload(socket, %{"name" => custom_name}, &handle_uploaded_entries/3) do
       {:ok, _} -> {:noreply, load_sound_files(socket)}
-      {:error, _, socket} -> {:noreply, socket}
+      {:error, message, socket} -> {:noreply, put_flash(socket, :error, message)}
     end
   end
 
@@ -237,7 +246,7 @@ defmodule SoundboardWeb.SoundboardLive do
 
   @impl true
   def handle_event("edit", %{"id" => id}, socket) do
-    sound = Soundboard.Sound.get_sound!(id)
+    sound = get_sound_for_tenant!(socket, id)
     {:noreply, assign(socket, current_sound: sound, show_modal: true)}
   end
 
@@ -328,7 +337,7 @@ defmodule SoundboardWeb.SoundboardLive do
       |> TagHandler.add_tag(value, socket.assigns.upload_tags)
       |> handle_tag_response(socket, :upload)
     else
-      suggestions = TagHandler.search_tags(value)
+      suggestions = TagHandler.search_tags(socket, value)
 
       {:noreply,
        socket
@@ -352,7 +361,7 @@ defmodule SoundboardWeb.SoundboardLive do
 
   @impl true
   def handle_event("upload_tag_input", %{"key" => _key, "value" => value}, socket) do
-    suggestions = TagHandler.search_tags(value)
+    suggestions = TagHandler.search_tags(socket, value)
 
     {:noreply,
      socket
@@ -367,7 +376,7 @@ defmodule SoundboardWeb.SoundboardLive do
       |> TagHandler.add_tag(value, socket.assigns.current_sound.tags)
       |> handle_tag_response(socket, :current)
     else
-      suggestions = TagHandler.search_tags(value)
+      suggestions = TagHandler.search_tags(socket, value)
 
       {:noreply,
        socket
@@ -398,7 +407,7 @@ defmodule SoundboardWeb.SoundboardLive do
 
   @impl true
   def handle_event("tag_input", %{"key" => _key, "value" => value}, socket) do
-    suggestions = TagHandler.search_tags(value)
+    suggestions = TagHandler.search_tags(socket, value)
 
     {:noreply,
      socket
@@ -408,7 +417,7 @@ defmodule SoundboardWeb.SoundboardLive do
 
   @impl true
   def handle_event("select_tag", %{"tag" => tag_name}, socket) do
-    tag = Enum.find(TagHandler.search_tags(""), &(&1.name == tag_name))
+    tag = Enum.find(TagHandler.search_tags(socket, ""), &(&1.name == tag_name))
     sound = socket.assigns.current_sound
 
     if tag do
@@ -492,7 +501,7 @@ defmodule SoundboardWeb.SoundboardLive do
 
   @impl true
   def handle_event("select_upload_tag", %{"tag" => tag_name}, socket) do
-    tag = Enum.find(TagHandler.search_tags(""), &(&1.name == tag_name))
+    tag = Enum.find(TagHandler.search_tags(socket, ""), &(&1.name == tag_name))
 
     if tag do
       socket
@@ -639,7 +648,7 @@ defmodule SoundboardWeb.SoundboardLive do
 
     # Stop Discord bot sounds if user is logged in
     if socket.assigns.current_user do
-      SoundboardWeb.AudioPlayer.stop_sound()
+      SoundboardWeb.AudioPlayer.stop_sound(socket.assigns.current_tenant_id)
     end
 
     {:noreply, socket}
@@ -651,11 +660,25 @@ defmodule SoundboardWeb.SoundboardLive do
   end
 
   @impl true
-  def handle_info({:sound_played, %{filename: filename, played_by: username}}, socket) do
-    {:noreply,
-     socket
-     |> put_flash(:info, "#{username} played #{filename}")
-     |> clear_flash_after_timeout()}
+  def handle_info(
+        {:sound_played, %{tenant_id: tenant_id, filename: filename, played_by: username}},
+        socket
+      ) do
+    if tenant_matches?(socket, tenant_id) do
+      {:noreply,
+       socket
+       |> put_flash(:info, "#{username} played #{filename}")
+       |> clear_flash_after_timeout()}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_info({:sound_played, payload}, socket) do
+    handle_info(
+      {:sound_played, Map.put(payload, :tenant_id, socket.assigns.current_tenant_id)},
+      socket
+    )
   end
 
   @impl true
@@ -674,16 +697,16 @@ defmodule SoundboardWeb.SoundboardLive do
   end
 
   @impl true
-  def handle_info({:files_updated}, socket) do
-    # Reload the uploaded files list with preloaded associations and proper sorting
-    uploaded_files =
-      Sound
-      |> Repo.all()
-      |> Repo.preload([:tags, :user, user_sound_settings: [user: []]])
-      # Ensure consistent sorting
-      |> Enum.sort_by(&String.downcase(&1.filename))
+  def handle_info({:files_updated, tenant_id}, socket) do
+    if tenant_matches?(socket, tenant_id) do
+      {:noreply, load_sound_files(socket)}
+    else
+      {:noreply, socket}
+    end
+  end
 
-    {:noreply, assign(socket, :uploaded_files, uploaded_files)}
+  def handle_info({:files_updated}, socket) do
+    handle_info({:files_updated, nil}, socket)
   end
 
   @impl true
@@ -692,11 +715,6 @@ defmodule SoundboardWeb.SoundboardLive do
      socket
      |> load_sound_files()
      |> assign(:loading_sounds, false)}
-  end
-
-  @impl true
-  def handle_info({:stats_updated}, socket) do
-    {:noreply, load_sound_files(socket)}
   end
 
   defp handle_save_sound(sound, user_id, params, socket) do
@@ -723,6 +741,7 @@ defmodule SoundboardWeb.SoundboardLive do
   defp load_sound_files(socket) do
     sounds =
       Sound
+      |> where([s], s.tenant_id == ^tenant_id(socket))
       |> Repo.all()
       |> Repo.preload([:tags, :user, user_sound_settings: [user: []]])
       |> Enum.sort_by(&String.downcase(&1.filename))
@@ -753,29 +772,56 @@ defmodule SoundboardWeb.SoundboardLive do
     Enum.random(sounds)
   end
 
-  defp broadcast_update do
-    Phoenix.PubSub.broadcast(Soundboard.PubSub, "soundboard", {:files_updated})
+  defp tenant_matches?(_socket, nil), do: true
+  defp tenant_matches?(socket, tenant_id), do: tenant_id(socket) == tenant_id
+
+  defp tenant_id(%{assigns: %{current_tenant: %{id: tenant_id}}}), do: tenant_id
+
+  defp parse_id(nil), do: nil
+  defp parse_id(id) when is_integer(id), do: id
+
+  defp parse_id(id) when is_binary(id) do
+    case Integer.parse(id) do
+      {parsed, _} -> parsed
+      :error -> nil
+    end
+  end
+
+  defp exclude_sound(query, nil), do: query
+  defp exclude_sound(query, id), do: where(query, [s], s.id != ^id)
+
+  defp get_sound_for_tenant!(socket, id) do
+    id = parse_id(id)
+
+    Sound
+    |> where([s], s.id == ^id and s.tenant_id == ^tenant_id(socket))
+    |> Repo.one!()
+    |> Repo.preload([
+      :tags,
+      :user,
+      user_sound_settings: [user: []]
+    ])
+  end
+
+  defp broadcast_update(tenant_id) do
+    message = {:files_updated, tenant_id}
+
+    Phoenix.PubSub.broadcast(
+      Soundboard.PubSub,
+      PubSubTopics.soundboard_topic(tenant_id),
+      message
+    )
   end
 
   defp handle_successful_update(socket) do
-    broadcast_update()
-
-    sounds =
-      Sound
-      |> Repo.all()
-      |> Repo.preload([
-        :tags,
-        :user,
-        user_sound_settings: [user: []]
-      ])
-      |> Enum.sort_by(&String.downcase(&1.filename))
+    broadcast_update(tenant_id(socket))
 
     {:noreply,
      socket
      |> put_flash(:info, "Sound updated successfully")
      |> assign(:show_modal, false)
      |> assign(:current_sound, nil)
-     |> assign(:uploaded_files, sounds)}
+     |> load_sound_files()}
   end
 
   defp handle_update_error(socket, error) do
@@ -840,6 +886,8 @@ defmodule SoundboardWeb.SoundboardLive do
         filename: new_filename,
         source_type: params["source_type"] || db_sound.source_type,
         url: params["url"],
+        # Legacy sounds may be missing a user_id; default to the current user to satisfy validation
+        user_id: db_sound.user_id || user_id,
         volume:
           params["volume"]
           |> Volume.percent_to_decimal(Volume.decimal_to_percent(db_sound.volume))
@@ -921,7 +969,11 @@ defmodule SoundboardWeb.SoundboardLive do
     # Find or create user setting
     user_setting =
       Enum.find(sound.user_sound_settings, &(&1.user_id == user_id)) ||
-        %Soundboard.UserSoundSetting{sound_id: sound.id, user_id: user_id}
+        %Soundboard.UserSoundSetting{
+          sound_id: sound.id,
+          user_id: user_id,
+          tenant_id: sound.tenant_id
+        }
 
     # Update the settings using our UserSoundSetting changeset
     setting_params = %{
@@ -945,7 +997,7 @@ defmodule SoundboardWeb.SoundboardLive do
 
   defp validate_audio(entry, _socket) do
     case entry.client_type do
-      type when type in ~w(audio/mpeg audio/wav audio/ogg audio/x-m4a) ->
+      type when type in ~w(audio/mpeg audio/wav audio/x-wav audio/wave audio/ogg audio/x-m4a) ->
         {:ok, entry}
 
       _ ->

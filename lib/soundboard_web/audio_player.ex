@@ -5,8 +5,8 @@ defmodule SoundboardWeb.AudioPlayer do
   use GenServer
   require Logger
   alias Nostrum.Voice
-  alias Soundboard.Accounts.User
-  alias Soundboard.Sound
+  alias Soundboard.Accounts.{Tenants, User}
+  alias Soundboard.{PubSubTopics, Sound}
 
   # System users that don't need play tracking
   @system_users ["System", "API User"]
@@ -29,9 +29,17 @@ defmodule SoundboardWeb.AudioPlayer do
     GenServer.cast(__MODULE__, {:play_sound, sound_name, username})
   end
 
-  def stop_sound do
+  @doc """
+  Play audio directly from a file path or URL.
+  """
+  def play_url(path_or_url, volume \\ 1.0, username \\ "API User") do
+    Logger.info("Received play_url request for: #{path_or_url} from #{username}")
+    GenServer.cast(__MODULE__, {:play_url, path_or_url, volume, username})
+  end
+
+  def stop_sound(tenant_id \\ nil) do
     Logger.info("Stopping all sounds")
-    GenServer.cast(__MODULE__, :stop_sound)
+    GenServer.cast(__MODULE__, {:stop_sound, tenant_id})
   end
 
   def set_voice_channel(guild_id, channel_id) do
@@ -69,22 +77,75 @@ defmodule SoundboardWeb.AudioPlayer do
     {:noreply, %{state | voice_channel: voice_channel}}
   end
 
-  def handle_cast(:stop_sound, %{voice_channel: {guild_id, _channel_id}} = state) do
+  def handle_cast({:stop_sound, tenant_id}, %{voice_channel: {guild_id, _channel_id}} = state) do
     Logger.info("Stopping all sounds in guild: #{guild_id}")
-    Voice.stop(guild_id)
-    broadcast_success("All sounds stopped", "System")
-    {:noreply, state}
+
+    result =
+      try do
+        if Voice.ready?(guild_id) do
+          Voice.stop(guild_id)
+          :ok
+        else
+          :not_ready
+        end
+      rescue
+        _ -> :not_ready
+      end
+
+    case result do
+      :ok ->
+        broadcast_success("All sounds stopped", "System", tenant_id)
+        {:noreply, state}
+
+      :not_ready ->
+        broadcast_error("Bot is not connected to a voice channel", tenant_id)
+        {:noreply, %{state | voice_channel: nil}}
+    end
   end
 
-  def handle_cast(:stop_sound, state) do
+  def handle_cast({:stop_sound, tenant_id}, state) do
     Logger.info("Attempted to stop sounds but no voice channel connected")
-    broadcast_error("Bot is not connected to a voice channel")
+    broadcast_error("Bot is not connected to a voice channel", tenant_id)
     {:noreply, state}
   end
 
-  def handle_cast({:play_sound, _sound_name, _username}, %{voice_channel: nil} = state) do
-    broadcast_error("Bot is not connected to a voice channel. Use !join in Discord first.")
+  def handle_cast({:play_sound, sound_name, _username}, %{voice_channel: nil} = state) do
+    broadcast_error(
+      "Bot is not connected to a voice channel. Use !join in Discord first.",
+      tenant_id_for_sound(sound_name)
+    )
+
     {:noreply, state}
+  end
+
+  def handle_cast({:play_url, _path, _volume, _username}, %{voice_channel: nil} = state) do
+    broadcast_error("Bot is not connected to a voice channel. Use !join in Discord first.", nil)
+    {:noreply, state}
+  end
+
+  def handle_cast(
+        {:play_url, path_or_url, volume, username},
+        %{voice_channel: {guild_id, channel_id}} = state
+      ) do
+    task =
+      Task.async(fn ->
+        if Voice.playing?(guild_id), do: Voice.stop(guild_id)
+
+        if ensure_voice_ready(guild_id, channel_id) do
+          case Voice.play(guild_id, path_or_url, :url, volume: clamp_volume(volume), realtime: false) do
+            :ok ->
+              Logger.info("Playing streamed audio from: #{path_or_url}")
+              broadcast_success("streamed_audio", username)
+            {:error, reason} ->
+              Logger.error("Failed to play streamed audio: #{inspect(reason)}")
+              broadcast_error("Failed to play audio: #{reason}", nil)
+          end
+        else
+          broadcast_error("Failed to connect to voice channel", nil)
+        end
+      end)
+
+    {:noreply, %{state | current_playback: task}}
   end
 
   def handle_cast(
@@ -101,7 +162,7 @@ defmodule SoundboardWeb.AudioPlayer do
         {:noreply, %{state | current_playback: task}}
 
       {:error, reason} ->
-        broadcast_error(reason)
+        broadcast_error(reason, tenant_id_for_sound(sound_name))
         {:noreply, state}
     end
   end
@@ -187,7 +248,7 @@ defmodule SoundboardWeb.AudioPlayer do
       play_sound_with_connection(guild_id, sound_name, path_or_url, volume, username)
     else
       Logger.error("Failed to establish voice connection")
-      broadcast_error("Failed to connect to voice channel")
+      broadcast_error("Failed to connect to voice channel", tenant_id_for_sound(sound_name))
     end
   end
 
@@ -260,7 +321,7 @@ defmodule SoundboardWeb.AudioPlayer do
 
       {:error, reason} ->
         Logger.error("Voice.play failed: #{inspect(reason)} (attempt #{attempt + 1})")
-        broadcast_error("Failed to play sound: #{reason}")
+        broadcast_error("Failed to play sound: #{reason}", tenant_id_for_sound(sound_name))
         :error
     end
   end
@@ -275,7 +336,12 @@ defmodule SoundboardWeb.AudioPlayer do
          attempt
        ) do
     Logger.error("Exceeded max retries (#{attempt}) for playing #{sound_name}")
-    broadcast_error("Failed to play sound after multiple attempts")
+
+    broadcast_error(
+      "Failed to play sound after multiple attempts",
+      tenant_id_for_sound(sound_name)
+    )
+
     :error
   end
 
@@ -311,13 +377,18 @@ defmodule SoundboardWeb.AudioPlayer do
         rescue
           error ->
             Logger.error("Failed to rejoin voice channel: #{inspect(error)}")
-            broadcast_error("Failed to reconnect to voice channel")
+
+            broadcast_error(
+              "Failed to reconnect to voice channel",
+              tenant_id_for_sound(sound_name)
+            )
+
             :error
         end
 
       _ ->
         Logger.error("No voice channel info available")
-        broadcast_error("Voice channel not configured")
+        broadcast_error("Voice channel not configured", tenant_id_for_sound(sound_name))
         :error
     end
   end
@@ -373,13 +444,22 @@ defmodule SoundboardWeb.AudioPlayer do
   end
 
   defp track_play_if_needed(sound_name, username) do
-    if system_user?(username) do
-      Logger.info("Skipping play tracking for system user: #{username}")
-    else
-      case Soundboard.Repo.get_by(User, username: username) do
-        %{id: user_id} -> Soundboard.Stats.track_play(sound_name, user_id)
-        nil -> Logger.warning("Could not find user_id for #{username}")
-      end
+    cond do
+      system_user?(username) ->
+        Logger.info("Skipping play tracking for system user: #{username}")
+
+      user = Soundboard.Repo.get_by(User, username: username) ->
+        track_user_play(sound_name, user.id)
+
+      true ->
+        Logger.warning("Could not find user_id for #{username}")
+    end
+  end
+
+  defp track_user_play(sound_name, user_id) do
+    case Soundboard.Stats.track_play(sound_name, user_id) do
+      {:ok, _play} -> :ok
+      {:error, reason} -> Logger.warning("Failed to track play: #{inspect(reason)}")
     end
   end
 
@@ -420,19 +500,46 @@ defmodule SoundboardWeb.AudioPlayer do
       false
   end
 
-  defp broadcast_success(sound_name, username) do
-    Phoenix.PubSub.broadcast(
-      Soundboard.PubSub,
-      "soundboard",
-      {:sound_played, %{filename: sound_name, played_by: username}}
-    )
+  defp broadcast_success(sound_name, username, tenant_id \\ nil)
+
+  defp broadcast_success(sound_name, username, nil) do
+    broadcast_success(sound_name, username, tenant_id_for_sound(sound_name))
   end
 
-  defp broadcast_error(message) do
+  defp broadcast_success(sound_name, username, tenant_id) do
+    message =
+      {:sound_played,
+       %{
+         filename: sound_name,
+         played_by: username,
+         tenant_id: tenant_id
+       }}
+
+    broadcast_to_soundboard_topics(message, tenant_id)
+  end
+
+  defp broadcast_error(message, tenant_id) do
+    broadcast_to_soundboard_topics({:error, message}, tenant_id)
+  end
+
+  defp broadcast_to_soundboard_topics(message, tenant_id) do
+    tenant_id =
+      case tenant_id do
+        nil ->
+          Logger.warning(
+            "AudioPlayer broadcast missing tenant id, defaulting to default tenant topic"
+          )
+
+          Tenants.ensure_default_tenant!().id
+
+        id ->
+          id
+      end
+
     Phoenix.PubSub.broadcast(
       Soundboard.PubSub,
-      "soundboard",
-      {:error, message}
+      PubSubTopics.soundboard_topic(tenant_id),
+      message
     )
   end
 
@@ -507,6 +614,18 @@ defmodule SoundboardWeb.AudioPlayer do
       priv_dir = :code.priv_dir(:soundboard)
       Path.join([priv_dir, "static/uploads", filename])
     end
+  end
+
+  defp tenant_id_for_sound(sound_name) do
+    case Soundboard.Repo.get_by(Sound, filename: sound_name) do
+      %Sound{tenant_id: tenant_id} when is_integer(tenant_id) ->
+        tenant_id
+
+      _ ->
+        Tenants.ensure_default_tenant!().id
+    end
+  rescue
+    _ -> Tenants.ensure_default_tenant!().id
   end
 
   @doc """

@@ -8,7 +8,9 @@ defmodule SoundboardWeb.DiscordHandler do
   alias Nostrum.Api.{Message, Self}
   alias Nostrum.Cache.GuildCache
   alias Nostrum.Voice
-  alias Soundboard.{Accounts.User, Repo, Sound, UserSoundSetting}
+  alias Soundboard.Accounts
+  alias Soundboard.Accounts.{Guilds, Tenant, Tenants, User}
+  alias Soundboard.{Repo, Sound, UserSoundSetting}
   import Ecto.Query
 
   # State GenServer
@@ -253,14 +255,17 @@ defmodule SoundboardWeb.DiscordHandler do
 
   def handle_event({:VOICE_STATE_UPDATE, %{channel_id: nil} = payload, _ws_state}) do
     Logger.info("User #{payload.user_id} disconnected from voice")
-    State.update_state(payload.user_id, nil, payload.session_id)
 
-    case auto_join_mode() do
-      :enabled -> handle_bot_alone_check(payload.guild_id)
-      :disabled -> :noop
+    with {:ok, tenant} <- tenant_for_guild(payload.guild_id) do
+      State.update_state(payload.user_id, nil, payload.session_id)
+
+      case auto_join_mode() do
+        :enabled -> handle_bot_alone_check(payload.guild_id)
+        :disabled -> :noop
+      end
+
+      handle_leave_sound(payload.user_id, tenant)
     end
-
-    handle_leave_sound(payload.user_id)
   end
 
   def handle_event({:VOICE_STATE_UPDATE, payload, _ws_state}) do
@@ -277,15 +282,17 @@ defmodule SoundboardWeb.DiscordHandler do
         :ok
     end
 
-    previous_state = State.get_state(payload.user_id)
-    State.update_state(payload.user_id, payload.channel_id, payload.session_id)
+    with {:ok, tenant} <- tenant_for_guild(payload.guild_id) do
+      previous_state = State.get_state(payload.user_id)
+      State.update_state(payload.user_id, payload.channel_id, payload.session_id)
 
-    case auto_join_mode() do
-      :enabled -> handle_auto_join_leave(payload)
-      :disabled -> :noop
+      case auto_join_mode() do
+        :enabled -> handle_auto_join_leave(payload)
+        :disabled -> :noop
+      end
+
+      handle_join_sound(payload.user_id, previous_state, payload.channel_id, tenant)
     end
-
-    handle_join_sound(payload.user_id, previous_state, payload.channel_id)
   end
 
   def handle_event({:READY, _payload, _ws_state}) do
@@ -310,6 +317,21 @@ defmodule SoundboardWeb.DiscordHandler do
 
   # New DAVE voice event sometimes surfaced by Nostrum; ignore for now
   def handle_event({:VOICE_CHANNEL_STATUS_UPDATE, _payload, _ws_state}) do
+    :noop
+  end
+
+  def handle_event({:GUILD_CREATE, guild, _ws_state}) do
+    handle_guild_create(guild)
+    :noop
+  end
+
+  def handle_event({:GUILD_DELETE, %{id: guild_id}, _ws_state}) do
+    case Guilds.remove_guild(guild_id) do
+      {:ok, _} -> Logger.info("Removed guild mapping for #{guild_id}")
+      {:error, :not_found} -> Logger.debug("No guild mapping to remove for #{guild_id}")
+      _ -> :ok
+    end
+
     :noop
   end
 
@@ -605,7 +627,45 @@ defmodule SoundboardWeb.DiscordHandler do
     :noop
   end
 
-  defp handle_join_sound(user_id, previous_state, new_channel_id) do
+  defp tenant_for_guild(nil) do
+    Logger.warning("Tenant lookup skipped because guild_id was nil")
+    {:error, :missing_guild_id}
+  end
+
+  defp tenant_for_guild(guild_id) do
+    case Guilds.get_tenant_for_guild(guild_id) do
+      {:ok, tenant} ->
+        {:ok, tenant}
+
+      {:error, reason} ->
+        handle_missing_guild_mapping(guild_id, reason)
+    end
+  end
+
+  defp handle_missing_guild_mapping(guild_id, reason) do
+    Logger.warning("Missing guild mapping for #{inspect(guild_id)} (#{inspect(reason)})")
+
+    if Accounts.edition() == :community do
+      tenant = Tenants.ensure_default_tenant!()
+
+      case Guilds.associate_guild(tenant, guild_id) do
+        {:ok, _} ->
+          Logger.info("Associated guild #{inspect(guild_id)} with default tenant on the fly")
+          {:ok, tenant}
+
+        {:error, assoc_reason} ->
+          Logger.warning(
+            "Failed to associate guild #{inspect(guild_id)} with default tenant: #{inspect(assoc_reason)}"
+          )
+
+          {:error, reason}
+      end
+    else
+      {:error, reason}
+    end
+  end
+
+  defp handle_join_sound(user_id, previous_state, new_channel_id, tenant) do
     is_join_event =
       case previous_state do
         nil -> true
@@ -618,18 +678,20 @@ defmodule SoundboardWeb.DiscordHandler do
     )
 
     if is_join_event do
-      play_join_sound(user_id)
+      play_join_sound(user_id, tenant)
     end
   end
 
-  defp play_join_sound(user_id) do
+  defp play_join_sound(user_id, tenant) do
     user_with_sounds =
       from(u in User,
-        where: u.discord_id == ^to_string(user_id),
+        where: u.discord_id == ^to_string(user_id) and u.tenant_id == ^tenant.id,
         left_join: uss in UserSoundSetting,
-        on: uss.user_id == u.id and uss.is_join_sound == true,
+        on:
+          uss.user_id == u.id and uss.tenant_id == ^tenant.id and
+            uss.is_join_sound == true,
         left_join: s in Sound,
-        on: s.id == uss.sound_id,
+        on: s.id == uss.sound_id and s.tenant_id == ^tenant.id,
         select: {u.id, s.filename},
         limit: 1
       )
@@ -649,15 +711,17 @@ defmodule SoundboardWeb.DiscordHandler do
     end
   end
 
-  defp handle_leave_sound(user_id) do
+  defp handle_leave_sound(user_id, tenant) do
     # Handle leave sound (keep this functionality regardless of auto-join setting)
     user_with_sounds =
       from(u in User,
-        where: u.discord_id == ^to_string(user_id),
+        where: u.discord_id == ^to_string(user_id) and u.tenant_id == ^tenant.id,
         left_join: uss in UserSoundSetting,
-        on: uss.user_id == u.id and uss.is_leave_sound == true,
+        on:
+          uss.user_id == u.id and uss.tenant_id == ^tenant.id and
+            uss.is_leave_sound == true,
         left_join: s in Sound,
-        on: s.id == uss.sound_id,
+        on: s.id == uss.sound_id and s.tenant_id == ^tenant.id,
         select: {u.id, s.filename},
         limit: 1
       )
@@ -670,6 +734,57 @@ defmodule SoundboardWeb.DiscordHandler do
 
       _ ->
         :noop
+    end
+  end
+
+  defp handle_guild_create(%{id: guild_id} = guild) do
+    case Accounts.edition() do
+      :pro -> associate_guild_with_owner(guild)
+      _ -> associate_guild_with_default_tenant(guild_id)
+    end
+  end
+
+  defp associate_guild_with_default_tenant(guild_id) do
+    tenant = Tenants.ensure_default_tenant!()
+
+    case Guilds.associate_guild(tenant, guild_id) do
+      {:ok, _} ->
+        Logger.info("Associated guild #{inspect(guild_id)} with default tenant")
+
+      {:error, reason} ->
+        Logger.warning("Failed to associate guild #{inspect(guild_id)}: #{inspect(reason)}")
+    end
+  end
+
+  defp associate_guild_with_owner(%{id: guild_id, owner_id: owner_id}) do
+    with {:ok, tenant} <- resolve_owner_tenant(owner_id),
+         {:ok, _guild} <- Guilds.associate_guild(tenant, guild_id) do
+      Logger.info("Associated guild #{inspect(guild_id)} with tenant #{tenant.slug}")
+    else
+      {:error, reason} ->
+        Logger.warning(
+          "Unable to associate guild #{inspect(guild_id)} with owner #{inspect(owner_id)}: #{inspect(reason)}"
+        )
+    end
+  end
+
+  defp resolve_owner_tenant(nil), do: {:error, :missing_owner}
+
+  defp resolve_owner_tenant(owner_id) do
+    owner =
+      owner_id
+      |> to_string()
+      |> then(&Repo.get_by(User, discord_id: &1))
+
+    case owner do
+      %User{} = user ->
+        case Repo.preload(user, :tenant) do
+          %{tenant: %Tenant{} = tenant} -> {:ok, tenant}
+          _ -> {:error, :tenant_not_found}
+        end
+
+      nil ->
+        {:error, :owner_not_found}
     end
   end
 end
