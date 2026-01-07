@@ -1,0 +1,33 @@
+# The directory Mix will write compiled artifacts to.
+/_build
+
+# Outputs from benchmark reports.
+/benchmarks/output/
+
+# If you run "mix test --cover", coverage assets end up here.
+/cover
+
+# Provide your own token during test
+/config/secret.exs
+
+# The directory Mix downloads your dependencies sources to.
+/deps
+
+# If the VM crashes, it generates a dump, let's ignore it too.
+erl_crash.dump
+
+# Docs
+doc
+!docs/
+!docs/static/*
+
+# xref
+*.dot
+
+# Also ignore archive artifacts (built via "mix archive.build").
+*.ez
+
+# Ignore VSCode artifacts
+.elixir_ls/
+.mix_tasks
+.vscode/

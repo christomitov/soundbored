@@ -1,0 +1,24 @@
+This patch modifies Nostrum's voice session to:
+1. Skip packets that fail to decrypt (likely keep-alives)
+2. Only log successful decryptions
+3. Add more RTCP packet filtering
+
+Apply manually to deps/nostrum/lib/nostrum/voice/session.ex
+
+In handle_info({:udp, ...}), replace the rescue block with:
+```elixir
+rescue
+  %MatchError{term: :error} ->
+    # Likely a keep-alive packet or unsupported format - silently skip
+    :ok
+  error ->
+    Logger.warning("Received bad voice packet in guild_id #{state.guild_id}: #{inspect(error)}")
+end
+```
+
+And add more RTCP filtering before the decrypt:
+```elixir
+# Skip all RTCP packets (types 200-207)
+<<2::2, _::1, _::5, pt::8, _rest::binary>> when pt >= 200 and pt <= 207 ->
+  :noop
+```
