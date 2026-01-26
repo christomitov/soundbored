@@ -79,40 +79,18 @@ defmodule SoundboardWeb.API.SoundController do
       --data-binary @-
   """
   def play_stream(conn, _params) do
-    username =
-      case conn.assigns[:current_user] do
-        %Soundboard.Accounts.User{username: uname} -> uname
-        _ -> get_req_header(conn, "x-username") |> List.first() || "API User"
-      end
-
-    volume =
-      (conn.query_params["volume"] || get_req_header(conn, "x-volume") |> List.first() || "1.0")
-      |> parse_float()
-
-    content_type = get_req_header(conn, "content-type") |> List.first() || "audio/mpeg"
-
-    ext =
-      case content_type do
-        "audio/mpeg" -> "mp3"
-        "audio/mp3" -> "mp3"
-        "audio/wav" -> "wav"
-        "audio/ogg" -> "ogg"
-        _ -> "mp3"
-      end
+    username = stream_username(conn)
+    volume = stream_volume(conn)
+    ext = stream_extension(conn)
 
     {:ok, audio_data, conn} = Plug.Conn.read_body(conn)
 
     if byte_size(audio_data) > 0 do
-      filename = "stream_#{:crypto.strong_rand_bytes(8) |> Base.encode16(case: :lower)}.#{ext}"
-      temp_path = Path.join(System.tmp_dir!(), filename)
-      File.write!(temp_path, audio_data)
+      temp_path = write_stream_temp(audio_data, ext)
 
       SoundboardWeb.AudioPlayer.play_url(temp_path, volume, username)
 
-      Task.start(fn ->
-        Process.sleep(30_000)
-        File.rm(temp_path)
-      end)
+      schedule_stream_cleanup(temp_path)
 
       json(conn, %{status: "success", message: "Playing streamed audio", played_by: username})
     else
@@ -145,4 +123,40 @@ defmodule SoundboardWeb.API.SoundController do
   end
 
   defp parse_float(_), do: 1.0
+
+  defp stream_username(conn) do
+    case conn.assigns[:current_user] do
+      %Soundboard.Accounts.User{username: uname} -> uname
+      _ -> get_req_header(conn, "x-username") |> List.first() || "API User"
+    end
+  end
+
+  defp stream_volume(conn) do
+    (conn.query_params["volume"] || get_req_header(conn, "x-volume") |> List.first() || "1.0")
+    |> parse_float()
+  end
+
+  defp stream_extension(conn) do
+    case get_req_header(conn, "content-type") |> List.first() || "audio/mpeg" do
+      "audio/mpeg" -> "mp3"
+      "audio/mp3" -> "mp3"
+      "audio/wav" -> "wav"
+      "audio/ogg" -> "ogg"
+      _ -> "mp3"
+    end
+  end
+
+  defp write_stream_temp(audio_data, ext) do
+    filename = "stream_#{:crypto.strong_rand_bytes(8) |> Base.encode16(case: :lower)}.#{ext}"
+    temp_path = Path.join(System.tmp_dir!(), filename)
+    File.write!(temp_path, audio_data)
+    temp_path
+  end
+
+  defp schedule_stream_cleanup(path) do
+    Task.start(fn ->
+      Process.sleep(30_000)
+      File.rm(path)
+    end)
+  end
 end

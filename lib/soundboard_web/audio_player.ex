@@ -129,24 +129,7 @@ defmodule SoundboardWeb.AudioPlayer do
       ) do
     task =
       Task.async(fn ->
-        if Voice.playing?(guild_id), do: Voice.stop(guild_id)
-
-        if ensure_voice_ready(guild_id, channel_id) do
-          case Voice.play(guild_id, path_or_url, :url,
-                 volume: clamp_volume(volume),
-                 realtime: false
-               ) do
-            :ok ->
-              Logger.info("Playing streamed audio from: #{path_or_url}")
-              broadcast_success("streamed_audio", username)
-
-            {:error, reason} ->
-              Logger.error("Failed to play streamed audio: #{inspect(reason)}")
-              broadcast_error("Failed to play audio: #{reason}", nil)
-          end
-        else
-          broadcast_error("Failed to connect to voice channel", nil)
-        end
+        play_streamed_url(guild_id, channel_id, path_or_url, volume, username)
       end)
 
     {:noreply, %{state | current_playback: task}}
@@ -462,6 +445,31 @@ defmodule SoundboardWeb.AudioPlayer do
     case Soundboard.Stats.track_play(sound_name, user_id) do
       {:ok, _play} -> :ok
       {:error, reason} -> Logger.warning("Failed to track play: #{inspect(reason)}")
+    end
+  end
+
+  defp play_streamed_url(guild_id, channel_id, path_or_url, volume, username) do
+    if Voice.playing?(guild_id), do: Voice.stop(guild_id)
+
+    if ensure_voice_ready(guild_id, channel_id) do
+      play_streamed_audio(guild_id, path_or_url, volume, username)
+    else
+      broadcast_error("Failed to connect to voice channel", nil)
+    end
+  end
+
+  defp play_streamed_audio(guild_id, path_or_url, volume, username) do
+    case Voice.play(guild_id, path_or_url, :url,
+           volume: clamp_volume(volume),
+           realtime: false
+         ) do
+      :ok ->
+        Logger.info("Playing streamed audio from: #{path_or_url}")
+        broadcast_success("streamed_audio", username)
+
+      {:error, reason} ->
+        Logger.error("Failed to play streamed audio: #{inspect(reason)}")
+        broadcast_error("Failed to play audio: #{reason}", nil)
     end
   end
 
