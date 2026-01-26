@@ -56,8 +56,14 @@ defmodule SoundboardWeb.DiscordHandlerTest do
              join_channel: fn _, _ -> :ok end,
              ready?: fn _ -> false end
            ]},
-          {Nostrum.Cache.GuildCache, [], [get!: fn _guild_id -> mock_guild end]},
-          {Nostrum.Api.Self, [], [get: fn -> {:ok, %{id: "999"}} end]}
+          {Nostrum.Cache.GuildCache, [],
+           [
+             get!: fn _guild_id -> mock_guild end,
+             get: fn _guild_id -> {:ok, mock_guild} end,
+             all: fn -> [] end
+           ]},
+          {Nostrum.Api.Self, [], [get: fn -> {:ok, %{id: "999"}} end]},
+          {SoundboardWeb.AudioPlayer, [:passthrough], [current_voice_channel: fn -> nil end]}
         ]) do
           payload = %{
             channel_id: "123",
