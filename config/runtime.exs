@@ -158,8 +158,8 @@ if config_env() == :prod and is_nil(System.get_env("SKIP_RUNTIME_CONFIG")) do
     {path, 0} ->
       config :nostrum,
         ffmpeg: String.trim(path),
-        # Smaller bursts reduce UDP jitter artifacts in some environments
-        audio_frames_per_burst: 2,
+        # Use Nostrum defaults for buffering
+        audio_frames_per_burst: 10,
         audio_timeout: 20_000
 
     _ ->

@@ -250,8 +250,7 @@ defmodule SoundboardWeb.AudioPlayer do
     Logger.info("Voice ready: #{Voice.ready?(guild_id)}, Playing: #{Voice.playing?(guild_id)}")
 
     # Disable ffmpeg realtime processing to avoid `-re` pacing artifacts.
-    # Force realtime pacing to reduce UDP burst artifacts in production.
-    play_options = [volume: clamp_volume(volume), realtime: true]
+    play_options = [volume: clamp_volume(volume)]
     Logger.info("Play options: #{inspect(play_options)}")
 
     # Keep track of attempts
@@ -489,26 +488,26 @@ defmodule SoundboardWeb.AudioPlayer do
     # Using rescue to handle potential crashes
     Voice.join_channel(guild_id, channel_id)
 
-    # Check immediately if ready, no sleep needed
-    if Voice.ready?(guild_id) do
-      Logger.info("Successfully connected to voice channel")
-      true
-    else
-      # Minimal sleep - just 20ms for network round-trip
-      Process.sleep(20)
-
-      if Voice.ready?(guild_id) do
-        Logger.info("Successfully connected to voice channel after brief wait")
-        true
-      else
-        Logger.error("Voice connection not ready after join attempt")
-        false
-      end
-    end
+    wait_until_ready(guild_id, 0)
   rescue
     error ->
       Logger.error("Failed to join voice channel: #{inspect(error)}")
       false
+  end
+
+  defp wait_until_ready(guild_id, attempts) when attempts < 80 do
+    if Voice.ready?(guild_id) do
+      Logger.info("Successfully connected to voice channel")
+      true
+    else
+      Process.sleep(25)
+      wait_until_ready(guild_id, attempts + 1)
+    end
+  end
+
+  defp wait_until_ready(_guild_id, _attempts) do
+    Logger.error("Voice connection not ready after join attempt")
+    false
   end
 
   defp broadcast_success(sound_name, username, tenant_id \\ nil)
