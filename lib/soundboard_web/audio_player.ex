@@ -132,10 +132,14 @@ defmodule SoundboardWeb.AudioPlayer do
         if Voice.playing?(guild_id), do: Voice.stop(guild_id)
 
         if ensure_voice_ready(guild_id, channel_id) do
-          case Voice.play(guild_id, path_or_url, :url, volume: clamp_volume(volume), realtime: false) do
+          case Voice.play(guild_id, path_or_url, :url,
+                 volume: clamp_volume(volume),
+                 realtime: true
+               ) do
             :ok ->
               Logger.info("Playing streamed audio from: #{path_or_url}")
               broadcast_success("streamed_audio", username)
+
             {:error, reason} ->
               Logger.error("Failed to play streamed audio: #{inspect(reason)}")
               broadcast_error("Failed to play audio: #{reason}", nil)
@@ -262,10 +266,8 @@ defmodule SoundboardWeb.AudioPlayer do
     # Check voice state
     Logger.info("Voice ready: #{Voice.ready?(guild_id)}, Playing: #{Voice.playing?(guild_id)}")
 
-    # Disable ffmpeg realtime processing to avoid `-re` pacing.
-    # Nostrum already paces via bursts; `-re` can cause latency buildup
-    # and slower cleanup of ffmpeg processes over time.
-    play_options = [volume: clamp_volume(volume), realtime: false]
+    # Enable ffmpeg realtime processing so production matches Nostrum's consumption rate.
+    play_options = [volume: clamp_volume(volume), realtime: true]
     Logger.info("Play options: #{inspect(play_options)}")
 
     # Keep track of attempts

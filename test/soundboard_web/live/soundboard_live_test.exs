@@ -462,6 +462,171 @@ defmodule SoundboardWeb.SoundboardLiveTest do
     end
   end
 
+  describe "tag cache lookup optimization in select_tag" do
+    test "uses cached tag from tag_suggestions when available", %{
+      conn: conn,
+      sound: sound,
+      tenant: tenant
+    } do
+      # Create a tag
+      tag =
+        %Tag{}
+        |> Tag.changeset(%{name: "cached_tag", tenant_id: tenant.id})
+        |> Repo.insert!()
+
+      {:ok, view, _html} = live(conn, "/")
+
+      # Open edit modal
+      view
+      |> element("[phx-click='edit'][phx-value-id='#{sound.id}']")
+      |> render_click()
+
+      # Type to trigger tag suggestions (populates tag_suggestions cache)
+      view
+      |> render_hook(:tag_input, %{"key" => "c", "value" => "cached"})
+
+      # Wait for suggestions to be populated
+      Process.sleep(50)
+
+      # Now select the tag using the event handler - it should use the cached version
+      rendered =
+        view
+        |> render_hook(:select_tag, %{"tag" => "cached_tag"})
+
+      # Verify tag was added successfully (no error flash)
+      refute rendered =~ "Tag not found"
+
+      # Clean up
+      Repo.delete!(tag)
+    end
+
+    test "falls back to search when tag not in cache", %{conn: conn, sound: sound, tenant: tenant} do
+      # Create a tag
+      tag =
+        %Tag{}
+        |> Tag.changeset(%{name: "uncached_tag", tenant_id: tenant.id})
+        |> Repo.insert!()
+
+      {:ok, view, _html} = live(conn, "/")
+
+      # Open edit modal
+      view
+      |> element("[phx-click='edit'][phx-value-id='#{sound.id}']")
+      |> render_click()
+
+      # Directly trigger select_tag without populating cache first
+      # This tests the fallback path to TagHandler.search_tags
+      rendered =
+        view
+        |> render_hook(:select_tag, %{"tag" => "uncached_tag"})
+
+      # Should still work via fallback search
+      refute rendered =~ "Tag not found"
+
+      # Clean up
+      Repo.delete!(tag)
+    end
+
+    test "shows error when tag not found anywhere", %{conn: conn, sound: sound} do
+      {:ok, view, _html} = live(conn, "/")
+
+      # Open edit modal
+      view
+      |> element("[phx-click='edit'][phx-value-id='#{sound.id}']")
+      |> render_click()
+
+      # Try to select a non-existent tag
+      rendered =
+        view
+        |> render_hook(:select_tag, %{"tag" => "nonexistent_tag_xyz"})
+
+      # Should show error
+      assert rendered =~ "Tag not found"
+    end
+  end
+
+  describe "tag cache lookup in select_upload_tag" do
+    test "uses cached tag from upload_tag_suggestions when available", %{
+      conn: conn,
+      tenant: tenant
+    } do
+      # Create a tag
+      tag =
+        %Tag{}
+        |> Tag.changeset(%{name: "upload_cached_tag", tenant_id: tenant.id})
+        |> Repo.insert!()
+
+      {:ok, view, _html} = live(conn, "/")
+
+      # Open upload modal
+      view
+      |> element("[phx-click='show_upload_modal']")
+      |> render_click()
+
+      # Type to trigger upload tag suggestions (populates upload_tag_suggestions cache)
+      view
+      |> render_hook(:upload_tag_input, %{"key" => "u", "value" => "upload"})
+
+      # Wait for suggestions to be populated
+      Process.sleep(50)
+
+      # Now select the tag using the event handler - it should use the cached version
+      rendered =
+        view
+        |> render_hook(:select_upload_tag, %{"tag" => "upload_cached_tag"})
+
+      # Verify tag was added successfully (no error flash)
+      refute rendered =~ "Tag not found"
+
+      # Clean up
+      Repo.delete!(tag)
+    end
+
+    test "falls back to search when tag not in upload cache", %{conn: conn, tenant: tenant} do
+      # Create a tag
+      tag =
+        %Tag{}
+        |> Tag.changeset(%{name: "upload_uncached_tag", tenant_id: tenant.id})
+        |> Repo.insert!()
+
+      {:ok, view, _html} = live(conn, "/")
+
+      # Open upload modal
+      view
+      |> element("[phx-click='show_upload_modal']")
+      |> render_click()
+
+      # Directly trigger select_upload_tag without populating cache first
+      # This tests the fallback path to TagHandler.search_tags
+      rendered =
+        view
+        |> render_hook(:select_upload_tag, %{"tag" => "upload_uncached_tag"})
+
+      # Should still work via fallback search
+      refute rendered =~ "Tag not found"
+
+      # Clean up
+      Repo.delete!(tag)
+    end
+
+    test "shows error when upload tag not found anywhere", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/")
+
+      # Open upload modal
+      view
+      |> element("[phx-click='show_upload_modal']")
+      |> render_click()
+
+      # Try to select a non-existent tag
+      rendered =
+        view
+        |> render_hook(:select_upload_tag, %{"tag" => "nonexistent_upload_tag_xyz"})
+
+      # Should show error
+      assert rendered =~ "Tag not found"
+    end
+  end
+
   defp uploads_dir do
     Application.get_env(:soundboard, :uploads_dir, "priv/static/uploads")
   end

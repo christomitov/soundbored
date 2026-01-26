@@ -417,7 +417,10 @@ defmodule SoundboardWeb.SoundboardLive do
 
   @impl true
   def handle_event("select_tag", %{"tag" => tag_name}, socket) do
-    tag = Enum.find(TagHandler.search_tags(socket, ""), &(&1.name == tag_name))
+    tag =
+      Enum.find(socket.assigns.tag_suggestions, &(&1.name == tag_name)) ||
+        Enum.find(TagHandler.search_tags(socket, tag_name), &(&1.name == tag_name))
+
     sound = socket.assigns.current_sound
 
     if tag do
@@ -501,7 +504,9 @@ defmodule SoundboardWeb.SoundboardLive do
 
   @impl true
   def handle_event("select_upload_tag", %{"tag" => tag_name}, socket) do
-    tag = Enum.find(TagHandler.search_tags(socket, ""), &(&1.name == tag_name))
+    tag =
+      Enum.find(socket.assigns.upload_tag_suggestions, &(&1.name == tag_name)) ||
+        Enum.find(TagHandler.search_tags(socket, tag_name), &(&1.name == tag_name))
 
     if tag do
       socket

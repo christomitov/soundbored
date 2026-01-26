@@ -186,4 +186,237 @@ defmodule SoundboardWeb.Live.UploadHandlerTest do
       assert message == "Error saving file"
     end
   end
+
+  describe "join/leave sound handling via handle_upload/3" do
+    test "URL upload with is_join_sound: true creates UserSoundSetting", %{
+      socket: socket,
+      user: user
+    } do
+      params = %{
+        "source_type" => "url",
+        "name" => "join_sound_test",
+        "url" => "http://example.com/join.mp3",
+        "is_join_sound" => true,
+        "is_leave_sound" => false
+      }
+
+      assert {:ok, sound} = UploadHandler.handle_upload(socket, params, & &1)
+
+      # Verify user sound setting was created with correct flags
+      setting = Repo.get_by(Soundboard.UserSoundSetting, sound_id: sound.id, user_id: user.id)
+      assert setting != nil
+      assert setting.is_join_sound == true
+      assert setting.is_leave_sound == false
+    end
+
+    test "URL upload with is_join_sound: 'true' (string) creates UserSoundSetting", %{
+      socket: socket,
+      user: user
+    } do
+      params = %{
+        "source_type" => "url",
+        "name" => "join_sound_string_test",
+        "url" => "http://example.com/join_string.mp3",
+        "is_join_sound" => "true",
+        "is_leave_sound" => "false"
+      }
+
+      assert {:ok, sound} = UploadHandler.handle_upload(socket, params, & &1)
+
+      # Verify user sound setting was created with correct flags
+      setting = Repo.get_by(Soundboard.UserSoundSetting, sound_id: sound.id, user_id: user.id)
+      assert setting != nil
+      assert setting.is_join_sound == true
+      assert setting.is_leave_sound == false
+    end
+
+    test "URL upload with is_leave_sound: true creates UserSoundSetting", %{
+      socket: socket,
+      user: user
+    } do
+      params = %{
+        "source_type" => "url",
+        "name" => "leave_sound_test",
+        "url" => "http://example.com/leave.mp3",
+        "is_join_sound" => false,
+        "is_leave_sound" => true
+      }
+
+      assert {:ok, sound} = UploadHandler.handle_upload(socket, params, & &1)
+
+      # Verify user sound setting was created with correct flags
+      setting = Repo.get_by(Soundboard.UserSoundSetting, sound_id: sound.id, user_id: user.id)
+      assert setting != nil
+      assert setting.is_join_sound == false
+      assert setting.is_leave_sound == true
+    end
+
+    test "URL upload with is_leave_sound: 'true' (string) creates UserSoundSetting", %{
+      socket: socket,
+      user: user
+    } do
+      params = %{
+        "source_type" => "url",
+        "name" => "leave_sound_string_test",
+        "url" => "http://example.com/leave_string.mp3",
+        "is_join_sound" => "false",
+        "is_leave_sound" => "true"
+      }
+
+      assert {:ok, sound} = UploadHandler.handle_upload(socket, params, & &1)
+
+      # Verify user sound setting was created with correct flags
+      setting = Repo.get_by(Soundboard.UserSoundSetting, sound_id: sound.id, user_id: user.id)
+      assert setting != nil
+      assert setting.is_join_sound == false
+      assert setting.is_leave_sound == true
+    end
+
+    test "URL upload with both flags false creates UserSoundSetting with false flags", %{
+      socket: socket,
+      user: user
+    } do
+      params = %{
+        "source_type" => "url",
+        "name" => "normal_sound_test",
+        "url" => "http://example.com/normal.mp3",
+        "is_join_sound" => false,
+        "is_leave_sound" => false
+      }
+
+      assert {:ok, sound} = UploadHandler.handle_upload(socket, params, & &1)
+
+      # Verify user sound setting was created with false flags
+      setting = Repo.get_by(Soundboard.UserSoundSetting, sound_id: sound.id, user_id: user.id)
+      assert setting != nil
+      assert setting.is_join_sound == false
+      assert setting.is_leave_sound == false
+    end
+
+    test "URL upload with nil flags creates UserSoundSetting with false flags", %{
+      socket: socket,
+      user: user
+    } do
+      params = %{
+        "source_type" => "url",
+        "name" => "nil_flags_test",
+        "url" => "http://example.com/nil_flags.mp3",
+        "is_join_sound" => nil,
+        "is_leave_sound" => nil
+      }
+
+      assert {:ok, sound} = UploadHandler.handle_upload(socket, params, & &1)
+
+      # Verify user sound setting was created with false flags
+      setting = Repo.get_by(Soundboard.UserSoundSetting, sound_id: sound.id, user_id: user.id)
+      assert setting != nil
+      assert setting.is_join_sound == false
+      assert setting.is_leave_sound == false
+    end
+
+    test "URL upload with 'false' string flags creates UserSoundSetting with false flags", %{
+      socket: socket,
+      user: user
+    } do
+      params = %{
+        "source_type" => "url",
+        "name" => "false_string_test",
+        "url" => "http://example.com/false_string.mp3",
+        "is_join_sound" => "false",
+        "is_leave_sound" => "false"
+      }
+
+      assert {:ok, sound} = UploadHandler.handle_upload(socket, params, & &1)
+
+      # Verify user sound setting was created with false flags
+      setting = Repo.get_by(Soundboard.UserSoundSetting, sound_id: sound.id, user_id: user.id)
+      assert setting != nil
+      assert setting.is_join_sound == false
+      assert setting.is_leave_sound == false
+    end
+
+    test "clears existing join sound setting when new join sound is set", %{
+      socket: socket,
+      user: user
+    } do
+      # First create a sound with is_join_sound: true
+      params1 = %{
+        "source_type" => "url",
+        "name" => "first_join_sound",
+        "url" => "http://example.com/first_join.mp3",
+        "is_join_sound" => true,
+        "is_leave_sound" => false
+      }
+
+      assert {:ok, first_sound} = UploadHandler.handle_upload(socket, params1, & &1)
+
+      first_setting =
+        Repo.get_by(Soundboard.UserSoundSetting, sound_id: first_sound.id, user_id: user.id)
+
+      assert first_setting.is_join_sound == true
+
+      # Now create another sound with is_join_sound: true
+      params2 = %{
+        "source_type" => "url",
+        "name" => "second_join_sound",
+        "url" => "http://example.com/second_join.mp3",
+        "is_join_sound" => true,
+        "is_leave_sound" => false
+      }
+
+      assert {:ok, second_sound} = UploadHandler.handle_upload(socket, params2, & &1)
+
+      # The first setting should now have is_join_sound: false
+      first_setting_reloaded = Repo.get!(Soundboard.UserSoundSetting, first_setting.id)
+      assert first_setting_reloaded.is_join_sound == false
+
+      # The second setting should have is_join_sound: true
+      second_setting =
+        Repo.get_by(Soundboard.UserSoundSetting, sound_id: second_sound.id, user_id: user.id)
+
+      assert second_setting.is_join_sound == true
+    end
+
+    test "clears existing leave sound setting when new leave sound is set", %{
+      socket: socket,
+      user: user
+    } do
+      # First create a sound with is_leave_sound: true
+      params1 = %{
+        "source_type" => "url",
+        "name" => "first_leave_sound",
+        "url" => "http://example.com/first_leave.mp3",
+        "is_join_sound" => false,
+        "is_leave_sound" => true
+      }
+
+      assert {:ok, first_sound} = UploadHandler.handle_upload(socket, params1, & &1)
+
+      first_setting =
+        Repo.get_by(Soundboard.UserSoundSetting, sound_id: first_sound.id, user_id: user.id)
+
+      assert first_setting.is_leave_sound == true
+
+      # Now create another sound with is_leave_sound: true
+      params2 = %{
+        "source_type" => "url",
+        "name" => "second_leave_sound",
+        "url" => "http://example.com/second_leave.mp3",
+        "is_join_sound" => false,
+        "is_leave_sound" => true
+      }
+
+      assert {:ok, second_sound} = UploadHandler.handle_upload(socket, params2, & &1)
+
+      # The first setting should now have is_leave_sound: false
+      first_setting_reloaded = Repo.get!(Soundboard.UserSoundSetting, first_setting.id)
+      assert first_setting_reloaded.is_leave_sound == false
+
+      # The second setting should have is_leave_sound: true
+      second_setting =
+        Repo.get_by(Soundboard.UserSoundSetting, sound_id: second_sound.id, user_id: user.id)
+
+      assert second_setting.is_leave_sound == true
+    end
+  end
 end

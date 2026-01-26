@@ -127,6 +127,8 @@ defmodule SoundboardWeb.Live.UploadHandler do
   defp handle_url_upload(socket, params, user_id, tenant_id) do
     default_percent = socket.assigns[:upload_volume] || 100
     volume = Volume.percent_to_decimal(Map.get(params, "volume"), default_percent)
+    is_join_sound = truthy?(params["is_join_sound"])
+    is_leave_sound = truthy?(params["is_leave_sound"])
 
     sound_params = %{
       filename: params["name"] <> url_file_extension(params["url"]),
@@ -136,11 +138,11 @@ defmodule SoundboardWeb.Live.UploadHandler do
       tenant_id: tenant_id,
       volume: volume,
       join_leave_user_id:
-        if params["is_join_sound"] == "true" || params["is_leave_sound"] == "true" do
+        if is_join_sound || is_leave_sound do
           user_id
         end,
-      is_join_sound: params["is_join_sound"] == "true",
-      is_leave_sound: params["is_leave_sound"] == "true"
+      is_join_sound: is_join_sound,
+      is_leave_sound: is_leave_sound
     }
 
     handle_sound_transaction(sound_params, user_id, socket)
@@ -151,6 +153,8 @@ defmodule SoundboardWeb.Live.UploadHandler do
       {:ok, filename} ->
         default_percent = socket.assigns[:upload_volume] || 100
         volume = Volume.percent_to_decimal(Map.get(params, "volume"), default_percent)
+        is_join_sound = truthy?(params["is_join_sound"])
+        is_leave_sound = truthy?(params["is_leave_sound"])
 
         sound_params = %{
           filename: filename,
@@ -159,11 +163,11 @@ defmodule SoundboardWeb.Live.UploadHandler do
           tenant_id: tenant_id,
           volume: volume,
           join_leave_user_id:
-            if params["is_join_sound"] == "true" || params["is_leave_sound"] == "true" do
+            if is_join_sound || is_leave_sound do
               user_id
             end,
-          is_join_sound: params["is_join_sound"] == "true",
-          is_leave_sound: params["is_leave_sound"] == "true"
+          is_join_sound: is_join_sound,
+          is_leave_sound: is_leave_sound
         }
 
         handle_sound_transaction(sound_params, user_id, socket)
@@ -185,14 +189,19 @@ defmodule SoundboardWeb.Live.UploadHandler do
     end
   end
 
-  defp clear_existing_settings(user_id, %{is_join_sound: true}) do
-    from(s in Sound, where: s.join_leave_user_id == ^user_id and s.is_join_sound == true)
-    |> Repo.update_all(set: [is_join_sound: false, join_leave_user_id: nil])
+  defp clear_existing_settings(user_id, %{is_join_sound: true, tenant_id: tenant_id}) do
+    from(uss in Soundboard.UserSoundSetting,
+      where: uss.user_id == ^user_id and uss.tenant_id == ^tenant_id and uss.is_join_sound == true
+    )
+    |> Repo.update_all(set: [is_join_sound: false])
   end
 
-  defp clear_existing_settings(user_id, %{is_leave_sound: true}) do
-    from(s in Sound, where: s.join_leave_user_id == ^user_id and s.is_leave_sound == true)
-    |> Repo.update_all(set: [is_leave_sound: false, join_leave_user_id: nil])
+  defp clear_existing_settings(user_id, %{is_leave_sound: true, tenant_id: tenant_id}) do
+    from(uss in Soundboard.UserSoundSetting,
+      where:
+        uss.user_id == ^user_id and uss.tenant_id == ^tenant_id and uss.is_leave_sound == true
+    )
+    |> Repo.update_all(set: [is_leave_sound: false])
   end
 
   defp clear_existing_settings(_, _), do: nil
@@ -204,6 +213,8 @@ defmodule SoundboardWeb.Live.UploadHandler do
       {:ok, sound}
     end
   end
+
+  defp truthy?(value), do: value in [true, "true"]
 
   defp create_user_setting(sound, user_id, sound_params) do
     %Soundboard.UserSoundSetting{

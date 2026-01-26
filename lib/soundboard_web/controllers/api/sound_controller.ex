@@ -67,7 +67,6 @@ defmodule SoundboardWeb.API.SoundController do
     }
   end
 
-
   @doc """
   Play audio piped directly as raw binary data.
 
@@ -91,13 +90,15 @@ defmodule SoundboardWeb.API.SoundController do
       |> parse_float()
 
     content_type = get_req_header(conn, "content-type") |> List.first() || "audio/mpeg"
-    ext = case content_type do
-      "audio/mpeg" -> "mp3"
-      "audio/mp3" -> "mp3"
-      "audio/wav" -> "wav"
-      "audio/ogg" -> "ogg"
-      _ -> "mp3"
-    end
+
+    ext =
+      case content_type do
+        "audio/mpeg" -> "mp3"
+        "audio/mp3" -> "mp3"
+        "audio/wav" -> "wav"
+        "audio/ogg" -> "ogg"
+        _ -> "mp3"
+      end
 
     {:ok, audio_data, conn} = Plug.Conn.read_body(conn)
 
@@ -142,5 +143,6 @@ defmodule SoundboardWeb.API.SoundController do
       :error -> 1.0
     end
   end
+
   defp parse_float(_), do: 1.0
 end

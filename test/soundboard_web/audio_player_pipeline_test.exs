@@ -2,7 +2,8 @@ defmodule SoundboardWeb.AudioPlayerPipelineTest do
   use Soundboard.DataCase
   import Mock
 
-  alias Soundboard.Accounts.{Tenants, User}
+  alias Soundboard.Accounts.Tenants
+  alias Soundboard.Accounts.User
   alias Soundboard.{PubSubTopics, Repo, Sound}
   alias SoundboardWeb.AudioPlayer
 
@@ -102,5 +103,193 @@ defmodule SoundboardWeb.AudioPlayerPipelineTest do
     assert_receive {:error,
                     "Bot is not connected to a voice channel. Use !join in Discord first."},
                    200
+  end
+
+  describe "play_url/3" do
+    test "broadcasts success with default parameters when voice is ready", %{tenant: tenant} do
+      Phoenix.PubSub.subscribe(Soundboard.PubSub, PubSubTopics.soundboard_topic(tenant.id))
+
+      parent = self()
+
+      with_mocks([
+        {Nostrum.Voice, [],
+         [
+           ready?: fn _ -> true end,
+           playing?: fn _ -> false end,
+           play: fn guild_id, _input, _type, opts ->
+             send(parent, {:played, guild_id, opts})
+             :ok
+           end,
+           stop: fn _ -> :ok end
+         ]}
+      ]) do
+        AudioPlayer.play_url("http://example.com/stream.mp3")
+
+        assert_receive {:played, 123, opts}, 200
+        assert Keyword.get(opts, :volume) == 1.0
+        assert Keyword.get(opts, :realtime) == true
+
+        assert_receive {:sound_played,
+                        %{filename: "streamed_audio", played_by: "API User", tenant_id: _}},
+                       200
+      end
+    end
+
+    test "broadcasts success with custom volume and username", %{tenant: tenant} do
+      Phoenix.PubSub.subscribe(Soundboard.PubSub, PubSubTopics.soundboard_topic(tenant.id))
+
+      parent = self()
+
+      with_mocks([
+        {Nostrum.Voice, [],
+         [
+           ready?: fn _ -> true end,
+           playing?: fn _ -> false end,
+           play: fn guild_id, _input, _type, opts ->
+             send(parent, {:played, guild_id, opts})
+             :ok
+           end,
+           stop: fn _ -> :ok end
+         ]}
+      ]) do
+        AudioPlayer.play_url("http://example.com/stream.mp3", 0.5, "CustomUser")
+
+        assert_receive {:played, 123, opts}, 200
+        assert Keyword.get(opts, :volume) == 0.5
+
+        assert_receive {:sound_played,
+                        %{filename: "streamed_audio", played_by: "CustomUser", tenant_id: _}},
+                       200
+      end
+    end
+
+    test "broadcasts error when no voice channel is set" do
+      AudioPlayer.set_voice_channel(nil, nil)
+
+      # Subscribe to default tenant topic
+      tenant = Tenants.ensure_default_tenant!()
+      Phoenix.PubSub.subscribe(Soundboard.PubSub, PubSubTopics.soundboard_topic(tenant.id))
+
+      AudioPlayer.play_url("http://example.com/stream.mp3")
+
+      assert_receive {:error,
+                      "Bot is not connected to a voice channel. Use !join in Discord first."},
+                     200
+    end
+
+    test "broadcasts error when voice play fails", %{tenant: tenant} do
+      Phoenix.PubSub.subscribe(Soundboard.PubSub, PubSubTopics.soundboard_topic(tenant.id))
+
+      with_mocks([
+        {Nostrum.Voice, [],
+         [
+           ready?: fn _ -> true end,
+           playing?: fn _ -> false end,
+           play: fn _guild_id, _input, _type, _opts ->
+             {:error, "Connection lost"}
+           end,
+           stop: fn _ -> :ok end
+         ]}
+      ]) do
+        AudioPlayer.play_url("http://example.com/stream.mp3")
+
+        assert_receive {:error, "Failed to play audio: Connection lost"}, 200
+      end
+    end
+  end
+
+  describe "volume clamping via play_url/3" do
+    test "clamps volume below 0 to 0.0", %{tenant: tenant} do
+      Phoenix.PubSub.subscribe(Soundboard.PubSub, PubSubTopics.soundboard_topic(tenant.id))
+
+      parent = self()
+
+      with_mocks([
+        {Nostrum.Voice, [],
+         [
+           ready?: fn _ -> true end,
+           playing?: fn _ -> false end,
+           play: fn _guild_id, _input, _type, opts ->
+             send(parent, {:volume, Keyword.get(opts, :volume)})
+             :ok
+           end,
+           stop: fn _ -> :ok end
+         ]}
+      ]) do
+        AudioPlayer.play_url("http://example.com/stream.mp3", -0.5)
+
+        assert_receive {:volume, volume}, 200
+        assert volume == +0.0
+      end
+    end
+
+    test "clamps volume above 1 to 1.0", %{tenant: tenant} do
+      Phoenix.PubSub.subscribe(Soundboard.PubSub, PubSubTopics.soundboard_topic(tenant.id))
+
+      parent = self()
+
+      with_mocks([
+        {Nostrum.Voice, [],
+         [
+           ready?: fn _ -> true end,
+           playing?: fn _ -> false end,
+           play: fn _guild_id, _input, _type, opts ->
+             send(parent, {:volume, Keyword.get(opts, :volume)})
+             :ok
+           end,
+           stop: fn _ -> :ok end
+         ]}
+      ]) do
+        AudioPlayer.play_url("http://example.com/stream.mp3", 1.5)
+
+        assert_receive {:volume, 1.0}, 200
+      end
+    end
+
+    test "keeps volume within valid range unchanged", %{tenant: tenant} do
+      Phoenix.PubSub.subscribe(Soundboard.PubSub, PubSubTopics.soundboard_topic(tenant.id))
+
+      parent = self()
+
+      with_mocks([
+        {Nostrum.Voice, [],
+         [
+           ready?: fn _ -> true end,
+           playing?: fn _ -> false end,
+           play: fn _guild_id, _input, _type, opts ->
+             send(parent, {:volume, Keyword.get(opts, :volume)})
+             :ok
+           end,
+           stop: fn _ -> :ok end
+         ]}
+      ]) do
+        AudioPlayer.play_url("http://example.com/stream.mp3", 0.75)
+
+        assert_receive {:volume, 0.75}, 200
+      end
+    end
+
+    test "defaults non-numeric volume to 1.0", %{tenant: tenant} do
+      Phoenix.PubSub.subscribe(Soundboard.PubSub, PubSubTopics.soundboard_topic(tenant.id))
+
+      parent = self()
+
+      with_mocks([
+        {Nostrum.Voice, [],
+         [
+           ready?: fn _ -> true end,
+           playing?: fn _ -> false end,
+           play: fn _guild_id, _input, _type, opts ->
+             send(parent, {:volume, Keyword.get(opts, :volume)})
+             :ok
+           end,
+           stop: fn _ -> :ok end
+         ]}
+      ]) do
+        AudioPlayer.play_url("http://example.com/stream.mp3", "invalid")
+
+        assert_receive {:volume, 1.0}, 200
+      end
+    end
   end
 end
