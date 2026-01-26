@@ -250,7 +250,8 @@ defmodule SoundboardWeb.AudioPlayer do
     Logger.info("Voice ready: #{Voice.ready?(guild_id)}, Playing: #{Voice.playing?(guild_id)}")
 
     # Disable ffmpeg realtime processing to avoid `-re` pacing artifacts.
-    play_options = [volume: clamp_volume(volume), realtime: false]
+    # Force realtime pacing to reduce UDP burst artifacts in production.
+    play_options = [volume: clamp_volume(volume), realtime: true]
     Logger.info("Play options: #{inspect(play_options)}")
 
     # Keep track of attempts
