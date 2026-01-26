@@ -10,10 +10,18 @@ defmodule SoundboardWeb.DiscordHandlerTest do
 
   setup do
     original = Application.get_env(:soundboard, :edition, :community)
+    env_original = Application.get_env(:soundboard, :env)
 
     on_exit(fn ->
       Application.put_env(:soundboard, :edition, original)
+      if is_nil(env_original) do
+        Application.delete_env(:soundboard, :env)
+      else
+        Application.put_env(:soundboard, :env, env_original)
+      end
     end)
+
+    Application.put_env(:soundboard, :env, :test)
 
     :ok
   end

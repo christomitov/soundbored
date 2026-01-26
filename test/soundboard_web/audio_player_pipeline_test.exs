@@ -127,7 +127,7 @@ defmodule SoundboardWeb.AudioPlayerPipelineTest do
 
         assert_receive {:played, 123, opts}, 200
         assert Keyword.get(opts, :volume) == 1.0
-        assert Keyword.get(opts, :realtime) == true
+        assert Keyword.get(opts, :realtime) == false
 
         assert_receive {:sound_played,
                         %{filename: "streamed_audio", played_by: "API User", tenant_id: _}},
