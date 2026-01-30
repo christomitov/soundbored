@@ -8,6 +8,7 @@ defmodule SoundboardWeb.DiscordHandler do
   alias Nostrum.Api.{Message, Self}
   alias Nostrum.Cache.GuildCache
   alias Nostrum.Voice
+  alias SoundboardWeb.VoiceJoinGuard
   alias Soundboard.{Accounts.User, Repo, Sound, UserSoundSetting}
   import Ecto.Query
 
@@ -131,23 +132,19 @@ defmodule SoundboardWeb.DiscordHandler do
       # Set the AudioPlayer's voice channel so join sounds can play
       SoundboardWeb.AudioPlayer.set_voice_channel(guild_id, channel_id)
 
-      # Add rate limit protection
-      try do
-        Voice.join_channel(guild_id, channel_id)
-      rescue
-        e ->
-          error_msg = Exception.message(e)
-          Logger.error("Error joining voice channel: #{error_msg}")
+      case VoiceJoinGuard.join(guild_id, channel_id) do
+        :ok ->
+          :ok
 
-          # If rate limited, retry after delay
-          if is_binary(error_msg) and String.contains?(error_msg, "rate limit") do
-            Logger.warning(
-              "Rate limited while trying to join voice channel, retrying in 5 seconds..."
-            )
+        {:skip, reason} ->
+          Logger.info(
+            "Skipping join for guild #{guild_id}, channel #{channel_id} (#{inspect(reason)})"
+          )
 
-            Process.sleep(5000)
-            Voice.join_channel(guild_id, channel_id)
-          end
+        {:error, reason} ->
+          Logger.error(
+            "Failed to join voice channel #{channel_id} in guild #{guild_id}: #{inspect(reason)}"
+          )
       end
 
       # Update AudioPlayer
@@ -472,7 +469,21 @@ defmodule SoundboardWeb.DiscordHandler do
         """)
 
         Process.put(:current_voice_channel, {guild.id, channel_id})
-        Voice.join_channel(guild.id, channel_id)
+
+        case VoiceJoinGuard.join(guild.id, channel_id) do
+          :ok ->
+            :ok
+
+          {:skip, reason} ->
+            Logger.info(
+              "Skipping auto-join for guild #{guild.id}, channel #{channel_id} (#{inspect(reason)})"
+            )
+
+          {:error, reason} ->
+            Logger.error(
+              "Failed auto-join for guild #{guild.id}, channel #{channel_id}: #{inspect(reason)}"
+            )
+        end
 
         # Update AudioPlayer
         GenServer.cast(
