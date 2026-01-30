@@ -173,32 +173,7 @@ defmodule SoundboardWeb.AudioPlayer do
     new_state =
       case state.voice_channel do
         {guild_id, channel_id} when not is_nil(guild_id) and not is_nil(channel_id) ->
-          if Voice.ready?(guild_id) do
-            Logger.debug("Voice connection healthy for guild #{guild_id}")
-            state
-          else
-            Logger.warning(
-              "Voice connection not ready for guild #{guild_id}, attempting to rejoin"
-            )
-
-            # Wrap in try-catch to handle potential errors
-            case VoiceJoinGuard.join(guild_id, channel_id) do
-              :ok ->
-                state
-
-              {:skip, reason} ->
-                Logger.info(
-                  "Rejoin skipped for guild #{guild_id}, channel #{channel_id} (#{inspect(reason)})"
-                )
-
-                state
-
-              {:error, reason} ->
-                Logger.error("Failed to rejoin voice channel: #{inspect(reason)}")
-                # Clear the voice channel if we can't rejoin
-                %{state | voice_channel: nil}
-            end
-          end
+          maybe_rejoin_voice(state, guild_id, channel_id)
 
         _ ->
           Logger.debug("No voice channel set")
@@ -350,68 +325,121 @@ defmodule SoundboardWeb.AudioPlayer do
     # Get the channel from state
     case GenServer.call(__MODULE__, :get_voice_channel) do
       {^guild_id, channel_id} ->
-        Logger.info("Rejoining voice channel #{channel_id}")
-
-        case VoiceJoinGuard.join(guild_id, channel_id) do
-          :ok ->
-            if wait_until_ready(guild_id, 0) do
-              play_with_retries(
-                guild_id,
-                play_input,
-                play_type,
-                play_options,
-                sound_name,
-                username,
-                attempt + 1
-              )
-            else
-              broadcast_error(
-                "Failed to reconnect to voice channel",
-                tenant_id_for_sound(sound_name)
-              )
-
-              :error
-            end
-
-          {:skip, reason} ->
-            Logger.info(
-              "Rejoin skipped for guild #{guild_id}, channel #{channel_id} (#{inspect(reason)})"
-            )
-
-            if wait_until_ready(guild_id, 0) do
-              play_with_retries(
-                guild_id,
-                play_input,
-                play_type,
-                play_options,
-                sound_name,
-                username,
-                attempt + 1
-              )
-            else
-              broadcast_error(
-                "Failed to reconnect to voice channel",
-                tenant_id_for_sound(sound_name)
-              )
-
-              :error
-            end
-
-          {:error, reason} ->
-            Logger.error("Failed to rejoin voice channel: #{inspect(reason)}")
-
-            broadcast_error(
-              "Failed to reconnect to voice channel",
-              tenant_id_for_sound(sound_name)
-            )
-
-            :error
-        end
+        attempt_reconnect(
+          guild_id,
+          channel_id,
+          play_input,
+          play_type,
+          play_options,
+          sound_name,
+          username,
+          attempt
+        )
 
       _ ->
         Logger.error("No voice channel info available")
         broadcast_error("Voice channel not configured", tenant_id_for_sound(sound_name))
         :error
+    end
+  end
+
+  defp maybe_rejoin_voice(state, guild_id, channel_id) do
+    if Voice.ready?(guild_id) do
+      Logger.debug("Voice connection healthy for guild #{guild_id}")
+      state
+    else
+      Logger.warning("Voice connection not ready for guild #{guild_id}, attempting to rejoin")
+      rejoin_voice_channel(state, guild_id, channel_id)
+    end
+  end
+
+  defp rejoin_voice_channel(state, guild_id, channel_id) do
+    case VoiceJoinGuard.join(guild_id, channel_id) do
+      :ok ->
+        state
+
+      {:skip, reason} ->
+        Logger.info(
+          "Rejoin skipped for guild #{guild_id}, channel #{channel_id} (#{inspect(reason)})"
+        )
+
+        state
+
+      {:error, reason} ->
+        Logger.error("Failed to rejoin voice channel: #{inspect(reason)}")
+        # Clear the voice channel if we can't rejoin
+        %{state | voice_channel: nil}
+    end
+  end
+
+  defp attempt_reconnect(
+         guild_id,
+         channel_id,
+         play_input,
+         play_type,
+         play_options,
+         sound_name,
+         username,
+         attempt
+       ) do
+    Logger.info("Rejoining voice channel #{channel_id}")
+
+    case VoiceJoinGuard.join(guild_id, channel_id) do
+      {:error, reason} ->
+        Logger.error("Failed to rejoin voice channel: #{inspect(reason)}")
+        broadcast_error("Failed to reconnect to voice channel", tenant_id_for_sound(sound_name))
+        :error
+
+      {:skip, reason} ->
+        Logger.info(
+          "Rejoin skipped for guild #{guild_id}, channel #{channel_id} (#{inspect(reason)})"
+        )
+
+        retry_after_reconnect(
+          guild_id,
+          play_input,
+          play_type,
+          play_options,
+          sound_name,
+          username,
+          attempt
+        )
+
+      :ok ->
+        retry_after_reconnect(
+          guild_id,
+          play_input,
+          play_type,
+          play_options,
+          sound_name,
+          username,
+          attempt
+        )
+    end
+  end
+
+  defp retry_after_reconnect(
+         guild_id,
+         play_input,
+         play_type,
+         play_options,
+         sound_name,
+         username,
+         attempt
+       ) do
+    if wait_until_ready(guild_id, 0) do
+      play_with_retries(
+        guild_id,
+        play_input,
+        play_type,
+        play_options,
+        sound_name,
+        username,
+        attempt + 1
+      )
+    else
+      broadcast_error("Failed to reconnect to voice channel", tenant_id_for_sound(sound_name))
+      :error
     end
   end
 
