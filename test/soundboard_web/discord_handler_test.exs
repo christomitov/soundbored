@@ -14,6 +14,7 @@ defmodule SoundboardWeb.DiscordHandlerTest do
 
     on_exit(fn ->
       Application.put_env(:soundboard, :edition, original)
+
       if is_nil(env_original) do
         Application.delete_env(:soundboard, :env)
       else

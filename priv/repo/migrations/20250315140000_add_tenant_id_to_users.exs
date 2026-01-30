@@ -37,12 +37,20 @@ defmodule Soundboard.Repo.Migrations.AddTenantIdToUsers do
   end
 
   defp backfill_default_tenant do
-    execute("""
-    UPDATE users
-    SET tenant_id = tenants.id
-    FROM tenants
-    WHERE tenants.slug = 'default' AND users.tenant_id IS NULL
-    """)
+    if sqlite?() do
+      execute("""
+      UPDATE users
+      SET tenant_id = (SELECT id FROM tenants WHERE slug = 'default')
+      WHERE tenant_id IS NULL
+      """)
+    else
+      execute("""
+      UPDATE users
+      SET tenant_id = tenants.id
+      FROM tenants
+      WHERE tenants.slug = 'default' AND users.tenant_id IS NULL
+      """)
+    end
   end
 
   defp enforce_not_null_for_supported_adapters do

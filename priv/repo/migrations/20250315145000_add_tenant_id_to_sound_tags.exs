@@ -38,21 +38,37 @@ defmodule Soundboard.Repo.Migrations.AddTenantIdToSoundTags do
   end
 
   defp backfill_from_sounds do
-    execute("""
-    UPDATE sound_tags
-    SET tenant_id = sounds.tenant_id
-    FROM sounds
-    WHERE sound_tags.sound_id = sounds.id AND sound_tags.tenant_id IS NULL
-    """)
+    if sqlite?() do
+      execute("""
+      UPDATE sound_tags
+      SET tenant_id = (SELECT tenant_id FROM sounds WHERE sounds.id = sound_tags.sound_id)
+      WHERE tenant_id IS NULL
+      """)
+    else
+      execute("""
+      UPDATE sound_tags
+      SET tenant_id = sounds.tenant_id
+      FROM sounds
+      WHERE sound_tags.sound_id = sounds.id AND sound_tags.tenant_id IS NULL
+      """)
+    end
   end
 
   defp backfill_default_tenant do
-    execute("""
-    UPDATE sound_tags
-    SET tenant_id = tenants.id
-    FROM tenants
-    WHERE tenants.slug = 'default' AND sound_tags.tenant_id IS NULL
-    """)
+    if sqlite?() do
+      execute("""
+      UPDATE sound_tags
+      SET tenant_id = (SELECT id FROM tenants WHERE slug = 'default')
+      WHERE tenant_id IS NULL
+      """)
+    else
+      execute("""
+      UPDATE sound_tags
+      SET tenant_id = tenants.id
+      FROM tenants
+      WHERE tenants.slug = 'default' AND sound_tags.tenant_id IS NULL
+      """)
+    end
   end
 
   defp enforce_not_null_for_supported_adapters do
