@@ -5,6 +5,7 @@ defmodule SoundboardWeb.AudioPlayer do
   use GenServer
   require Logger
   alias Nostrum.Voice
+  alias SoundboardWeb.VoiceJoinGuard
   alias Soundboard.Accounts.{Tenants, User}
   alias Soundboard.{PubSubTopics, Sound}
 
@@ -181,12 +182,19 @@ defmodule SoundboardWeb.AudioPlayer do
             )
 
             # Wrap in try-catch to handle potential errors
-            try do
-              Voice.join_channel(guild_id, channel_id)
-              state
-            rescue
-              error ->
-                Logger.error("Failed to rejoin voice channel: #{inspect(error)}")
+            case VoiceJoinGuard.join(guild_id, channel_id) do
+              :ok ->
+                state
+
+              {:skip, reason} ->
+                Logger.info(
+                  "Rejoin skipped for guild #{guild_id}, channel #{channel_id} (#{inspect(reason)})"
+                )
+
+                state
+
+              {:error, reason} ->
+                Logger.error("Failed to rejoin voice channel: #{inspect(reason)}")
                 # Clear the voice channel if we can't rejoin
                 %{state | voice_channel: nil}
             end
@@ -344,24 +352,53 @@ defmodule SoundboardWeb.AudioPlayer do
       {^guild_id, channel_id} ->
         Logger.info("Rejoining voice channel #{channel_id}")
 
-        # Voice.join_channel returns :ok or crashes (no_return)
-        try do
-          Voice.join_channel(guild_id, channel_id)
-          # Reduced delay - just enough for connection handshake
-          Process.sleep(50)
+        case VoiceJoinGuard.join(guild_id, channel_id) do
+          :ok ->
+            if wait_until_ready(guild_id, 0) do
+              play_with_retries(
+                guild_id,
+                play_input,
+                play_type,
+                play_options,
+                sound_name,
+                username,
+                attempt + 1
+              )
+            else
+              broadcast_error(
+                "Failed to reconnect to voice channel",
+                tenant_id_for_sound(sound_name)
+              )
 
-          play_with_retries(
-            guild_id,
-            play_input,
-            play_type,
-            play_options,
-            sound_name,
-            username,
-            attempt + 1
-          )
-        rescue
-          error ->
-            Logger.error("Failed to rejoin voice channel: #{inspect(error)}")
+              :error
+            end
+
+          {:skip, reason} ->
+            Logger.info(
+              "Rejoin skipped for guild #{guild_id}, channel #{channel_id} (#{inspect(reason)})"
+            )
+
+            if wait_until_ready(guild_id, 0) do
+              play_with_retries(
+                guild_id,
+                play_input,
+                play_type,
+                play_options,
+                sound_name,
+                username,
+                attempt + 1
+              )
+            else
+              broadcast_error(
+                "Failed to reconnect to voice channel",
+                tenant_id_for_sound(sound_name)
+              )
+
+              :error
+            end
+
+          {:error, reason} ->
+            Logger.error("Failed to rejoin voice channel: #{inspect(reason)}")
 
             broadcast_error(
               "Failed to reconnect to voice channel",
@@ -484,15 +521,21 @@ defmodule SoundboardWeb.AudioPlayer do
   end
 
   defp join_and_verify_channel(guild_id, channel_id) do
-    # Voice.join_channel returns :ok or crashes (no_return)
-    # Using rescue to handle potential crashes
-    Voice.join_channel(guild_id, channel_id)
+    case VoiceJoinGuard.join(guild_id, channel_id) do
+      :ok ->
+        wait_until_ready(guild_id, 0)
 
-    wait_until_ready(guild_id, 0)
-  rescue
-    error ->
-      Logger.error("Failed to join voice channel: #{inspect(error)}")
-      false
+      {:skip, reason} ->
+        Logger.info(
+          "Join skipped for guild #{guild_id}, channel #{channel_id} (#{inspect(reason)})"
+        )
+
+        wait_until_ready(guild_id, 0)
+
+      {:error, reason} ->
+        Logger.error("Failed to join voice channel: #{inspect(reason)}")
+        false
+    end
   end
 
   defp wait_until_ready(guild_id, attempts) when attempts < 80 do
