@@ -471,7 +471,7 @@ defmodule SoundboardWeb.AudioPlayer do
           "Join skipped for guild #{guild_id}, channel #{channel_id} (#{inspect(reason)})"
         )
 
-        wait_until_ready(guild_id, 0)
+        false
 
       {:error, reason} ->
         Logger.error("Failed to join voice channel: #{inspect(reason)}")
