@@ -12,7 +12,6 @@ defmodule SoundboardWeb.DiscordHandler do
   alias Soundboard.{Accounts.User, Repo, Sound, UserSoundSetting}
   import Ecto.Query
 
-  @force_rejoin_cooldown_ms 1_500
   @force_rejoin_backoff_ms 10_000
   @force_rejoin_delay_ms 400
   @force_rejoin_max_attempts 5
@@ -668,10 +667,19 @@ defmodule SoundboardWeb.DiscordHandler do
     now = System.monotonic_time(:millisecond)
     last = Process.get({:force_rejoin_last, guild_id}, 0)
     attempts = Process.get({:force_rejoin_attempts, guild_id}, 0)
-    cooldown = force_rejoin_cooldown_ms(attempts)
 
-    if now - last > cooldown do
-      attempts = attempts + 1
+    if attempts >= @force_rejoin_max_attempts and now - last < @force_rejoin_backoff_ms do
+      Logger.debug(
+        "Skipping forced rejoin for guild #{guild_id}, channel #{channel_id} (backoff active)"
+      )
+    else
+      attempts =
+        if now - last >= @force_rejoin_backoff_ms do
+          1
+        else
+          attempts + 1
+        end
+
       Process.put({:force_rejoin_attempts, guild_id}, attempts)
       Process.put({:force_rejoin_last, guild_id}, now)
 
@@ -681,18 +689,6 @@ defmodule SoundboardWeb.DiscordHandler do
 
       leave_voice_channel(guild_id)
       schedule_force_rejoin(guild_id, channel_id)
-    else
-      Logger.debug(
-        "Skipping forced rejoin for guild #{guild_id}, channel #{channel_id} (cooldown active)"
-      )
-    end
-  end
-
-  defp force_rejoin_cooldown_ms(attempts) do
-    if attempts >= @force_rejoin_max_attempts do
-      @force_rejoin_backoff_ms
-    else
-      @force_rejoin_cooldown_ms
     end
   end
 
