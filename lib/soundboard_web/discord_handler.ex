@@ -13,7 +13,7 @@ defmodule SoundboardWeb.DiscordHandler do
   import Ecto.Query
 
   @force_rejoin_backoff_ms 10_000
-  @force_rejoin_delay_ms 400
+  @force_rejoin_delay_ms 1_200
   @force_rejoin_max_attempts 5
 
   # State GenServer
@@ -128,36 +128,58 @@ defmodule SoundboardWeb.DiscordHandler do
   end
 
   # Add helper function for joining voice channel
-  defp join_voice_channel(guild_id, channel_id) do
+  defp join_voice_channel(guild_id, channel_id, opts \\ []) do
     if connected_to_discord?() do
-      Logger.info("Bot joining voice channel #{channel_id} in guild #{guild_id}")
-      Process.put(:current_voice_channel, {guild_id, channel_id})
-
-      # Set the AudioPlayer's voice channel so join sounds can play
-      SoundboardWeb.AudioPlayer.set_voice_channel(guild_id, channel_id)
-
-      case VoiceJoinGuard.join(guild_id, channel_id) do
-        :ok ->
-          :ok
-
-        {:skip, reason} ->
-          Logger.info(
-            "Skipping join for guild #{guild_id}, channel #{channel_id} (#{inspect(reason)})"
-          )
-
-        {:error, reason} ->
-          Logger.error(
-            "Failed to join voice channel #{channel_id} in guild #{guild_id}: #{inspect(reason)}"
-          )
-      end
-
-      # Update AudioPlayer
-      GenServer.cast(
-        SoundboardWeb.AudioPlayer,
-        {:set_voice_channel, guild_id, channel_id}
-      )
+      do_join_voice_channel(guild_id, channel_id, opts)
     else
       Logger.warning("Skipping join_voice_channel - not connected to Discord")
+    end
+  end
+
+  defp do_join_voice_channel(guild_id, channel_id, opts) do
+    force = Keyword.get(opts, :force, false)
+    Logger.info("Bot joining voice channel #{channel_id} in guild #{guild_id}")
+    Process.put(:current_voice_channel, {guild_id, channel_id})
+
+    # Set the AudioPlayer's voice channel so join sounds can play
+    SoundboardWeb.AudioPlayer.set_voice_channel(guild_id, channel_id)
+
+    if force do
+      force_join_voice_channel(guild_id, channel_id)
+    else
+      guarded_join_voice_channel(guild_id, channel_id)
+    end
+
+    # Update AudioPlayer
+    GenServer.cast(
+      SoundboardWeb.AudioPlayer,
+      {:set_voice_channel, guild_id, channel_id}
+    )
+  end
+
+  defp force_join_voice_channel(guild_id, channel_id) do
+    Voice.join_channel(guild_id, channel_id)
+  rescue
+    error ->
+      Logger.error(
+        "Failed to force-join voice channel #{channel_id} in guild #{guild_id}: #{inspect(error)}"
+      )
+  end
+
+  defp guarded_join_voice_channel(guild_id, channel_id) do
+    case VoiceJoinGuard.join(guild_id, channel_id) do
+      :ok ->
+        :ok
+
+      {:skip, reason} ->
+        Logger.info(
+          "Skipping join for guild #{guild_id}, channel #{channel_id} (#{inspect(reason)})"
+        )
+
+      {:error, reason} ->
+        Logger.error(
+          "Failed to join voice channel #{channel_id} in guild #{guild_id}: #{inspect(reason)}"
+        )
     end
   end
 
@@ -262,6 +284,8 @@ defmodule SoundboardWeb.DiscordHandler do
   def handle_event({:VOICE_STATE_UPDATE, %{channel_id: nil} = payload, _ws_state}) do
     Logger.info("User #{payload.user_id} disconnected from voice")
     State.update_state(payload.user_id, nil, payload.session_id)
+
+    maybe_rejoin_after_disconnect(payload)
 
     case auto_join_mode() do
       :enabled -> handle_bot_alone_check(payload.guild_id)
@@ -424,16 +448,19 @@ defmodule SoundboardWeb.DiscordHandler do
     if connected_to_discord?() do
       users_in_channel = check_users_in_voice(guild_id, channel_id)
 
-      if users_in_channel > 0 do
+      if users_in_channel > 0 and pending_rejoin?(guild_id) do
         Logger.warning(
           "Forcing voice rejoin in guild #{guild_id} channel #{channel_id} (#{users_in_channel} users)"
         )
 
-        join_voice_channel(guild_id, channel_id)
+        join_voice_channel(guild_id, channel_id, force: true)
+        clear_pending_rejoin(guild_id)
       else
         Logger.info(
           "Skipping forced rejoin in guild #{guild_id}, channel #{channel_id}; no non-bot users"
         )
+
+        clear_pending_rejoin(guild_id)
       end
     end
 
@@ -668,28 +695,45 @@ defmodule SoundboardWeb.DiscordHandler do
     last = Process.get({:force_rejoin_last, guild_id}, 0)
     attempts = Process.get({:force_rejoin_attempts, guild_id}, 0)
 
-    if attempts >= @force_rejoin_max_attempts and now - last < @force_rejoin_backoff_ms do
-      Logger.debug(
-        "Skipping forced rejoin for guild #{guild_id}, channel #{channel_id} (backoff active)"
-      )
-    else
-      attempts =
-        if now - last >= @force_rejoin_backoff_ms do
-          1
-        else
-          attempts + 1
-        end
+    cond do
+      pending_rejoin?(guild_id) ->
+        Logger.debug(
+          "Skipping forced rejoin for guild #{guild_id}, channel #{channel_id} (pending rejoin)"
+        )
 
-      Process.put({:force_rejoin_attempts, guild_id}, attempts)
-      Process.put({:force_rejoin_last, guild_id}, now)
+      backoff_active?(attempts, now, last) ->
+        Logger.debug(
+          "Skipping forced rejoin for guild #{guild_id}, channel #{channel_id} (backoff active)"
+        )
 
-      Logger.warning(
-        "Voice not ready but bot is in channel #{channel_id}; forcing leave+rejoin (#{inspect(reason)} attempt #{attempts})"
-      )
-
-      leave_voice_channel(guild_id)
-      schedule_force_rejoin(guild_id, channel_id)
+      true ->
+        perform_force_rejoin(guild_id, channel_id, reason, attempts, now, last)
     end
+  end
+
+  defp backoff_active?(attempts, now, last) do
+    attempts >= @force_rejoin_max_attempts and now - last < @force_rejoin_backoff_ms
+  end
+
+  defp perform_force_rejoin(guild_id, channel_id, reason, attempts, now, last) do
+    attempts =
+      if now - last >= @force_rejoin_backoff_ms do
+        1
+      else
+        attempts + 1
+      end
+
+    Process.put({:force_rejoin_attempts, guild_id}, attempts)
+    Process.put({:force_rejoin_last, guild_id}, now)
+
+    Logger.warning(
+      "Voice not ready but bot is in channel #{channel_id}; forcing leave+rejoin (#{inspect(reason)} attempt #{attempts})"
+    )
+
+    set_pending_rejoin(guild_id, channel_id)
+    leave_voice_channel(guild_id)
+    Voice.remove_voice(guild_id)
+    schedule_force_rejoin(guild_id, channel_id)
   end
 
   defp schedule_force_rejoin(guild_id, channel_id) do
@@ -705,6 +749,7 @@ defmodule SoundboardWeb.DiscordHandler do
     Process.delete({:force_rejoin_attempts, guild_id})
     Process.delete({:force_rejoin_last, guild_id})
     clear_force_rejoin_timer(guild_id)
+    clear_pending_rejoin(guild_id)
   end
 
   defp force_rejoin_timer_active?(guild_id) do
@@ -713,6 +758,56 @@ defmodule SoundboardWeb.DiscordHandler do
 
   defp clear_force_rejoin_timer(guild_id) do
     Process.delete({:force_rejoin_timer, guild_id})
+  end
+
+  defp maybe_rejoin_after_disconnect(%{guild_id: guild_id, user_id: user_id}) do
+    if bot_voice_update?(user_id) do
+      case pop_pending_rejoin(guild_id) do
+        nil -> :noop
+        channel_id -> rejoin_after_disconnect(guild_id, channel_id)
+      end
+    end
+  end
+
+  defp maybe_rejoin_after_disconnect(_payload), do: :noop
+
+  defp rejoin_after_disconnect(guild_id, channel_id) do
+    users_in_channel = check_users_in_voice(guild_id, channel_id)
+
+    if users_in_channel > 0 do
+      Logger.info(
+        "Rejoining channel #{channel_id} in guild #{guild_id} after disconnect (#{users_in_channel} users)"
+      )
+
+      join_voice_channel(guild_id, channel_id, force: true)
+    else
+      Logger.info("Skipping rejoin in guild #{guild_id}, channel #{channel_id}; no non-bot users")
+    end
+  end
+
+  defp pending_rejoin?(guild_id) do
+    Process.get({:pending_rejoin, guild_id}) != nil
+  end
+
+  defp set_pending_rejoin(guild_id, channel_id) do
+    Process.put({:pending_rejoin, guild_id}, channel_id)
+  end
+
+  defp pop_pending_rejoin(guild_id) do
+    key = {:pending_rejoin, guild_id}
+
+    case Process.get(key) do
+      nil ->
+        nil
+
+      channel_id ->
+        Process.delete(key)
+        channel_id
+    end
+  end
+
+  defp clear_pending_rejoin(guild_id) do
+    Process.delete({:pending_rejoin, guild_id})
   end
 
   defp handle_bot_in_different_channel(guild_id, current_channel_id)
