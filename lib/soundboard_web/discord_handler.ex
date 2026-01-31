@@ -211,9 +211,34 @@ defmodule SoundboardWeb.DiscordHandler do
   end
 
   defp bot_voice_update?(user_id) do
+    case cached_bot_id() do
+      nil ->
+        case Self.get() do
+          {:ok, %{id: bot_id}} -> bot_id == user_id
+          _ -> false
+        end
+
+      bot_id ->
+        bot_id == user_id
+    end
+  end
+
+  defp cache_bot_id do
     case Self.get() do
-      {:ok, %{id: bot_id}} -> bot_id == user_id
-      _ -> false
+      {:ok, %{id: bot_id}} ->
+        :persistent_term.put(:soundboard_bot_id, bot_id)
+        bot_id
+
+      _ ->
+        :persistent_term.put(:soundboard_bot_id, Application.get_env(:nostrum, :user_id))
+        nil
+    end
+  end
+
+  defp cached_bot_id do
+    case :persistent_term.get(:soundboard_bot_id, nil) do
+      nil -> Application.get_env(:nostrum, :user_id)
+      bot_id -> bot_id
     end
   end
 
@@ -333,6 +358,7 @@ defmodule SoundboardWeb.DiscordHandler do
   def handle_event({:READY, _payload, _ws_state}) do
     Logger.info("Bot is READY - gateway connection established")
     :persistent_term.put(:soundboard_bot_ready, true)
+    cache_bot_id()
     Process.send_after(self(), :post_ready_voice_check, 500)
     :noop
   end
