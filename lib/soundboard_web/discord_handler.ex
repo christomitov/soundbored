@@ -184,6 +184,13 @@ defmodule SoundboardWeb.DiscordHandler do
     end
   end
 
+  defp bot_voice_update?(user_id) do
+    case Self.get() do
+      {:ok, %{id: bot_id}} -> bot_id == user_id
+      _ -> false
+    end
+  end
+
   # Simplified check_users_in_voice function - safe against cache races
   defp check_users_in_voice(guild_id, channel_id) do
     cond do
@@ -257,21 +264,27 @@ defmodule SoundboardWeb.DiscordHandler do
       :disabled -> :noop
     end
 
-    handle_leave_sound(payload.user_id)
+    unless bot_voice_update?(payload.user_id) do
+      handle_leave_sound(payload.user_id)
+    end
   end
 
   def handle_event({:VOICE_STATE_UPDATE, payload, _ws_state}) do
     Logger.info("Voice state update received: #{inspect(payload)}")
 
     # Check if this is the bot's own voice state update
-    case Self.get() do
-      {:ok, %{id: bot_id}} when bot_id == payload.user_id ->
-        Logger.info(
-          "BOT VOICE STATE UPDATE - Bot (#{bot_id}) joined channel #{payload.channel_id} in guild #{payload.guild_id}"
-        )
+    is_bot_update = bot_voice_update?(payload.user_id)
 
-      _ ->
-        :ok
+    if is_bot_update do
+      case Self.get() do
+        {:ok, %{id: bot_id}} ->
+          Logger.info(
+            "BOT VOICE STATE UPDATE - Bot (#{bot_id}) joined channel #{payload.channel_id} in guild #{payload.guild_id}"
+          )
+
+        _ ->
+          :ok
+      end
     end
 
     previous_state = State.get_state(payload.user_id)
@@ -282,7 +295,9 @@ defmodule SoundboardWeb.DiscordHandler do
       :disabled -> :noop
     end
 
-    handle_join_sound(payload.user_id, previous_state, payload.channel_id)
+    unless is_bot_update do
+      handle_join_sound(payload.user_id, previous_state, payload.channel_id)
+    end
   end
 
   def handle_event({:READY, _payload, _ws_state}) do
