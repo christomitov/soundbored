@@ -12,8 +12,10 @@ defmodule SoundboardWeb.DiscordHandler do
   alias Soundboard.{Accounts.User, Repo, Sound, UserSoundSetting}
   import Ecto.Query
 
-  @force_rejoin_cooldown_ms 10_000
+  @force_rejoin_cooldown_ms 1_500
+  @force_rejoin_backoff_ms 10_000
   @force_rejoin_delay_ms 400
+  @force_rejoin_max_attempts 5
 
   # State GenServer
   defmodule State do
@@ -319,6 +321,7 @@ defmodule SoundboardWeb.DiscordHandler do
     Channel ID: #{payload.channel_id}
     """)
 
+    reset_force_rejoin_attempts(payload.guild_id)
     :noop
   end
 
@@ -417,6 +420,8 @@ defmodule SoundboardWeb.DiscordHandler do
   end
 
   def handle_info({:force_rejoin, guild_id, channel_id}, state) do
+    clear_force_rejoin_timer(guild_id)
+
     if connected_to_discord?() do
       users_in_channel = check_users_in_voice(guild_id, channel_id)
 
@@ -650,30 +655,69 @@ defmodule SoundboardWeb.DiscordHandler do
   defp maybe_force_voice_rejoin(guild_id, channel_id, reason)
        when is_integer(guild_id) and not is_nil(channel_id) do
     if Voice.ready?(guild_id) do
+      reset_force_rejoin_attempts(guild_id)
       :noop
     else
-      now = System.monotonic_time(:millisecond)
-      key = {:soundboard_force_rejoin_at, guild_id}
-      last = :persistent_term.get(key, 0)
-
-      if now - last > @force_rejoin_cooldown_ms do
-        :persistent_term.put(key, now)
-
-        Logger.warning(
-          "Voice not ready but bot is in channel #{channel_id}; forcing leave+rejoin (#{inspect(reason)})"
-        )
-
-        leave_voice_channel(guild_id)
-        Process.send_after(self(), {:force_rejoin, guild_id, channel_id}, @force_rejoin_delay_ms)
-      else
-        Logger.debug(
-          "Skipping forced rejoin for guild #{guild_id}, channel #{channel_id} (cooldown active)"
-        )
-      end
+      handle_stale_voice_rejoin(guild_id, channel_id, reason)
     end
   end
 
   defp maybe_force_voice_rejoin(_guild_id, _channel_id, _reason), do: :noop
+
+  defp handle_stale_voice_rejoin(guild_id, channel_id, reason) do
+    now = System.monotonic_time(:millisecond)
+    last = Process.get({:force_rejoin_last, guild_id}, 0)
+    attempts = Process.get({:force_rejoin_attempts, guild_id}, 0)
+    cooldown = force_rejoin_cooldown_ms(attempts)
+
+    if now - last > cooldown do
+      attempts = attempts + 1
+      Process.put({:force_rejoin_attempts, guild_id}, attempts)
+      Process.put({:force_rejoin_last, guild_id}, now)
+
+      Logger.warning(
+        "Voice not ready but bot is in channel #{channel_id}; forcing leave+rejoin (#{inspect(reason)} attempt #{attempts})"
+      )
+
+      leave_voice_channel(guild_id)
+      schedule_force_rejoin(guild_id, channel_id)
+    else
+      Logger.debug(
+        "Skipping forced rejoin for guild #{guild_id}, channel #{channel_id} (cooldown active)"
+      )
+    end
+  end
+
+  defp force_rejoin_cooldown_ms(attempts) do
+    if attempts >= @force_rejoin_max_attempts do
+      @force_rejoin_backoff_ms
+    else
+      @force_rejoin_cooldown_ms
+    end
+  end
+
+  defp schedule_force_rejoin(guild_id, channel_id) do
+    unless force_rejoin_timer_active?(guild_id) do
+      timer_ref =
+        Process.send_after(self(), {:force_rejoin, guild_id, channel_id}, @force_rejoin_delay_ms)
+
+      Process.put({:force_rejoin_timer, guild_id}, timer_ref)
+    end
+  end
+
+  defp reset_force_rejoin_attempts(guild_id) do
+    Process.delete({:force_rejoin_attempts, guild_id})
+    Process.delete({:force_rejoin_last, guild_id})
+    clear_force_rejoin_timer(guild_id)
+  end
+
+  defp force_rejoin_timer_active?(guild_id) do
+    Process.get({:force_rejoin_timer, guild_id}) != nil
+  end
+
+  defp clear_force_rejoin_timer(guild_id) do
+    Process.delete({:force_rejoin_timer, guild_id})
+  end
 
   defp handle_bot_in_different_channel(guild_id, current_channel_id)
        when is_integer(guild_id) and not is_nil(current_channel_id) do
