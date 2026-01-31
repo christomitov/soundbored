@@ -12,6 +12,9 @@ defmodule SoundboardWeb.DiscordHandler do
   alias Soundboard.{Accounts.User, Repo, Sound, UserSoundSetting}
   import Ecto.Query
 
+  @force_rejoin_cooldown_ms 10_000
+  @force_rejoin_delay_ms 400
+
   # State GenServer
   defmodule State do
     @moduledoc """
@@ -285,6 +288,8 @@ defmodule SoundboardWeb.DiscordHandler do
         _ ->
           :ok
       end
+
+      maybe_force_voice_rejoin(payload.guild_id, payload.channel_id, :bot_voice_update)
     end
 
     previous_state = State.get_state(payload.user_id)
@@ -303,6 +308,7 @@ defmodule SoundboardWeb.DiscordHandler do
   def handle_event({:READY, _payload, _ws_state}) do
     Logger.info("Bot is READY - gateway connection established")
     :persistent_term.put(:soundboard_bot_ready, true)
+    Process.send_after(self(), :post_ready_voice_check, 500)
     :noop
   end
 
@@ -393,6 +399,38 @@ defmodule SoundboardWeb.DiscordHandler do
 
       _ ->
         Logger.debug("Recheck skipped; voice target changed")
+    end
+
+    {:noreply, state}
+  end
+
+  def handle_info(:post_ready_voice_check, state) do
+    case get_current_voice_channel() do
+      {guild_id, channel_id} ->
+        maybe_force_voice_rejoin(guild_id, channel_id, :post_ready)
+
+      _ ->
+        :noop
+    end
+
+    {:noreply, state}
+  end
+
+  def handle_info({:force_rejoin, guild_id, channel_id}, state) do
+    if connected_to_discord?() do
+      users_in_channel = check_users_in_voice(guild_id, channel_id)
+
+      if users_in_channel > 0 do
+        Logger.warning(
+          "Forcing voice rejoin in guild #{guild_id} channel #{channel_id} (#{users_in_channel} users)"
+        )
+
+        join_voice_channel(guild_id, channel_id)
+      else
+        Logger.info(
+          "Skipping forced rejoin in guild #{guild_id}, channel #{channel_id}; no non-bot users"
+        )
+      end
     end
 
     {:noreply, state}
@@ -608,6 +646,34 @@ defmodule SoundboardWeb.DiscordHandler do
       end
     end
   end
+
+  defp maybe_force_voice_rejoin(guild_id, channel_id, reason)
+       when is_integer(guild_id) and not is_nil(channel_id) do
+    if Voice.ready?(guild_id) do
+      :noop
+    else
+      now = System.monotonic_time(:millisecond)
+      key = {:soundboard_force_rejoin_at, guild_id}
+      last = :persistent_term.get(key, 0)
+
+      if now - last > @force_rejoin_cooldown_ms do
+        :persistent_term.put(key, now)
+
+        Logger.warning(
+          "Voice not ready but bot is in channel #{channel_id}; forcing leave+rejoin (#{inspect(reason)})"
+        )
+
+        leave_voice_channel(guild_id)
+        Process.send_after(self(), {:force_rejoin, guild_id, channel_id}, @force_rejoin_delay_ms)
+      else
+        Logger.debug(
+          "Skipping forced rejoin for guild #{guild_id}, channel #{channel_id} (cooldown active)"
+        )
+      end
+    end
+  end
+
+  defp maybe_force_voice_rejoin(_guild_id, _channel_id, _reason), do: :noop
 
   defp handle_bot_in_different_channel(guild_id, current_channel_id)
        when is_integer(guild_id) and not is_nil(current_channel_id) do
