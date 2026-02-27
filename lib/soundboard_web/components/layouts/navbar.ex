@@ -31,6 +31,9 @@ defmodule SoundboardWeb.Components.Layouts.Navbar do
               <.nav_link navigate="/" active={current_page?(@current_path, "/")}>
                 Sounds
               </.nav_link>
+              <.nav_link navigate="/chains" active={current_page?(@current_path, "/chains")}>
+                Chains
+              </.nav_link>
               <.nav_link navigate="/favorites" active={current_page?(@current_path, "/favorites")}>
                 Favorites
               </.nav_link>
@@ -131,6 +134,9 @@ defmodule SoundboardWeb.Components.Layouts.Navbar do
         <div class="pt-2 pb-3 space-y-1">
           <.mobile_nav_link navigate="/" active={current_page?(@current_path, "/")}>
             Sounds
+          </.mobile_nav_link>
+          <.mobile_nav_link navigate="/chains" active={current_page?(@current_path, "/chains")}>
+            Chains
           </.mobile_nav_link>
           <.mobile_nav_link navigate="/favorites" active={current_page?(@current_path, "/favorites")}>
             Favorites

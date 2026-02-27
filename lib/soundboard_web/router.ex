@@ -52,6 +52,7 @@ defmodule SoundboardWeb.Router do
     end
 
     live "/", SoundboardLive
+    live "/chains", ChainsLive
     live "/stats", StatsLive
     live "/favorites", FavoritesLive
     live "/settings", SettingsLive

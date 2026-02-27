@@ -4,7 +4,7 @@ defmodule SoundboardWeb.SoundboardLiveTest do
   """
   use SoundboardWeb.ConnCase
   import Phoenix.LiveViewTest
-  alias Soundboard.{Accounts.User, Repo, Sound, Tag}
+  alias Soundboard.{Accounts.User, Chains, Repo, Sound, Tag}
   import Mock
 
   setup %{conn: conn} do
@@ -69,6 +69,53 @@ defmodule SoundboardWeb.SoundboardLiveTest do
 
         assert rendered =~ sound.filename
       end
+    end
+
+    test "chain builder appends sounds instead of triggering play", %{conn: conn, sound: sound} do
+      {:ok, view, _html} = live(conn, "/")
+
+      view
+      |> element("[phx-click='toggle_chain_builder']")
+      |> render_click()
+
+      view
+      |> element("[phx-click='play'][phx-value-id='#{sound.id}']")
+      |> render_click()
+
+      assert render(view) =~ "Sequence (1)"
+      assert render(view) =~ "test"
+    end
+
+    test "can save a chain with duplicate sounds", %{conn: conn, user: user, sound: sound} do
+      {:ok, view, _html} = live(conn, "/")
+
+      view
+      |> element("[phx-click='toggle_chain_builder']")
+      |> render_click()
+
+      view
+      |> element("[phx-click='play'][phx-value-id='#{sound.id}']")
+      |> render_click()
+
+      view
+      |> element("[phx-click='play'][phx-value-id='#{sound.id}']")
+      |> render_click()
+
+      view
+      |> element("form[phx-change='set_chain_name']")
+      |> render_change(%{"name" => "Double Hit"})
+
+      view
+      |> element("[phx-click='save_chain']")
+      |> render_click()
+
+      chain =
+        Chains.list_user_chains(user.id)
+        |> Enum.find(&(&1.name == "Double Hit"))
+
+      assert chain
+      assert Enum.map(chain.chain_items, & &1.position) == [0, 1]
+      assert Enum.map(chain.chain_items, & &1.sound_id) == [sound.id, sound.id]
     end
 
     test "play random respects current search results", %{conn: conn, user: user} do

@@ -88,6 +88,7 @@ const setElementGain = (audio, gain) => {
 }
 
 let activeLocalPlayer = null
+let activeChainPreview = null
 
 const stopActiveLocalPlayer = () => {
   if (activeLocalPlayer && typeof activeLocalPlayer.stopPlayback === "function") {
@@ -95,7 +96,16 @@ const stopActiveLocalPlayer = () => {
   }
 }
 
-window.addEventListener("phx:stop-all-sounds", stopActiveLocalPlayer)
+const stopActiveChainPreview = () => {
+  if (activeChainPreview && typeof activeChainPreview.stopPlayback === "function") {
+    activeChainPreview.stopPlayback()
+  }
+}
+
+window.addEventListener("phx:stop-all-sounds", () => {
+  stopActiveLocalPlayer()
+  stopActiveChainPreview()
+})
 
 let Hooks = {}
 Hooks.LocalPlayer = {
@@ -256,6 +266,137 @@ Hooks.LocalPlayer = {
       playIcon.classList.remove("hidden")
       stopIcon.classList.add("hidden")
     }
+  }
+}
+
+Hooks.ChainPreview = {
+  mounted() {
+    this.audio = null
+    this.isPlaying = false
+    this.stopRequested = false
+    this.handleClick = this.handleClick.bind(this)
+    this.el.addEventListener("click", this.handleClick)
+  },
+  updated() {
+    if (!this.isPlaying) {
+      this.setPlaying(false)
+    }
+  },
+  destroyed() {
+    this.el.removeEventListener("click", this.handleClick)
+    this.stopPlayback()
+  },
+  parseSounds() {
+    try {
+      const parsed = JSON.parse(this.el.dataset.chainSounds || "[]")
+      return Array.isArray(parsed) ? parsed : []
+    } catch (_error) {
+      return []
+    }
+  },
+  resolveSource(sound) {
+    if (!sound || typeof sound !== "object") {
+      return null
+    }
+
+    if (sound.source_type === "url" && typeof sound.url === "string" && sound.url.trim() !== "") {
+      return sound.url.trim()
+    }
+
+    if (typeof sound.filename === "string" && sound.filename.trim() !== "") {
+      return `/uploads/${sound.filename.trim()}`
+    }
+
+    return null
+  },
+  async handleClick(event) {
+    event.preventDefault()
+    event.stopPropagation()
+
+    if (this.isPlaying) {
+      this.stopPlayback()
+      return
+    }
+
+    if (activeChainPreview && activeChainPreview !== this) {
+      activeChainPreview.stopPlayback()
+    }
+
+    await this.startPlayback()
+  },
+  async startPlayback() {
+    const sounds = this.parseSounds()
+    if (sounds.length === 0) {
+      return
+    }
+
+    this.stopRequested = false
+    this.isPlaying = true
+    this.setPlaying(true)
+    activeChainPreview = this
+
+    for (const sound of sounds) {
+      if (this.stopRequested) {
+        break
+      }
+
+      const src = this.resolveSource(sound)
+      if (!src) {
+        continue
+      }
+
+      const gain = Number.isFinite(Number(sound.volume)) ? clamp(Number(sound.volume), 0, BOOST_CAP) : 1
+      await this.playOne(src, gain)
+    }
+
+    this.finishPlayback()
+  },
+  playOne(src, gain) {
+    return new Promise((resolve) => {
+      if (this.stopRequested) {
+        resolve()
+        return
+      }
+
+      const audio = new Audio(src)
+      this.audio = audio
+      audio.volume = Math.min(gain, 1)
+
+      const done = () => {
+        if (this.audio === audio) {
+          this.audio = null
+        }
+        resolve()
+      }
+
+      audio.addEventListener("ended", done, {once: true})
+      audio.addEventListener("error", done, {once: true})
+
+      audio.play().catch(() => done())
+    })
+  },
+  stopPlayback() {
+    this.stopRequested = true
+
+    if (this.audio) {
+      try {
+        this.audio.pause()
+        this.audio.currentTime = 0
+      } catch (_error) {}
+      this.audio = null
+    }
+
+    this.finishPlayback()
+  },
+  finishPlayback() {
+    this.isPlaying = false
+    this.setPlaying(false)
+    if (activeChainPreview === this) {
+      activeChainPreview = null
+    }
+  },
+  setPlaying(isPlaying) {
+    this.el.textContent = isPlaying ? "Stop Preview" : "Preview Locally"
   }
 }
 

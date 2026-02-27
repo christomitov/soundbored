@@ -18,6 +18,7 @@ defmodule Soundboard.Sound do
     field :volume, :float, default: 1.0
     belongs_to :user, Soundboard.Accounts.User
     has_many :user_sound_settings, Soundboard.UserSoundSetting
+    has_many :chain_items, Soundboard.Chains.ChainItem
 
     many_to_many :tags, Soundboard.Tag,
       join_through: Soundboard.SoundTag,

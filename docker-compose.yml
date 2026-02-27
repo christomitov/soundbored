@@ -1,17 +1,16 @@
 services:
   soundbored:
-    image: christom/soundbored:latest
+    build:
+      context: .
+    image: soundbored-local:dev
     ports:
-      - "127.0.0.1:4000:4000"
+      - "127.0.0.1:4001:4000"
     env_file: .env
     volumes:
       - soundbored_data:/app/priv/static/uploads
     # the below can be added for improved security
       - type: tmpfs
         target: /tmp/mix_pubsub
-        tmpfs:
-          mode: 0777
-    user: 9999:9999 # make sure this user has permissions on the soundbored_data volume
     read_only: true
     environment:
       TMPDIR: /tmp/mix_pubsub

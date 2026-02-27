@@ -21,6 +21,20 @@
         Add Sound
       </button>
       <button
+        phx-click="toggle_chain_builder"
+        class={[
+          "w-full sm:w-auto justify-center px-3 py-2 sm:px-4 sm:py-2 rounded-md text-sm sm:text-base font-medium transition-colors border focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-900",
+          if(@chain_builder_open,
+            do:
+              "border-indigo-500 text-indigo-600 dark:text-indigo-300 bg-indigo-500/10 focus:ring-indigo-500",
+            else:
+              "border-gray-400/60 text-gray-700 dark:text-gray-200 hover:bg-gray-500/10 focus:ring-gray-400"
+          )
+        ]}
+      >
+        {if @chain_builder_open, do: "Close Chain Builder", else: "Add Chain"}
+      </button>
+      <button
         phx-click="play_random"
         class="w-full sm:w-auto justify-center px-3 py-2 sm:px-4 sm:py-2 rounded-md text-sm sm:text-base font-medium transition-colors
                border border-blue-500/60 text-blue-600 dark:text-blue-300 hover:bg-blue-500/10 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900"
@@ -36,6 +50,12 @@
       </button>
     </div>
   </div>
+
+  <%= if @chain_builder_open do %>
+    <div class="mb-4 rounded-md border border-indigo-400/50 bg-indigo-500/10 px-3 py-2 text-sm text-indigo-700 dark:text-indigo-200">
+      Chain builder is active. Clicking a sound card adds it to the draft chain instead of playing it.
+    </div>
+  <% end %>
 
   <%!-- Search Bar --%>
   <div class="mb-8">
@@ -136,6 +156,7 @@
           <button
             phx-click="play"
             phx-value-name={sound.filename}
+            phx-value-id={sound.id}
             class="absolute inset-0 w-full h-full cursor-pointer z-0
                    hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg
                    focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2
@@ -277,6 +298,102 @@
 
   <%= if @show_upload_modal do %>
     <.upload_modal {assigns} />
+  <% end %>
+
+  <%= if @chain_builder_open do %>
+    <aside class="fixed z-40 top-20 right-4 left-4 lg:left-auto lg:w-80 rounded-lg border border-gray-300 dark:border-gray-700 bg-white/95 dark:bg-gray-900/95 backdrop-blur shadow-xl max-h-[80vh] overflow-y-auto">
+      <div class="p-4 space-y-4">
+        <div class="flex items-center justify-between">
+          <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-100">Draft Chain</h2>
+          <button
+            phx-click="toggle_chain_builder"
+            class="text-xs px-2 py-1 rounded border border-gray-400/60 text-gray-600 dark:text-gray-300 hover:bg-gray-500/10"
+          >
+            Close
+          </button>
+        </div>
+
+        <form phx-change="set_chain_name" class="space-y-3">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Chain Name
+            </label>
+            <input
+              type="text"
+              name="name"
+              value={@chain_name}
+              placeholder="e.g. Hype Intro"
+              class="w-full rounded-md border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 focus:border-indigo-500 focus:ring-indigo-500"
+            />
+          </div>
+        </form>
+
+        <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+          <input
+            type="checkbox"
+            checked={@chain_is_public}
+            phx-click="toggle_chain_public"
+            class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+          /> Public chain (visible to everyone)
+        </label>
+
+        <div class="space-y-2">
+          <div class="flex items-center justify-between">
+            <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300">
+              Sequence ({length(@chain_sound_ids)})
+            </h3>
+            <button
+              phx-click="clear_chain_sounds"
+              class="text-xs px-2 py-1 rounded border border-red-400/70 text-red-600 dark:text-red-300 hover:bg-red-500/10"
+            >
+              Clear
+            </button>
+          </div>
+
+          <%= if @chain_sound_ids == [] do %>
+            <p class="text-sm text-gray-500 dark:text-gray-400">
+              No sounds yet. Click sounds to add them.
+            </p>
+          <% else %>
+            <ol class="space-y-2">
+              <%= for item <- chain_draft_items(@chain_sound_ids, @uploaded_files) do %>
+                <li class="flex items-center justify-between gap-2 rounded-md bg-gray-100/80 dark:bg-gray-800 px-2 py-2 text-sm">
+                  <span class="text-gray-800 dark:text-gray-100 truncate">
+                    {item.index + 1}. {item.label}
+                  </span>
+                  <button
+                    phx-click="remove_chain_sound"
+                    phx-value-index={item.index}
+                    class="text-xs px-2 py-1 rounded border border-gray-400/60 text-gray-600 dark:text-gray-300 hover:bg-gray-500/10"
+                  >
+                    Remove
+                  </button>
+                </li>
+              <% end %>
+            </ol>
+          <% end %>
+        </div>
+
+        <div class="flex gap-2">
+          <button
+            id="chain-preview"
+            phx-hook="ChainPreview"
+            data-chain-sounds={chain_preview_payload(@chain_sound_ids, @uploaded_files)}
+            class="flex-1 px-3 py-2 rounded-md border border-green-500/70 text-green-600 dark:text-green-300 hover:bg-green-500/10 text-sm font-medium"
+            disabled={@chain_sound_ids == []}
+          >
+            Preview Locally
+          </button>
+          <button
+            phx-click="save_chain"
+            class="flex-1 px-3 py-2 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium disabled:opacity-50"
+            disabled={@chain_sound_ids == [] || String.trim(@chain_name || "") == ""}
+          >
+            Save Chain
+          </button>
+        </div>
+      </div>
+    </aside>
   <% end %>
 
   <script>
