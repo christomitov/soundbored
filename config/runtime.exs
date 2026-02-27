@@ -110,6 +110,7 @@ if config_env() == :prod and is_nil(System.get_env("SKIP_RUNTIME_CONFIG")) do
   case System.cmd("which", ["ffmpeg"]) do
     {path, 0} ->
       config :nostrum,
+        token: discord_token,
         ffmpeg: String.trim(path),
         # Reduce audio buffering for faster playback
         # Reduced from default 10 (40ms instead of 200ms)
@@ -125,7 +126,6 @@ if config_env() == :prod and is_nil(System.get_env("SKIP_RUNTIME_CONFIG")) do
   config :logger,
     # Set minimum log level to debug to see IO.puts
     level: :debug,
-    backends: [:console],
     compile_time_purge_matching: [
       # Don't purge debug logs
       [level_lower_than: :debug]

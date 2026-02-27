@@ -32,6 +32,7 @@ config :logger, level: :debug
 
 # Nostrum configuration for voice debugging with optimized audio settings
 config :nostrum,
+  token: System.get_env("DISCORD_TOKEN"),
   youtubedl: nil,
   streamlink: nil,
   ffmpeg: "/usr/bin/ffmpeg",
