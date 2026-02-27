@@ -274,6 +274,8 @@ Hooks.ChainPreview = {
     this.audio = null
     this.isPlaying = false
     this.stopRequested = false
+    this.currentRunId = 0
+    this.currentResolve = null
     this.handleClick = this.handleClick.bind(this)
     this.el.addEventListener("click", this.handleClick)
   },
@@ -322,21 +324,23 @@ Hooks.ChainPreview = {
       activeChainPreview.stopPlayback()
     }
 
-    await this.startPlayback()
+    const runId = this.currentRunId + 1
+    await this.startPlayback(runId)
   },
-  async startPlayback() {
+  async startPlayback(runId) {
     const sounds = this.parseSounds()
     if (sounds.length === 0) {
       return
     }
 
+    this.currentRunId = runId
     this.stopRequested = false
     this.isPlaying = true
     this.setPlaying(true)
     activeChainPreview = this
 
     for (const sound of sounds) {
-      if (this.stopRequested) {
+      if (this.stopRequested || runId !== this.currentRunId) {
         break
       }
 
@@ -346,14 +350,14 @@ Hooks.ChainPreview = {
       }
 
       const gain = Number.isFinite(Number(sound.volume)) ? clamp(Number(sound.volume), 0, BOOST_CAP) : 1
-      await this.playOne(src, gain)
+      await this.playOne(src, gain, runId)
     }
 
-    this.finishPlayback()
+    this.finishPlayback(runId)
   },
-  playOne(src, gain) {
+  playOne(src, gain, runId) {
     return new Promise((resolve) => {
-      if (this.stopRequested) {
+      if (this.stopRequested || runId !== this.currentRunId) {
         resolve()
         return
       }
@@ -361,14 +365,23 @@ Hooks.ChainPreview = {
       const audio = new Audio(src)
       this.audio = audio
       audio.volume = Math.min(gain, 1)
+      let settled = false
 
       const done = () => {
+        if (settled) {
+          return
+        }
+        settled = true
+        if (this.currentResolve === done) {
+          this.currentResolve = null
+        }
         if (this.audio === audio) {
           this.audio = null
         }
         resolve()
       }
 
+      this.currentResolve = done
       audio.addEventListener("ended", done, {once: true})
       audio.addEventListener("error", done, {once: true})
 
@@ -377,18 +390,30 @@ Hooks.ChainPreview = {
   },
   stopPlayback() {
     this.stopRequested = true
+    this.currentRunId += 1
 
     if (this.audio) {
       try {
         this.audio.pause()
         this.audio.currentTime = 0
       } catch (_error) {}
-      this.audio = null
     }
 
+    this.resolveCurrentWaiter()
+    this.audio = null
     this.finishPlayback()
   },
-  finishPlayback() {
+  resolveCurrentWaiter() {
+    if (typeof this.currentResolve === "function") {
+      const resolve = this.currentResolve
+      this.currentResolve = null
+      resolve()
+    }
+  },
+  finishPlayback(runId = null) {
+    if (runId !== null && runId !== this.currentRunId) {
+      return
+    }
     this.isPlaying = false
     this.setPlaying(false)
     if (activeChainPreview === this) {
