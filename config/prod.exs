@@ -37,6 +37,6 @@ config :nostrum,
   ffmpeg: "/usr/bin/ffmpeg",
   # Reduce audio buffering for faster playback
   # Reduced from default 10 (40ms instead of 200ms)
-  audio_frames_per_burst: 2,
-  # Reduced from default 20_000ms
-  audio_timeout: 5_000
+  audio_frames_per_burst: 10,
+  # Default 20_000ms
+  audio_timeout: 20_000
