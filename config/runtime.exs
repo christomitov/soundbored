@@ -110,12 +110,13 @@ if config_env() == :prod and is_nil(System.get_env("SKIP_RUNTIME_CONFIG")) do
   case System.cmd("which", ["ffmpeg"]) do
     {path, 0} ->
       config :nostrum,
+        token: discord_token,
         ffmpeg: String.trim(path),
         # Reduce audio buffering for faster playback
         # Reduced from default 10 (40ms instead of 200ms)
-        audio_frames_per_burst: 2,
-        # Reduced from default 20_000ms
-        audio_timeout: 5_000
+        audio_frames_per_burst: 10,
+        # Default 20_000ms
+        audio_timeout: 20_000
 
     _ ->
       raise "ffmpeg not found in PATH. Please install ffmpeg."
@@ -125,7 +126,6 @@ if config_env() == :prod and is_nil(System.get_env("SKIP_RUNTIME_CONFIG")) do
   config :logger,
     # Set minimum log level to debug to see IO.puts
     level: :debug,
-    backends: [:console],
     compile_time_purge_matching: [
       # Don't purge debug logs
       [level_lower_than: :debug]

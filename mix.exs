@@ -93,7 +93,7 @@ defmodule Soundboard.MixProject do
       {:jason, "~> 1.2"},
       {:dns_cluster, "~> 0.2"},
       {:bandit, "~> 1.8"},
-      {:nostrum, github: "Kraigie/nostrum", branch: "master"},
+      {:nostrum, "~> 0.10.4"},
       {:ecto_sqlite3, "~> 0.22"},
       {:number, "~> 1.0"},
       {:ueberauth, "~> 0.10.5"},
@@ -119,6 +119,12 @@ defmodule Soundboard.MixProject do
       "ecto.setup": ["ecto.create", "ecto.migrate"],
       "ecto.reset": ["ecto.drop", "ecto.setup"],
       test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
+      precommit: [
+        "compile --warnings-as-errors",
+        "deps.unlock --unused",
+        "format",
+        "cmd env MIX_ENV=test mix test"
+      ],
       "assets.setup": ["tailwind.install --if-missing", "esbuild.install --if-missing"],
       "assets.build": ["tailwind soundboard", "esbuild soundboard"],
       "assets.deploy": [

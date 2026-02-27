@@ -2,7 +2,7 @@ defmodule SoundboardWeb.DiscordHandler do
   @moduledoc """
   Handles the Discord events.
   """
-  @behaviour Nostrum.Consumer
+  use Nostrum.Consumer
   require Logger
 
   alias Nostrum.Api.{Message, Self}
@@ -57,6 +57,13 @@ defmodule SoundboardWeb.DiscordHandler do
     end
 
     :ok
+  end
+
+  @impl GenServer
+  def init([]) do
+    Nostrum.ConsumerGroup.join(self())
+    init()
+    {:ok, nil}
   end
 
   defp start_guild_check_task do

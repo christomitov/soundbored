@@ -28,15 +28,9 @@ defmodule Soundboard.Application do
     # Add Discord bot only in non-test environments
     children =
       if Application.get_env(:soundboard, :env) != :test do
-        # Configure the Nostrum bot with the new API
-        bot_options = %{
-          name: SoundboardBot,
-          consumer: SoundboardWeb.DiscordHandler,
-          intents: [:guilds, :guild_messages, :guild_voice_states, :message_content],
-          wrapped_token: fn -> Application.fetch_env!(:soundboard, :discord_token) end
-        }
-
-        base_children ++ [{Nostrum.Bot, bot_options}]
+        # Nostrum (stable) starts shards from its own application.
+        # We only need to start our consumer process.
+        base_children ++ [SoundboardWeb.DiscordHandler]
       else
         base_children
       end

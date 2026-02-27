@@ -12,8 +12,10 @@ import Config
 #   generators: [timestamp_type: :utc_datetime],
 #   token: System.get_env("DISCORD_TOKEN")
 
-# Nostrum config removed - using Nostrum.Bot module instead
-# Only ffmpeg path is configured in runtime.exs
+# Nostrum config shared across environments.
+# Prefix commands like `!join` require :message_content intent.
+config :nostrum,
+  gateway_intents: [:guilds, :guild_messages, :guild_voice_states, :message_content]
 
 # Configures the endpoint
 config :soundboard, SoundboardWeb.Endpoint,
