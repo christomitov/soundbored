@@ -75,24 +75,31 @@ defmodule Soundboard.Application do
             case System.cmd(cargo, ["build", "--release"], cd: source_dir, stderr_to_stdout: true) do
               {_output, 0} ->
                 File.mkdir_p!(target_dir)
+                File.rm(target_file)
 
-                source_file =
-                  Path.join(artifact_dir, "libeda_dave.so")
-                  |> then(fn so ->
-                    if File.exists?(so),
-                      do: so,
-                      else: Path.join(artifact_dir, "libeda_dave.dylib")
-                  end)
+                source_file = select_dave_artifact(artifact_dir)
 
                 if File.exists?(source_file) do
                   File.cp!(source_file, target_file)
+                  EDA.Voice.Dave.Native.load_nif()
                 end
 
-              _ ->
+              {output, _} ->
+                Logger.warning("Failed to build EDA DAVE native library:\n#{output}")
                 :ok
             end
           end
       end
+    end
+  end
+
+  defp select_dave_artifact(artifact_dir) do
+    case :os.type() do
+      {:unix, :darwin} ->
+        Path.join(artifact_dir, "libeda_dave.dylib")
+
+      _ ->
+        Path.join(artifact_dir, "libeda_dave.so")
     end
   end
 
