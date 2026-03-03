@@ -12,7 +12,10 @@ ENV MIX_ENV=$MIX_ENV \
 
 RUN apk add --no-cache \
     git \
-    make
+    make \
+    build-base \
+    rust \
+    cargo
 
 WORKDIR /app
 COPY --exclude=entrypoint.sh . .
@@ -26,7 +29,11 @@ RUN mkdir -p /app/.mix /app/.hex && \
 RUN export SKIP_RUNTIME_CONFIG=1 && \
     mix assets.setup && \
     mix compile && \
-    mix assets.deploy
+    mix assets.deploy && \
+    cd deps/eda/native/eda_dave && \
+    cargo build --release && \
+    mkdir -p /app/_build/${MIX_ENV}/lib/eda/priv/native && \
+    cp target/release/libeda_dave.so /app/_build/${MIX_ENV}/lib/eda/priv/native/eda_dave.so
 
 FROM elixir:1.19-alpine
 
@@ -40,7 +47,8 @@ ENV MIX_ENV=prod \
 
 RUN apk add --no-cache \
     ffmpeg \
-    git
+    git \
+    libstdc++
 
 WORKDIR /app
 COPY --from=build /app .
