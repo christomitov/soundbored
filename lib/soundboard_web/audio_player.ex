@@ -13,7 +13,7 @@ defmodule SoundboardWeb.AudioPlayer do
   @rtp_probe_poll_ms 20
   @rtp_probe_default_timeout_ms 6_000
   @voice_not_ready_retry_ms 350
-  @max_play_attempts 12
+  @max_play_attempts 20
   @interrupt_watchdog_ms 35
   @interrupt_watchdog_max_attempts 20
 
@@ -96,10 +96,9 @@ defmodule SoundboardWeb.AudioPlayer do
       case voice_channel do
         nil ->
           state
-          |> cancel_interrupt_watchdog()
+          |> clear_current_playback()
           |> Map.merge(%{
             voice_channel: nil,
-            current_playback: nil,
             pending_request: nil,
             interrupting: false,
             interrupt_watchdog_attempt: 0
@@ -119,9 +118,8 @@ defmodule SoundboardWeb.AudioPlayer do
 
     {:noreply,
      state
-     |> cancel_interrupt_watchdog()
+     |> clear_current_playback()
      |> Map.merge(%{
-       current_playback: nil,
        pending_request: nil,
        interrupting: false,
        interrupt_watchdog_attempt: 0
@@ -233,7 +231,13 @@ defmodule SoundboardWeb.AudioPlayer do
     next_state =
       case result do
         :ok ->
-          %{state | current_playback: Map.put(current, :task_ref, nil)}
+          %{
+            state
+            | current_playback:
+                current
+                |> Map.put(:task_ref, nil)
+                |> Map.put(:task_pid, nil)
+          }
 
         :error ->
           Logger.error("Playback start failed for #{current.sound_name}")
@@ -299,7 +303,10 @@ defmodule SoundboardWeb.AudioPlayer do
         )
       end)
 
-    %{state | current_playback: Map.put(request, :task_ref, task.ref)}
+    %{
+      state
+      | current_playback: request |> Map.put(:task_ref, task.ref) |> Map.put(:task_pid, task.pid)
+    }
   end
 
   defp maybe_interrupt_current(%{current_playback: %{guild_id: guild_id}} = state) do
@@ -356,6 +363,8 @@ defmodule SoundboardWeb.AudioPlayer do
   end
 
   defp clear_current_playback(state) do
+    cancel_playback_task(state.current_playback)
+
     state
     |> cancel_interrupt_watchdog()
     |> Map.merge(%{
@@ -386,6 +395,20 @@ defmodule SoundboardWeb.AudioPlayer do
     Process.cancel_timer(state.interrupt_watchdog_ref)
     %{state | interrupt_watchdog_ref: nil}
   end
+
+  defp cancel_playback_task(nil), do: :ok
+
+  defp cancel_playback_task(%{task_pid: pid, task_ref: ref}) when is_pid(pid) do
+    if is_reference(ref), do: Process.demonitor(ref, [:flush])
+
+    if Process.alive?(pid) do
+      Process.exit(pid, :kill)
+    end
+
+    :ok
+  end
+
+  defp cancel_playback_task(_), do: :ok
 
   # Helper function to check if a username is a system user
   defp system_user?(username), do: username in @system_users
@@ -480,6 +503,11 @@ defmodule SoundboardWeb.AudioPlayer do
           "Voice encryption not ready yet, waiting #{@voice_not_ready_retry_ms}ms before retry..."
         )
 
+        # If encryption negotiation appears stuck, try refreshing the voice session.
+        if attempt >= div(@max_play_attempts, 2) do
+          maybe_rejoin_current_channel(guild_id, true)
+        end
+
         Process.sleep(@voice_not_ready_retry_ms)
 
         play_with_retries(
@@ -513,14 +541,24 @@ defmodule SoundboardWeb.AudioPlayer do
     :error
   end
 
-  defp maybe_rejoin_current_channel(guild_id) do
+  defp maybe_rejoin_current_channel(guild_id, force_refresh \\ false) do
     case GenServer.call(__MODULE__, :get_voice_channel) do
       {^guild_id, channel_id} ->
-        if Voice.channel_id(guild_id) == to_string(channel_id) do
-          Logger.debug("Skipping rejoin; already in voice channel #{channel_id}")
-        else
-          Logger.info("Rejoining voice channel #{channel_id}")
-          Voice.join_channel(guild_id, channel_id)
+        joined? = Voice.channel_id(guild_id) == to_string(channel_id)
+
+        cond do
+          force_refresh and joined? ->
+            Logger.info("Refreshing voice session in channel #{channel_id}")
+            Voice.leave_channel(guild_id)
+            Process.sleep(150)
+            Voice.join_channel(guild_id, channel_id)
+
+          joined? ->
+            Logger.debug("Skipping rejoin; already in voice channel #{channel_id}")
+
+          true ->
+            Logger.info("Rejoining voice channel #{channel_id}")
+            Voice.join_channel(guild_id, channel_id)
         end
 
       _ ->
