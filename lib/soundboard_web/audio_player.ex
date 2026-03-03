@@ -13,8 +13,8 @@ defmodule SoundboardWeb.AudioPlayer do
   @rtp_probe_poll_ms 20
   @rtp_probe_default_timeout_ms 6_000
   @voice_ready_poll_ms 50
-  @voice_ready_timeout_ms 12_000
-  @voice_reset_settle_ms 300
+  @voice_ready_timeout_ms 20_000
+  @voice_not_ready_retry_ms 350
 
   defmodule State do
     @moduledoc """
@@ -268,6 +268,23 @@ defmodule SoundboardWeb.AudioPlayer do
           attempt
         )
 
+      {:error, "Voice session is still negotiating encryption."} ->
+        Logger.warning(
+          "Voice encryption not ready yet, waiting #{@voice_not_ready_retry_ms}ms before retry..."
+        )
+
+        Process.sleep(@voice_not_ready_retry_ms)
+
+        play_with_retries(
+          guild_id,
+          play_input,
+          play_type,
+          play_options,
+          sound_name,
+          username,
+          attempt + 1
+        )
+
       {:error, reason} ->
         Logger.error("Voice.play failed: #{inspect(reason)} (attempt #{attempt + 1})")
         broadcast_error("Failed to play sound: #{reason}")
@@ -348,7 +365,10 @@ defmodule SoundboardWeb.AudioPlayer do
   end
 
   defp join_and_wait_for_voice_ready(guild_id, channel_id) do
-    Voice.join_channel(guild_id, channel_id)
+    # Avoid re-sending OP4 join if we're already attached to this channel.
+    if Voice.channel_id(guild_id) != channel_id do
+      Voice.join_channel(guild_id, channel_id)
+    end
 
     deadline_ms = System.monotonic_time(:millisecond) + @voice_ready_timeout_ms
 
@@ -375,28 +395,8 @@ defmodule SoundboardWeb.AudioPlayer do
     else
       Logger.info("Voice not ready, attempting to join channel #{channel_id}")
 
-      if join_and_wait_for_voice_ready(guild_id, channel_id) do
-        true
-      else
-        Logger.warning(
-          "Voice did not become ready; forcing leave/rejoin for guild #{guild_id} channel #{channel_id}"
-        )
-
-        force_reset_and_rejoin(guild_id, channel_id)
-      end
+      join_and_wait_for_voice_ready(guild_id, channel_id)
     end
-  end
-
-  defp force_reset_and_rejoin(guild_id, channel_id) do
-    try do
-      Voice.leave_channel(guild_id)
-    rescue
-      error ->
-        Logger.warning("Voice reset leave failed (continuing): #{inspect(error)}")
-    end
-
-    Process.sleep(@voice_reset_settle_ms)
-    join_and_wait_for_voice_ready(guild_id, channel_id)
   end
 
   defp maybe_probe_first_rtp(guild_id, sound_name, attempt_number) do

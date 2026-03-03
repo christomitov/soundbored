@@ -4,6 +4,7 @@ defmodule Soundboard.Discord.Voice do
   alias EDA.Voice, as: EDAVoice
 
   @connected_error "Must be connected to voice channel to play audio."
+  @not_ready_error "Voice session is still negotiating encryption."
   @already_playing_error "Audio already playing in voice channel."
 
   def join_channel(guild_id, channel_id) do
@@ -19,7 +20,7 @@ defmodule Soundboard.Discord.Voice do
       :ok -> :ok
       {:error, :already_playing} -> {:error, @already_playing_error}
       {:error, :not_connected} -> {:error, @connected_error}
-      {:error, :not_ready} -> {:error, @connected_error}
+      {:error, :not_ready} -> {:error, @not_ready_error}
       {:error, reason} -> {:error, inspect(reason)}
     end
   end
@@ -30,6 +31,10 @@ defmodule Soundboard.Discord.Voice do
 
   def ready?(guild_id) do
     EDAVoice.ready?(to_id(guild_id))
+  end
+
+  def channel_id(guild_id) do
+    EDAVoice.channel_id(to_id(guild_id))
   end
 
   def playing?(guild_id) do
