@@ -14,8 +14,8 @@ defmodule SoundboardWeb.AudioPlayer do
   @rtp_probe_default_timeout_ms 6_000
   @voice_not_ready_retry_ms 350
   @max_play_attempts 12
-  @interrupt_watchdog_ms 200
-  @interrupt_watchdog_max_attempts 8
+  @interrupt_watchdog_ms 35
+  @interrupt_watchdog_max_attempts 20
 
   defmodule State do
     @moduledoc """
@@ -303,12 +303,19 @@ defmodule SoundboardWeb.AudioPlayer do
   end
 
   defp maybe_interrupt_current(%{current_playback: %{guild_id: guild_id}} = state) do
-    if state.interrupting do
+    Logger.debug("Interrupting current playback in guild #{guild_id} for latest request")
+    Voice.stop(guild_id)
+
+    if Voice.playing?(guild_id) do
       state
+      |> Map.put(:interrupting, true)
+      |> schedule_interrupt_watchdog(guild_id, 1)
     else
-      Logger.debug("Interrupting current playback in guild #{guild_id} for latest request")
-      Voice.stop(guild_id)
-      state |> Map.put(:interrupting, true) |> schedule_interrupt_watchdog(guild_id, 1)
+      Logger.debug("Interrupt fast-path: playback stopped immediately in guild #{guild_id}")
+
+      state
+      |> clear_current_playback()
+      |> maybe_start_pending()
     end
   end
 
