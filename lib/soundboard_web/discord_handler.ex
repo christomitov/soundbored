@@ -26,14 +26,14 @@ defmodule SoundboardWeb.DiscordHandler do
 
     def get_state(user_id) do
       GenServer.call(__MODULE__, {:get_state, user_id})
-    rescue
-      _ -> nil
+    catch
+      :exit, _ -> nil
     end
 
     def update_state(user_id, channel_id, session_id) do
       GenServer.cast(__MODULE__, {:update_state, user_id, channel_id, session_id})
-    rescue
-      _ -> :error
+    catch
+      :exit, _ -> :error
     end
 
     def handle_call({:get_state, user_id}, _from, state) do
