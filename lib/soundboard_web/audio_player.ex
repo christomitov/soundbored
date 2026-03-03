@@ -249,9 +249,13 @@ defmodule SoundboardWeb.AudioPlayer do
         )
 
       {:error, "Must be connected to voice channel to play audio."} ->
-        Logger.error("Voice connection lost, rejoining channel and retrying...")
+        Logger.warning("Voice reported not connected, waiting before retry...")
 
-        maybe_rejoin_current_channel(guild_id)
+        # Avoid tearing down/rejoining too early while DAVE handshake may still be in flight.
+        if attempt >= div(@max_play_attempts, 2) do
+          maybe_rejoin_current_channel(guild_id)
+        end
+
         Process.sleep(@voice_not_ready_retry_ms)
 
         play_with_retries(
@@ -305,8 +309,12 @@ defmodule SoundboardWeb.AudioPlayer do
   defp maybe_rejoin_current_channel(guild_id) do
     case GenServer.call(__MODULE__, :get_voice_channel) do
       {^guild_id, channel_id} ->
-        Logger.info("Rejoining voice channel #{channel_id}")
-        Voice.join_channel(guild_id, channel_id)
+        if Voice.channel_id(guild_id) == to_string(channel_id) do
+          Logger.debug("Skipping rejoin; already in voice channel #{channel_id}")
+        else
+          Logger.info("Rejoining voice channel #{channel_id}")
+          Voice.join_channel(guild_id, channel_id)
+        end
 
       _ ->
         :ok
