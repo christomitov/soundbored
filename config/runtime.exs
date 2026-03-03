@@ -114,6 +114,11 @@ if config_env() == :prod and is_nil(System.get_env("SKIP_RUNTIME_CONFIG")) do
       _ -> 6_000
     end
 
+  eda_dave =
+    System.get_env("EDA_DAVE", "true")
+    |> String.downcase()
+    |> then(&(&1 in ["1", "true", "yes", "on"]))
+
   config :soundboard,
     discord_token: discord_token,
     voice_rtp_probe: voice_rtp_probe,
@@ -123,7 +128,9 @@ if config_env() == :prod and is_nil(System.get_env("SKIP_RUNTIME_CONFIG")) do
     raise "ffmpeg not found in PATH. Please install ffmpeg."
   end
 
-  config :eda, token: discord_token
+  config :eda,
+    token: discord_token,
+    dave: eda_dave
 
   # Configure logger for production
   config :logger,

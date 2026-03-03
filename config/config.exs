@@ -17,7 +17,8 @@ import Config
 config :eda,
   intents: [:guilds, :guild_messages, :guild_voice_states, :message_content],
   consumer: SoundboardWeb.EDAConsumer,
-  gateway_encoding: :etf
+  gateway_encoding: :etf,
+  dave: true
 
 # Configures the endpoint
 config :soundboard, SoundboardWeb.Endpoint,

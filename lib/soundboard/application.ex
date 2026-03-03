@@ -11,6 +11,8 @@ defmodule Soundboard.Application do
   def start(_type, _args) do
     Logger.info("Starting Soundboard Application")
 
+    ensure_dave_runtime!()
+
     # Initialize presence handler state
     PresenceHandler.init()
 
@@ -37,6 +39,19 @@ defmodule Soundboard.Application do
 
     opts = [strategy: :one_for_one, name: Soundboard.Supervisor]
     Supervisor.start_link(children, opts)
+  end
+
+  defp ensure_dave_runtime! do
+    if Application.get_env(:soundboard, :env) != :test and Application.get_env(:eda, :dave, false) do
+      unless EDA.Voice.Dave.Native.available?() do
+        raise """
+        EDA DAVE is enabled, but the native library is unavailable.
+        Build it in `deps/eda/native/eda_dave` with `cargo build --release`,
+        then copy the built artifact to `_build/<env>/lib/eda/priv/native/eda_dave.so`.
+        You can temporarily disable DAVE with `EDA_DAVE=false`.
+        """
+      end
+    end
   end
 
   # Tell Phoenix to update the endpoint configuration

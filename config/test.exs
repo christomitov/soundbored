@@ -50,4 +50,5 @@ config :soundboard, Soundboard.PubSub,
 
 config :eda,
   token: nil,
-  consumer: nil
+  consumer: nil,
+  dave: false
