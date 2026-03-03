@@ -12,9 +12,8 @@ defmodule SoundboardWeb.AudioPlayer do
   @system_users ["System", "API User"]
   @rtp_probe_poll_ms 20
   @rtp_probe_default_timeout_ms 6_000
-  @voice_ready_poll_ms 50
-  @voice_ready_timeout_ms 20_000
   @voice_not_ready_retry_ms 350
+  @max_play_attempts 12
 
   defmodule State do
     @moduledoc """
@@ -129,22 +128,20 @@ defmodule SoundboardWeb.AudioPlayer do
     new_state =
       case state.voice_channel do
         {guild_id, channel_id} when not is_nil(guild_id) and not is_nil(channel_id) ->
-          if Voice.ready?(guild_id) do
+          if Voice.channel_id(guild_id) == to_string(channel_id) do
             Logger.debug("Voice connection healthy for guild #{guild_id}")
             state
           else
             Logger.warning(
-              "Voice connection not ready for guild #{guild_id}, attempting to rejoin"
+              "Voice channel mismatch for guild #{guild_id}, attempting to rejoin #{channel_id}"
             )
 
-            # Wrap in try-catch to handle potential errors
             try do
               Voice.join_channel(guild_id, channel_id)
               state
             rescue
               error ->
                 Logger.error("Failed to rejoin voice channel: #{inspect(error)}")
-                # Clear the voice channel if we can't rejoin
                 %{state | voice_channel: nil}
             end
           end
@@ -187,13 +184,8 @@ defmodule SoundboardWeb.AudioPlayer do
       Voice.stop(guild_id)
     end
 
-    # Ensure we're connected and ready
-    if ensure_voice_ready(guild_id, channel_id) do
-      play_sound_with_connection(guild_id, sound_name, path_or_url, volume, username)
-    else
-      Logger.error("Failed to establish voice connection")
-      broadcast_error("Failed to connect to voice channel")
-    end
+    ensure_joined_channel(guild_id, channel_id)
+    play_sound_with_connection(guild_id, sound_name, path_or_url, volume, username)
   end
 
   defp play_sound_with_connection(guild_id, sound_name, path_or_url, volume, username) do
@@ -208,8 +200,9 @@ defmodule SoundboardWeb.AudioPlayer do
         "Calling Voice.play with guild_id: #{guild_id}, input: #{play_input}, type: #{play_type}"
       )
 
-      # Check voice state
-      Logger.info("Voice ready: #{Voice.ready?(guild_id)}, Playing: #{Voice.playing?(guild_id)}")
+      Logger.info(
+        "Voice channel: #{inspect(Voice.channel_id(guild_id))}, Playing: #{Voice.playing?(guild_id)}"
+      )
 
       # Keep ffmpeg in realtime mode (default) to avoid bursty/skip-prone playback.
       play_options = [volume: clamp_volume(volume)]
@@ -229,7 +222,7 @@ defmodule SoundboardWeb.AudioPlayer do
          username,
          attempt
        )
-       when attempt < 3 do
+       when attempt < @max_play_attempts do
     case Voice.play(guild_id, play_input, play_type, play_options) do
       :ok ->
         Logger.info("Voice.play succeeded for #{sound_name} (attempt #{attempt + 1})")
@@ -256,16 +249,19 @@ defmodule SoundboardWeb.AudioPlayer do
         )
 
       {:error, "Must be connected to voice channel to play audio."} ->
-        Logger.error("Voice connection lost, attempting to reconnect...")
+        Logger.error("Voice connection lost, rejoining channel and retrying...")
 
-        handle_voice_reconnect(
+        maybe_rejoin_current_channel(guild_id)
+        Process.sleep(@voice_not_ready_retry_ms)
+
+        play_with_retries(
           guild_id,
           play_input,
           play_type,
           play_options,
           sound_name,
           username,
-          attempt
+          attempt + 1
         )
 
       {:error, "Voice session is still negotiating encryption."} ->
@@ -306,96 +302,28 @@ defmodule SoundboardWeb.AudioPlayer do
     :error
   end
 
-  defp handle_voice_reconnect(
-         guild_id,
-         play_input,
-         play_type,
-         play_options,
-         sound_name,
-         username,
-         attempt
-       ) do
-    # Get the channel from state
+  defp maybe_rejoin_current_channel(guild_id) do
     case GenServer.call(__MODULE__, :get_voice_channel) do
       {^guild_id, channel_id} ->
         Logger.info("Rejoining voice channel #{channel_id}")
-
-        try do
-          if ensure_voice_ready(guild_id, channel_id) do
-            play_with_retries(
-              guild_id,
-              play_input,
-              play_type,
-              play_options,
-              sound_name,
-              username,
-              attempt + 1
-            )
-          else
-            Logger.error("Failed to re-establish voice connection")
-            broadcast_error("Failed to reconnect to voice channel")
-            :error
-          end
-        rescue
-          error ->
-            Logger.error("Failed to rejoin voice channel: #{inspect(error)}")
-            broadcast_error("Failed to reconnect to voice channel")
-            :error
-        end
+        Voice.join_channel(guild_id, channel_id)
 
       _ ->
-        Logger.error("No voice channel info available")
-        broadcast_error("Voice channel not configured")
-        :error
-    end
-  end
-
-  defp wait_for_voice_ready(guild_id, deadline_ms) do
-    cond do
-      Voice.ready?(guild_id) ->
-        true
-
-      System.monotonic_time(:millisecond) >= deadline_ms ->
-        false
-
-      true ->
-        Process.sleep(@voice_ready_poll_ms)
-        wait_for_voice_ready(guild_id, deadline_ms)
-    end
-  end
-
-  defp join_and_wait_for_voice_ready(guild_id, channel_id) do
-    # Avoid re-sending OP4 join if we're already attached to this channel.
-    if Voice.channel_id(guild_id) != channel_id do
-      Voice.join_channel(guild_id, channel_id)
+        :ok
     end
 
-    deadline_ms = System.monotonic_time(:millisecond) + @voice_ready_timeout_ms
-
-    if wait_for_voice_ready(guild_id, deadline_ms) do
-      Logger.info("Successfully connected to voice channel")
-      true
-    else
-      Logger.error(
-        "Voice connection not ready after join attempt (timeout #{@voice_ready_timeout_ms}ms)"
-      )
-
-      false
-    end
+    :ok
   rescue
-    error ->
-      Logger.error("Failed to join voice channel: #{inspect(error)}")
-      false
+    _ -> :ok
   end
 
-  defp ensure_voice_ready(guild_id, channel_id) do
-    if Voice.ready?(guild_id) do
-      Logger.info("Voice connection ready for guild #{guild_id}")
-      true
+  defp ensure_joined_channel(guild_id, channel_id) do
+    if Voice.channel_id(guild_id) == to_string(channel_id) do
+      :ok
     else
-      Logger.info("Voice not ready, attempting to join channel #{channel_id}")
-
-      join_and_wait_for_voice_ready(guild_id, channel_id)
+      Logger.info("Joining voice channel #{channel_id}")
+      Voice.join_channel(guild_id, channel_id)
+      Process.sleep(150)
     end
   end
 
@@ -451,12 +379,12 @@ defmodule SoundboardWeb.AudioPlayer do
         )
 
       elapsed_ms >= timeout_ms ->
-        {ready, playing} = safe_voice_status(guild_id)
+        {channel, playing} = safe_voice_status(guild_id)
 
         Logger.warning(
           "RTP probe: no progress for #{sound_name} within #{timeout_ms}ms " <>
             "(attempt #{attempt_number}, initial_seq=#{inspect(initial_seq)}, " <>
-            "current_seq=#{inspect(current_seq)}, ready=#{ready}, playing=#{playing})"
+            "current_seq=#{inspect(current_seq)}, channel=#{inspect(channel)}, playing=#{playing})"
         )
 
       true ->
@@ -483,11 +411,11 @@ defmodule SoundboardWeb.AudioPlayer do
   end
 
   defp safe_voice_status(guild_id) do
-    {safe_voice_ready(guild_id), safe_voice_playing(guild_id)}
+    {safe_voice_channel(guild_id), safe_voice_playing(guild_id)}
   end
 
-  defp safe_voice_ready(guild_id) do
-    Voice.ready?(guild_id)
+  defp safe_voice_channel(guild_id) do
+    Voice.channel_id(guild_id)
   rescue
     _ -> :unknown
   end
