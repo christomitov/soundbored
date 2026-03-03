@@ -197,21 +197,27 @@ defmodule SoundboardWeb.AudioPlayer do
   end
 
   defp play_sound_with_connection(guild_id, sound_name, path_or_url, volume, username) do
-    {play_input, play_type} = prepare_play_input(sound_name, path_or_url)
+    if is_nil(System.find_executable("ffmpeg")) do
+      Logger.error("ffmpeg not found in PATH. Cannot play #{sound_name}")
+      broadcast_error("ffmpeg is not installed on this host")
+      :error
+    else
+      {play_input, play_type} = prepare_play_input(sound_name, path_or_url)
 
-    Logger.info(
-      "Calling Voice.play with guild_id: #{guild_id}, input: #{play_input}, type: #{play_type}"
-    )
+      Logger.info(
+        "Calling Voice.play with guild_id: #{guild_id}, input: #{play_input}, type: #{play_type}"
+      )
 
-    # Check voice state
-    Logger.info("Voice ready: #{Voice.ready?(guild_id)}, Playing: #{Voice.playing?(guild_id)}")
+      # Check voice state
+      Logger.info("Voice ready: #{Voice.ready?(guild_id)}, Playing: #{Voice.playing?(guild_id)}")
 
-    # Keep ffmpeg in realtime mode (default) to avoid bursty/skip-prone playback.
-    play_options = [volume: clamp_volume(volume)]
-    Logger.info("Play options: #{inspect(play_options)}")
+      # Keep ffmpeg in realtime mode (default) to avoid bursty/skip-prone playback.
+      play_options = [volume: clamp_volume(volume)]
+      Logger.info("Play options: #{inspect(play_options)}")
 
-    # Keep track of attempts
-    play_with_retries(guild_id, play_input, play_type, play_options, sound_name, username, 0)
+      # Keep track of attempts
+      play_with_retries(guild_id, play_input, play_type, play_options, sound_name, username, 0)
+    end
   end
 
   defp play_with_retries(
