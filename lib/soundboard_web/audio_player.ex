@@ -12,6 +12,8 @@ defmodule SoundboardWeb.AudioPlayer do
   @system_users ["System", "API User"]
   @rtp_probe_poll_ms 20
   @rtp_probe_default_timeout_ms 6_000
+  @voice_ready_poll_ms 50
+  @voice_ready_timeout_ms 4_000
 
   defmodule State do
     @moduledoc """
@@ -294,21 +296,22 @@ defmodule SoundboardWeb.AudioPlayer do
       {^guild_id, channel_id} ->
         Logger.info("Rejoining voice channel #{channel_id}")
 
-        # Voice.join_channel returns :ok or crashes (no_return)
         try do
-          Voice.join_channel(guild_id, channel_id)
-          # Reduced delay - just enough for connection handshake
-          Process.sleep(50)
-
-          play_with_retries(
-            guild_id,
-            play_input,
-            play_type,
-            play_options,
-            sound_name,
-            username,
-            attempt + 1
-          )
+          if ensure_voice_ready(guild_id, channel_id) do
+            play_with_retries(
+              guild_id,
+              play_input,
+              play_type,
+              play_options,
+              sound_name,
+              username,
+              attempt + 1
+            )
+          else
+            Logger.error("Failed to re-establish voice connection")
+            broadcast_error("Failed to reconnect to voice channel")
+            :error
+          end
         rescue
           error ->
             Logger.error("Failed to rejoin voice channel: #{inspect(error)}")
@@ -320,6 +323,51 @@ defmodule SoundboardWeb.AudioPlayer do
         Logger.error("No voice channel info available")
         broadcast_error("Voice channel not configured")
         :error
+    end
+  end
+
+  defp wait_for_voice_ready(guild_id, deadline_ms) do
+    cond do
+      Voice.ready?(guild_id) ->
+        true
+
+      System.monotonic_time(:millisecond) >= deadline_ms ->
+        false
+
+      true ->
+        Process.sleep(@voice_ready_poll_ms)
+        wait_for_voice_ready(guild_id, deadline_ms)
+    end
+  end
+
+  defp join_and_wait_for_voice_ready(guild_id, channel_id) do
+    Voice.join_channel(guild_id, channel_id)
+
+    deadline_ms = System.monotonic_time(:millisecond) + @voice_ready_timeout_ms
+
+    if wait_for_voice_ready(guild_id, deadline_ms) do
+      Logger.info("Successfully connected to voice channel")
+      true
+    else
+      Logger.error(
+        "Voice connection not ready after join attempt (timeout #{@voice_ready_timeout_ms}ms)"
+      )
+
+      false
+    end
+  rescue
+    error ->
+      Logger.error("Failed to join voice channel: #{inspect(error)}")
+      false
+  end
+
+  defp ensure_voice_ready(guild_id, channel_id) do
+    if Voice.ready?(guild_id) do
+      Logger.info("Voice connection ready for guild #{guild_id}")
+      true
+    else
+      Logger.info("Voice not ready, attempting to join channel #{channel_id}")
+      join_and_wait_for_voice_ready(guild_id, channel_id)
     end
   end
 
@@ -481,43 +529,6 @@ defmodule SoundboardWeb.AudioPlayer do
         nil -> Logger.warning("Could not find user_id for #{username}")
       end
     end
-  end
-
-  defp ensure_voice_ready(guild_id, channel_id) do
-    if Voice.ready?(guild_id) do
-      Logger.info("Voice connection ready for guild #{guild_id}")
-      true
-    else
-      Logger.info("Voice not ready, attempting to join channel #{channel_id}")
-      join_and_verify_channel(guild_id, channel_id)
-    end
-  end
-
-  defp join_and_verify_channel(guild_id, channel_id) do
-    # Voice.join_channel returns :ok or crashes (no_return)
-    # Using rescue to handle potential crashes
-    Voice.join_channel(guild_id, channel_id)
-
-    # Check immediately if ready, no sleep needed
-    if Voice.ready?(guild_id) do
-      Logger.info("Successfully connected to voice channel")
-      true
-    else
-      # Minimal sleep - just 20ms for network round-trip
-      Process.sleep(20)
-
-      if Voice.ready?(guild_id) do
-        Logger.info("Successfully connected to voice channel after brief wait")
-        true
-      else
-        Logger.error("Voice connection not ready after join attempt")
-        false
-      end
-    end
-  rescue
-    error ->
-      Logger.error("Failed to join voice channel: #{inspect(error)}")
-      false
   end
 
   defp broadcast_success(sound_name, username) do
