@@ -91,7 +91,7 @@ defmodule Soundboard.MixProject do
       {:jason, "~> 1.2"},
       {:dns_cluster, "~> 0.2"},
       {:bandit, "~> 1.8"},
-      {:eda, github: "christomitov/EDA", ref: "f257ca5"},
+      {:eda, github: "christomitov/EDA", ref: "b1827f2"},
       {:ecto_sqlite3, "~> 0.22"},
       {:number, "~> 1.0"},
       {:ueberauth, "~> 0.10.5"},
