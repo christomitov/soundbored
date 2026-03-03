@@ -13,7 +13,8 @@ defmodule SoundboardWeb.AudioPlayer do
   @rtp_probe_poll_ms 20
   @rtp_probe_default_timeout_ms 6_000
   @voice_ready_poll_ms 50
-  @voice_ready_timeout_ms 4_000
+  @voice_ready_timeout_ms 12_000
+  @voice_reset_settle_ms 300
 
   defmodule State do
     @moduledoc """
@@ -367,8 +368,29 @@ defmodule SoundboardWeb.AudioPlayer do
       true
     else
       Logger.info("Voice not ready, attempting to join channel #{channel_id}")
-      join_and_wait_for_voice_ready(guild_id, channel_id)
+
+      if join_and_wait_for_voice_ready(guild_id, channel_id) do
+        true
+      else
+        Logger.warning(
+          "Voice did not become ready; forcing leave/rejoin for guild #{guild_id} channel #{channel_id}"
+        )
+
+        force_reset_and_rejoin(guild_id, channel_id)
+      end
     end
+  end
+
+  defp force_reset_and_rejoin(guild_id, channel_id) do
+    try do
+      Voice.leave_channel(guild_id)
+    rescue
+      error ->
+        Logger.warning("Voice reset leave failed (continuing): #{inspect(error)}")
+    end
+
+    Process.sleep(@voice_reset_settle_ms)
+    join_and_wait_for_voice_ready(guild_id, channel_id)
   end
 
   defp maybe_probe_first_rtp(guild_id, sound_name, attempt_number) do
