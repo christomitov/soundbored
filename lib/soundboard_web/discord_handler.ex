@@ -327,6 +327,11 @@ defmodule SoundboardWeb.DiscordHandler do
     :noop
   end
 
+  def handle_event({:VOICE_PLAYBACK_FINISHED, payload, _ws_state}) do
+    SoundboardWeb.AudioPlayer.playback_finished(payload.guild_id)
+    :noop
+  end
+
   def handle_event({:VOICE_SERVER_UPDATE, _payload, _ws_state}) do
     :noop
   end
