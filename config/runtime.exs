@@ -94,7 +94,7 @@ if config_env() == :prod and is_nil(System.get_env("SKIP_RUNTIME_CONFIG")) do
     client_secret: System.get_env("DISCORD_CLIENT_SECRET"),
     redirect_uri: callback_url
 
-  # Remove duplicate ffmpeg check and consolidate Nostrum config
+  # Configure Discord bot token
   discord_token =
     System.get_env("DISCORD_TOKEN") ||
       raise """
@@ -103,24 +103,27 @@ if config_env() == :prod and is_nil(System.get_env("SKIP_RUNTIME_CONFIG")) do
       """
 
   # Store token for application use (bot will fetch it from here)
+  voice_rtp_probe =
+    System.get_env("VOICE_RTP_PROBE", "false")
+    |> String.downcase()
+    |> then(&(&1 in ["1", "true", "yes", "on"]))
+
+  voice_rtp_probe_timeout_ms =
+    case Integer.parse(System.get_env("VOICE_RTP_PROBE_TIMEOUT_MS", "6000")) do
+      {value, ""} when value > 0 -> value
+      _ -> 6_000
+    end
+
   config :soundboard,
-    discord_token: discord_token
+    discord_token: discord_token,
+    voice_rtp_probe: voice_rtp_probe,
+    voice_rtp_probe_timeout_ms: voice_rtp_probe_timeout_ms
 
-  # Configure ffmpeg path for Nostrum with optimized audio settings
-  case System.cmd("which", ["ffmpeg"]) do
-    {path, 0} ->
-      config :nostrum,
-        token: discord_token,
-        ffmpeg: String.trim(path),
-        # Reduce audio buffering for faster playback
-        # Reduced from default 10 (40ms instead of 200ms)
-        audio_frames_per_burst: 10,
-        # Default 20_000ms
-        audio_timeout: 20_000
-
-    _ ->
-      raise "ffmpeg not found in PATH. Please install ffmpeg."
+  if is_nil(System.find_executable("ffmpeg")) do
+    raise "ffmpeg not found in PATH. Please install ffmpeg."
   end
+
+  config :eda, token: discord_token
 
   # Configure logger for production
   config :logger,

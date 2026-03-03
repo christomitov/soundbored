@@ -28,8 +28,8 @@ defmodule Soundboard.Application do
     # Add Discord bot only in non-test environments
     children =
       if Application.get_env(:soundboard, :env) != :test do
-        # Nostrum (stable) starts shards from its own application.
-        # We only need to start our consumer process.
+        # EDA gateway runs in its own OTP application.
+        # We keep the handler GenServer for app-specific state/tasks.
         base_children ++ [SoundboardWeb.DiscordHandler]
       else
         base_children

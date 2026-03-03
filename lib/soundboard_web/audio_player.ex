@@ -4,12 +4,14 @@ defmodule SoundboardWeb.AudioPlayer do
   """
   use GenServer
   require Logger
-  alias Nostrum.Voice
+  alias Soundboard.Discord.Voice
   alias Soundboard.Accounts.User
   alias Soundboard.Sound
 
   # System users that don't need play tracking
   @system_users ["System", "API User"]
+  @rtp_probe_poll_ms 20
+  @rtp_probe_default_timeout_ms 6_000
 
   defmodule State do
     @moduledoc """
@@ -222,6 +224,7 @@ defmodule SoundboardWeb.AudioPlayer do
     case Voice.play(guild_id, play_input, play_type, play_options) do
       :ok ->
         Logger.info("Voice.play succeeded for #{sound_name} (attempt #{attempt + 1})")
+        maybe_probe_first_rtp(guild_id, sound_name, attempt + 1)
         track_play_if_needed(sound_name, username)
         broadcast_success(sound_name, username)
         :ok
@@ -318,6 +321,105 @@ defmodule SoundboardWeb.AudioPlayer do
         broadcast_error("Voice channel not configured")
         :error
     end
+  end
+
+  defp maybe_probe_first_rtp(guild_id, sound_name, attempt_number) do
+    if Application.get_env(:soundboard, :voice_rtp_probe, false) do
+      timeout_ms =
+        Application.get_env(
+          :soundboard,
+          :voice_rtp_probe_timeout_ms,
+          @rtp_probe_default_timeout_ms
+        )
+
+      initial_seq = current_rtp_sequence(guild_id)
+      started_at = System.monotonic_time(:millisecond)
+
+      Task.start(fn ->
+        wait_for_first_rtp(
+          guild_id,
+          sound_name,
+          attempt_number,
+          initial_seq,
+          started_at,
+          timeout_ms
+        )
+      end)
+    end
+
+    :ok
+  end
+
+  defp wait_for_first_rtp(
+         guild_id,
+         sound_name,
+         attempt_number,
+         initial_seq,
+         started_at,
+         timeout_ms
+       ) do
+    elapsed_ms = System.monotonic_time(:millisecond) - started_at
+    current_seq = current_rtp_sequence(guild_id)
+
+    cond do
+      is_integer(initial_seq) and is_integer(current_seq) and current_seq != initial_seq ->
+        Logger.info(
+          "RTP probe: first packet for #{sound_name} after #{elapsed_ms}ms " <>
+            "(attempt #{attempt_number}, seq #{initial_seq} -> #{current_seq})"
+        )
+
+      is_nil(initial_seq) and is_integer(current_seq) ->
+        Logger.info(
+          "RTP probe: sequence initialized for #{sound_name} after #{elapsed_ms}ms " <>
+            "(attempt #{attempt_number}, seq #{current_seq})"
+        )
+
+      elapsed_ms >= timeout_ms ->
+        {ready, playing} = safe_voice_status(guild_id)
+
+        Logger.warning(
+          "RTP probe: no progress for #{sound_name} within #{timeout_ms}ms " <>
+            "(attempt #{attempt_number}, initial_seq=#{inspect(initial_seq)}, " <>
+            "current_seq=#{inspect(current_seq)}, ready=#{ready}, playing=#{playing})"
+        )
+
+      true ->
+        Process.sleep(@rtp_probe_poll_ms)
+
+        wait_for_first_rtp(
+          guild_id,
+          sound_name,
+          attempt_number,
+          initial_seq,
+          started_at,
+          timeout_ms
+        )
+    end
+  end
+
+  defp current_rtp_sequence(guild_id) do
+    case Voice.get_voice(guild_id) do
+      %{rtp_sequence: seq} when is_integer(seq) -> seq
+      _ -> nil
+    end
+  rescue
+    _ -> nil
+  end
+
+  defp safe_voice_status(guild_id) do
+    {safe_voice_ready(guild_id), safe_voice_playing(guild_id)}
+  end
+
+  defp safe_voice_ready(guild_id) do
+    Voice.ready?(guild_id)
+  rescue
+    _ -> :unknown
+  end
+
+  defp safe_voice_playing(guild_id) do
+    Voice.playing?(guild_id)
+  rescue
+    _ -> :unknown
   end
 
   # Removed unused wait_for_audio_to_finish/2 to keep compile clean and hot path lean
