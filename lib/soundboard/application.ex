@@ -43,6 +43,8 @@ defmodule Soundboard.Application do
 
   defp ensure_dave_runtime! do
     if Application.get_env(:soundboard, :env) != :test and Application.get_env(:eda, :dave, false) do
+      maybe_build_dave_runtime!()
+
       unless EDA.Voice.Dave.Native.available?() do
         raise """
         EDA DAVE is enabled, but the native library is unavailable.
@@ -50,6 +52,46 @@ defmodule Soundboard.Application do
         then copy the built artifact to `_build/<env>/lib/eda/priv/native/eda_dave.so`.
         You can temporarily disable DAVE with `EDA_DAVE=false`.
         """
+      end
+    end
+  end
+
+  defp maybe_build_dave_runtime! do
+    if EDA.Voice.Dave.Native.available?() do
+      :ok
+    else
+      case System.find_executable("cargo") do
+        nil ->
+          :ok
+
+        cargo ->
+          source_dir = Path.join(["deps", "eda", "native", "eda_dave"])
+          env = Application.get_env(:soundboard, :env, :dev)
+          target_dir = Path.join(["_build", Atom.to_string(env), "lib", "eda", "priv", "native"])
+          target_file = Path.join(target_dir, "eda_dave.so")
+          artifact_dir = Path.join([source_dir, "target", "release"])
+
+          if File.dir?(source_dir) do
+            case System.cmd(cargo, ["build", "--release"], cd: source_dir, stderr_to_stdout: true) do
+              {_output, 0} ->
+                File.mkdir_p!(target_dir)
+
+                source_file =
+                  Path.join(artifact_dir, "libeda_dave.so")
+                  |> then(fn so ->
+                    if File.exists?(so),
+                      do: so,
+                      else: Path.join(artifact_dir, "libeda_dave.dylib")
+                  end)
+
+                if File.exists?(source_file) do
+                  File.cp!(source_file, target_file)
+                end
+
+              _ ->
+                :ok
+            end
+          end
       end
     end
   end
