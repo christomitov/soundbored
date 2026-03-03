@@ -3,6 +3,7 @@ defmodule SoundboardWeb.DiscordHandlerTest do
   Tests the DiscordHandler module.
   """
   use Soundboard.DataCase
+  alias Soundboard.Discord.Voice
   alias SoundboardWeb.DiscordHandler
   import Mock
   import ExUnit.CaptureLog
@@ -51,7 +52,7 @@ defmodule SoundboardWeb.DiscordHandlerTest do
           DiscordHandler.handle_event({:VOICE_STATE_UPDATE, payload, nil})
 
           # Assert that appropriate actions were taken
-          assert_called(Soundboard.Discord.Voice.join_channel("456", "123"))
+          assert_called(Voice.join_channel("456", "123"))
         end
       end)
     end

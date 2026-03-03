@@ -4,8 +4,8 @@ defmodule SoundboardWeb.AudioPlayer do
   """
   use GenServer
   require Logger
-  alias Soundboard.Discord.Voice
   alias Soundboard.Accounts.User
+  alias Soundboard.Discord.Voice
   alias Soundboard.Sound
 
   # System users that don't need play tracking

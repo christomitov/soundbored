@@ -4,6 +4,7 @@ defmodule Soundboard.Application do
   @moduledoc false
 
   use Application
+  alias EDA.Voice.Dave.Native
   alias SoundboardWeb.Live.PresenceHandler
   require Logger
 
@@ -45,7 +46,7 @@ defmodule Soundboard.Application do
     if Application.get_env(:soundboard, :env) != :test and Application.get_env(:eda, :dave, false) do
       maybe_build_dave_runtime!()
 
-      unless EDA.Voice.Dave.Native.available?() do
+      unless Native.available?() do
         raise """
         EDA DAVE is enabled, but the native library is unavailable.
         Build it in `deps/eda/native/eda_dave` with `cargo build --release`,
@@ -57,39 +58,56 @@ defmodule Soundboard.Application do
   end
 
   defp maybe_build_dave_runtime! do
-    if EDA.Voice.Dave.Native.available?() do
+    if Native.available?() do
       :ok
     else
-      case System.find_executable("cargo") do
-        nil ->
-          :ok
+      maybe_build_dave_with_cargo()
+    end
+  end
 
-        cargo ->
-          source_dir = Path.join(["deps", "eda", "native", "eda_dave"])
-          env = Application.get_env(:soundboard, :env, :dev)
-          target_dir = Path.join(["_build", Atom.to_string(env), "lib", "eda", "priv", "native"])
-          target_file = Path.join(target_dir, "eda_dave.so")
-          artifact_dir = Path.join([source_dir, "target", "release"])
+  defp maybe_build_dave_with_cargo do
+    case System.find_executable("cargo") do
+      nil ->
+        :ok
 
-          if File.dir?(source_dir) do
-            case System.cmd(cargo, ["build", "--release"], cd: source_dir, stderr_to_stdout: true) do
-              {_output, 0} ->
-                File.mkdir_p!(target_dir)
-                File.rm(target_file)
+      cargo ->
+        source_dir = Path.join(["deps", "eda", "native", "eda_dave"])
+        maybe_compile_dave(cargo, source_dir)
+    end
+  end
 
-                source_file = select_dave_artifact(artifact_dir)
+  defp maybe_compile_dave(cargo, source_dir) do
+    if File.dir?(source_dir) do
+      run_dave_build(cargo, source_dir)
+    else
+      :ok
+    end
+  end
 
-                if File.exists?(source_file) do
-                  File.cp!(source_file, target_file)
-                  EDA.Voice.Dave.Native.load_nif()
-                end
+  defp run_dave_build(cargo, source_dir) do
+    case System.cmd(cargo, ["build", "--release"], cd: source_dir, stderr_to_stdout: true) do
+      {_output, 0} ->
+        install_dave_artifact(source_dir)
 
-              {output, _} ->
-                Logger.warning("Failed to build EDA DAVE native library:\n#{output}")
-                :ok
-            end
-          end
-      end
+      {output, _} ->
+        Logger.warning("Failed to build EDA DAVE native library:\n#{output}")
+        :ok
+    end
+  end
+
+  defp install_dave_artifact(source_dir) do
+    env = Application.get_env(:soundboard, :env, :dev)
+    target_dir = Path.join(["_build", Atom.to_string(env), "lib", "eda", "priv", "native"])
+    target_file = Path.join(target_dir, "eda_dave.so")
+    artifact_dir = Path.join([source_dir, "target", "release"])
+    source_file = select_dave_artifact(artifact_dir)
+
+    File.mkdir_p!(target_dir)
+    File.rm(target_file)
+
+    if File.exists?(source_file) do
+      File.cp!(source_file, target_file)
+      Native.load_nif()
     end
   end
 
