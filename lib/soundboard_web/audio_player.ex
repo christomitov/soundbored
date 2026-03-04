@@ -194,51 +194,7 @@ defmodule SoundboardWeb.AudioPlayer do
 
   @impl true
   def handle_info(:check_voice_connection, state) do
-    # Check and maintain voice connection health
-    new_state =
-      case state.voice_channel do
-        {guild_id, channel_id} when not is_nil(guild_id) and not is_nil(channel_id) ->
-          joined? = Voice.channel_id(guild_id) == to_string(channel_id)
-          ready? = safe_voice_ready(guild_id)
-
-          cond do
-            joined? and ready? ->
-              Logger.debug("Voice connection healthy for guild #{guild_id}")
-              state
-
-            joined? and not ready? ->
-              Logger.warning(
-                "Voice session unready for guild #{guild_id} in channel #{channel_id}, attempting refresh"
-              )
-
-              try do
-                Voice.join_channel(guild_id, channel_id)
-                state
-              rescue
-                error ->
-                  Logger.error("Failed to refresh voice channel: #{inspect(error)}")
-                  %{state | voice_channel: nil}
-              end
-
-            true ->
-              Logger.warning(
-                "Voice channel mismatch for guild #{guild_id}, attempting to rejoin #{channel_id}"
-              )
-
-              try do
-                Voice.join_channel(guild_id, channel_id)
-                state
-              rescue
-                error ->
-                  Logger.error("Failed to rejoin voice channel: #{inspect(error)}")
-                  %{state | voice_channel: nil}
-              end
-          end
-
-        _ ->
-          Logger.debug("No voice channel set")
-          state
-      end
+    new_state = maintain_voice_connection(state)
 
     # Schedule next check
     schedule_voice_check()
@@ -348,6 +304,46 @@ defmodule SoundboardWeb.AudioPlayer do
   end
 
   defp maybe_interrupt_current(state), do: state
+
+  defp maintain_voice_connection(%{voice_channel: {guild_id, channel_id}} = state)
+       when not is_nil(guild_id) and not is_nil(channel_id) do
+    joined? = Voice.channel_id(guild_id) == to_string(channel_id)
+    ready? = safe_voice_ready(guild_id)
+
+    cond do
+      joined? and ready? ->
+        Logger.debug("Voice connection healthy for guild #{guild_id}")
+        state
+
+      joined? ->
+        Logger.warning(
+          "Voice session unready for guild #{guild_id} in channel #{channel_id}, attempting refresh"
+        )
+
+        attempt_voice_join(state, guild_id, channel_id, "refresh")
+
+      true ->
+        Logger.warning(
+          "Voice channel mismatch for guild #{guild_id}, attempting to rejoin #{channel_id}"
+        )
+
+        attempt_voice_join(state, guild_id, channel_id, "rejoin")
+    end
+  end
+
+  defp maintain_voice_connection(state) do
+    Logger.debug("No voice channel set")
+    state
+  end
+
+  defp attempt_voice_join(state, guild_id, channel_id, action) do
+    Voice.join_channel(guild_id, channel_id)
+    state
+  rescue
+    error ->
+      Logger.error("Failed to #{action} voice channel: #{inspect(error)}")
+      %{state | voice_channel: nil}
+  end
 
   defp handle_playback_finished(state, guild_id) do
     cond do
@@ -586,28 +582,7 @@ defmodule SoundboardWeb.AudioPlayer do
   defp maybe_rejoin_current_channel(guild_id, force_refresh) do
     case GenServer.call(__MODULE__, :get_voice_channel) do
       {^guild_id, channel_id} ->
-        joined? = Voice.channel_id(guild_id) == to_string(channel_id)
-        ready? = safe_voice_ready(guild_id)
-
-        cond do
-          force_refresh and joined? and not ready? ->
-            Logger.info("Refreshing voice session in channel #{channel_id}")
-            Voice.leave_channel(guild_id)
-            Process.sleep(150)
-            Voice.join_channel(guild_id, channel_id)
-            wait_for_voice_ready(guild_id)
-
-          force_refresh and joined? and ready? ->
-            Logger.debug("Skipping refresh; voice already ready in channel #{channel_id}")
-
-          joined? and ready? ->
-            Logger.debug("Skipping rejoin; already in voice channel #{channel_id}")
-
-          true ->
-            Logger.info("Rejoining voice channel #{channel_id}")
-            Voice.join_channel(guild_id, channel_id)
-            wait_for_voice_ready(guild_id)
-        end
+        maybe_rejoin_for_channel(guild_id, channel_id, force_refresh)
 
       _ ->
         :ok
@@ -616,6 +591,48 @@ defmodule SoundboardWeb.AudioPlayer do
     :ok
   rescue
     _ -> :ok
+  end
+
+  defp maybe_rejoin_for_channel(guild_id, channel_id, true) do
+    joined? = Voice.channel_id(guild_id) == to_string(channel_id)
+    ready? = safe_voice_ready(guild_id)
+
+    cond do
+      joined? and not ready? ->
+        refresh_voice_session(guild_id, channel_id)
+
+      joined? and ready? ->
+        Logger.debug("Skipping refresh; voice already ready in channel #{channel_id}")
+
+      true ->
+        rejoin_voice_channel(guild_id, channel_id)
+    end
+  end
+
+  defp maybe_rejoin_for_channel(guild_id, channel_id, false) do
+    joined? = Voice.channel_id(guild_id) == to_string(channel_id)
+    ready? = safe_voice_ready(guild_id)
+
+    if joined? and ready? do
+      Logger.debug("Skipping rejoin; already in voice channel #{channel_id}")
+    else
+      rejoin_voice_channel(guild_id, channel_id)
+    end
+  end
+
+  defp refresh_voice_session(guild_id, channel_id) do
+    Logger.info("Refreshing voice session in channel #{channel_id} with in-place rejoin")
+
+    # Avoid an explicit leave here; that can strand the bot outside the channel
+    # if Discord/gateway timing races during reconnect.
+    Voice.join_channel(guild_id, channel_id)
+    wait_for_voice_ready(guild_id)
+  end
+
+  defp rejoin_voice_channel(guild_id, channel_id) do
+    Logger.info("Rejoining voice channel #{channel_id}")
+    Voice.join_channel(guild_id, channel_id)
+    wait_for_voice_ready(guild_id)
   end
 
   defp ensure_joined_channel(guild_id, channel_id) do
