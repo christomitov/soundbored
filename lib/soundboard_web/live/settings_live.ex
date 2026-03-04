@@ -191,6 +191,63 @@ defmodule SoundboardWeb.SettingsLive do
                 <pre class="mt-1 p-2 pr-16 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded text-xs overflow-x-auto whitespace-nowrap min-h-[56px]"><code class="text-gray-800 dark:text-gray-100 font-mono">curl -H \"Authorization: Bearer {(@example_token || "<TOKEN>")}\" {(@base_url || SoundboardWeb.Endpoint.url())}/api/sounds</code></pre>
               </div>
             </div>
+            <div class="text-xs text-gray-600 dark:text-gray-400">
+              Upload endpoint: <code class="font-mono">POST /api/sounds</code>. Required fields:
+              <code class="font-mono">name</code>
+              plus either <code class="font-mono">file</code>
+              (local multipart)
+              or <code class="font-mono">url</code>
+              (<code class="font-mono">source_type=url</code>). Optional: <code class="font-mono">tags</code>,
+              <code class="font-mono">volume</code>
+              (0-150), <code class="font-mono">is_join_sound</code>, <code class="font-mono">is_leave_sound</code>.
+            </div>
+            <div>
+              <div class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Upload local file (multipart/form-data)
+              </div>
+              <div class="relative">
+                <button
+                  id="copy-upload-local"
+                  type="button"
+                  phx-hook="CopyButton"
+                  data-copy-text={"curl -X POST -H \"Authorization: Bearer #{(@example_token || "<TOKEN>")}\" -F \"source_type=local\" -F \"name=<NAME>\" -F \"file=@/path/to/sound.mp3\" -F \"tags[]=meme\" -F \"tags[]=alert\" -F \"volume=90\" -F \"is_join_sound=true\" #{(@base_url || SoundboardWeb.Endpoint.url())}/api/sounds"}
+                  class="absolute right-2 top-2 text-xs px-2 py-1 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100 rounded"
+                >
+                  Copy
+                </button>
+                <pre class="mt-1 p-2 pr-16 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded text-xs overflow-x-auto min-h-[120px]"><code class="text-gray-800 dark:text-gray-100 font-mono">curl -X POST \
+    -H "Authorization: Bearer {(@example_token || "<TOKEN>")}" \
+    -F "source_type=local" \
+    -F "name=&lt;NAME&gt;" \
+    -F "file=@/path/to/sound.mp3" \
+    -F "tags[]=meme" \
+    -F "tags[]=alert" \
+    -F "volume=90" \
+    -F "is_join_sound=true" \
+    {(@base_url || SoundboardWeb.Endpoint.url())}/api/sounds</code></pre>
+              </div>
+            </div>
+            <div>
+              <div class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Upload from URL (JSON)
+              </div>
+              <div class="relative">
+                <button
+                  id="copy-upload-url"
+                  type="button"
+                  phx-hook="CopyButton"
+                  data-copy-text={"curl -X POST -H \"Authorization: Bearer #{(@example_token || "<TOKEN>")}\" -H \"Content-Type: application/json\" -d '{\"source_type\":\"url\",\"name\":\"wow\",\"url\":\"https://example.com/wow.mp3\",\"tags\":[\"meme\",\"reaction\"],\"volume\":90,\"is_leave_sound\":true}' #{(@base_url || SoundboardWeb.Endpoint.url())}/api/sounds"}
+                  class="absolute right-2 top-2 text-xs px-2 py-1 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100 rounded"
+                >
+                  Copy
+                </button>
+                <pre class="mt-1 p-2 pr-16 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded text-xs overflow-x-auto min-h-[110px]"><code class="text-gray-800 dark:text-gray-100 font-mono">curl -X POST \
+    -H "Authorization: Bearer {(@example_token || "<TOKEN>")}" \
+    -H "Content-Type: application/json" \
+    -d '&#123;"source_type":"url","name":"wow","url":"https://example.com/wow.mp3","tags":["meme","reaction"],"volume":90,"is_leave_sound":true&#125;' \
+    {(@base_url || SoundboardWeb.Endpoint.url())}/api/sounds</code></pre>
+              </div>
+            </div>
             <div>
               <div class="text-sm font-medium text-gray-700 dark:text-gray-300">
                 Play a sound by ID

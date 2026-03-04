@@ -76,6 +76,7 @@ defmodule SoundboardWeb.Router do
     pipe_through :api
 
     get "/sounds", SoundController, :index
+    post "/sounds", SoundController, :create
     post "/sounds/:id/play", SoundController, :play
     post "/sounds/stop", SoundController, :stop
   end
