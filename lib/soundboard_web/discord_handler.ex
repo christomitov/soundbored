@@ -2,12 +2,10 @@ defmodule SoundboardWeb.DiscordHandler do
   @moduledoc """
   Handles the Discord events.
   """
-  use Nostrum.Consumer
+  use GenServer
   require Logger
 
-  alias Nostrum.Api.{Message, Self}
-  alias Nostrum.Cache.GuildCache
-  alias Nostrum.Voice
+  alias Soundboard.Discord.{GuildCache, Message, Self, Voice}
   alias Soundboard.{Accounts.User, Repo, Sound, UserSoundSetting}
   import Ecto.Query
 
@@ -28,14 +26,14 @@ defmodule SoundboardWeb.DiscordHandler do
 
     def get_state(user_id) do
       GenServer.call(__MODULE__, {:get_state, user_id})
-    rescue
-      _ -> nil
+    catch
+      :exit, _ -> nil
     end
 
     def update_state(user_id, channel_id, session_id) do
       GenServer.cast(__MODULE__, {:update_state, user_id, channel_id, session_id})
-    rescue
-      _ -> :error
+    catch
+      :exit, _ -> :error
     end
 
     def handle_call({:get_state, user_id}, _from, state) do
@@ -59,9 +57,12 @@ defmodule SoundboardWeb.DiscordHandler do
     :ok
   end
 
+  def start_link(_opts) do
+    GenServer.start_link(__MODULE__, [], name: __MODULE__)
+  end
+
   @impl GenServer
   def init([]) do
-    Nostrum.ConsumerGroup.join(self())
     init()
     {:ok, nil}
   end
@@ -197,7 +198,7 @@ defmodule SoundboardWeb.DiscordHandler do
   # Simplified check_users_in_voice function - safe against cache races
   defp check_users_in_voice(guild_id, channel_id) do
     cond do
-      not is_integer(guild_id) -> warn_and_default(guild_id, channel_id)
+      not valid_discord_id?(guild_id) -> warn_and_default(guild_id, channel_id)
       is_nil(channel_id) -> warn_and_default(guild_id, channel_id)
       true -> count_users_in_channel(guild_id, channel_id)
     end
@@ -267,21 +268,31 @@ defmodule SoundboardWeb.DiscordHandler do
       :disabled -> :noop
     end
 
-    handle_leave_sound(payload.user_id)
+    if bot_user?(payload.user_id) do
+      Logger.debug("Skipping leave sound lookup for bot user #{payload.user_id}")
+      :noop
+    else
+      handle_leave_sound(payload.user_id)
+    end
   end
 
   def handle_event({:VOICE_STATE_UPDATE, payload, _ws_state}) do
     Logger.info("Voice state update received: #{inspect(payload)}")
 
     # Check if this is the bot's own voice state update
-    case Self.get() do
-      {:ok, %{id: bot_id}} when bot_id == payload.user_id ->
-        Logger.info(
-          "BOT VOICE STATE UPDATE - Bot (#{bot_id}) joined channel #{payload.channel_id} in guild #{payload.guild_id}"
-        )
+    bot_id =
+      case Self.get() do
+        {:ok, %{id: id}} -> id
+        _ -> nil
+      end
 
-      _ ->
-        :ok
+    bot_voice_state_update? =
+      not is_nil(bot_id) and to_string(bot_id) == to_string(payload.user_id)
+
+    if bot_voice_state_update? do
+      Logger.info(
+        "BOT VOICE STATE UPDATE - Bot (#{bot_id}) joined channel #{payload.channel_id} in guild #{payload.guild_id}"
+      )
     end
 
     previous_state = State.get_state(payload.user_id)
@@ -292,7 +303,12 @@ defmodule SoundboardWeb.DiscordHandler do
       :disabled -> :noop
     end
 
-    handle_join_sound(payload.user_id, previous_state, payload.channel_id)
+    if bot_voice_state_update? do
+      Logger.debug("Skipping join sound lookup for bot user #{payload.user_id}")
+      :noop
+    else
+      handle_join_sound(payload.user_id, previous_state, payload.channel_id)
+    end
   end
 
   def handle_event({:READY, _payload, _ws_state}) do
@@ -311,11 +327,16 @@ defmodule SoundboardWeb.DiscordHandler do
     :noop
   end
 
+  def handle_event({:VOICE_PLAYBACK_FINISHED, payload, _ws_state}) do
+    SoundboardWeb.AudioPlayer.playback_finished(payload.guild_id)
+    :noop
+  end
+
   def handle_event({:VOICE_SERVER_UPDATE, _payload, _ws_state}) do
     :noop
   end
 
-  # New DAVE voice event sometimes surfaced by Nostrum; ignore for now
+  # New DAVE voice event; ignore for now.
   def handle_event({:VOICE_CHANNEL_STATUS_UPDATE, _payload, _ws_state}) do
     :noop
   end
@@ -368,7 +389,13 @@ defmodule SoundboardWeb.DiscordHandler do
     end
   end
 
-  # Handle Nostrum events
+  @impl true
+  def handle_cast({:eda_event, event}, state) do
+    handle_event(event)
+    {:noreply, state}
+  end
+
+  @impl true
   def handle_info({:event, {event_name, payload, ws_state}}, state) do
     handle_event({event_name, payload, ws_state})
     {:noreply, state}
@@ -440,7 +467,7 @@ defmodule SoundboardWeb.DiscordHandler do
       end
 
     case candidate do
-      {gid, cid} when is_integer(gid) and not is_nil(cid) -> {gid, cid}
+      {gid, cid} when not is_nil(gid) and not is_nil(cid) -> {gid, cid}
       _ -> nil
     end
   end
@@ -457,7 +484,7 @@ defmodule SoundboardWeb.DiscordHandler do
   defp check_and_join_voice(guild) do
     # Get all voice states for the guild
     voice_states = guild.voice_states
-    bot_id = Application.get_env(:nostrum, :user_id)
+    bot_id = maybe_bot_id()
 
     Logger.info("""
     Checking voice states for guild #{guild.id}:
@@ -524,40 +551,44 @@ defmodule SoundboardWeb.DiscordHandler do
     end
   end
 
-  defp check_and_maybe_leave(guild_id, channel_id)
-       when is_integer(guild_id) and not is_nil(channel_id) do
-    users = check_users_in_voice(guild_id, channel_id)
+  defp check_and_maybe_leave(guild_id, channel_id) do
+    if valid_discord_id?(guild_id) and not is_nil(channel_id) do
+      users = check_users_in_voice(guild_id, channel_id)
 
-    if users == 0 do
-      Logger.info("No non-bot users remaining in channel, leaving now")
-      leave_voice_channel(guild_id)
+      if users == 0 do
+        Logger.info("No non-bot users remaining in channel, leaving now")
+        leave_voice_channel(guild_id)
+      else
+        # GuildCache may lag briefly after a VOICE_STATE_UPDATE; recheck shortly
+        Logger.info("Non-bot users detected (#{users}); scheduling recheck in 1.5s")
+        Process.send_after(self(), {:recheck_alone, guild_id, channel_id}, 1_500)
+        :noop
+      end
     else
-      # GuildCache may lag briefly after a VOICE_STATE_UPDATE; recheck shortly
-      Logger.info("Non-bot users detected (#{users}); scheduling recheck in 1.5s")
-      Process.send_after(self(), {:recheck_alone, guild_id, channel_id}, 1_500)
+      Logger.debug(
+        "Skipping check_and_maybe_leave due to invalid target: guild_id=#{inspect(guild_id)}, channel_id=#{inspect(channel_id)}"
+      )
+
       :noop
     end
-  end
-
-  defp check_and_maybe_leave(guild_id, channel_id) do
-    Logger.debug(
-      "Skipping check_and_maybe_leave due to invalid target: guild_id=#{inspect(guild_id)}, channel_id=#{inspect(channel_id)}"
-    )
-
-    :noop
   end
 
   defp handle_auto_join_leave(payload) do
     Logger.info("Handling auto join/leave for payload: #{inspect(payload)}")
 
     # Check if this is the bot's own voice state update - RETURN EARLY if it is
-    case Self.get() do
-      {:ok, %{id: bot_id}} when bot_id == payload.user_id ->
-        Logger.debug("Ignoring bot's own voice state update in auto-join logic")
-        :noop
+    if bot_user?(payload.user_id) do
+      Logger.debug("Ignoring bot's own voice state update in auto-join logic")
+      :noop
+    else
+      process_user_voice_update(payload)
+    end
+  end
 
-      _ ->
-        process_user_voice_update(payload)
+  defp bot_user?(user_id) do
+    case Self.get() do
+      {:ok, %{id: bot_id}} -> to_string(bot_id) == to_string(user_id)
+      _ -> false
     end
   end
 
@@ -590,26 +621,25 @@ defmodule SoundboardWeb.DiscordHandler do
     end
   end
 
-  defp handle_bot_in_different_channel(guild_id, current_channel_id)
-       when is_integer(guild_id) and not is_nil(current_channel_id) do
-    users = check_users_in_voice(guild_id, current_channel_id)
-    Logger.info("Current channel #{current_channel_id} has #{users} users")
-
-    if users == 0 do
-      Logger.info("Bot is alone in channel #{current_channel_id}, leaving")
-      leave_voice_channel(guild_id)
-    else
-      # Recheck shortly to avoid cache staleness keeping the bot around
-      Process.send_after(self(), {:recheck_alone, guild_id, current_channel_id}, 1_500)
-    end
-  end
-
   defp handle_bot_in_different_channel(guild_id, current_channel_id) do
-    Logger.debug(
-      "Skipping handle_bot_in_different_channel due to invalid target: guild_id=#{inspect(guild_id)}, channel_id=#{inspect(current_channel_id)}"
-    )
+    if valid_discord_id?(guild_id) and not is_nil(current_channel_id) do
+      users = check_users_in_voice(guild_id, current_channel_id)
+      Logger.info("Current channel #{current_channel_id} has #{users} users")
 
-    :noop
+      if users == 0 do
+        Logger.info("Bot is alone in channel #{current_channel_id}, leaving")
+        leave_voice_channel(guild_id)
+      else
+        # Recheck shortly to avoid cache staleness keeping the bot around
+        Process.send_after(self(), {:recheck_alone, guild_id, current_channel_id}, 1_500)
+      end
+    else
+      Logger.debug(
+        "Skipping handle_bot_in_different_channel due to invalid target: guild_id=#{inspect(guild_id)}, channel_id=#{inspect(current_channel_id)}"
+      )
+
+      :noop
+    end
   end
 
   defp handle_join_sound(user_id, previous_state, new_channel_id) do
@@ -679,4 +709,6 @@ defmodule SoundboardWeb.DiscordHandler do
         :noop
     end
   end
+
+  defp valid_discord_id?(value), do: is_integer(value) or (is_binary(value) and value != "")
 end

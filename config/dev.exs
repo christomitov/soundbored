@@ -117,11 +117,6 @@ config :ueberauth, Ueberauth.Strategy.Discord.OAuth,
 config :soundboard,
   discord_token: System.get_env("DISCORD_TOKEN")
 
-# Configure Nostrum with optimized audio settings for faster playback
-config :nostrum,
-  token: System.get_env("DISCORD_TOKEN"),
-  # Reduce audio buffering for faster playback
-  # Reduced from default 10 (40ms instead of 200ms)
-  audio_frames_per_burst: 10,
-  # Default 20_000ms
-  audio_timeout: 20_000
+# Configure EDA in development
+config :eda,
+  token: System.get_env("DISCORD_TOKEN")

@@ -3,6 +3,7 @@ defmodule SoundboardWeb.DiscordHandlerTest do
   Tests the DiscordHandler module.
   """
   use Soundboard.DataCase
+  alias Soundboard.Discord.Voice
   alias SoundboardWeb.DiscordHandler
   import Mock
   import ExUnit.CaptureLog
@@ -32,13 +33,13 @@ defmodule SoundboardWeb.DiscordHandlerTest do
 
       capture_log(fn ->
         with_mocks([
-          {Nostrum.Voice, [],
+          {Soundboard.Discord.Voice, [],
            [
              join_channel: fn _, _ -> :ok end,
              ready?: fn _ -> false end
            ]},
-          {Nostrum.Cache.GuildCache, [], [get!: fn _guild_id -> mock_guild end]},
-          {Nostrum.Api.Self, [], [get: fn -> {:ok, %{id: "999"}} end]}
+          {Soundboard.Discord.GuildCache, [], [get!: fn _guild_id -> mock_guild end]},
+          {Soundboard.Discord.Self, [], [get: fn -> {:ok, %{id: "999"}} end]}
         ]) do
           payload = %{
             channel_id: "123",
@@ -51,7 +52,7 @@ defmodule SoundboardWeb.DiscordHandlerTest do
           DiscordHandler.handle_event({:VOICE_STATE_UPDATE, payload, nil})
 
           # Assert that appropriate actions were taken
-          assert_called(Nostrum.Voice.join_channel("456", "123"))
+          assert_called(Voice.join_channel("456", "123"))
         end
       end)
     end

@@ -6,14 +6,23 @@ defmodule SoundboardWeb.BasicAuthPlugTest do
   alias SoundboardWeb.Plugs.BasicAuth
 
   setup do
-    # Reset env between tests
+    previous_username = System.get_env("BASIC_AUTH_USERNAME")
+    previous_password = System.get_env("BASIC_AUTH_PASSWORD")
+
+    System.delete_env("BASIC_AUTH_USERNAME")
+    System.delete_env("BASIC_AUTH_PASSWORD")
+
+    # Reset env between tests and restore shell values afterward.
     on_exit(fn ->
-      System.delete_env("BASIC_AUTH_USERNAME")
-      System.delete_env("BASIC_AUTH_PASSWORD")
+      restore_env("BASIC_AUTH_USERNAME", previous_username)
+      restore_env("BASIC_AUTH_PASSWORD", previous_password)
     end)
 
     :ok
   end
+
+  defp restore_env(key, nil), do: System.delete_env(key)
+  defp restore_env(key, value), do: System.put_env(key, value)
 
   test "skips when credentials not configured" do
     conn = conn(:get, "/") |> BasicAuth.call(%{})

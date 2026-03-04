@@ -54,12 +54,10 @@ defmodule Soundboard.MixProject do
   def application do
     apps = [:logger, :runtime_tools]
 
-    # Don't auto-start nostrum - let it start after runtime config loads
-
     [
       mod: {Soundboard.Application, []},
       extra_applications: apps,
-      included_applications: if(Mix.env() == :test, do: [:nostrum], else: [])
+      included_applications: []
     ]
   end
 
@@ -93,7 +91,7 @@ defmodule Soundboard.MixProject do
       {:jason, "~> 1.2"},
       {:dns_cluster, "~> 0.2"},
       {:bandit, "~> 1.8"},
-      {:nostrum, "~> 0.10.4"},
+      {:eda, github: "christomitov/EDA", ref: "61aca88"},
       {:ecto_sqlite3, "~> 0.22"},
       {:number, "~> 1.0"},
       {:ueberauth, "~> 0.10.5"},

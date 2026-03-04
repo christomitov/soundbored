@@ -4,18 +4,31 @@ defmodule SoundboardWeb.AudioPlayer do
   """
   use GenServer
   require Logger
-  alias Nostrum.Voice
   alias Soundboard.Accounts.User
+  alias Soundboard.Discord.Voice
   alias Soundboard.Sound
 
   # System users that don't need play tracking
   @system_users ["System", "API User"]
+  @rtp_probe_poll_ms 20
+  @rtp_probe_default_timeout_ms 6_000
+  @voice_not_ready_retry_ms 350
+  @max_play_attempts 20
+  @interrupt_watchdog_ms 35
+  @interrupt_watchdog_max_attempts 20
 
   defmodule State do
     @moduledoc """
     The state of the audio player.
     """
-    defstruct [:voice_channel, :current_playback]
+    defstruct [
+      :voice_channel,
+      :current_playback,
+      :pending_request,
+      :interrupting,
+      :interrupt_watchdog_ref,
+      :interrupt_watchdog_attempt
+    ]
   end
 
   # Client API
@@ -39,6 +52,10 @@ defmodule SoundboardWeb.AudioPlayer do
     GenServer.cast(__MODULE__, {:set_voice_channel, guild_id, channel_id})
   end
 
+  def playback_finished(guild_id) do
+    GenServer.cast(__MODULE__, {:playback_finished, guild_id})
+  end
+
   def current_voice_channel do
     GenServer.call(__MODULE__, :get_voice_channel)
   rescue
@@ -53,7 +70,16 @@ defmodule SoundboardWeb.AudioPlayer do
     ensure_sound_cache()
     # Schedule periodic voice connection check
     schedule_voice_check()
-    {:ok, state}
+
+    {:ok,
+     %{
+       state
+       | current_playback: nil,
+         pending_request: nil,
+         interrupting: false,
+         interrupt_watchdog_ref: nil,
+         interrupt_watchdog_attempt: 0
+     }}
   end
 
   @impl true
@@ -66,20 +92,48 @@ defmodule SoundboardWeb.AudioPlayer do
         {guild_id, channel_id}
       end
 
-    {:noreply, %{state | voice_channel: voice_channel}}
+    next_state =
+      case voice_channel do
+        nil ->
+          state
+          |> clear_current_playback()
+          |> Map.merge(%{
+            voice_channel: nil,
+            pending_request: nil,
+            interrupting: false,
+            interrupt_watchdog_attempt: 0
+          })
+
+        _ ->
+          %{state | voice_channel: voice_channel}
+      end
+
+    {:noreply, next_state}
   end
 
   def handle_cast(:stop_sound, %{voice_channel: {guild_id, _channel_id}} = state) do
     Logger.info("Stopping all sounds in guild: #{guild_id}")
     Voice.stop(guild_id)
     broadcast_success("All sounds stopped", "System")
-    {:noreply, state}
+
+    {:noreply,
+     state
+     |> clear_current_playback()
+     |> Map.merge(%{
+       pending_request: nil,
+       interrupting: false,
+       interrupt_watchdog_attempt: 0
+     })}
   end
 
   def handle_cast(:stop_sound, state) do
     Logger.info("Attempted to stop sounds but no voice channel connected")
     broadcast_error("Bot is not connected to a voice channel")
     {:noreply, state}
+  end
+
+  def handle_cast({:playback_finished, guild_id}, state) do
+    {:noreply, handle_playback_finished(state, guild_id)}
   end
 
   def handle_cast({:play_sound, _sound_name, _username}, %{voice_channel: nil} = state) do
@@ -93,12 +147,30 @@ defmodule SoundboardWeb.AudioPlayer do
       ) do
     case get_sound_path(sound_name) do
       {:ok, {path_or_url, volume}} ->
-        task =
-          Task.async(fn ->
-            play_sound_task(guild_id, channel_id, sound_name, path_or_url, volume, username)
-          end)
+        request = %{
+          guild_id: guild_id,
+          channel_id: channel_id,
+          sound_name: sound_name,
+          path_or_url: path_or_url,
+          volume: volume,
+          username: username
+        }
 
-        {:noreply, %{state | current_playback: task}}
+        new_state =
+          case state.current_playback do
+            nil ->
+              state
+              |> cancel_interrupt_watchdog()
+              |> Map.merge(%{interrupting: false, interrupt_watchdog_attempt: 0})
+              |> start_playback(request)
+
+            _ ->
+              state
+              |> Map.put(:pending_request, request)
+              |> maybe_interrupt_current()
+          end
+
+        {:noreply, new_state}
 
       {:error, reason} ->
         broadcast_error(reason)
@@ -124,22 +196,20 @@ defmodule SoundboardWeb.AudioPlayer do
     new_state =
       case state.voice_channel do
         {guild_id, channel_id} when not is_nil(guild_id) and not is_nil(channel_id) ->
-          if Voice.ready?(guild_id) do
+          if Voice.channel_id(guild_id) == to_string(channel_id) do
             Logger.debug("Voice connection healthy for guild #{guild_id}")
             state
           else
             Logger.warning(
-              "Voice connection not ready for guild #{guild_id}, attempting to rejoin"
+              "Voice channel mismatch for guild #{guild_id}, attempting to rejoin #{channel_id}"
             )
 
-            # Wrap in try-catch to handle potential errors
             try do
               Voice.join_channel(guild_id, channel_id)
               state
             rescue
               error ->
                 Logger.error("Failed to rejoin voice channel: #{inspect(error)}")
-                # Clear the voice channel if we can't rejoin
                 %{state | voice_channel: nil}
             end
           end
@@ -155,58 +225,222 @@ defmodule SoundboardWeb.AudioPlayer do
   end
 
   @impl true
-  def handle_info({ref, _result}, %{current_playback: %Task{ref: ref}} = state) do
+  def handle_info({ref, result}, %{current_playback: %{task_ref: ref} = current} = state) do
     Process.demonitor(ref, [:flush])
-    {:noreply, %{state | current_playback: nil}}
+
+    next_state =
+      case result do
+        :ok ->
+          %{
+            state
+            | current_playback:
+                current
+                |> Map.put(:task_ref, nil)
+                |> Map.put(:task_pid, nil)
+          }
+
+        :error ->
+          Logger.error("Playback start failed for #{current.sound_name}")
+          state |> clear_current_playback() |> maybe_start_pending()
+      end
+
+    {:noreply, next_state}
   end
 
   @impl true
   def handle_info(
         {:DOWN, ref, :process, _pid, reason},
-        %{current_playback: %Task{ref: ref}} = state
+        %{current_playback: %{task_ref: ref}} = state
       ) do
     Logger.error("Playback task crashed: #{inspect(reason)}")
-    {:noreply, %{state | current_playback: nil}}
+    {:noreply, state |> clear_current_playback() |> maybe_start_pending()}
+  end
+
+  @impl true
+  def handle_info(
+        {:interrupt_watchdog, guild_id, attempt},
+        %{interrupting: true, interrupt_watchdog_attempt: attempt} = state
+      ) do
+    cond do
+      state.current_playback == nil ->
+        {:noreply, state |> reset_interrupt_state() |> maybe_start_pending()}
+
+      attempt >= @interrupt_watchdog_max_attempts ->
+        Logger.warning(
+          "Interrupt watchdog timed out for guild #{guild_id}; forcing latest request"
+        )
+
+        Voice.stop(guild_id)
+        {:noreply, state |> clear_current_playback() |> maybe_start_pending()}
+
+      Voice.playing?(guild_id) ->
+        Logger.debug(
+          "Interrupt watchdog: audio still playing in guild #{guild_id}, retrying stop"
+        )
+
+        Voice.stop(guild_id)
+        {:noreply, schedule_interrupt_watchdog(state, guild_id, attempt + 1)}
+
+      true ->
+        Logger.debug("Interrupt watchdog: playback already stopped for guild #{guild_id}")
+        {:noreply, state |> clear_current_playback() |> maybe_start_pending()}
+    end
   end
 
   @impl true
   def handle_info(_, state), do: {:noreply, state}
 
+  defp start_playback(state, request) do
+    task =
+      Task.async(fn ->
+        play_sound_task(
+          request.guild_id,
+          request.channel_id,
+          request.sound_name,
+          request.path_or_url,
+          request.volume,
+          request.username
+        )
+      end)
+
+    %{
+      state
+      | current_playback: request |> Map.put(:task_ref, task.ref) |> Map.put(:task_pid, task.pid)
+    }
+  end
+
+  defp maybe_interrupt_current(%{current_playback: %{guild_id: guild_id}} = state) do
+    Logger.debug("Interrupting current playback in guild #{guild_id} for latest request")
+    Voice.stop(guild_id)
+
+    if Voice.playing?(guild_id) do
+      state
+      |> Map.put(:interrupting, true)
+      |> schedule_interrupt_watchdog(guild_id, 1)
+    else
+      Logger.debug("Interrupt fast-path: playback stopped immediately in guild #{guild_id}")
+
+      state
+      |> clear_current_playback()
+      |> maybe_start_pending()
+    end
+  end
+
+  defp maybe_interrupt_current(state), do: state
+
+  defp handle_playback_finished(state, guild_id) do
+    cond do
+      match?(%{guild_id: ^guild_id}, state.current_playback) ->
+        state
+        |> clear_current_playback()
+        |> maybe_start_pending()
+
+      state.interrupting and match?({^guild_id, _}, state.voice_channel) ->
+        state
+        |> reset_interrupt_state()
+        |> maybe_start_pending()
+
+      true ->
+        state
+    end
+  end
+
+  defp maybe_start_pending(%{pending_request: nil} = state), do: state
+
+  defp maybe_start_pending(state) do
+    request = state.pending_request
+
+    case state.voice_channel do
+      {guild_id, channel_id}
+      when guild_id == request.guild_id and channel_id == request.channel_id ->
+        state
+        |> Map.put(:pending_request, nil)
+        |> start_playback(request)
+
+      _ ->
+        %{state | pending_request: nil}
+    end
+  end
+
+  defp clear_current_playback(state) do
+    cancel_playback_task(state.current_playback)
+
+    state
+    |> cancel_interrupt_watchdog()
+    |> Map.merge(%{
+      current_playback: nil,
+      interrupting: false,
+      interrupt_watchdog_attempt: 0
+    })
+  end
+
+  defp reset_interrupt_state(state) do
+    state
+    |> cancel_interrupt_watchdog()
+    |> Map.merge(%{interrupting: false, interrupt_watchdog_attempt: 0})
+  end
+
+  defp schedule_interrupt_watchdog(state, guild_id, attempt) do
+    state = cancel_interrupt_watchdog(state)
+
+    ref =
+      Process.send_after(self(), {:interrupt_watchdog, guild_id, attempt}, @interrupt_watchdog_ms)
+
+    %{state | interrupt_watchdog_ref: ref, interrupt_watchdog_attempt: attempt}
+  end
+
+  defp cancel_interrupt_watchdog(%{interrupt_watchdog_ref: nil} = state), do: state
+
+  defp cancel_interrupt_watchdog(state) do
+    Process.cancel_timer(state.interrupt_watchdog_ref)
+    %{state | interrupt_watchdog_ref: nil}
+  end
+
+  defp cancel_playback_task(nil), do: :ok
+
+  defp cancel_playback_task(%{task_pid: pid, task_ref: ref}) when is_pid(pid) do
+    if is_reference(ref), do: Process.demonitor(ref, [:flush])
+
+    if Process.alive?(pid) do
+      Process.exit(pid, :kill)
+    end
+
+    :ok
+  end
+
+  defp cancel_playback_task(_), do: :ok
+
   # Helper function to check if a username is a system user
   defp system_user?(username), do: username in @system_users
 
   defp play_sound_task(guild_id, channel_id, sound_name, path_or_url, volume, username) do
-    # Stop any currently playing sound immediately
-    # Direct call is fast enough, no need for Task.start which causes process leaks
-    if Voice.playing?(guild_id) do
-      Voice.stop(guild_id)
-    end
-
-    # Ensure we're connected and ready
-    if ensure_voice_ready(guild_id, channel_id) do
-      play_sound_with_connection(guild_id, sound_name, path_or_url, volume, username)
-    else
-      Logger.error("Failed to establish voice connection")
-      broadcast_error("Failed to connect to voice channel")
-    end
+    ensure_joined_channel(guild_id, channel_id)
+    play_sound_with_connection(guild_id, sound_name, path_or_url, volume, username)
   end
 
   defp play_sound_with_connection(guild_id, sound_name, path_or_url, volume, username) do
-    {play_input, play_type} = prepare_play_input(sound_name, path_or_url)
+    if is_nil(System.find_executable("ffmpeg")) do
+      Logger.error("ffmpeg not found in PATH. Cannot play #{sound_name}")
+      broadcast_error("ffmpeg is not installed on this host")
+      :error
+    else
+      {play_input, play_type} = prepare_play_input(sound_name, path_or_url)
 
-    Logger.info(
-      "Calling Voice.play with guild_id: #{guild_id}, input: #{play_input}, type: #{play_type}"
-    )
+      Logger.info(
+        "Calling Voice.play with guild_id: #{guild_id}, input: #{play_input}, type: #{play_type}"
+      )
 
-    # Check voice state
-    Logger.info("Voice ready: #{Voice.ready?(guild_id)}, Playing: #{Voice.playing?(guild_id)}")
+      Logger.info(
+        "Voice channel: #{inspect(Voice.channel_id(guild_id))}, Playing: #{Voice.playing?(guild_id)}"
+      )
 
-    # Keep ffmpeg in realtime mode (default) to avoid bursty/skip-prone playback.
-    play_options = [volume: clamp_volume(volume)]
-    Logger.info("Play options: #{inspect(play_options)}")
+      # Keep ffmpeg in realtime mode (default) to avoid bursty/skip-prone playback.
+      play_options = [volume: clamp_volume(volume)]
+      Logger.info("Play options: #{inspect(play_options)}")
 
-    # Keep track of attempts
-    play_with_retries(guild_id, play_input, play_type, play_options, sound_name, username, 0)
+      # Keep track of attempts
+      play_with_retries(guild_id, play_input, play_type, play_options, sound_name, username, 0)
+    end
   end
 
   defp play_with_retries(
@@ -218,10 +452,11 @@ defmodule SoundboardWeb.AudioPlayer do
          username,
          attempt
        )
-       when attempt < 3 do
+       when attempt < @max_play_attempts do
     case Voice.play(guild_id, play_input, play_type, play_options) do
       :ok ->
         Logger.info("Voice.play succeeded for #{sound_name} (attempt #{attempt + 1})")
+        maybe_probe_first_rtp(guild_id, sound_name, attempt + 1)
         track_play_if_needed(sound_name, username)
         broadcast_success(sound_name, username)
         :ok
@@ -244,16 +479,45 @@ defmodule SoundboardWeb.AudioPlayer do
         )
 
       {:error, "Must be connected to voice channel to play audio."} ->
-        Logger.error("Voice connection lost, attempting to reconnect...")
+        Logger.warning("Voice reported not connected, waiting before retry...")
 
-        handle_voice_reconnect(
+        # Avoid tearing down/rejoining too early while DAVE handshake may still be in flight.
+        if attempt >= div(@max_play_attempts, 2) do
+          maybe_rejoin_current_channel(guild_id)
+        end
+
+        Process.sleep(@voice_not_ready_retry_ms)
+
+        play_with_retries(
           guild_id,
           play_input,
           play_type,
           play_options,
           sound_name,
           username,
-          attempt
+          attempt + 1
+        )
+
+      {:error, "Voice session is still negotiating encryption."} ->
+        Logger.warning(
+          "Voice encryption not ready yet, waiting #{@voice_not_ready_retry_ms}ms before retry..."
+        )
+
+        # If encryption negotiation appears stuck, try refreshing the voice session.
+        if attempt >= div(@max_play_attempts, 2) do
+          maybe_rejoin_current_channel(guild_id, true)
+        end
+
+        Process.sleep(@voice_not_ready_retry_ms)
+
+        play_with_retries(
+          guild_id,
+          play_input,
+          play_type,
+          play_options,
+          sound_name,
+          username,
+          attempt + 1
         )
 
       {:error, reason} ->
@@ -277,47 +541,142 @@ defmodule SoundboardWeb.AudioPlayer do
     :error
   end
 
-  defp handle_voice_reconnect(
-         guild_id,
-         play_input,
-         play_type,
-         play_options,
-         sound_name,
-         username,
-         attempt
-       ) do
-    # Get the channel from state
+  defp maybe_rejoin_current_channel(guild_id, force_refresh \\ false) do
     case GenServer.call(__MODULE__, :get_voice_channel) do
       {^guild_id, channel_id} ->
-        Logger.info("Rejoining voice channel #{channel_id}")
+        joined? = Voice.channel_id(guild_id) == to_string(channel_id)
 
-        # Voice.join_channel returns :ok or crashes (no_return)
-        try do
-          Voice.join_channel(guild_id, channel_id)
-          # Reduced delay - just enough for connection handshake
-          Process.sleep(50)
+        cond do
+          force_refresh and joined? ->
+            Logger.info("Refreshing voice session in channel #{channel_id}")
+            Voice.leave_channel(guild_id)
+            Process.sleep(150)
+            Voice.join_channel(guild_id, channel_id)
 
-          play_with_retries(
-            guild_id,
-            play_input,
-            play_type,
-            play_options,
-            sound_name,
-            username,
-            attempt + 1
-          )
-        rescue
-          error ->
-            Logger.error("Failed to rejoin voice channel: #{inspect(error)}")
-            broadcast_error("Failed to reconnect to voice channel")
-            :error
+          joined? ->
+            Logger.debug("Skipping rejoin; already in voice channel #{channel_id}")
+
+          true ->
+            Logger.info("Rejoining voice channel #{channel_id}")
+            Voice.join_channel(guild_id, channel_id)
         end
 
       _ ->
-        Logger.error("No voice channel info available")
-        broadcast_error("Voice channel not configured")
-        :error
+        :ok
     end
+
+    :ok
+  rescue
+    _ -> :ok
+  end
+
+  defp ensure_joined_channel(guild_id, channel_id) do
+    if Voice.channel_id(guild_id) == to_string(channel_id) do
+      :ok
+    else
+      Logger.info("Joining voice channel #{channel_id}")
+      Voice.join_channel(guild_id, channel_id)
+      Process.sleep(150)
+    end
+  end
+
+  defp maybe_probe_first_rtp(guild_id, sound_name, attempt_number) do
+    if Application.get_env(:soundboard, :voice_rtp_probe, false) do
+      timeout_ms =
+        Application.get_env(
+          :soundboard,
+          :voice_rtp_probe_timeout_ms,
+          @rtp_probe_default_timeout_ms
+        )
+
+      initial_seq = current_rtp_sequence(guild_id)
+      started_at = System.monotonic_time(:millisecond)
+
+      Task.start(fn ->
+        wait_for_first_rtp(
+          guild_id,
+          sound_name,
+          attempt_number,
+          initial_seq,
+          started_at,
+          timeout_ms
+        )
+      end)
+    end
+
+    :ok
+  end
+
+  defp wait_for_first_rtp(
+         guild_id,
+         sound_name,
+         attempt_number,
+         initial_seq,
+         started_at,
+         timeout_ms
+       ) do
+    elapsed_ms = System.monotonic_time(:millisecond) - started_at
+    current_seq = current_rtp_sequence(guild_id)
+
+    cond do
+      is_integer(initial_seq) and is_integer(current_seq) and current_seq != initial_seq ->
+        Logger.info(
+          "RTP probe: first packet for #{sound_name} after #{elapsed_ms}ms " <>
+            "(attempt #{attempt_number}, seq #{initial_seq} -> #{current_seq})"
+        )
+
+      is_nil(initial_seq) and is_integer(current_seq) ->
+        Logger.info(
+          "RTP probe: sequence initialized for #{sound_name} after #{elapsed_ms}ms " <>
+            "(attempt #{attempt_number}, seq #{current_seq})"
+        )
+
+      elapsed_ms >= timeout_ms ->
+        {channel, playing} = safe_voice_status(guild_id)
+
+        Logger.warning(
+          "RTP probe: no progress for #{sound_name} within #{timeout_ms}ms " <>
+            "(attempt #{attempt_number}, initial_seq=#{inspect(initial_seq)}, " <>
+            "current_seq=#{inspect(current_seq)}, channel=#{inspect(channel)}, playing=#{playing})"
+        )
+
+      true ->
+        Process.sleep(@rtp_probe_poll_ms)
+
+        wait_for_first_rtp(
+          guild_id,
+          sound_name,
+          attempt_number,
+          initial_seq,
+          started_at,
+          timeout_ms
+        )
+    end
+  end
+
+  defp current_rtp_sequence(guild_id) do
+    case Voice.get_voice(guild_id) do
+      %{rtp_sequence: seq} when is_integer(seq) -> seq
+      _ -> nil
+    end
+  rescue
+    _ -> nil
+  end
+
+  defp safe_voice_status(guild_id) do
+    {safe_voice_channel(guild_id), safe_voice_playing(guild_id)}
+  end
+
+  defp safe_voice_channel(guild_id) do
+    Voice.channel_id(guild_id)
+  rescue
+    _ -> :unknown
+  end
+
+  defp safe_voice_playing(guild_id) do
+    Voice.playing?(guild_id)
+  rescue
+    _ -> :unknown
   end
 
   # Removed unused wait_for_audio_to_finish/2 to keep compile clean and hot path lean
@@ -379,43 +738,6 @@ defmodule SoundboardWeb.AudioPlayer do
         nil -> Logger.warning("Could not find user_id for #{username}")
       end
     end
-  end
-
-  defp ensure_voice_ready(guild_id, channel_id) do
-    if Voice.ready?(guild_id) do
-      Logger.info("Voice connection ready for guild #{guild_id}")
-      true
-    else
-      Logger.info("Voice not ready, attempting to join channel #{channel_id}")
-      join_and_verify_channel(guild_id, channel_id)
-    end
-  end
-
-  defp join_and_verify_channel(guild_id, channel_id) do
-    # Voice.join_channel returns :ok or crashes (no_return)
-    # Using rescue to handle potential crashes
-    Voice.join_channel(guild_id, channel_id)
-
-    # Check immediately if ready, no sleep needed
-    if Voice.ready?(guild_id) do
-      Logger.info("Successfully connected to voice channel")
-      true
-    else
-      # Minimal sleep - just 20ms for network round-trip
-      Process.sleep(20)
-
-      if Voice.ready?(guild_id) do
-        Logger.info("Successfully connected to voice channel after brief wait")
-        true
-      else
-        Logger.error("Voice connection not ready after join attempt")
-        false
-      end
-    end
-  rescue
-    error ->
-      Logger.error("Failed to join voice channel: #{inspect(error)}")
-      false
   end
 
   defp broadcast_success(sound_name, username) do

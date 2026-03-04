@@ -48,5 +48,7 @@ config :soundboard, Soundboard.PubSub,
   adapter: Phoenix.PubSub.PG2,
   name: Soundboard.PubSub
 
-# Nostrum configuration is now handled by Nostrum.Bot in the application supervisor
-# No token configuration needed here for test environment
+config :eda,
+  token: nil,
+  consumer: nil,
+  dave: false

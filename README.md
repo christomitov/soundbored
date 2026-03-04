@@ -62,6 +62,7 @@ All available keys live in `.env.example`. Configure the ones that match your se
 | Variable | Required | Purpose |
 | --- | --- | --- |
 | `DISCORD_TOKEN` | ✔ | Bot token used to play audio in voice channels. |
+| `EDA_DAVE` | optional | Override for Discord E2EE voice negotiation in EDA. Default is enabled; set `false` only for troubleshooting. |
 | `DISCORD_CLIENT_ID` / `DISCORD_CLIENT_SECRET` | ✔ | OAuth credentials for Discord login. |
 | `API_TOKEN` | ✔ | Shared bearer token for the REST API. |
 | `SECRET_KEY_BASE` | ✔ | Signing/encryption secret; generate via `mix phx.gen.secret` or `openssl rand -base64 48`. Takes precedence over `SECRET_KEY_BASE_FILE`.|

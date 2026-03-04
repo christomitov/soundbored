@@ -12,10 +12,13 @@ import Config
 #   generators: [timestamp_type: :utc_datetime],
 #   token: System.get_env("DISCORD_TOKEN")
 
-# Nostrum config shared across environments.
+# EDA config shared across environments.
 # Prefix commands like `!join` require :message_content intent.
-config :nostrum,
-  gateway_intents: [:guilds, :guild_messages, :guild_voice_states, :message_content]
+config :eda,
+  intents: [:guilds, :guild_messages, :guild_voice_states, :message_content],
+  consumer: SoundboardWeb.EDAConsumer,
+  gateway_encoding: :etf,
+  dave: true
 
 # Configures the endpoint
 config :soundboard, SoundboardWeb.Endpoint,
@@ -87,6 +90,11 @@ config :phoenix_live_view,
   flash_timeout: 3000
 
 config :soundboard, SoundboardWeb.Presence, pubsub_server: Soundboard.PubSub
+
+# Optional voice startup probe (disabled by default)
+config :soundboard,
+  voice_rtp_probe: false,
+  voice_rtp_probe_timeout_ms: 6_000
 
 # Add this with your other configs
 config :ueberauth, Ueberauth,
