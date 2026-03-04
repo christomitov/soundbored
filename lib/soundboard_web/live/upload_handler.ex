@@ -1,12 +1,13 @@
 defmodule SoundboardWeb.Live.UploadHandler do
   @moduledoc """
-  Handles the upload of sounds from a local file or a URL.
+  Handles LiveView upload validation and delegates creation to the shared upload service.
   """
-  alias SoundboardWeb.Live.FileHandler
-  alias Soundboard.{Repo, Sound, Volume}
-  import Ecto.Query
+
   import Ecto.Changeset
-  require Logger
+  import Ecto.Query
+
+  alias Soundboard.{Repo, Sound}
+  alias Soundboard.Sounds.Uploads
 
   def validate_upload(socket, params) do
     params =
@@ -30,6 +31,77 @@ defmodule SoundboardWeb.Live.UploadHandler do
     validate_local_upload(socket, name)
   end
 
+  def handle_upload(socket, params, consume_uploaded_entries_fn) do
+    source_type = params["source_type"] || "local"
+
+    case source_type do
+      "url" ->
+        handle_url_upload(socket, params)
+
+      "local" ->
+        handle_local_upload(socket, params, consume_uploaded_entries_fn)
+
+      _ ->
+        {:error, "source_type must be either 'local' or 'url'", socket}
+    end
+  end
+
+  defp handle_url_upload(socket, params) do
+    params =
+      Map.merge(base_upload_params(socket, params), %{
+        source_type: "url",
+        url: params["url"]
+      })
+
+    case Uploads.create(params) do
+      {:ok, sound} -> {:ok, sound}
+      {:error, reason} -> {:error, get_error_message(reason), socket}
+    end
+  end
+
+  defp handle_local_upload(socket, params, consume_uploaded_entries_fn) do
+    results =
+      consume_uploaded_entries_fn.(socket, :audio, fn meta, entry ->
+        consume_local_entry(socket, params, meta, entry)
+      end)
+
+    handle_local_upload_result(results, socket)
+  end
+
+  defp consume_local_entry(socket, params, %{path: path}, entry) do
+    create_params =
+      Map.merge(base_upload_params(socket, params), %{
+        source_type: "local",
+        upload: %{path: path, filename: entry.client_name}
+      })
+
+    {:ok, Uploads.create(create_params)}
+  end
+
+  defp handle_local_upload_result([{:ok, {:ok, sound}}], _socket), do: {:ok, sound}
+
+  defp handle_local_upload_result([{:ok, {:error, reason}}], socket),
+    do: {:error, get_error_message(reason), socket}
+
+  defp handle_local_upload_result([], socket), do: {:error, "Please select a file", socket}
+
+  defp handle_local_upload_result({:error, reason}, socket) when is_binary(reason),
+    do: {:error, reason, socket}
+
+  defp handle_local_upload_result(_results, socket), do: {:error, "Error saving file", socket}
+
+  defp base_upload_params(socket, params) do
+    %{
+      user: socket.assigns.current_user,
+      name: params["name"],
+      tags: socket.assigns.upload_tags,
+      volume: Map.get(params, "volume"),
+      default_volume_percent: socket.assigns[:upload_volume] || 100,
+      is_join_sound: params["is_join_sound"],
+      is_leave_sound: params["is_leave_sound"]
+    }
+  end
+
   defp blank?(value), do: value in [nil, ""]
 
   defp validate_url_upload(socket, name, url) do
@@ -40,7 +112,7 @@ defmodule SoundboardWeb.Live.UploadHandler do
     changeset =
       %Sound{}
       |> Sound.changeset(%{
-        filename: safe_name <> url_file_extension(url),
+        filename: safe_name <> Uploads.url_file_extension(url),
         url: url,
         source_type: "url",
         user_id: user_id
@@ -87,152 +159,10 @@ defmodule SoundboardWeb.Live.UploadHandler do
   end
 
   defp name_conflicts_across_exts?(base) do
-    exts = [".mp3", ".wav", ".ogg", ".m4a"]
-    names = Enum.map(exts, &("#{base}" <> &1))
+    names = Enum.map(Uploads.allowed_extensions(), &("#{base}" <> &1))
 
     from(s in Sound, where: s.filename in ^names)
     |> Repo.exists?()
-  end
-
-  def handle_upload(socket, params, consume_uploaded_entries_fn) do
-    user_id = socket.assigns.current_user.id
-    source_type = params["source_type"] || "local"
-
-    case source_type do
-      "url" ->
-        handle_url_upload(socket, params, user_id)
-
-      "local" ->
-        handle_local_upload(socket, params, user_id, consume_uploaded_entries_fn)
-    end
-  end
-
-  defp handle_url_upload(socket, params, user_id) do
-    default_percent = socket.assigns[:upload_volume] || 100
-    volume = Volume.percent_to_decimal(Map.get(params, "volume"), default_percent)
-
-    sound_params = %{
-      filename: params["name"] <> url_file_extension(params["url"]),
-      url: params["url"],
-      source_type: "url",
-      user_id: user_id,
-      volume: volume,
-      join_leave_user_id:
-        if params["is_join_sound"] == "true" || params["is_leave_sound"] == "true" do
-          user_id
-        end,
-      is_join_sound: params["is_join_sound"] == "true",
-      is_leave_sound: params["is_leave_sound"] == "true"
-    }
-
-    handle_sound_transaction(sound_params, user_id, socket)
-  end
-
-  defp handle_local_upload(socket, params, user_id, consume_uploaded_entries_fn) do
-    case FileHandler.save_upload(socket, params["name"], consume_uploaded_entries_fn) do
-      {:ok, filename} ->
-        default_percent = socket.assigns[:upload_volume] || 100
-        volume = Volume.percent_to_decimal(Map.get(params, "volume"), default_percent)
-
-        sound_params = %{
-          filename: filename,
-          source_type: "local",
-          user_id: user_id,
-          volume: volume,
-          join_leave_user_id:
-            if params["is_join_sound"] == "true" || params["is_leave_sound"] == "true" do
-              user_id
-            end,
-          is_join_sound: params["is_join_sound"] == "true",
-          is_leave_sound: params["is_leave_sound"] == "true"
-        }
-
-        handle_sound_transaction(sound_params, user_id, socket)
-
-      {:error, message} ->
-        {:error, message, socket}
-    end
-  end
-
-  defp handle_sound_transaction(sound_params, user_id, socket) do
-    Repo.transaction(fn ->
-      clear_existing_settings(user_id, sound_params)
-      create_sound_with_settings(sound_params, user_id, socket)
-    end)
-    |> case do
-      {:ok, {:ok, sound}} -> {:ok, sound}
-      {:ok, {:error, changeset}} -> {:error, get_error_message(changeset), socket}
-      {:error, changeset} -> {:error, get_error_message(changeset), socket}
-    end
-  end
-
-  defp clear_existing_settings(user_id, %{is_join_sound: true}) do
-    from(s in Sound, where: s.join_leave_user_id == ^user_id and s.is_join_sound == true)
-    |> Repo.update_all(set: [is_join_sound: false, join_leave_user_id: nil])
-  end
-
-  defp clear_existing_settings(user_id, %{is_leave_sound: true}) do
-    from(s in Sound, where: s.join_leave_user_id == ^user_id and s.is_leave_sound == true)
-    |> Repo.update_all(set: [is_leave_sound: false, join_leave_user_id: nil])
-  end
-
-  defp clear_existing_settings(_, _), do: nil
-
-  defp create_sound_with_settings(sound_params, user_id, socket) do
-    with {:ok, sound} <- create_sound(sound_params, socket.assigns.upload_tags),
-         {:ok, _setting} <- create_user_setting(sound, user_id, sound_params) do
-      broadcast_updates()
-      {:ok, sound}
-    end
-  end
-
-  defp create_user_setting(sound, user_id, sound_params) do
-    %Soundboard.UserSoundSetting{
-      user_id: user_id,
-      sound_id: sound.id,
-      is_join_sound: sound_params.is_join_sound,
-      is_leave_sound: sound_params.is_leave_sound
-    }
-    |> Repo.insert()
-  end
-
-  defp broadcast_updates do
-    Phoenix.PubSub.broadcast(Soundboard.PubSub, "uploads", {:sound_uploaded})
-    Phoenix.PubSub.broadcast(Soundboard.PubSub, "stats", {:stats_updated})
-  end
-
-  defp create_sound(params, tags) do
-    case %Sound{} |> Sound.changeset(params) |> Repo.insert() do
-      {:ok, sound} ->
-        case insert_sound_tags(sound, tags) do
-          {:ok, _} -> {:ok, sound}
-          error -> error
-        end
-
-      error ->
-        error
-    end
-  end
-
-  defp insert_sound_tags(_sound, []), do: {:ok, nil}
-
-  defp insert_sound_tags(sound, tags) do
-    now = NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
-
-    tag_entries =
-      Enum.map(tags, fn tag ->
-        %{
-          sound_id: sound.id,
-          tag_id: tag.id,
-          inserted_at: now,
-          updated_at: now
-        }
-      end)
-
-    case Repo.insert_all("sound_tags", tag_entries) do
-      {n, _} when n > 0 -> {:ok, sound}
-      _ -> {:error, "Failed to insert tags"}
-    end
   end
 
   defp validate_name_unique(changeset) do
@@ -256,30 +186,7 @@ defmodule SoundboardWeb.Live.UploadHandler do
     end
   end
 
-  # Extract a safe extension from a URL's path. Only returns extensions
-  # we support for playback; returns "" if none or unsupported.
-  defp url_file_extension(url) when is_binary(url) do
-    ext =
-      url
-      |> URI.parse()
-      |> Map.get(:path)
-      |> case do
-        nil -> ""
-        path -> String.downcase(Path.extname(path || ""))
-      end
-
-    case ext do
-      ".mp3" -> ".mp3"
-      ".wav" -> ".wav"
-      ".ogg" -> ".ogg"
-      ".m4a" -> ".m4a"
-      _ -> ""
-    end
-  end
-
-  defp url_file_extension(_), do: ""
-
-  defp get_error_message(changeset) when is_map(changeset) do
+  defp get_error_message(%Ecto.Changeset{} = changeset) do
     Enum.map_join(changeset.errors, ", ", fn
       {:filename, {"has already been taken", _}} -> "A sound with that name already exists"
       {:file, {"Please select a file", _}} -> "Please select a file"

@@ -11,7 +11,7 @@
 - Run dev server: `mix phx.server` (or `iex -S mix phx.server`).
 - Tests: `mix test` — includes DB setup via alias.
 - Coverage: `mix coveralls` or `mix coveralls.html` (outputs to `cover/`).
-- Lint/format: `mix credo` and `mix format`.
+- Lint/format: `mix credo --strict` and `mix format`.
 - Assets prod build: `mix assets.deploy`.
 - Docker local: `docker compose up` (env from `.env`).
 
@@ -30,7 +30,7 @@
 ## Commit & Pull Request Guidelines
 - Commits: imperative mood, concise (e.g., "Fix audio playback path"). Group related changes.
 - PRs: clear description, linked issues, screenshots for UI changes, reproduction steps, and risk/rollback notes.
-- Checks: ensure `mix test`, `mix credo`, and `mix format --check-formatted` pass.
+- Checks: ensure `mix test`, `mix credo --strict`, and `mix format --check-formatted` pass.
 
 ## Security & Configuration Tips
 - Secrets via `.env` (see `.env.example`): Discord tokens, API token, `PHX_HOST`, `SCHEME`.

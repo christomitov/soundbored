@@ -42,4 +42,15 @@ defmodule SoundboardWeb.SettingsLiveTest do
     # Should disappear from the table
     refute has_element?(view, "td", "CI Bot")
   end
+
+  test "shows upload API documentation", %{conn: conn} do
+    {:ok, _view, html} = live(conn, "/settings")
+
+    assert html =~ "POST /api/sounds"
+    assert html =~ "Upload local file (multipart/form-data)"
+    assert html =~ "Upload from URL (JSON)"
+    assert html =~ "tags[]"
+    assert html =~ "is_join_sound"
+    assert html =~ "is_leave_sound"
+  end
 end
