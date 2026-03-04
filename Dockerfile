@@ -20,11 +20,12 @@ RUN apk add --no-cache \
 WORKDIR /app
 COPY --exclude=entrypoint.sh . .
 
-# Install hex and rebar and get dependencies
+# Install hex/rebar, get dependencies, and refresh EDA from latest main.
 RUN mkdir -p /app/.mix /app/.hex && \
     mix local.hex --force && \
     mix local.rebar --force && \
-    mix deps.get
+    mix deps.get && \
+    mix deps.update eda
 
 RUN export SKIP_RUNTIME_CONFIG=1 && \
     mix assets.setup && \
