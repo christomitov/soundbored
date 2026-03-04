@@ -14,9 +14,8 @@ defmodule Soundboard.Sounds.Uploads do
 
   def create(attrs) when is_map(attrs) do
     with {:ok, params} <- normalize_params(attrs),
-         {:ok, source} <- prepare_source(params),
-         {:ok, sound} <- persist_sound(params, source) do
-      {:ok, sound}
+         {:ok, source} <- prepare_source(params) do
+      persist_sound(params, source)
     end
   end
 
@@ -145,17 +144,15 @@ defmodule Soundboard.Sounds.Uploads do
     uploads_dir = uploads_dir()
     dest_path = Path.join(uploads_dir, filename)
 
-    cond do
-      filename_taken?(filename) or File.exists?(dest_path) ->
-        {:error, add_error(change(%Sound{}), :filename, "has already been taken")}
+    if filename_taken?(filename) or File.exists?(dest_path) do
+      {:error, add_error(change(%Sound{}), :filename, "has already been taken")}
+    else
+      File.mkdir_p!(uploads_dir)
 
-      true ->
-        File.mkdir_p!(uploads_dir)
-
-        case File.cp(src_path, dest_path) do
-          :ok -> {:ok, dest_path}
-          {:error, _reason} -> {:error, "Error saving file"}
-        end
+      case File.cp(src_path, dest_path) do
+        :ok -> {:ok, dest_path}
+        {:error, _reason} -> {:error, "Error saving file"}
+      end
     end
   end
 
@@ -246,20 +243,22 @@ defmodule Soundboard.Sounds.Uploads do
 
   defp find_or_create_tag(name) do
     case Repo.get_by(Tag, name: name) do
-      nil ->
-        case %Tag{} |> Tag.changeset(%{name: name}) |> Repo.insert() do
-          {:ok, tag} ->
-            {:ok, tag}
+      %Tag{} = tag -> {:ok, tag}
+      nil -> insert_or_get_tag(name)
+    end
+  end
 
-          {:error, _} ->
-            case Repo.get_by(Tag, name: name) do
-              %Tag{} = tag -> {:ok, tag}
-              nil -> {:error, add_error(change(%Sound{}), :tags, "is invalid")}
-            end
-        end
+  defp insert_or_get_tag(name) do
+    case %Tag{} |> Tag.changeset(%{name: name}) |> Repo.insert() do
+      {:ok, tag} -> {:ok, tag}
+      {:error, _} -> fetch_tag_after_insert_conflict(name)
+    end
+  end
 
-      %Tag{} = tag ->
-        {:ok, tag}
+  defp fetch_tag_after_insert_conflict(name) do
+    case Repo.get_by(Tag, name: name) do
+      %Tag{} = tag -> {:ok, tag}
+      nil -> {:error, add_error(change(%Sound{}), :tags, "is invalid")}
     end
   end
 

@@ -121,6 +121,7 @@ defmodule Soundboard.MixProject do
         "compile --warnings-as-errors",
         "deps.unlock --unused",
         "format",
+        "credo --strict",
         "cmd env MIX_ENV=test mix test"
       ],
       "assets.setup": ["tailwind.install --if-missing", "esbuild.install --if-missing"],

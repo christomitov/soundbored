@@ -60,34 +60,35 @@ defmodule SoundboardWeb.Live.UploadHandler do
   end
 
   defp handle_local_upload(socket, params, consume_uploaded_entries_fn) do
-    case consume_uploaded_entries_fn.(socket, :audio, fn %{path: path}, entry ->
-           create_params =
-             Map.merge(base_upload_params(socket, params), %{
-               source_type: "local",
-               upload: %{path: path, filename: entry.client_name}
-             })
+    results =
+      consume_uploaded_entries_fn.(socket, :audio, fn meta, entry ->
+        consume_local_entry(socket, params, meta, entry)
+      end)
 
-           case Uploads.create(create_params) do
-             {:ok, sound} -> {:ok, {:ok, sound}}
-             {:error, reason} -> {:ok, {:error, reason}}
-           end
-         end) do
-      [{:ok, sound}] ->
-        {:ok, sound}
-
-      [{:error, reason}] ->
-        {:error, get_error_message(reason), socket}
-
-      [] ->
-        {:error, "Please select a file", socket}
-
-      {:error, reason} when is_binary(reason) ->
-        {:error, reason, socket}
-
-      _ ->
-        {:error, "Error saving file", socket}
-    end
+    handle_local_upload_result(results, socket)
   end
+
+  defp consume_local_entry(socket, params, %{path: path}, entry) do
+    create_params =
+      Map.merge(base_upload_params(socket, params), %{
+        source_type: "local",
+        upload: %{path: path, filename: entry.client_name}
+      })
+
+    {:ok, Uploads.create(create_params)}
+  end
+
+  defp handle_local_upload_result([{:ok, {:ok, sound}}], _socket), do: {:ok, sound}
+
+  defp handle_local_upload_result([{:ok, {:error, reason}}], socket),
+    do: {:error, get_error_message(reason), socket}
+
+  defp handle_local_upload_result([], socket), do: {:error, "Please select a file", socket}
+
+  defp handle_local_upload_result({:error, reason}, socket) when is_binary(reason),
+    do: {:error, reason, socket}
+
+  defp handle_local_upload_result(_results, socket), do: {:error, "Error saving file", socket}
 
   defp base_upload_params(socket, params) do
     %{
