@@ -7,7 +7,7 @@ defmodule SoundboardWeb.SoundboardLive do
   import UploadModal
   import SoundboardWeb.Components.Soundboard.TagComponents, only: [tag_filter_button: 1]
   alias SoundboardWeb.Presence
-  alias Soundboard.{Favorites, Repo, Sound, Volume}
+  alias Soundboard.{Chains, Favorites, Repo, Sound, Volume}
   require Logger
   alias SoundboardWeb.Live.{FileFilter, TagHandler, UploadHandler}
   import Ecto.Query
@@ -83,6 +83,10 @@ defmodule SoundboardWeb.SoundboardLive do
     |> assign(:upload_error, nil)
     |> assign(:upload_volume, 100)
     |> assign(:show_all_tags, false)
+    |> assign(:chain_builder_open, false)
+    |> assign(:chain_name, "")
+    |> assign(:chain_is_public, false)
+    |> assign(:chain_sound_ids, [])
     |> allow_upload(:audio,
       accept: ~w(audio/mpeg audio/wav audio/ogg audio/x-m4a),
       max_entries: 1,
@@ -200,17 +204,89 @@ defmodule SoundboardWeb.SoundboardLive do
   end
 
   @impl true
-  def handle_event("play", %{"name" => filename}, socket) do
-    username =
-      if socket.assigns.current_user,
-        do: socket.assigns.current_user.username,
-        else: "Anonymous"
+  def handle_event("play", %{"name" => filename} = params, socket) do
+    if socket.assigns.chain_builder_open do
+      case normalize_id(params["id"]) do
+        id when id > 0 ->
+          {:noreply, assign(socket, :chain_sound_ids, socket.assigns.chain_sound_ids ++ [id])}
 
-    if socket.assigns.current_user do
-      SoundboardWeb.AudioPlayer.play_sound(filename, username)
+        _ ->
+          {:noreply, socket}
+      end
+    else
+      username =
+        if socket.assigns.current_user,
+          do: socket.assigns.current_user.username,
+          else: "Anonymous"
+
+      if socket.assigns.current_user do
+        SoundboardWeb.AudioPlayer.play_sound(filename, username)
+      end
+
+      {:noreply, socket}
     end
+  end
 
-    {:noreply, socket}
+  @impl true
+  def handle_event("toggle_chain_builder", _params, socket) do
+    {:noreply, assign(socket, :chain_builder_open, !socket.assigns.chain_builder_open)}
+  end
+
+  @impl true
+  def handle_event("set_chain_name", %{"name" => chain_name}, socket) do
+    {:noreply, assign(socket, :chain_name, chain_name)}
+  end
+
+  @impl true
+  def handle_event("toggle_chain_public", _params, socket) do
+    {:noreply, assign(socket, :chain_is_public, !socket.assigns.chain_is_public)}
+  end
+
+  @impl true
+  def handle_event("remove_chain_sound", %{"index" => index}, socket) do
+    index = normalize_id(index)
+
+    {:noreply,
+     assign(socket, :chain_sound_ids, List.delete_at(socket.assigns.chain_sound_ids, index))}
+  end
+
+  @impl true
+  def handle_event("clear_chain_sounds", _params, socket) do
+    {:noreply, assign(socket, :chain_sound_ids, [])}
+  end
+
+  @impl true
+  def handle_event("save_chain", _params, %{assigns: %{current_user: nil}} = socket) do
+    {:noreply, put_flash(socket, :error, "You must be logged in to save a chain")}
+  end
+
+  @impl true
+  def handle_event("save_chain", _params, socket) do
+    attrs = %{
+      name: String.trim(socket.assigns.chain_name || ""),
+      is_public: socket.assigns.chain_is_public,
+      sound_ids: socket.assigns.chain_sound_ids
+    }
+
+    case Chains.create_chain(socket.assigns.current_user.id, attrs) do
+      {:ok, _chain} ->
+        {:noreply,
+         socket
+         |> assign(:chain_name, "")
+         |> assign(:chain_is_public, false)
+         |> assign(:chain_sound_ids, [])
+         |> assign(:chain_builder_open, false)
+         |> put_flash(:info, "Chain saved")}
+
+      {:error, :empty_chain} ->
+        {:noreply, put_flash(socket, :error, "Add at least one sound to save a chain")}
+
+      {:error, :invalid_sound} ->
+        {:noreply, put_flash(socket, :error, "One or more sounds could not be found")}
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        {:noreply, put_flash(socket, :error, chain_changeset_error(changeset))}
+    end
   end
 
   @impl true
@@ -970,4 +1046,55 @@ defmodule SoundboardWeb.SoundboardLive do
   defp handle_progress(:audio, _entry, socket) do
     {:noreply, socket}
   end
+
+  defp chain_changeset_error(changeset) do
+    Enum.find_value(changeset.errors, "Failed to save chain", fn
+      {:name, {"has already been taken", _}} -> "You already have a chain with that name"
+      {:name, {"can't be blank", _}} -> "Chain name is required"
+      {_field, {message, _}} -> message
+    end)
+  end
+
+  defp chain_draft_items(sound_ids, sounds) do
+    sounds_by_id = Map.new(sounds, &{&1.id, &1})
+
+    sound_ids
+    |> Enum.with_index()
+    |> Enum.map(fn {sound_id, index} ->
+      sound = Map.get(sounds_by_id, sound_id)
+
+      %{index: index, id: sound_id, label: draft_item_label(sound)}
+    end)
+  end
+
+  defp chain_preview_payload(sound_ids, sounds) do
+    sounds_by_id = Map.new(sounds, &{&1.id, &1})
+
+    sound_ids
+    |> Enum.map(&Map.get(sounds_by_id, &1))
+    |> Enum.reject(&is_nil/1)
+    |> Enum.map(fn sound ->
+      %{
+        source_type: sound.source_type,
+        filename: sound.filename,
+        url: sound.url,
+        volume: sound.volume || 1.0
+      }
+    end)
+    |> Jason.encode!()
+  end
+
+  defp draft_item_label(nil), do: "(missing sound)"
+  defp draft_item_label(sound), do: display_name(sound.filename)
+
+  defp normalize_id(id) when is_integer(id), do: id
+
+  defp normalize_id(id) when is_binary(id) do
+    case Integer.parse(id) do
+      {int, _} -> int
+      :error -> -1
+    end
+  end
+
+  defp normalize_id(_), do: -1
 end

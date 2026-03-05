@@ -49,6 +49,7 @@ npm-debug.log
 /priv/static/uploads/
 
 .env
+secret_key_base.txt
 
 .DS_Store
 

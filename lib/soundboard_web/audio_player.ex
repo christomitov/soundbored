@@ -44,6 +44,11 @@ defmodule SoundboardWeb.AudioPlayer do
     GenServer.cast(__MODULE__, {:play_sound, sound_name, username})
   end
 
+  def play_chain(chain, username) do
+    Logger.info("Received play_chain request for: #{chain.name} from #{username}")
+    GenServer.cast(__MODULE__, {:play_chain, chain, username})
+  end
+
   def stop_sound do
     Logger.info("Stopping all sounds")
     GenServer.cast(__MODULE__, :stop_sound)
@@ -114,6 +119,7 @@ defmodule SoundboardWeb.AudioPlayer do
   end
 
   def handle_cast(:stop_sound, %{voice_channel: {guild_id, _channel_id}} = state) do
+    state = cancel_playback_task(state)
     Logger.info("Stopping all sounds in guild: #{guild_id}")
     Voice.stop(guild_id)
     broadcast_success("All sounds stopped", "System")
@@ -129,6 +135,7 @@ defmodule SoundboardWeb.AudioPlayer do
   end
 
   def handle_cast(:stop_sound, state) do
+    state = cancel_playback_task(state)
     Logger.info("Attempted to stop sounds but no voice channel connected")
     broadcast_error("Bot is not connected to a voice channel")
     {:noreply, state}
@@ -147,6 +154,8 @@ defmodule SoundboardWeb.AudioPlayer do
         {:play_sound, sound_name, username},
         %{voice_channel: {guild_id, channel_id}} = state
       ) do
+    state = interrupt_current_playback(guild_id, state)
+
     case get_sound_path(sound_name) do
       {:ok, {path_or_url, volume}} ->
         request = %{
@@ -178,6 +187,33 @@ defmodule SoundboardWeb.AudioPlayer do
         broadcast_error(reason)
         {:noreply, state}
     end
+  end
+
+  def handle_cast({:play_chain, _chain, _username}, %{voice_channel: nil} = state) do
+    broadcast_error("Bot is not connected to a voice channel. Use !join in Discord first.")
+    {:noreply, state}
+  end
+
+  def handle_cast(
+        {:play_chain, %{chain_items: []}, _username},
+        %{voice_channel: {_guild_id, _channel_id}} = state
+      ) do
+    broadcast_error("Chain has no sounds")
+    {:noreply, state}
+  end
+
+  def handle_cast(
+        {:play_chain, chain, username},
+        %{voice_channel: {guild_id, channel_id}} = state
+      ) do
+    state = interrupt_current_playback(guild_id, state)
+
+    task =
+      Task.async(fn ->
+        play_chain_task(guild_id, channel_id, chain, username)
+      end)
+
+    {:noreply, %{state | current_playback: task}}
   end
 
   @impl true
@@ -434,6 +470,38 @@ defmodule SoundboardWeb.AudioPlayer do
     ensure_joined_channel(guild_id, channel_id)
     play_sound_with_connection(guild_id, sound_name, path_or_url, volume, username)
   end
+
+  defp play_chain_task(guild_id, channel_id, chain, username) do
+    if ensure_voice_ready(guild_id, channel_id) do
+      chain.chain_items
+      |> Enum.reduce_while(:ok, fn chain_item, _acc ->
+        with {:ok, sound_name} <- chain_item_sound_name(chain_item),
+             {:ok, {path_or_url, volume}} <- get_sound_path(sound_name),
+             :ok <-
+               play_sound_with_connection(guild_id, sound_name, path_or_url, volume, username) do
+          wait_for_playback_to_finish(guild_id)
+          {:cont, :ok}
+        else
+          {:error, message} ->
+            broadcast_error(message)
+            {:halt, :error}
+
+          :error ->
+            {:halt, :error}
+        end
+      end)
+    else
+      Logger.error("Failed to establish voice connection")
+      broadcast_error("Failed to connect to voice channel")
+      :error
+    end
+  end
+
+  defp chain_item_sound_name(%{sound: %{filename: filename}}) when is_binary(filename) do
+    {:ok, filename}
+  end
+
+  defp chain_item_sound_name(_), do: {:error, "Chain contains a missing sound"}
 
   defp play_sound_with_connection(guild_id, sound_name, path_or_url, volume, username) do
     if is_nil(System.find_executable("ffmpeg")) do
@@ -780,6 +848,59 @@ defmodule SoundboardWeb.AudioPlayer do
   defp schedule_voice_check do
     # Check voice connection every 30 seconds
     Process.send_after(self(), :check_voice_connection, 30_000)
+  end
+
+  defp wait_for_playback_to_finish(guild_id, timeout_ms \\ 120_000) do
+    started_at = System.monotonic_time(:millisecond)
+    do_wait_for_playback(guild_id, started_at, timeout_ms)
+  end
+
+  defp do_wait_for_playback(guild_id, started_at, timeout_ms) do
+    elapsed = System.monotonic_time(:millisecond) - started_at
+
+    cond do
+      not safe_voice_playing?(guild_id) ->
+        :ok
+
+      elapsed >= timeout_ms ->
+        Logger.warning("Timed out while waiting for playback to finish in guild #{guild_id}")
+        :ok
+
+      true ->
+        Process.sleep(20)
+        do_wait_for_playback(guild_id, started_at, timeout_ms)
+    end
+  end
+
+  defp safe_voice_playing?(guild_id) do
+    Voice.playing?(guild_id)
+  rescue
+    _ -> false
+  end
+
+  defp interrupt_current_playback(guild_id, state) do
+    state
+    |> cancel_playback_task()
+    |> stop_voice_if_playing(guild_id)
+  end
+
+  defp cancel_playback_task(%{current_playback: %Task{} = task} = state) do
+    Task.shutdown(task, :brutal_kill)
+    %{state | current_playback: nil}
+  rescue
+    _ -> %{state | current_playback: nil}
+  end
+
+  defp cancel_playback_task(state), do: state
+
+  defp stop_voice_if_playing(state, guild_id) do
+    if safe_voice_playing?(guild_id) do
+      Voice.stop(guild_id)
+    end
+
+    state
+  rescue
+    _ -> state
   end
 
   # Ensure ETS table exists (idempotent)

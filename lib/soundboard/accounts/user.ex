@@ -9,6 +9,7 @@ defmodule Soundboard.Accounts.User do
     field :discord_id, :string
     field :username, :string
     field :avatar, :string
+    has_many :chains, Soundboard.Chains.Chain
 
     timestamps()
   end
