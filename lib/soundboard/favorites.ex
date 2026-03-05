@@ -3,7 +3,7 @@ defmodule Soundboard.Favorites do
   The Favorites module.
   """
   import Ecto.Query
-  alias Soundboard.{Favorites.Favorite, Repo}
+  alias Soundboard.{Favorites.Favorite, Repo, Sound}
 
   @max_favorites 16
 
@@ -11,6 +11,18 @@ defmodule Soundboard.Favorites do
     Favorite
     |> where([f], f.user_id == ^user_id)
     |> select([f], f.sound_id)
+    |> Repo.all()
+  end
+
+  def list_favorite_sounds_with_tags(user_id) do
+    favorite_ids_query =
+      Favorite
+      |> where([f], f.user_id == ^user_id)
+      |> select([f], f.sound_id)
+
+    Sound.with_tags()
+    |> where([s], s.id in subquery(favorite_ids_query))
+    |> order_by([s], asc: fragment("lower(?)", s.filename))
     |> Repo.all()
   end
 

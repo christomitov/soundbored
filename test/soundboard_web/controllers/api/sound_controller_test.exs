@@ -81,6 +81,20 @@ defmodule SoundboardWeb.API.SoundControllerTest do
       refute setting.is_leave_sound
     end
 
+    test "infers URL source type when source_type is omitted", %{conn: conn} do
+      name = "api_url_inferred_#{System.unique_integer([:positive])}"
+
+      conn =
+        post(conn, ~p"/api/sounds", %{
+          "name" => name,
+          "url" => "https://example.com/inferred.mp3"
+        })
+
+      assert %{"data" => data} = json_response(conn, 201)
+      assert data["source_type"] == "url"
+      assert data["filename"] == "#{name}.mp3"
+    end
+
     test "creates a local multipart sound and saves the file", %{conn: conn} do
       name = "api_local_#{System.unique_integer([:positive])}"
       tmp_path = temp_upload_path("sample.mp3")
@@ -112,6 +126,28 @@ defmodule SoundboardWeb.API.SoundControllerTest do
       assert File.exists?(copied_file)
 
       on_exit(fn -> File.rm(copied_file) end)
+    end
+
+    test "infers local source type when multipart file is present", %{conn: conn} do
+      name = "api_local_inferred_#{System.unique_integer([:positive])}"
+      tmp_path = temp_upload_path("inferred.mp3")
+      File.write!(tmp_path, "audio")
+
+      on_exit(fn -> File.rm(tmp_path) end)
+
+      upload = %Plug.Upload{path: tmp_path, filename: "inferred.mp3", content_type: "audio/mpeg"}
+
+      conn =
+        post(conn, ~p"/api/sounds", %{
+          "name" => name,
+          "file" => upload
+        })
+
+      assert %{"data" => data} = json_response(conn, 201)
+      assert data["source_type"] == "local"
+      assert data["filename"] == "#{name}.mp3"
+
+      on_exit(fn -> File.rm(Path.join(uploads_dir(), "#{name}.mp3")) end)
     end
 
     test "clears previous join sound when creating a new join sound", %{conn: conn, user: user} do

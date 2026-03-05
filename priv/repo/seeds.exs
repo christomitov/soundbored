@@ -1,11 +1,3 @@
-# Script for populating the database. You can run it as:
+# No default seed data is required for this project.
 #
-#     mix run priv/repo/seeds.exs
-#
-# Inside the script, you can read and write to any of your
-# repositories directly:
-#
-#     Soundboard.Repo.insert!(%Soundboard.SomeSchema{})
-#
-# We recommend using the bang functions (`insert!`, `update!`
-# and so on) as they will fail if something goes wrong.
+# Add idempotent inserts here when you need local bootstrapping data.

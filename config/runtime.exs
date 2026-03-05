@@ -119,14 +119,19 @@ if config_env() == :prod and is_nil(System.get_env("SKIP_RUNTIME_CONFIG")) do
     |> String.downcase()
     |> then(&(&1 in ["1", "true", "yes", "on"]))
 
+  ffmpeg_available = not is_nil(System.find_executable("ffmpeg"))
+
+  unless ffmpeg_available do
+    IO.warn(
+      "ffmpeg not found in PATH. Voice playback features will be unavailable until ffmpeg is installed."
+    )
+  end
+
   config :soundboard,
     discord_token: discord_token,
     voice_rtp_probe: voice_rtp_probe,
-    voice_rtp_probe_timeout_ms: voice_rtp_probe_timeout_ms
-
-  if is_nil(System.find_executable("ffmpeg")) do
-    raise "ffmpeg not found in PATH. Please install ffmpeg."
-  end
+    voice_rtp_probe_timeout_ms: voice_rtp_probe_timeout_ms,
+    ffmpeg_available: ffmpeg_available
 
   config :eda,
     token: discord_token,

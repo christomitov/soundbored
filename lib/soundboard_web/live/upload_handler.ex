@@ -55,7 +55,7 @@ defmodule SoundboardWeb.Live.UploadHandler do
 
     case Uploads.create(params) do
       {:ok, sound} -> {:ok, sound}
-      {:error, reason} -> {:error, get_error_message(reason), socket}
+      {:error, reason} -> {:error, Uploads.error_message(reason), socket}
     end
   end
 
@@ -81,7 +81,7 @@ defmodule SoundboardWeb.Live.UploadHandler do
   defp handle_local_upload_result([{:ok, {:ok, sound}}], _socket), do: {:ok, sound}
 
   defp handle_local_upload_result([{:ok, {:error, reason}}], socket),
-    do: {:error, get_error_message(reason), socket}
+    do: {:error, Uploads.error_message(reason), socket}
 
   defp handle_local_upload_result([], socket), do: {:error, "Please select a file", socket}
 
@@ -91,15 +91,10 @@ defmodule SoundboardWeb.Live.UploadHandler do
   defp handle_local_upload_result(_results, socket), do: {:error, "Error saving file", socket}
 
   defp base_upload_params(socket, params) do
-    %{
-      user: socket.assigns.current_user,
-      name: params["name"],
+    Uploads.build_create_request(params, socket.assigns.current_user, %{
       tags: socket.assigns.upload_tags,
-      volume: Map.get(params, "volume"),
-      default_volume_percent: socket.assigns[:upload_volume] || 100,
-      is_join_sound: params["is_join_sound"],
-      is_leave_sound: params["is_leave_sound"]
-    }
+      default_volume_percent: socket.assigns[:upload_volume] || 100
+    })
   end
 
   defp blank?(value), do: value in [nil, ""]
@@ -185,15 +180,4 @@ defmodule SoundboardWeb.Live.UploadHandler do
       _ -> ""
     end
   end
-
-  defp get_error_message(%Ecto.Changeset{} = changeset) do
-    Enum.map_join(changeset.errors, ", ", fn
-      {:filename, {"has already been taken", _}} -> "A sound with that name already exists"
-      {:file, {"Please select a file", _}} -> "Please select a file"
-      {key, {msg, _}} -> "#{key} #{msg}"
-    end)
-  end
-
-  defp get_error_message(error) when is_binary(error), do: error
-  defp get_error_message(_), do: "An unexpected error occurred"
 end

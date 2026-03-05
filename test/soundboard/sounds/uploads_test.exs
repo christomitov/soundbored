@@ -45,6 +45,23 @@ defmodule Soundboard.Sounds.UploadsTest do
       refute setting.is_leave_sound
     end
 
+    test "publishes canonical soundboard events after create", %{user: user} do
+      Phoenix.PubSub.subscribe(Soundboard.PubSub, "soundboard")
+
+      name = "upload_events_#{System.unique_integer([:positive])}"
+
+      assert {:ok, _sound} =
+               Uploads.create(%{
+                 user: user,
+                 source_type: "url",
+                 name: name,
+                 url: "https://example.com/events.mp3"
+               })
+
+      assert_receive {:files_updated}
+      assert_receive {:stats_updated}
+    end
+
     test "copies local file and persists sound", %{user: user} do
       name = "upload_local_#{System.unique_integer([:positive])}"
       tmp_path = Path.join(System.tmp_dir!(), "#{System.unique_integer([:positive])}-local.wav")

@@ -3,6 +3,23 @@ defmodule Soundboard.Sounds.Uploads do
   Shared sound upload/create pipeline used by both LiveView and API flows.
   """
 
+  defmodule CreateRequest do
+    @moduledoc false
+    @enforce_keys [:user, :source_type, :name]
+    defstruct [
+      :user,
+      :source_type,
+      :name,
+      :url,
+      :upload,
+      :tags,
+      :volume,
+      :is_join_sound,
+      :is_leave_sound,
+      :default_volume_percent
+    ]
+  end
+
   import Ecto.Changeset
   import Ecto.Query
 
@@ -12,12 +29,47 @@ defmodule Soundboard.Sounds.Uploads do
 
   def allowed_extensions, do: @allowed_extensions
 
+  def build_create_request(raw_params, user, overrides \\ %{}) when is_map(raw_params) do
+    source_type = infer_request_source_type(raw_params)
+
+    %CreateRequest{
+      user: user,
+      source_type: source_type,
+      name: get_param(raw_params, :name),
+      url: get_param(raw_params, :url),
+      upload: get_param(raw_params, :upload) || get_param(raw_params, :file),
+      tags: get_param(raw_params, :tags) || get_param(raw_params, "tags[]") || [],
+      volume: get_param(raw_params, :volume),
+      is_join_sound: get_param(raw_params, :is_join_sound),
+      is_leave_sound: get_param(raw_params, :is_leave_sound),
+      default_volume_percent: get_param(raw_params, :default_volume_percent)
+    }
+    |> Map.merge(overrides)
+  end
+
+  def create(%CreateRequest{} = request) do
+    request
+    |> Map.from_struct()
+    |> create()
+  end
+
   def create(attrs) when is_map(attrs) do
     with {:ok, params} <- normalize_params(attrs),
          {:ok, source} <- prepare_source(params) do
       persist_sound(params, source)
     end
   end
+
+  def error_message(%Ecto.Changeset{} = changeset) do
+    Enum.map_join(changeset.errors, ", ", fn
+      {:filename, {"has already been taken", _}} -> "A sound with that name already exists"
+      {:file, {"Please select a file", _}} -> "Please select a file"
+      {key, {msg, _}} -> "#{key} #{msg}"
+    end)
+  end
+
+  def error_message(error) when is_binary(error), do: error
+  def error_message(_), do: "An unexpected error occurred"
 
   def url_file_extension(url) when is_binary(url) do
     ext =
@@ -37,7 +89,9 @@ defmodule Soundboard.Sounds.Uploads do
   defp normalize_params(attrs) do
     case fetch_user(attrs) do
       {:ok, user} ->
-        source_type = normalize_source_type(get_param(attrs, :source_type))
+        upload = normalize_upload(get_param(attrs, :upload))
+        url = normalize_url(get_param(attrs, :url))
+        source_type = normalize_source_type(get_param(attrs, :source_type), upload, url)
         name = normalize_name(get_param(attrs, :name))
 
         if blank?(name) do
@@ -48,7 +102,7 @@ defmodule Soundboard.Sounds.Uploads do
              user: user,
              source_type: source_type,
              name: name,
-             url: normalize_url(get_param(attrs, :url)),
+             url: url,
              tags: normalize_tags(get_param(attrs, :tags, [])),
              volume:
                Volume.percent_to_decimal(
@@ -57,7 +111,7 @@ defmodule Soundboard.Sounds.Uploads do
                ),
              is_join_sound: to_boolean(get_param(attrs, :is_join_sound)),
              is_leave_sound: to_boolean(get_param(attrs, :is_leave_sound)),
-             upload: normalize_upload(get_param(attrs, :upload))
+             upload: upload
            }}
         end
 
@@ -150,8 +204,11 @@ defmodule Soundboard.Sounds.Uploads do
       File.mkdir_p!(uploads_dir)
 
       case File.cp(src_path, dest_path) do
-        :ok -> {:ok, dest_path}
-        {:error, _reason} -> {:error, "Error saving file"}
+        :ok ->
+          {:ok, dest_path}
+
+        {:error, _reason} ->
+          {:error, add_error(change(%Sound{}), :file, "Error saving file")}
       end
     end
   end
@@ -268,7 +325,7 @@ defmodule Soundboard.Sounds.Uploads do
   end
 
   defp broadcast_updates do
-    Phoenix.PubSub.broadcast(Soundboard.PubSub, "uploads", {:sound_uploaded})
+    Phoenix.PubSub.broadcast(Soundboard.PubSub, "soundboard", {:files_updated})
     Stats.broadcast_stats_update()
   end
 
@@ -302,13 +359,23 @@ defmodule Soundboard.Sounds.Uploads do
 
   defp normalize_upload(_), do: nil
 
-  defp normalize_source_type(source_type) when is_binary(source_type) do
-    source_type
-    |> String.trim()
-    |> String.downcase()
+  defp normalize_source_type(source_type, upload, url) when is_binary(source_type) do
+    case source_type |> String.trim() |> String.downcase() do
+      "local" -> "local"
+      "url" -> "url"
+      _ -> infer_source_type(upload, url)
+    end
   end
 
-  defp normalize_source_type(_), do: "local"
+  defp normalize_source_type(_source_type, upload, url), do: infer_source_type(upload, url)
+
+  defp infer_source_type(upload, url) do
+    cond do
+      is_map(upload) -> "local"
+      is_binary(url) and String.trim(url) != "" -> "url"
+      true -> "local"
+    end
+  end
 
   defp normalize_name(name) when is_binary(name), do: String.trim(name)
   defp normalize_name(_), do: nil
@@ -318,6 +385,14 @@ defmodule Soundboard.Sounds.Uploads do
 
   defp to_boolean(value) when value in [true, "true", "1", 1, "on", "yes"], do: true
   defp to_boolean(_), do: false
+
+  defp infer_request_source_type(raw_params) do
+    source_type = get_param(raw_params, :source_type)
+    upload = get_param(raw_params, :upload) || get_param(raw_params, :file)
+    url = get_param(raw_params, :url)
+
+    normalize_source_type(source_type, upload, url)
+  end
 
   defp get_param(map, key, default \\ nil) do
     Map.get(map, key, Map.get(map, to_string(key), default))

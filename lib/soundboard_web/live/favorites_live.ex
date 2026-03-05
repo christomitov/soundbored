@@ -1,7 +1,7 @@
 defmodule SoundboardWeb.FavoritesLive do
   use SoundboardWeb, :live_view
   use SoundboardWeb.Live.PresenceLive
-  alias Soundboard.{Favorites, Sound}
+  alias Soundboard.Favorites
   require Logger
 
   @pubsub_topic "soundboard"
@@ -19,19 +19,7 @@ defmodule SoundboardWeb.FavoritesLive do
       |> assign(:current_user, get_user_from_session(session))
       |> assign(:max_favorites, Favorites.max_favorites())
 
-    if socket.assigns[:current_user] do
-      favorites = Favorites.list_favorites(socket.assigns.current_user.id)
-
-      sounds_with_tags =
-        Sound.with_tags()
-        |> Soundboard.Repo.all()
-        |> Enum.filter(&(&1.id in favorites))
-        |> Enum.sort_by(&String.downcase(&1.filename))
-
-      {:ok, assign(socket, favorites: favorites, sounds_with_tags: sounds_with_tags)}
-    else
-      {:ok, assign(socket, favorites: [], sounds_with_tags: [])}
-    end
+    {:ok, assign_favorites_state(socket, socket.assigns[:current_user])}
   end
 
   @impl true
@@ -54,17 +42,9 @@ defmodule SoundboardWeb.FavoritesLive do
       user ->
         case Favorites.toggle_favorite(user.id, sound_id) do
           {:ok, _favorite} ->
-            favorites = Favorites.list_favorites(user.id)
-
-            sounds_with_tags =
-              Sound.with_tags()
-              |> Soundboard.Repo.all()
-              |> Enum.filter(&(&1.id in favorites))
-              |> Enum.sort_by(&String.downcase(&1.filename))
-
             {:noreply,
              socket
-             |> assign(favorites: favorites, sounds_with_tags: sounds_with_tags)
+             |> assign_favorites_state(user)
              |> put_flash(:info, "Favorites updated!")}
 
           {:error, message} ->
@@ -104,19 +84,7 @@ defmodule SoundboardWeb.FavoritesLive do
 
   @impl true
   def handle_info({:files_updated}, socket) do
-    if socket.assigns[:current_user] do
-      favorites = Favorites.list_favorites(socket.assigns.current_user.id)
-
-      sounds_with_tags =
-        Sound.with_tags()
-        |> Soundboard.Repo.all()
-        |> Enum.filter(&(&1.id in favorites))
-        |> Enum.sort_by(&String.downcase(&1.filename))
-
-      {:noreply, assign(socket, favorites: favorites, sounds_with_tags: sounds_with_tags)}
-    else
-      {:noreply, socket}
-    end
+    {:noreply, assign_favorites_state(socket, socket.assigns[:current_user])}
   end
 
   @impl true
@@ -126,24 +94,20 @@ defmodule SoundboardWeb.FavoritesLive do
 
   @impl true
   def handle_info({:stats_updated}, socket) do
-    case socket.assigns.current_user do
-      nil ->
-        {:noreply, socket}
+    {:noreply, assign_favorites_state(socket, socket.assigns[:current_user])}
+  end
 
-      user ->
-        favorites = Favorites.list_favorites(user.id)
+  defp assign_favorites_state(socket, nil) do
+    assign(socket, favorites: [], sounds_with_tags: [])
+  end
 
-        sounds_with_tags =
-          Sound.with_tags()
-          |> Soundboard.Repo.all()
-          |> Enum.filter(&(&1.id in favorites))
-          |> Enum.sort_by(&String.downcase(&1.filename))
+  defp assign_favorites_state(socket, user) do
+    favorites = Favorites.list_favorites(user.id)
 
-        {:noreply,
-         socket
-         |> assign(:favorites, favorites)
-         |> assign(:sounds_with_tags, sounds_with_tags)}
-    end
+    assign(socket,
+      favorites: favorites,
+      sounds_with_tags: Favorites.list_favorite_sounds_with_tags(user.id)
+    )
   end
 
   defp clear_flash_after_timeout(socket) do
