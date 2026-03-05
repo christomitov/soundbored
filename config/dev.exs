@@ -49,9 +49,26 @@ config :soundboard, Soundboard.Repo,
 # The watchers configuration can be used to run external
 # watchers to your application. For example, we can use it
 # to bundle .js and .css sources.
+generate_secret_key_base = fn ->
+  Base.encode64(:crypto.strong_rand_bytes(64), padding: false)
+end
+
+derive_secret_key_base = fn value ->
+  :crypto.hash(:sha512, value)
+  |> Base.encode64(padding: false)
+end
+
 secret_key_base =
-  System.get_env("SECRET_KEY_BASE") ||
-    Base.encode64(:crypto.strong_rand_bytes(48), padding: false)
+  case System.get_env("SECRET_KEY_BASE") do
+    value when is_binary(value) and byte_size(value) >= 64 ->
+      value
+
+    value when is_binary(value) ->
+      derive_secret_key_base.(value)
+
+    _ ->
+      generate_secret_key_base.()
+  end
 
 config :soundboard, SoundboardWeb.Endpoint,
   # Binding to loopback ipv4 address prevents access from other machines.

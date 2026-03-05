@@ -15,9 +15,26 @@ config :soundboard, Soundboard.Repo,
 
 # We don't run a server during test. If one is required,
 # you can enable the server option below.
+generate_secret_key_base = fn ->
+  Base.encode64(:crypto.strong_rand_bytes(64), padding: false)
+end
+
+derive_secret_key_base = fn value ->
+  :crypto.hash(:sha512, value)
+  |> Base.encode64(padding: false)
+end
+
 secret_key_base =
-  System.get_env("SECRET_KEY_BASE_TEST") ||
-    Base.encode64(:crypto.strong_rand_bytes(48), padding: false)
+  case System.get_env("SECRET_KEY_BASE_TEST") do
+    value when is_binary(value) and byte_size(value) >= 64 ->
+      value
+
+    value when is_binary(value) ->
+      derive_secret_key_base.(value)
+
+    _ ->
+      generate_secret_key_base.()
+  end
 
 config :soundboard, SoundboardWeb.Endpoint,
   http: [ip: {127, 0, 0, 1}, port: 4002],
