@@ -8,7 +8,7 @@ defmodule SoundboardWeb.SoundboardLive do
   import SoundboardWeb.Components.Soundboard.TagComponents, only: [tag_filter_button: 1]
   alias SoundboardWeb.Presence
   alias Soundboard.{Favorites, Repo, Sound, Volume}
-  alias Soundboard.Sounds.Management
+  alias Soundboard.Sounds.{Management, Uploads}
   require Logger
   alias SoundboardWeb.Live.{FileFilter, TagHandler, UploadHandler}
   import Ecto.Query
@@ -679,7 +679,7 @@ defmodule SoundboardWeb.SoundboardLive do
 
       {:error, changeset} ->
         {:noreply,
-         assign_upload_params(socket, params, Soundboard.Sounds.Uploads.error_message(changeset))}
+         assign_upload_params(socket, params, Uploads.error_message(changeset))}
     end
   end
 
