@@ -6,7 +6,7 @@ import Config
 # to provide built-in test partitioning in CI environment.
 # Run `mix help test` for more information.
 config :soundboard, Soundboard.Repo,
-  adapter: Ecto.Adapters.Exqlite,
+  adapter: Ecto.Adapters.SQLite3,
   database: Path.expand("../soundboard_test.db", Path.dirname(__ENV__.file)),
   pool: Ecto.Adapters.SQL.Sandbox,
   pool_size: 1,
@@ -15,9 +15,13 @@ config :soundboard, Soundboard.Repo,
 
 # We don't run a server during test. If one is required,
 # you can enable the server option below.
+secret_key_base =
+  System.get_env("SECRET_KEY_BASE_TEST") ||
+    Base.encode64(:crypto.strong_rand_bytes(48), padding: false)
+
 config :soundboard, SoundboardWeb.Endpoint,
   http: [ip: {127, 0, 0, 1}, port: 4002],
-  secret_key_base: "ZQxhSuZctCJ5Sv3XJfvIJCTRjIaXE2SFuOUR0STQRho6P74FL1PIP6esgMcjscQ0",
+  secret_key_base: secret_key_base,
   server: false
 
 # In test we don't send emails

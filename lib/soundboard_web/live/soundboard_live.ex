@@ -8,6 +8,7 @@ defmodule SoundboardWeb.SoundboardLive do
   import SoundboardWeb.Components.Soundboard.TagComponents, only: [tag_filter_button: 1]
   alias SoundboardWeb.Presence
   alias Soundboard.{Favorites, Repo, Sound, Volume}
+  alias Soundboard.Sounds.Management
   require Logger
   alias SoundboardWeb.Live.{FileFilter, TagHandler, UploadHandler}
   import Ecto.Query
@@ -15,8 +16,6 @@ defmodule SoundboardWeb.SoundboardLive do
   import TagHandler, only: [all_tags: 1, tag_selected?: 2]
 
   import FileFilter, only: [filter_files: 3]
-
-  import SoundboardWeb.Live.UploadHandler, only: [handle_upload: 3]
 
   @presence_topic "soundboard:presence"
   @pubsub_topic "soundboard"
@@ -136,64 +135,12 @@ defmodule SoundboardWeb.SoundboardLive do
   end
 
   @impl true
-  def handle_event("toggle_edit_join_sound", _params, socket) do
-    current_sound = socket.assigns.current_sound
-    user_id = socket.assigns.current_user.id
-
-    # Find or create user setting
-    user_setting =
-      Enum.find(current_sound.user_sound_settings, &(&1.user_id == user_id)) ||
-        %Soundboard.UserSoundSetting{sound_id: current_sound.id, user_id: user_id}
-
-    setting_params = %{
-      user_id: user_id,
-      sound_id: current_sound.id,
-      is_join_sound: !user_setting.is_join_sound,
-      is_leave_sound: user_setting.is_leave_sound
-    }
-
-    case user_setting
-         |> Soundboard.UserSoundSetting.changeset(setting_params)
-         |> Repo.insert_or_update() do
-      {:ok, _setting} ->
-        {:noreply, socket}
-
-      {:error, _changeset} ->
-        {:noreply, socket |> put_flash(:error, "Failed to update sound settings")}
-    end
-  end
-
-  @impl true
-  def handle_event("toggle_edit_leave_sound", _params, socket) do
-    current_sound = socket.assigns.current_sound
-    user_id = socket.assigns.current_user.id
-
-    # Find or create user setting
-    user_setting =
-      Enum.find(current_sound.user_sound_settings, &(&1.user_id == user_id)) ||
-        %Soundboard.UserSoundSetting{sound_id: current_sound.id, user_id: user_id}
-
-    setting_params = %{
-      user_id: user_id,
-      sound_id: current_sound.id,
-      is_join_sound: user_setting.is_join_sound,
-      is_leave_sound: !user_setting.is_leave_sound
-    }
-
-    case user_setting
-         |> Soundboard.UserSoundSetting.changeset(setting_params)
-         |> Repo.insert_or_update() do
-      {:ok, _setting} ->
-        {:noreply, socket}
-
-      {:error, _changeset} ->
-        {:noreply, socket |> put_flash(:error, "Failed to update sound settings")}
-    end
-  end
-
-  @impl true
   def handle_event("save", %{"name" => custom_name}, socket) do
-    case handle_upload(socket, %{"name" => custom_name}, &handle_uploaded_entries/3) do
+    case UploadHandler.handle_upload(
+           socket,
+           %{"name" => custom_name},
+           &Phoenix.LiveView.consume_uploaded_entries/3
+         ) do
       {:ok, _} -> {:noreply, load_sound_files(socket)}
       {:error, _, socket} -> {:noreply, socket}
     end
@@ -255,20 +202,11 @@ defmodule SoundboardWeb.SoundboardLive do
         "url" => params["url"]
       })
 
-    case handle_upload(socket, params, &handle_uploaded_entries/3) do
+    case UploadHandler.handle_upload(socket, params, &Phoenix.LiveView.consume_uploaded_entries/3) do
       {:ok, _sound} ->
         {:noreply,
          socket
-         |> assign(:show_upload_modal, false)
-         |> assign(:upload_tags, [])
-         |> assign(:upload_name, "")
-         |> assign(:url, "")
-         |> assign(:upload_tag_input, "")
-         |> assign(:upload_tag_suggestions, [])
-         |> assign(:is_join_sound, false)
-         |> assign(:is_leave_sound, false)
-         |> assign(:upload_volume, 100)
-         |> assign(:source_type, "local")
+         |> close_upload_modal_state()
          |> load_sound_files()
          |> put_flash(:info, "Sound added successfully")}
 
@@ -300,25 +238,13 @@ defmodule SoundboardWeb.SoundboardLive do
   def handle_event("show_upload_modal", _params, socket) do
     {:noreply,
      socket
-     |> assign(:show_upload_modal, true)
-     |> assign(:source_type, "local")
-     |> assign(:upload_tags, [])
-     |> assign(:upload_name, "")
-     |> assign(:upload_tag_input, "")
-     |> assign(:upload_tag_suggestions, [])
-     |> assign(:upload_volume, 100)}
+     |> reset_upload_form_state()
+     |> assign(:show_upload_modal, true)}
   end
 
   @impl true
   def handle_event("hide_upload_modal", _params, socket) do
-    {:noreply,
-     socket
-     |> assign(:show_upload_modal, false)
-     |> assign(:upload_tags, [])
-     |> assign(:upload_name, "")
-     |> assign(:upload_tag_input, "")
-     |> assign(:upload_tag_suggestions, [])
-     |> assign(:upload_volume, 100)}
+    {:noreply, close_upload_modal_state(socket)}
   end
 
   @impl true
@@ -445,30 +371,17 @@ defmodule SoundboardWeb.SoundboardLive do
 
   @impl true
   def handle_event("close_upload_modal", _params, socket) do
-    {:noreply,
-     socket
-     |> assign(:show_upload_modal, false)
-     |> assign(:upload_tags, [])
-     |> assign(:upload_name, "")
-     |> assign(:upload_tag_input, "")
-     |> assign(:upload_tag_suggestions, [])
-     |> assign(:upload_volume, 100)}
+    {:noreply, close_upload_modal_state(socket)}
   end
 
   @impl true
   def handle_event("close_modal", _params, socket) do
     {:noreply,
      socket
+     |> close_upload_modal_state()
      |> assign(:show_modal, false)
-     |> assign(:show_upload_modal, false)
      |> assign(:current_sound, nil)
-     |> assign(:tag_input, "")
-     |> assign(:tag_suggestions, [])
-     |> assign(:upload_tags, [])
-     |> assign(:upload_name, "")
-     |> assign(:upload_tag_input, "")
-     |> assign(:upload_tag_suggestions, [])
-     |> assign(:upload_volume, 100)}
+     |> reset_tag_assigns(:current)}
   end
 
   @impl true
@@ -537,18 +450,8 @@ defmodule SoundboardWeb.SoundboardLive do
   def handle_event("delete_sound", _params, socket) do
     sound = socket.assigns.current_sound
 
-    # Delete from database regardless of file existence
-    case Repo.delete(sound) do
-      {:ok, _deleted_sound} ->
-        SoundboardWeb.AudioPlayer.invalidate_cache(sound.filename)
-
-        # Only try to delete file if it's a local sound
-        if sound.source_type == "local" do
-          uploads_dir = Application.get_env(:soundboard, :uploads_dir, "priv/static/uploads")
-          sound_path = Path.join(uploads_dir, sound.filename)
-          _ = File.rm(sound_path)
-        end
-
+    case Management.delete_sound(sound) do
+      :ok ->
         {:noreply,
          socket
          |> assign(:show_modal, false)
@@ -675,15 +578,7 @@ defmodule SoundboardWeb.SoundboardLive do
 
   @impl true
   def handle_info({:files_updated}, socket) do
-    # Reload the uploaded files list with preloaded associations and proper sorting
-    uploaded_files =
-      Sound
-      |> Repo.all()
-      |> Repo.preload([:tags, :user, user_sound_settings: [user: []]])
-      # Ensure consistent sorting
-      |> Enum.sort_by(&String.downcase(&1.filename))
-
-    {:noreply, assign(socket, :uploaded_files, uploaded_files)}
+    {:noreply, load_sound_files(socket)}
   end
 
   @impl true
@@ -700,8 +595,7 @@ defmodule SoundboardWeb.SoundboardLive do
   end
 
   defp handle_save_sound(sound, user_id, params, socket) do
-    # Start a transaction to handle all database updates
-    case update_sound_transaction(sound, user_id, params) do
+    case Management.update_sound(sound, user_id, params) do
       {:ok, _updated_sound} -> handle_successful_update(socket)
       {:error, error} -> handle_update_error(socket, error)
     end
@@ -735,18 +629,6 @@ defmodule SoundboardWeb.SoundboardLive do
     socket
   end
 
-  defp handle_uploaded_entries(socket, name, func) do
-    Phoenix.LiveView.consume_uploaded_entries(socket, name, func)
-  end
-
-  defp get_error_message(changeset) do
-    Enum.map_join(changeset.errors, ", ", fn
-      {:filename, {"has already been taken", _}} -> "A sound with that name already exists"
-      {:file, {"Please select a file", _}} -> "Please select a file"
-      {_key, {msg, _}} -> msg
-    end)
-  end
-
   defp get_random_sound([]), do: nil
 
   defp get_random_sound(sounds) do
@@ -760,22 +642,12 @@ defmodule SoundboardWeb.SoundboardLive do
   defp handle_successful_update(socket) do
     broadcast_update()
 
-    sounds =
-      Sound
-      |> Repo.all()
-      |> Repo.preload([
-        :tags,
-        :user,
-        user_sound_settings: [user: []]
-      ])
-      |> Enum.sort_by(&String.downcase(&1.filename))
-
     {:noreply,
      socket
      |> put_flash(:info, "Sound updated successfully")
      |> assign(:show_modal, false)
      |> assign(:current_sound, nil)
-     |> assign(:uploaded_files, sounds)}
+     |> load_sound_files()}
   end
 
   defp handle_update_error(socket, error) do
@@ -806,7 +678,8 @@ defmodule SoundboardWeb.SoundboardLive do
         {:noreply, assign_upload_params(socket, params, nil)}
 
       {:error, changeset} ->
-        {:noreply, assign_upload_params(socket, params, get_error_message(changeset))}
+        {:noreply,
+         assign_upload_params(socket, params, Soundboard.Sounds.Uploads.error_message(changeset))}
     end
   end
 
@@ -823,46 +696,6 @@ defmodule SoundboardWeb.SoundboardLive do
     |> assign(:upload_name, params["name"] || socket.assigns.upload_name)
     |> assign(:url, params["url"] || socket.assigns.url)
     |> assign(:source_type, params["source_type"] || socket.assigns.source_type)
-  end
-
-  defp update_sound_transaction(sound, user_id, params) do
-    Repo.transaction(fn ->
-      db_sound =
-        Repo.get!(Sound, sound.id)
-        |> Repo.preload(:user_sound_settings)
-
-      uploads_dir = uploads_dir()
-      old_path = Path.join(uploads_dir, db_sound.filename)
-      new_filename = params["filename"] <> Path.extname(db_sound.filename)
-      new_path = Path.join(uploads_dir, new_filename)
-
-      sound_params = %{
-        filename: new_filename,
-        source_type: params["source_type"] || db_sound.source_type,
-        url: params["url"],
-        user_id: db_sound.user_id || user_id,
-        volume:
-          params["volume"]
-          |> Volume.percent_to_decimal(Volume.decimal_to_percent(db_sound.volume))
-      }
-
-      updated_sound =
-        case Sound.changeset(db_sound, sound_params) |> Repo.update() do
-          {:ok, updated_sound} ->
-            updated_sound = update_user_settings(db_sound, user_id, updated_sound, params)
-            SoundboardWeb.AudioPlayer.invalidate_cache(db_sound.filename)
-            SoundboardWeb.AudioPlayer.invalidate_cache(updated_sound.filename)
-            updated_sound
-
-          {:error, changeset} ->
-            Repo.rollback(changeset)
-        end
-
-      case maybe_rename_local_file(db_sound, old_path, new_path) do
-        :ok -> updated_sound
-        {:error, error} -> Repo.rollback(error)
-      end
-    end)
   end
 
   defp handle_tag_response({:ok, updated_socket}, _socket, context) do
@@ -888,60 +721,24 @@ defmodule SoundboardWeb.SoundboardLive do
     |> assign(:tag_suggestions, [])
   end
 
-  defp maybe_rename_local_file(%{source_type: "local"} = sound, old_path, new_path) do
-    cond do
-      sound.filename == Path.basename(new_path) ->
-        :ok
-
-      old_path == new_path ->
-        :ok
-
-      not File.exists?(old_path) ->
-        Logger.error("Source file not found: #{old_path}")
-        {:error, "Source file not found"}
-
-      true ->
-        case File.rename(old_path, new_path) do
-          :ok ->
-            :ok
-
-          {:error, reason} ->
-            Logger.error("File rename failed: #{inspect(reason)}")
-            {:error, "Failed to rename file: #{inspect(reason)}"}
-        end
-    end
+  defp reset_upload_form_state(socket) do
+    socket
+    |> assign(:source_type, "local")
+    |> assign(:upload_tags, [])
+    |> assign(:upload_name, "")
+    |> assign(:url, "")
+    |> assign(:upload_tag_input, "")
+    |> assign(:upload_tag_suggestions, [])
+    |> assign(:is_join_sound, false)
+    |> assign(:is_leave_sound, false)
+    |> assign(:upload_error, nil)
+    |> assign(:upload_volume, 100)
   end
 
-  defp maybe_rename_local_file(_, _, _), do: :ok
-
-  defp uploads_dir do
-    Application.get_env(:soundboard, :uploads_dir, "priv/static/uploads")
-  end
-
-  defp update_user_settings(sound, user_id, updated_sound, params) do
-    # Find or create user setting
-    user_setting =
-      Enum.find(sound.user_sound_settings, &(&1.user_id == user_id)) ||
-        %Soundboard.UserSoundSetting{sound_id: sound.id, user_id: user_id}
-
-    # Update the settings using our UserSoundSetting changeset
-    setting_params = %{
-      user_id: user_id,
-      sound_id: sound.id,
-      is_join_sound: params["is_join_sound"] == "true",
-      is_leave_sound: params["is_leave_sound"] == "true"
-    }
-
-    case user_setting
-         |> Soundboard.UserSoundSetting.changeset(setting_params)
-         |> Repo.insert_or_update() do
-      {:ok, _setting} ->
-        updated_sound
-
-      {:error, changeset} ->
-        Logger.error("Failed to update user settings: #{inspect(changeset)}")
-        Repo.rollback(changeset)
-    end
+  defp close_upload_modal_state(socket) do
+    socket
+    |> reset_upload_form_state()
+    |> assign(:show_upload_modal, false)
   end
 
   defp validate_audio(entry, _socket) do

@@ -2,17 +2,38 @@ import Config
 
 # Load environment variables from .env file in development
 if File.exists?(".env") do
+  parse_value = fn raw_value ->
+    value = String.trim(raw_value)
+
+    cond do
+      String.starts_with?(value, "\"") and String.ends_with?(value, "\"") ->
+        value
+        |> String.trim_leading("\"")
+        |> String.trim_trailing("\"")
+        |> String.replace("\\n", "\n")
+        |> String.replace("\\\"", "\"")
+
+      String.starts_with?(value, "'") and String.ends_with?(value, "'") ->
+        value
+        |> String.trim_leading("'")
+        |> String.trim_trailing("'")
+
+      true ->
+        value
+    end
+  end
+
   File.stream!(".env")
   |> Stream.map(&String.trim/1)
-  # Ignore blank lines and comments
   |> Stream.reject(&(&1 == "" or String.starts_with?(&1, "#")))
-  |> Enum.each(fn line ->
-    case String.split(line, "=", parts: 2) do
+  |> Enum.with_index(1)
+  |> Enum.each(fn {line, line_number} ->
+    case Regex.run(~r/^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/, line, capture: :all_but_first) do
       [key, value] ->
-        System.put_env(String.trim(key), String.trim(value))
+        System.put_env(key, parse_value.(value))
 
       _ ->
-        :ok
+        IO.warn("Skipping malformed .env line #{line_number}: #{line}")
     end
   end)
 end
@@ -28,6 +49,10 @@ config :soundboard, Soundboard.Repo,
 # The watchers configuration can be used to run external
 # watchers to your application. For example, we can use it
 # to bundle .js and .css sources.
+secret_key_base =
+  System.get_env("SECRET_KEY_BASE") ||
+    Base.encode64(:crypto.strong_rand_bytes(48), padding: false)
+
 config :soundboard, SoundboardWeb.Endpoint,
   # Binding to loopback ipv4 address prevents access from other machines.
   # Change to `ip: {0, 0, 0, 0}` to allow access from other machines.
@@ -37,7 +62,7 @@ config :soundboard, SoundboardWeb.Endpoint,
   check_origin: false,
   code_reloader: true,
   debug_errors: true,
-  secret_key_base: "laSmvB14g0LPfP6MUsdEvsdx3ABBM3lU1LjXJoMnVNxFv3+xKgd2lb7eFcaVl9gt",
+  secret_key_base: secret_key_base,
   watchers: [
     esbuild: {Esbuild, :install_and_run, [:soundboard, ~w(--sourcemap=inline --watch)]},
     tailwind: {Tailwind, :install_and_run, [:soundboard, ~w(--watch)]}
@@ -99,10 +124,6 @@ config :phoenix_live_view,
 config :swoosh, :api_client, false
 
 config :soundboard, env: :dev
-
-config :soundboard, :dashboard,
-  username: "christo",
-  password: "testing123@"
 
 host = System.get_env("PHX_HOST") || "localhost:4000"
 scheme = System.get_env("SCHEME") || "http"

@@ -72,48 +72,10 @@ defmodule SoundboardWeb.API.SoundController do
   end
 
   defp create_sound(user, params) do
-    Uploads.create(%{
-      user: user,
-      source_type: normalize_source_type(params),
-      name: params["name"],
-      url: params["url"],
-      upload: normalize_upload(params["file"]),
-      tags: normalize_tags(params["tags"] || params["tags[]"]),
-      volume: params["volume"],
-      is_join_sound: params["is_join_sound"],
-      is_leave_sound: params["is_leave_sound"]
-    })
+    params
+    |> Uploads.build_create_request(user)
+    |> Uploads.create()
   end
-
-  defp normalize_source_type(params) do
-    cond do
-      is_map(params["file"]) -> "local"
-      is_binary(params["source_type"]) -> String.downcase(String.trim(params["source_type"]))
-      true -> "url"
-    end
-  end
-
-  defp normalize_upload(%Plug.Upload{} = upload) do
-    %{path: upload.path, filename: upload.filename}
-  end
-
-  defp normalize_upload(upload) when is_map(upload) do
-    %{path: upload["path"] || upload[:path], filename: upload["filename"] || upload[:filename]}
-  end
-
-  defp normalize_upload(_), do: nil
-
-  defp normalize_tags(nil), do: []
-  defp normalize_tags(tags) when is_list(tags), do: tags
-
-  defp normalize_tags(tags) when is_binary(tags) do
-    tags
-    |> String.split(",", trim: true)
-    |> Enum.map(&String.trim/1)
-    |> Enum.reject(&(&1 == ""))
-  end
-
-  defp normalize_tags(_), do: []
 
   defp require_upload_user(conn) do
     case conn.assigns[:current_user] do
