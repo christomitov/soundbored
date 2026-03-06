@@ -1,6 +1,9 @@
 defmodule Soundboard.Accounts.ApiToken do
   @moduledoc """
-  API access token bound to a user. Stores only a SHA-256 hash of the token.
+  API access token bound to a user.
+
+  The token hash is used for verification. The plaintext token is also persisted
+  so the Settings UI can display and copy active tokens after creation.
   """
   use Ecto.Schema
   import Ecto.Changeset

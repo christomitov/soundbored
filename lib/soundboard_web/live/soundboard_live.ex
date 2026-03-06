@@ -105,8 +105,6 @@ defmodule SoundboardWeb.SoundboardLive do
 
   @impl true
   def handle_event("validate_sound", %{"_target" => ["filename"]} = params, socket) do
-    Logger.info("Validating sound edit with params: #{inspect(params)}")
-
     current_sound_id = params["sound_id"]
     extension = current_sound_extension(current_sound_id)
     filename = String.trim(params["filename"] || "") <> extension
@@ -190,8 +188,6 @@ defmodule SoundboardWeb.SoundboardLive do
 
   @impl true
   def handle_event("save_upload", params, socket) do
-    Logger.info("SAVE UPLOAD TRIGGERED with params: #{inspect(params)}")
-
     params =
       params
       |> Map.merge(%{
@@ -215,21 +211,14 @@ defmodule SoundboardWeb.SoundboardLive do
     end
   end
 
-  # removed obsolete "check_filename" handler; validation now covered by validate_upload
-
   @impl true
   def handle_event("validate_upload", %{"_target" => [field]} = params, socket)
       when field in ["name", "url", "source_type"] do
-    Logger.info(
-      "Validating upload (target #{field}) with params: #{inspect(Map.take(params, ["name", "url", "source_type"]))}"
-    )
-
     # For simple text/url/source_type changes, skip re-validating upload entries
     handle_upload_validation(socket, params)
   end
 
   def handle_event("validate_upload", params, socket) do
-    Logger.info("Validating upload with params: #{inspect(params)}")
     socket = validate_existing_entries(socket)
     handle_upload_validation(socket, params)
   end

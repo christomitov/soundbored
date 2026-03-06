@@ -85,9 +85,6 @@ defmodule SoundboardWeb.Live.UploadHandler do
 
   defp handle_local_upload_result([], socket), do: {:error, "Please select a file", socket}
 
-  defp handle_local_upload_result({:error, reason}, socket) when is_binary(reason),
-    do: {:error, reason, socket}
-
   defp handle_local_upload_result(_results, socket), do: {:error, "Error saving file", socket}
 
   defp base_upload_params(socket, params) do

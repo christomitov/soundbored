@@ -34,15 +34,22 @@ defmodule Soundboard.Favorites do
   end
 
   defp add_favorite(user_id, sound_id) do
-    # Check if user has reached max favorites
-    count = Repo.one(from f in Favorite, where: f.user_id == ^user_id, select: count())
+    case Repo.get(Sound, sound_id) do
+      nil ->
+        {:error,
+         Ecto.Changeset.add_error(Ecto.Changeset.change(%Favorite{}), :sound, "does not exist")}
 
-    if count >= @max_favorites do
-      {:error, "You can only have #{@max_favorites} favorites"}
-    else
-      %Favorite{}
-      |> Favorite.changeset(%{user_id: user_id, sound_id: sound_id})
-      |> Repo.insert()
+      _sound ->
+        # Check if user has reached max favorites
+        count = Repo.one(from f in Favorite, where: f.user_id == ^user_id, select: count())
+
+        if count >= @max_favorites do
+          {:error, "You can only have #{@max_favorites} favorites"}
+        else
+          %Favorite{}
+          |> Favorite.changeset(%{user_id: user_id, sound_id: sound_id})
+          |> Repo.insert()
+        end
     end
   end
 

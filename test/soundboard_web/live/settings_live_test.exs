@@ -1,7 +1,7 @@
 defmodule SoundboardWeb.SettingsLiveTest do
   use SoundboardWeb.ConnCase
   import Phoenix.LiveViewTest
-  alias Soundboard.Accounts.User
+  alias Soundboard.Accounts.{ApiTokens, User}
   alias Soundboard.Repo
 
   setup %{conn: conn} do
@@ -41,6 +41,15 @@ defmodule SoundboardWeb.SettingsLiveTest do
 
     # Should disappear from the table
     refute has_element?(view, "td", "CI Bot")
+  end
+
+  test "shows persisted tokens after reload", %{conn: conn, user: user} do
+    {:ok, raw, _token} = ApiTokens.generate_token(user, %{label: "Saved token"})
+
+    {:ok, _view, html} = live(conn, "/settings")
+
+    assert html =~ "Saved token"
+    assert html =~ raw
   end
 
   test "shows upload API documentation", %{conn: conn} do

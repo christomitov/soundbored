@@ -11,7 +11,11 @@ defmodule Soundboard.Stats do
   def track_play(sound_name, user_id) do
     result =
       %Play{}
-      |> Play.changeset(%{sound_name: sound_name, user_id: user_id})
+      |> Play.changeset(%{
+        sound_name: sound_name,
+        sound_id: Sound.get_sound_id(sound_name),
+        user_id: user_id
+      })
       |> Repo.insert()
 
     # Broadcast stats update after tracking play
@@ -50,11 +54,10 @@ defmodule Soundboard.Stats do
     limit = Keyword.get(opts, :limit, 10)
 
     from(p in Play,
-      join: s in Sound,
-      on: s.filename == p.sound_name,
+      left_join: s in assoc(p, :sound),
       where: fragment("DATE(?) BETWEEN ? AND ?", p.inserted_at, ^start_date, ^end_date),
-      group_by: p.sound_name,
-      select: {p.sound_name, count(p.id)},
+      group_by: fragment("COALESCE(?, ?)", s.filename, p.sound_name),
+      select: {fragment("COALESCE(?, ?)", s.filename, p.sound_name), count(p.id)},
       order_by: [desc: count(p.id)],
       limit: ^limit
     )
@@ -64,13 +67,13 @@ defmodule Soundboard.Stats do
   def get_recent_plays(opts \\ []) do
     limit = Keyword.get(opts, :limit, 5)
 
-    # Simple query that gets exactly 5 most recent plays
+    # Preserve historical plays even if the linked sound was renamed or deleted.
     from(p in Play,
-      join: s in Sound,
-      on: s.filename == p.sound_name,
+      left_join: s in assoc(p, :sound),
       join: u in User,
       on: p.user_id == u.id,
-      select: {p.id, s.filename, u.username, p.inserted_at},
+      select:
+        {p.id, fragment("COALESCE(?, ?)", s.filename, p.sound_name), u.username, p.inserted_at},
       order_by: [desc: p.inserted_at, desc: p.id],
       limit: ^limit
     )

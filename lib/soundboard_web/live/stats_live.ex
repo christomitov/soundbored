@@ -219,9 +219,8 @@ defmodule SoundboardWeb.StatsLive do
           <div class="space-y-3">
             <%= for {sound_name, count} <- @top_sounds do %>
               <div
-                class="flex items-center justify-between p-2 rounded-lg bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer group"
+                class="flex items-center justify-between p-2 px-6 rounded-lg bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer group"
                 id={"play-top-#{sound_name}"}
-                class="px-6"
                 phx-click="play_sound"
                 phx-value-sound={sound_name}
               >
@@ -313,9 +312,8 @@ defmodule SoundboardWeb.StatsLive do
           <div class="space-y-3">
             <%= for {sound_name, username, timestamp} <- @recent_uploads do %>
               <div
-                class="flex items-center justify-between p-2 rounded-lg bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer group"
+                class="flex items-center justify-between p-2 px-6 rounded-lg bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer group"
                 id={"play-upload-#{sound_name}"}
-                class="px-6"
                 phx-click="play_sound"
                 phx-value-sound={sound_name}
               >

@@ -30,11 +30,6 @@ defmodule SoundboardWeb.Components.Soundboard.EditModal do
         Map.put(sound, :tags, tags)
       end)
 
-    # Add default assigns for validation error
-    assigns =
-      assigns
-      |> assign_new(:validation_error, fn -> nil end)
-
     ~H"""
     <div
       class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity z-10"

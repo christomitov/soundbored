@@ -29,12 +29,21 @@ defmodule SoundboardWeb.BasicAuthPlugTest do
     refute conn.halted
   end
 
-  test "skips when credentials blank" do
+  test "skips when both credentials are blank" do
     System.put_env("BASIC_AUTH_USERNAME", "  ")
     System.put_env("BASIC_AUTH_PASSWORD", "")
 
     conn = conn(:get, "/") |> BasicAuth.call(%{})
     refute conn.halted
+  end
+
+  test "fails closed when only one credential is configured" do
+    System.put_env("BASIC_AUTH_USERNAME", "u")
+    System.delete_env("BASIC_AUTH_PASSWORD")
+
+    conn = conn(:get, "/") |> BasicAuth.call(%{})
+    assert conn.halted
+    assert conn.status == 401
   end
 
   test "authorizes with valid Basic header" do

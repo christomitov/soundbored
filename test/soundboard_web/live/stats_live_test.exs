@@ -73,6 +73,18 @@ defmodule SoundboardWeb.StatsLiveTest do
     assert render(view) =~ SoundHelpers.display_name(sound.filename)
   end
 
+  test "renders renamed sounds from historical plays", %{conn: conn, sound: sound} do
+    renamed = "renamed_#{System.unique_integer([:positive])}.mp3"
+
+    sound
+    |> Sound.changeset(%{filename: renamed})
+    |> Repo.update!()
+
+    {:ok, _view, html} = live(conn, "/stats")
+
+    assert html =~ SoundHelpers.display_name(renamed)
+  end
+
   test "handles error message", %{conn: conn} do
     {:ok, view, _html} = live(conn, "/stats")
 

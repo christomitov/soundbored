@@ -11,11 +11,17 @@ defmodule SoundboardWeb.Plugs.BasicAuth do
     username = credential("BASIC_AUTH_USERNAME")
     password = credential("BASIC_AUTH_PASSWORD")
 
-    if is_nil(username) or is_nil(password) do
-      Logger.warning("Basic auth credentials not configured - skipping authentication")
-      conn
-    else
-      authenticate(conn, username, password)
+    case {username, password} do
+      {nil, nil} ->
+        Logger.warning("Basic auth credentials not configured - skipping authentication")
+        conn
+
+      {username, password} when is_binary(username) and is_binary(password) ->
+        authenticate(conn, username, password)
+
+      _ ->
+        Logger.warning("Basic auth is partially configured; failing closed")
+        unauthorized(conn)
     end
   end
 

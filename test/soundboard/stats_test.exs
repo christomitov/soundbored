@@ -15,7 +15,53 @@ defmodule Soundboard.StatsTest do
     test "track_play creates a play record", %{user: user, sound: sound} do
       assert {:ok, play} = Stats.track_play(sound.filename, user.id)
       assert play.sound_name == sound.filename
+      assert play.sound_id == sound.id
       assert play.user_id == user.id
+    end
+
+    test "get_top_sounds keeps renamed sounds visible via sound_id", %{user: user, sound: sound} do
+      today = Date.utc_today()
+      Stats.track_play(sound.filename, user.id)
+
+      {:ok, renamed_sound} =
+        sound
+        |> Sound.changeset(%{filename: "renamed_#{System.unique_integer()}.mp3"})
+        |> Repo.update()
+
+      renamed_filename = renamed_sound.filename
+      results = Stats.get_top_sounds(today, today)
+
+      sound_plays =
+        Enum.find(results, fn {filename, _count} -> filename == renamed_filename end)
+
+      assert sound_plays != nil
+      assert {^renamed_filename, count} = sound_plays
+      assert count >= 1
+    end
+
+    test "get_recent_plays falls back to the stored sound name when a sound is deleted", %{
+      user: user,
+      sound: sound
+    } do
+      Stats.track_play(sound.filename, user.id)
+      Repo.delete!(sound)
+
+      assert [{_id, filename, username, _timestamp}] = Stats.get_recent_plays(limit: 1)
+      assert filename == sound.filename
+      assert username == user.username
+    end
+
+    test "get_recent_plays still returns legacy rows without sound_id", %{
+      user: user,
+      sound: sound
+    } do
+      %Play{}
+      |> Play.changeset(%{sound_name: sound.filename, user_id: user.id})
+      |> Repo.insert!()
+
+      assert [{_id, filename, username, _timestamp}] = Stats.get_recent_plays(limit: 1)
+      assert filename == sound.filename
+      assert username == user.username
     end
 
     test "get_top_users returns users ordered by play count", %{user: user, sound: sound} do
