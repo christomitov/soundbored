@@ -8,6 +8,12 @@ defmodule Soundboard.Sound do
   alias Soundboard.Accounts.User
   alias Soundboard.Repo
 
+  @detailed_preloads [
+    :tags,
+    :user,
+    user_sound_settings: [user: []]
+  ]
+
   schema "sounds" do
     field :filename, :string
     # New field for remote sounds
@@ -91,11 +97,48 @@ defmodule Soundboard.Sound do
     |> Repo.all()
   end
 
+  def list_detailed do
+    __MODULE__
+    |> Repo.all()
+    |> Repo.preload(@detailed_preloads)
+    |> Enum.sort_by(&String.downcase(&1.filename))
+  end
+
   def get_sound_id(filename) do
-    # Get the sound record by filename and return its ID
     case Repo.get_by(__MODULE__, filename: filename) do
       nil -> nil
       sound -> sound.id
+    end
+  end
+
+  def ids_by_filename([]), do: %{}
+
+  def ids_by_filename(filenames) when is_list(filenames) do
+    from(s in __MODULE__, where: s.filename in ^filenames, select: {s.filename, s.id})
+    |> Repo.all()
+    |> Map.new()
+  end
+
+  def filename_taken?(filename) when is_binary(filename) do
+    Repo.exists?(from s in __MODULE__, where: s.filename == ^filename)
+  end
+
+  def filename_taken_excluding?(filename, sound_id) do
+    from(s in __MODULE__, where: s.filename == ^filename and s.id != ^sound_id)
+    |> Repo.exists?()
+  end
+
+  def filename_conflicts_across_extensions?(base_name, extensions) when is_list(extensions) do
+    names = Enum.map(extensions, &(base_name <> &1))
+
+    from(s in __MODULE__, where: s.filename in ^names)
+    |> Repo.exists?()
+  end
+
+  def filename_extension(sound_id) do
+    case Repo.get(__MODULE__, sound_id) do
+      %__MODULE__{filename: filename} -> Path.extname(filename)
+      _ -> ".mp3"
     end
   end
 
@@ -138,6 +181,32 @@ defmodule Soundboard.Sound do
     )
   end
 
+  def get_user_join_sound_by_discord_id(discord_id) do
+    Repo.one(
+      from u in User,
+        where: u.discord_id == ^to_string(discord_id),
+        left_join: uss in Soundboard.UserSoundSetting,
+        on: uss.user_id == u.id and uss.is_join_sound == true,
+        left_join: s in __MODULE__,
+        on: s.id == uss.sound_id,
+        select: s.filename,
+        limit: 1
+    )
+  end
+
+  def get_user_leave_sound_by_discord_id(discord_id) do
+    Repo.one(
+      from u in User,
+        where: u.discord_id == ^to_string(discord_id),
+        left_join: uss in Soundboard.UserSoundSetting,
+        on: uss.user_id == u.id and uss.is_leave_sound == true,
+        left_join: s in __MODULE__,
+        on: s.id == uss.sound_id,
+        select: s.filename,
+        limit: 1
+    )
+  end
+
   def get_user_sounds_by_discord_id(discord_id) do
     Repo.one(
       from u in User,
@@ -154,10 +223,6 @@ defmodule Soundboard.Sound do
   def get_sound!(id) do
     __MODULE__
     |> Repo.get!(id)
-    |> Repo.preload([
-      :tags,
-      :user,
-      user_sound_settings: [user: []]
-    ])
+    |> Repo.preload(@detailed_preloads)
   end
 end

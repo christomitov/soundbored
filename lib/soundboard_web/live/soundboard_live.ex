@@ -6,12 +6,10 @@ defmodule SoundboardWeb.SoundboardLive do
   import DeleteModal
   import UploadModal
   import SoundboardWeb.Components.Soundboard.TagComponents, only: [tag_filter_button: 1]
-  alias Soundboard.{Favorites, Repo, Sound, Volume}
+  alias Soundboard.{Favorites, Sound, Volume}
   alias Soundboard.Sounds.{Management, Uploads}
   require Logger
   alias SoundboardWeb.Live.{FileFilter, TagHandler, UploadHandler}
-  import Ecto.Query
-
   import TagHandler, only: [all_tags: 1, tag_selected?: 2]
 
   import FileFilter, only: [filter_files: 3]
@@ -96,12 +94,7 @@ defmodule SoundboardWeb.SoundboardLive do
     extension = current_sound_extension(current_sound_id)
     filename = String.trim(params["filename"] || "") <> extension
 
-    existing_sound =
-      Sound
-      |> where([s], s.filename == ^filename and s.id != ^current_sound_id)
-      |> Repo.one()
-
-    if existing_sound do
+    if Sound.filename_taken_excluding?(filename, current_sound_id) do
       {:noreply, assign(socket, :edit_name_error, "A sound with that name already exists")}
     else
       {:noreply, assign(socket, :edit_name_error, nil)}
@@ -564,12 +557,7 @@ defmodule SoundboardWeb.SoundboardLive do
     end)
   end
 
-  defp current_sound_extension(sound_id) do
-    case Repo.get(Sound, sound_id) do
-      %Sound{filename: filename} -> Path.extname(filename)
-      _ -> ".mp3"
-    end
-  end
+  defp current_sound_extension(sound_id), do: Sound.filename_extension(sound_id)
 
   defp assign_favorites(socket, nil), do: assign(socket, :favorites, [])
 
@@ -579,13 +567,7 @@ defmodule SoundboardWeb.SoundboardLive do
   end
 
   defp load_sound_files(socket) do
-    sounds =
-      Sound
-      |> Repo.all()
-      |> Repo.preload([:tags, :user, user_sound_settings: [user: []]])
-      |> Enum.sort_by(&String.downcase(&1.filename))
-
-    assign(socket, :uploaded_files, sounds)
+    assign(socket, :uploaded_files, Sound.list_detailed())
   end
 
   defp clear_flash_after_timeout(socket) do

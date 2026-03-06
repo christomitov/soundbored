@@ -6,8 +6,7 @@ defmodule SoundboardWeb.DiscordHandler do
   require Logger
 
   alias Soundboard.Discord.{GuildCache, Message, Self, Voice}
-  alias Soundboard.{Accounts.User, Repo, Sound, UserSoundSetting}
-  import Ecto.Query
+  alias Soundboard.Sound
 
   # State GenServer
   defmodule State do
@@ -684,22 +683,12 @@ defmodule SoundboardWeb.DiscordHandler do
   end
 
   defp play_join_sound(user_id) do
-    user_with_sounds =
-      from(u in User,
-        where: u.discord_id == ^to_string(user_id),
-        left_join: uss in UserSoundSetting,
-        on: uss.user_id == u.id and uss.is_join_sound == true,
-        left_join: s in Sound,
-        on: s.id == uss.sound_id,
-        select: {u.id, s.filename},
-        limit: 1
-      )
-      |> Repo.one()
+    join_sound = Sound.get_user_join_sound_by_discord_id(user_id)
 
-    Logger.info("Join sound query result for user #{user_id}: #{inspect(user_with_sounds)}")
+    Logger.info("Join sound query result for user #{user_id}: #{inspect(join_sound)}")
 
-    case user_with_sounds do
-      {_user_id, join_sound} when not is_nil(join_sound) ->
+    case join_sound do
+      join_sound when is_binary(join_sound) ->
         Logger.info("Playing join sound immediately: #{join_sound}")
         SoundboardWeb.AudioPlayer.play_sound(join_sound, "System")
 
@@ -710,21 +699,8 @@ defmodule SoundboardWeb.DiscordHandler do
   end
 
   defp handle_leave_sound(user_id) do
-    # Handle leave sound (keep this functionality regardless of auto-join setting)
-    user_with_sounds =
-      from(u in User,
-        where: u.discord_id == ^to_string(user_id),
-        left_join: uss in UserSoundSetting,
-        on: uss.user_id == u.id and uss.is_leave_sound == true,
-        left_join: s in Sound,
-        on: s.id == uss.sound_id,
-        select: {u.id, s.filename},
-        limit: 1
-      )
-      |> Repo.one()
-
-    case user_with_sounds do
-      {_user_id, leave_sound} when not is_nil(leave_sound) ->
+    case Sound.get_user_leave_sound_by_discord_id(user_id) do
+      leave_sound when is_binary(leave_sound) ->
         Logger.info("Playing leave sound: #{leave_sound}")
         SoundboardWeb.AudioPlayer.play_sound(leave_sound, "System")
 

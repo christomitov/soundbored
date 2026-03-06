@@ -2,10 +2,9 @@ defmodule SoundboardWeb.StatsLive do
   use SoundboardWeb, :live_view
   use SoundboardWeb.Live.PresenceLive
   alias SoundboardWeb.Live.PresenceHandler
-  import Ecto.Query
   import Phoenix.Component
   import SoundboardWeb.SoundHelpers
-  alias Soundboard.{Favorites, Repo, Sound, Stats}
+  alias Soundboard.{Accounts, Favorites, Sound, Stats}
   require Logger
 
   @pubsub_topic "soundboard"
@@ -417,9 +416,7 @@ defmodule SoundboardWeb.StatsLive do
         %{}
 
       _ ->
-        from(s in Sound, where: s.filename in ^filenames, select: {s.filename, s.id})
-        |> Repo.all()
-        |> Map.new()
+        Sound.ids_by_filename(filenames)
     end
   end
 
@@ -436,12 +433,7 @@ defmodule SoundboardWeb.StatsLive do
         %{}
 
       _ ->
-        from(u in Soundboard.Accounts.User,
-          where: u.username in ^usernames,
-          select: {u.username, u.avatar}
-        )
-        |> Repo.all()
-        |> Map.new()
+        Accounts.avatars_by_usernames(usernames)
     end
   end
 

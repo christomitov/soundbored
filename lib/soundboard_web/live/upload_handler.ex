@@ -4,9 +4,8 @@ defmodule SoundboardWeb.Live.UploadHandler do
   """
 
   import Ecto.Changeset
-  import Ecto.Query
 
-  alias Soundboard.{Repo, Sound}
+  alias Soundboard.Sound
   alias Soundboard.Sounds.Uploads
 
   def validate_upload(socket, params) do
@@ -129,7 +128,7 @@ defmodule SoundboardWeb.Live.UploadHandler do
         end
 
       {_, ""} ->
-        if name_conflicts_across_exts?(name) do
+        if Sound.filename_conflicts_across_extensions?(name, Uploads.allowed_extensions()) do
           {:error, add_error(%Ecto.Changeset{}, :filename, "has already been taken")}
         else
           {:ok, socket}
@@ -152,22 +151,16 @@ defmodule SoundboardWeb.Live.UploadHandler do
     end
   end
 
-  defp name_conflicts_across_exts?(base) do
-    names = Enum.map(Uploads.allowed_extensions(), &("#{base}" <> &1))
-
-    from(s in Sound, where: s.filename in ^names)
-    |> Repo.exists?()
-  end
-
   defp validate_name_unique(changeset) do
     case get_field(changeset, :filename) do
       nil ->
         changeset
 
       filename ->
-        case Repo.get_by(Sound, filename: filename) do
-          nil -> changeset
-          _sound -> add_error(changeset, :filename, "has already been taken")
+        if Sound.filename_taken?(filename) do
+          add_error(changeset, :filename, "has already been taken")
+        else
+          changeset
         end
     end
   end
