@@ -1,43 +1,5 @@
 import Config
 
-# Load environment variables from .env file in development
-if File.exists?(".env") do
-  parse_value = fn raw_value ->
-    value = String.trim(raw_value)
-
-    cond do
-      String.starts_with?(value, "\"") and String.ends_with?(value, "\"") ->
-        value
-        |> String.trim_leading("\"")
-        |> String.trim_trailing("\"")
-        |> String.replace("\\n", "\n")
-        |> String.replace("\\\"", "\"")
-
-      String.starts_with?(value, "'") and String.ends_with?(value, "'") ->
-        value
-        |> String.trim_leading("'")
-        |> String.trim_trailing("'")
-
-      true ->
-        value
-    end
-  end
-
-  File.stream!(".env")
-  |> Stream.map(&String.trim/1)
-  |> Stream.reject(&(&1 == "" or String.starts_with?(&1, "#")))
-  |> Enum.with_index(1)
-  |> Enum.each(fn {line, line_number} ->
-    case Regex.run(~r/^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/, line, capture: :all_but_first) do
-      [key, value] ->
-        System.put_env(key, parse_value.(value))
-
-      _ ->
-        IO.warn("Skipping malformed .env line #{line_number}: #{line}")
-    end
-  end)
-end
-
 # Configure your database
 config :soundboard, Soundboard.Repo,
   database: "database.db",

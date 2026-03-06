@@ -90,7 +90,8 @@ defmodule Soundboard.MixProject do
       {:jason, "~> 1.2"},
       {:dns_cluster, "~> 0.2"},
       {:bandit, "~> 1.8"},
-      {:eda, git: "https://github.com/christomitov/EDA", ref: "3bf0e17ca072826bb9a7a26fa42165c2e346ae1d"},
+      {:eda,
+       git: "https://github.com/christomitov/EDA", ref: "3bf0e17ca072826bb9a7a26fa42165c2e346ae1d"},
       {:rustler, "~> 0.35", runtime: false},
       {:ecto_sqlite3, "~> 0.22"},
       {:number, "~> 1.0"},
@@ -98,6 +99,7 @@ defmodule Soundboard.MixProject do
       {:ueberauth_discord, "~> 0.6"},
       {:httpoison, "~> 2.2"},
       {:mock, "~> 0.3.9", only: :test},
+      {:dotenvy, "~> 1.0.0", only: :dev},
       {:excoveralls, "~> 0.18.5", only: :test},
       {:credo, "~> 1.7.12", only: [:dev, :test], runtime: false},
       {:ex_doc, "~> 0.34", only: :dev, runtime: false}
