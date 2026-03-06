@@ -15,6 +15,9 @@ defmodule SoundboardWeb.AudioPlayer do
   @voice_not_ready_retry_ms 350
   @voice_ready_poll_ms 100
   @voice_ready_timeout_ms 4_000
+  @voice_ready_fast_timeout_ms 1_200
+  @voice_settle_ms 120
+  @rejoin_retry_threshold 3
   @max_play_attempts 20
   @interrupt_watchdog_ms 35
   @interrupt_watchdog_max_attempts 20
@@ -309,8 +312,13 @@ defmodule SoundboardWeb.AudioPlayer do
        when not is_nil(guild_id) and not is_nil(channel_id) do
     joined? = Voice.channel_id(guild_id) == to_string(channel_id)
     ready? = safe_voice_ready(guild_id)
+    playing? = safe_voice_playing(guild_id)
 
     cond do
+      playing? ->
+        Logger.debug("Skipping voice maintenance while audio is playing in guild #{guild_id}")
+        state
+
       joined? and ready? ->
         Logger.debug("Voice connection healthy for guild #{guild_id}")
         state
@@ -431,9 +439,18 @@ defmodule SoundboardWeb.AudioPlayer do
   defp system_user?(username), do: username in @system_users
 
   defp play_sound_task(guild_id, channel_id, sound_name, path_or_url, volume, username) do
-    ensure_joined_channel(guild_id, channel_id)
+    join_state = ensure_joined_channel(guild_id, channel_id)
+    maybe_settle_before_play(join_state)
     play_sound_with_connection(guild_id, sound_name, path_or_url, volume, username)
   end
+
+  defp maybe_settle_before_play({:joined, :ok}) do
+    # Give Discord voice transport a brief settle window after a fresh join so
+    # the first audible frame is less likely to get dropped.
+    Process.sleep(@voice_settle_ms)
+  end
+
+  defp maybe_settle_before_play(_), do: :ok
 
   defp play_sound_with_connection(guild_id, sound_name, path_or_url, volume, username) do
     if is_nil(System.find_executable("ffmpeg")) do
@@ -571,7 +588,7 @@ defmodule SoundboardWeb.AudioPlayer do
   end
 
   defp maybe_trigger_rejoin(guild_id, attempt, refresh_attempted, force_refresh) do
-    if attempt >= div(@max_play_attempts, 2) and not refresh_attempted do
+    if attempt >= @rejoin_retry_threshold and not refresh_attempted do
       maybe_rejoin_current_channel(guild_id, force_refresh)
       true
     else
@@ -637,12 +654,12 @@ defmodule SoundboardWeb.AudioPlayer do
 
   defp ensure_joined_channel(guild_id, channel_id) do
     if Voice.channel_id(guild_id) == to_string(channel_id) do
-      wait_for_voice_ready(guild_id)
+      {:already_joined, wait_for_voice_ready(guild_id, @voice_ready_fast_timeout_ms)}
     else
       Logger.info("Joining voice channel #{channel_id}")
       Voice.join_channel(guild_id, channel_id)
       Process.sleep(150)
-      wait_for_voice_ready(guild_id)
+      {:joined, wait_for_voice_ready(guild_id)}
     end
   end
 
