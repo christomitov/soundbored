@@ -5,7 +5,6 @@ defmodule Soundboard.Application do
 
   use Application
   alias EDA.Voice.Dave.Native
-  alias SoundboardWeb.Live.PresenceHandler
   require Logger
 
   @impl true
@@ -14,14 +13,12 @@ defmodule Soundboard.Application do
 
     ensure_dave_runtime!()
 
-    # Initialize presence handler state
-    PresenceHandler.init()
-
     # Base children that always start
     base_children = [
       SoundboardWeb.Telemetry,
       {Phoenix.PubSub, name: Soundboard.PubSub},
       SoundboardWeb.Presence,
+      SoundboardWeb.Live.PresenceHandler,
       SoundboardWeb.Endpoint,
       {SoundboardWeb.AudioPlayer, []},
       Soundboard.Repo,

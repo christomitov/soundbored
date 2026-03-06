@@ -43,12 +43,7 @@ defmodule SoundboardWeb.Router do
 
   # Protected routes
   scope "/", SoundboardWeb do
-    # Only apply basic auth in non-test environments
-    if Mix.env() == :test do
-      pipe_through [:browser, :auth, :ensure_authenticated_user]
-    else
-      pipe_through [:browser, :auth, :ensure_authenticated_user, :require_basic_auth]
-    end
+    pipe_through [:browser, :auth, :ensure_authenticated_user, :require_basic_auth]
 
     live "/", SoundboardLive
     live "/stats", StatsLive
@@ -85,7 +80,7 @@ defmodule SoundboardWeb.Router do
     user_id = get_session(conn, :user_id)
 
     if user_id do
-      case Soundboard.Repo.get(Soundboard.Accounts.User, user_id) do
+      case Soundboard.Accounts.get_user(user_id) do
         nil ->
           conn
           |> clear_session()

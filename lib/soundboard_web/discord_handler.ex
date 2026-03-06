@@ -21,7 +21,7 @@ defmodule SoundboardWeb.DiscordHandler do
     end
 
     def init(_) do
-      {:ok, %{voice_states: %{}}}
+      {:ok, %{voice_states: %{}, current_voice_channel: nil}}
     end
 
     def get_state(user_id) do
@@ -36,13 +36,33 @@ defmodule SoundboardWeb.DiscordHandler do
       :exit, _ -> :error
     end
 
+    def current_voice_channel do
+      GenServer.call(__MODULE__, :current_voice_channel)
+    catch
+      :exit, _ -> nil
+    end
+
+    def set_current_voice_channel(channel) do
+      GenServer.cast(__MODULE__, {:set_current_voice_channel, channel})
+    catch
+      :exit, _ -> :error
+    end
+
     def handle_call({:get_state, user_id}, _from, state) do
       {:reply, Map.get(state.voice_states, user_id), state}
+    end
+
+    def handle_call(:current_voice_channel, _from, state) do
+      {:reply, state.current_voice_channel, state}
     end
 
     def handle_cast({:update_state, user_id, channel_id, session_id}, state) do
       {:noreply,
        %{state | voice_states: Map.put(state.voice_states, user_id, {channel_id, session_id})}}
+    end
+
+    def handle_cast({:set_current_voice_channel, channel}, state) do
+      {:noreply, %{state | current_voice_channel: channel}}
     end
   end
 
@@ -59,6 +79,18 @@ defmodule SoundboardWeb.DiscordHandler do
 
   def start_link(_opts) do
     GenServer.start_link(__MODULE__, [], name: __MODULE__)
+  end
+
+  def dispatch_event(event) do
+    case Process.whereis(__MODULE__) do
+      nil ->
+        Logger.warning("DiscordHandler is not running; dropping event #{inspect(elem(event, 0))}")
+        :error
+
+      _pid ->
+        GenServer.cast(__MODULE__, {:eda_event, event})
+        :ok
+    end
   end
 
   @impl GenServer
@@ -96,7 +128,7 @@ defmodule SoundboardWeb.DiscordHandler do
   defp leave_voice_channel(guild_id) do
     if connected_to_discord?() do
       Logger.info("Bot leaving voice channel in guild #{guild_id}")
-      Process.delete(:current_voice_channel)
+      State.set_current_voice_channel(nil)
 
       # Clear the AudioPlayer's voice channel
       SoundboardWeb.AudioPlayer.set_voice_channel(nil, nil)
@@ -121,10 +153,7 @@ defmodule SoundboardWeb.DiscordHandler do
       end
 
       # Update AudioPlayer - set to nil (not {nil, nil})
-      GenServer.cast(
-        SoundboardWeb.AudioPlayer,
-        {:set_voice_channel, nil, nil}
-      )
+      SoundboardWeb.AudioPlayer.set_voice_channel(nil, nil)
     else
       Logger.warning("Skipping leave_voice_channel - not connected to Discord")
     end
@@ -134,7 +163,7 @@ defmodule SoundboardWeb.DiscordHandler do
   defp join_voice_channel(guild_id, channel_id) do
     if connected_to_discord?() do
       Logger.info("Bot joining voice channel #{channel_id} in guild #{guild_id}")
-      Process.put(:current_voice_channel, {guild_id, channel_id})
+      State.set_current_voice_channel({guild_id, channel_id})
 
       # Set the AudioPlayer's voice channel so join sounds can play
       SoundboardWeb.AudioPlayer.set_voice_channel(guild_id, channel_id)
@@ -159,10 +188,7 @@ defmodule SoundboardWeb.DiscordHandler do
       end
 
       # Update AudioPlayer
-      GenServer.cast(
-        SoundboardWeb.AudioPlayer,
-        {:set_voice_channel, guild_id, channel_id}
-      )
+      SoundboardWeb.AudioPlayer.set_voice_channel(guild_id, channel_id)
     else
       Logger.warning("Skipping join_voice_channel - not connected to Discord")
     end
@@ -476,7 +502,7 @@ defmodule SoundboardWeb.DiscordHandler do
   defp get_fallback_voice_channel do
     candidate =
       case safe_audio_player_voice_channel() do
-        nil -> Process.get(:current_voice_channel)
+        nil -> State.current_voice_channel()
         other -> other
       end
 
@@ -519,14 +545,11 @@ defmodule SoundboardWeb.DiscordHandler do
         Attempting to join...
         """)
 
-        Process.put(:current_voice_channel, {guild.id, channel_id})
+        State.set_current_voice_channel({guild.id, channel_id})
         Voice.join_channel(guild.id, channel_id)
 
         # Update AudioPlayer
-        GenServer.cast(
-          SoundboardWeb.AudioPlayer,
-          {:set_voice_channel, guild.id, channel_id}
-        )
+        SoundboardWeb.AudioPlayer.set_voice_channel(guild.id, channel_id)
 
       _ ->
         Logger.info("No users found in voice channels for guild #{guild.id}")

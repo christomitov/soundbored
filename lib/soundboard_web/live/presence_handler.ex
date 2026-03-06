@@ -2,9 +2,10 @@ defmodule SoundboardWeb.Live.PresenceHandler do
   @moduledoc """
   Handles presence tracking for the Soundboard app.
   """
+  use GenServer
+
   import Phoenix.LiveView, only: [connected?: 1]
   alias SoundboardWeb.Presence
-  require Logger
 
   @presence_topic "soundboard:presence"
 
@@ -27,8 +28,14 @@ defmodule SoundboardWeb.Live.PresenceHandler do
 
   @colors_key :user_colors
 
-  def init do
+  def start_link(_opts) do
+    GenServer.start_link(__MODULE__, :ok, name: __MODULE__)
+  end
+
+  @impl true
+  def init(:ok) do
     :persistent_term.put(@colors_key, %{})
+    {:ok, %{}}
   end
 
   def track_presence(socket, user) do
