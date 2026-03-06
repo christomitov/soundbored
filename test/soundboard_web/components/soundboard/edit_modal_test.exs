@@ -14,7 +14,7 @@ defmodule SoundboardWeb.Components.Soundboard.EditModalTest do
     assert html =~ "Delete Sound"
   end
 
-  test "renders source URL and flash validation errors" do
+  test "renders source URL and edit validation errors" do
     html =
       render_component(
         &EditModal.edit_modal/1,
@@ -24,7 +24,7 @@ defmodule SoundboardWeb.Components.Soundboard.EditModalTest do
             | source_type: "url",
               url: "https://example.com/sound.mp3"
           },
-          flash: %{error: "Name already taken"}
+          edit_name_error: "Name already taken"
         })
       )
 
@@ -38,7 +38,7 @@ defmodule SoundboardWeb.Components.Soundboard.EditModalTest do
       current_user: %{id: 1},
       tag_input: "",
       tag_suggestions: [],
-      validation_error: nil,
+      edit_name_error: nil,
       flash: %{}
     }
 

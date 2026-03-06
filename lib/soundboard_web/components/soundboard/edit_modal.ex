@@ -7,10 +7,7 @@ defmodule SoundboardWeb.Components.Soundboard.EditModal do
   alias SoundboardWeb.Components.Soundboard.{TagComponents, VolumeControl}
 
   def edit_modal(assigns) do
-    assigns = assign_new(assigns, :flash, fn -> %{} end)
-
-    # Ensure flash.error exists with nil default
-    assigns = update(assigns, :flash, fn flash -> Map.put_new(flash, :error, nil) end)
+    assigns = assign_new(assigns, :edit_name_error, fn -> nil end)
 
     # Add a default empty list for tags if they're not loaded
     assigns =
@@ -101,11 +98,11 @@ defmodule SoundboardWeb.Components.Soundboard.EditModal do
                     placeholder="Sound name"
                     phx-debounce="400"
                     class={"mt-1 block w-full rounded-md shadow-sm sm:text-sm
-                           dark:text-gray-100 #{if @flash && @flash.error, do: "border-red-300 focus:border-red-500 focus:ring-red-500", else: "border-gray-300 dark:border-gray-600 focus:border-blue-500 focus:ring-blue-500"}
+                           dark:text-gray-100 #{if @edit_name_error, do: "border-red-300 focus:border-red-500 focus:ring-red-500", else: "border-gray-300 dark:border-gray-600 focus:border-blue-500 focus:ring-blue-500"}
                            dark:bg-gray-700"}
                   />
-                  <%= if @flash && @flash.error do %>
-                    <p class="mt-2 text-sm text-red-600 dark:text-red-400">{@flash.error}</p>
+                  <%= if @edit_name_error do %>
+                    <p class="mt-2 text-sm text-red-600 dark:text-red-400">{@edit_name_error}</p>
                   <% end %>
                 </div>
 
@@ -208,9 +205,9 @@ defmodule SoundboardWeb.Components.Soundboard.EditModal do
                 <div class="mt-5 sm:mt-6 flex gap-3">
                   <button
                     type="submit"
-                    disabled={@flash && @flash.error}
+                    disabled={@edit_name_error}
                     class={"flex-1 rounded-md px-3 py-2 text-sm font-semibold text-white shadow-sm
-                            #{if @flash && @flash.error,
+                            #{if @edit_name_error,
                               do: "bg-gray-400 cursor-not-allowed",
                               else: "bg-blue-600 hover:bg-blue-500"}"}
                   >

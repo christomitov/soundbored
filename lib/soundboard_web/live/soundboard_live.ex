@@ -82,6 +82,7 @@ defmodule SoundboardWeb.SoundboardLive do
     |> assign(:upload_error, nil)
     |> assign(:upload_volume, 100)
     |> assign(:show_all_tags, false)
+    |> assign(:edit_name_error, nil)
     |> allow_upload(:audio,
       accept: ~w(audio/mpeg audio/wav audio/ogg audio/x-m4a),
       max_entries: 1,
@@ -115,9 +116,9 @@ defmodule SoundboardWeb.SoundboardLive do
       |> Repo.one()
 
     if existing_sound do
-      {:noreply, put_flash(socket, :error, "A sound with that name already exists")}
+      {:noreply, assign(socket, :edit_name_error, "A sound with that name already exists")}
     else
-      {:noreply, clear_flash(socket, :error)}
+      {:noreply, assign(socket, :edit_name_error, nil)}
     end
   end
 
@@ -183,7 +184,12 @@ defmodule SoundboardWeb.SoundboardLive do
   @impl true
   def handle_event("edit", %{"id" => id}, socket) do
     sound = Soundboard.Sound.get_sound!(id)
-    {:noreply, assign(socket, current_sound: sound, show_modal: true)}
+
+    {:noreply,
+     socket
+     |> assign(:current_sound, sound)
+     |> assign(:show_modal, true)
+     |> assign(:edit_name_error, nil)}
   end
 
   @impl true
@@ -370,6 +376,7 @@ defmodule SoundboardWeb.SoundboardLive do
      |> close_upload_modal_state()
      |> assign(:show_modal, false)
      |> assign(:current_sound, nil)
+     |> assign(:edit_name_error, nil)
      |> reset_tag_assigns(:current)}
   end
 
@@ -379,6 +386,7 @@ defmodule SoundboardWeb.SoundboardLive do
      socket
      |> assign(:show_modal, false)
      |> assign(:current_sound, nil)
+     |> assign(:edit_name_error, nil)
      |> assign(:tag_input, "")
      |> assign(:tag_suggestions, [])}
   end
@@ -643,6 +651,7 @@ defmodule SoundboardWeb.SoundboardLive do
      |> put_flash(:info, "Sound updated successfully")
      |> assign(:show_modal, false)
      |> assign(:current_sound, nil)
+     |> assign(:edit_name_error, nil)
      |> load_sound_files()}
   end
 

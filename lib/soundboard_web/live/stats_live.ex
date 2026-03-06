@@ -2,9 +2,10 @@ defmodule SoundboardWeb.StatsLive do
   use SoundboardWeb, :live_view
   use SoundboardWeb.Live.PresenceLive
   alias SoundboardWeb.Live.PresenceHandler
+  import Ecto.Query
   import Phoenix.Component
   import SoundboardWeb.SoundHelpers
-  alias Soundboard.{Favorites, Sound, Stats}
+  alias Soundboard.{Favorites, Repo, Sound, Stats}
   require Logger
 
   @pubsub_topic "soundboard"
@@ -83,6 +84,8 @@ defmodule SoundboardWeb.StatsLive do
 
   defp assign_stats(socket) do
     {start_date, end_date} = socket.assigns.selected_week
+    top_users = Stats.get_top_users(start_date, end_date, limit: @recent_limit)
+    top_sounds = Stats.get_top_sounds(start_date, end_date, limit: @recent_limit)
 
     recent_plays =
       Stats.get_recent_plays(limit: @recent_limit)
@@ -95,24 +98,28 @@ defmodule SoundboardWeb.StatsLive do
         }
       end)
 
+    recent_uploads = Sound.get_recent_uploads(limit: @recent_limit)
+    favorites = get_favorites(socket.assigns.current_user)
+    sound_ids_by_filename = load_sound_ids_by_filename(top_sounds, recent_plays, recent_uploads)
+    avatars_by_username = load_avatars_by_username(top_users, recent_plays, recent_uploads)
+
     socket
-    |> assign(:top_users, Stats.get_top_users(start_date, end_date, limit: @recent_limit))
-    |> assign(:top_sounds, Stats.get_top_sounds(start_date, end_date, limit: @recent_limit))
+    |> assign(:top_users, top_users)
+    |> assign(:top_sounds, top_sounds)
     |> stream(:recent_plays, recent_plays, reset: true)
-    |> assign(:recent_uploads, Sound.get_recent_uploads(limit: @recent_limit))
-    |> assign(:favorites, get_favorites(socket.assigns.current_user))
+    |> assign(:recent_uploads, recent_uploads)
+    |> assign(:favorites, favorites)
+    |> assign(:sound_ids_by_filename, sound_ids_by_filename)
+    |> assign(:avatars_by_username, avatars_by_username)
   end
 
   defp get_favorites(nil), do: []
   defp get_favorites(user), do: Favorites.list_favorites(user.id)
 
   defp format_timestamp(timestamp) do
-    est_time =
-      timestamp
-      |> DateTime.from_naive!("Etc/UTC")
-      |> DateTime.add(-5 * 60 * 60, :second)
-
-    Calendar.strftime(est_time, "%b %d, %I:%M %p EST")
+    timestamp
+    |> DateTime.from_naive!("Etc/UTC")
+    |> Calendar.strftime("%b %d, %I:%M %p UTC")
   end
 
   defp get_week_range(date \\ Date.utc_today()) do
@@ -201,8 +208,8 @@ defmodule SoundboardWeb.StatsLive do
                   get_user_color_from_presence(username, @presences)
                 ]}>
                   <img
-                    :if={get_user_avatar_from_presence(username, @presences)}
-                    src={get_user_avatar_from_presence(username, @presences)}
+                    :if={get_user_avatar(username, @presences, @avatars_by_username)}
+                    src={get_user_avatar(username, @presences, @avatars_by_username)}
                     class="w-4 h-4 rounded-full"
                     alt={"#{username}'s avatar"}
                   />
@@ -242,7 +249,7 @@ defmodule SoundboardWeb.StatsLive do
                     id={"favorite-#{sound_name}"}
                     class="text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-500 mr-2"
                   >
-                    <%= if favorite?(@favorites, sound_name) do %>
+                    <%= if favorite?(@favorites, sound_name, @sound_ids_by_filename) do %>
                       <.icon name="hero-heart-solid" class="h-5 w-5 text-red-500" />
                     <% else %>
                       <.icon name="hero-heart" class="h-5 w-5" />
@@ -269,7 +276,7 @@ defmodule SoundboardWeb.StatsLive do
                 <div class="flex items-center gap-3 min-w-0">
                   <div class="flex-shrink-0">
                     <img
-                      src={get_user_avatar_from_presence(play.username, @presences)}
+                      src={get_user_avatar(play.username, @presences, @avatars_by_username)}
                       class="w-8 h-8 rounded-full"
                       alt={play.username}
                     />
@@ -293,7 +300,7 @@ defmodule SoundboardWeb.StatsLive do
                     phx-stop
                     class="text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-500 mr-2"
                   >
-                    <%= if favorite?(@favorites, play.filename) do %>
+                    <%= if favorite?(@favorites, play.filename, @sound_ids_by_filename) do %>
                       <.icon name="hero-heart-solid" class="h-5 w-5 text-red-500" />
                     <% else %>
                       <.icon name="hero-heart" class="h-5 w-5" />
@@ -320,7 +327,7 @@ defmodule SoundboardWeb.StatsLive do
                 <div class="flex items-center gap-3 min-w-0">
                   <div class="flex-shrink-0">
                     <img
-                      src={get_user_avatar_from_presence(username, @presences)}
+                      src={get_user_avatar(username, @presences, @avatars_by_username)}
                       class="w-8 h-8 rounded-full"
                       alt={username}
                     />
@@ -344,7 +351,7 @@ defmodule SoundboardWeb.StatsLive do
                     phx-stop
                     class="text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-500 mr-2"
                   >
-                    <%= if favorite?(@favorites, sound_name) do %>
+                    <%= if favorite?(@favorites, sound_name, @sound_ids_by_filename) do %>
                       <.icon name="hero-heart-solid" class="h-5 w-5 text-red-500" />
                     <% else %>
                       <.icon name="hero-heart" class="h-5 w-5" />
@@ -406,6 +413,47 @@ defmodule SoundboardWeb.StatsLive do
         timestamp: timestamp
       }
     end)
+  end
+
+  defp load_sound_ids_by_filename(top_sounds, recent_plays, recent_uploads) do
+    filenames =
+      top_sounds
+      |> Enum.map(fn {filename, _count} -> filename end)
+      |> Kernel.++(Enum.map(recent_plays, & &1.filename))
+      |> Kernel.++(Enum.map(recent_uploads, fn {filename, _username, _timestamp} -> filename end))
+      |> Enum.uniq()
+
+    case filenames do
+      [] ->
+        %{}
+
+      _ ->
+        from(s in Sound, where: s.filename in ^filenames, select: {s.filename, s.id})
+        |> Repo.all()
+        |> Map.new()
+    end
+  end
+
+  defp load_avatars_by_username(top_users, recent_plays, recent_uploads) do
+    usernames =
+      top_users
+      |> Enum.map(fn {username, _count} -> username end)
+      |> Kernel.++(Enum.map(recent_plays, & &1.username))
+      |> Kernel.++(Enum.map(recent_uploads, fn {_filename, username, _timestamp} -> username end))
+      |> Enum.uniq()
+
+    case usernames do
+      [] ->
+        %{}
+
+      _ ->
+        from(u in Soundboard.Accounts.User,
+          where: u.username in ^usernames,
+          select: {u.username, u.avatar}
+        )
+        |> Repo.all()
+        |> Map.new()
+    end
   end
 
   defp recent_play_dom_id(play) do
@@ -478,8 +526,8 @@ defmodule SoundboardWeb.StatsLive do
     end
   end
 
-  defp favorite?(favorites, sound_name) do
-    case Sound.get_sound_id(sound_name) do
+  defp favorite?(favorites, sound_name, sound_ids_by_filename) do
+    case Map.get(sound_ids_by_filename, sound_name) do
       nil -> false
       sound_id -> Enum.member?(favorites, sound_id)
     end
@@ -490,25 +538,11 @@ defmodule SoundboardWeb.StatsLive do
     socket
   end
 
-  defp get_user_avatar_from_presence(username, presences) do
-    # First try to get from presence
-    presence_avatar =
-      presences
-      |> Enum.find_value(fn {_id, presence} ->
-        meta = List.first(presence.metas)
-        if get_in(meta, [:user, :username]) == username, do: get_in(meta, [:user, :avatar])
-      end)
-
-    # If not in presence, try to get from database
-    case presence_avatar do
-      nil ->
-        case Soundboard.Repo.get_by(Soundboard.Accounts.User, username: username) do
-          nil -> nil
-          user -> user.avatar
-        end
-
-      avatar ->
-        avatar
-    end
+  defp get_user_avatar(username, presences, avatars_by_username) do
+    presences
+    |> Enum.find_value(fn {_id, presence} ->
+      meta = List.first(presence.metas)
+      if get_in(meta, [:user, :username]) == username, do: get_in(meta, [:user, :avatar])
+    end) || Map.get(avatars_by_username, username)
   end
 end
