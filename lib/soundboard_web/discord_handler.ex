@@ -21,7 +21,7 @@ defmodule SoundboardWeb.DiscordHandler do
     end
 
     def init(_) do
-      {:ok, %{voice_states: %{}, current_voice_channel: nil}}
+      {:ok, %{voice_states: %{}}}
     end
 
     def get_state(user_id) do
@@ -36,33 +36,13 @@ defmodule SoundboardWeb.DiscordHandler do
       :exit, _ -> :error
     end
 
-    def current_voice_channel do
-      GenServer.call(__MODULE__, :current_voice_channel)
-    catch
-      :exit, _ -> nil
-    end
-
-    def set_current_voice_channel(channel) do
-      GenServer.cast(__MODULE__, {:set_current_voice_channel, channel})
-    catch
-      :exit, _ -> :error
-    end
-
     def handle_call({:get_state, user_id}, _from, state) do
       {:reply, Map.get(state.voice_states, user_id), state}
-    end
-
-    def handle_call(:current_voice_channel, _from, state) do
-      {:reply, state.current_voice_channel, state}
     end
 
     def handle_cast({:update_state, user_id, channel_id, session_id}, state) do
       {:noreply,
        %{state | voice_states: Map.put(state.voice_states, user_id, {channel_id, session_id})}}
-    end
-
-    def handle_cast({:set_current_voice_channel, channel}, state) do
-      {:noreply, %{state | current_voice_channel: channel}}
     end
   end
 
@@ -130,7 +110,6 @@ defmodule SoundboardWeb.DiscordHandler do
 
       case run_voice_command("leave voice channel", fn -> Voice.leave_channel(guild_id) end) do
         :ok ->
-          State.set_current_voice_channel(nil)
           SoundboardWeb.AudioPlayer.set_voice_channel(nil, nil)
 
         {:error, error_msg} ->
@@ -149,7 +128,6 @@ defmodule SoundboardWeb.DiscordHandler do
              Voice.join_channel(guild_id, channel_id)
            end) do
         :ok ->
-          State.set_current_voice_channel({guild_id, channel_id})
           SoundboardWeb.AudioPlayer.set_voice_channel(guild_id, channel_id)
 
         {:error, error_msg} ->
@@ -498,13 +476,7 @@ defmodule SoundboardWeb.DiscordHandler do
   end
 
   defp get_fallback_voice_channel do
-    candidate =
-      case safe_audio_player_voice_channel() do
-        nil -> State.current_voice_channel()
-        other -> other
-      end
-
-    case candidate do
+    case safe_audio_player_voice_channel() do
       {gid, cid} when not is_nil(gid) and not is_nil(cid) -> {gid, cid}
       _ -> nil
     end
@@ -543,10 +515,8 @@ defmodule SoundboardWeb.DiscordHandler do
         Attempting to join...
         """)
 
-        State.set_current_voice_channel({guild.id, channel_id})
         Voice.join_channel(guild.id, channel_id)
 
-        # Update AudioPlayer
         SoundboardWeb.AudioPlayer.set_voice_channel(guild.id, channel_id)
 
       _ ->
