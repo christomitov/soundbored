@@ -189,13 +189,6 @@ defmodule SoundboardWeb.AudioPlayer do
   end
 
   @impl true
-  def handle_info({:play_delayed_sound, sound}, state) do
-    Logger.info("Playing delayed join sound: #{sound}")
-    # Play the sound as System user
-    handle_cast({:play_sound, sound, "System"}, state)
-  end
-
-  @impl true
   def handle_info(:check_voice_connection, state) do
     new_state = maintain_voice_connection(state)
 
@@ -872,7 +865,7 @@ defmodule SoundboardWeb.AudioPlayer do
   defp clamp_volume(value) when is_number(value) do
     value
     |> max(0.0)
-    |> min(1.0)
+    |> min(1.5)
     |> Float.round(4)
   end
 

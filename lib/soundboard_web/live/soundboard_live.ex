@@ -678,8 +678,7 @@ defmodule SoundboardWeb.SoundboardLive do
         {:noreply, assign_upload_params(socket, params, nil)}
 
       {:error, changeset} ->
-        {:noreply,
-         assign_upload_params(socket, params, Uploads.error_message(changeset))}
+        {:noreply, assign_upload_params(socket, params, Uploads.error_message(changeset))}
     end
   end
 

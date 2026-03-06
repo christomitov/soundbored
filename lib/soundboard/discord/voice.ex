@@ -15,8 +15,8 @@ defmodule Soundboard.Discord.Voice do
     EDAVoice.leave(to_id(guild_id))
   end
 
-  def play(guild_id, input, type, _opts \\ []) do
-    case EDAVoice.play(to_id(guild_id), input, type) do
+  def play(guild_id, input, type, opts \\ []) do
+    case EDAVoice.play(to_id(guild_id), input, type, opts) do
       :ok -> :ok
       {:error, :already_playing} -> {:error, @already_playing_error}
       {:error, :not_connected} -> {:error, @connected_error}

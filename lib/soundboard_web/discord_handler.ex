@@ -263,16 +263,18 @@ defmodule SoundboardWeb.DiscordHandler do
     Logger.info("User #{payload.user_id} disconnected from voice")
     State.update_state(payload.user_id, nil, payload.session_id)
 
-    case auto_join_mode() do
-      :enabled -> handle_bot_alone_check(payload.guild_id)
-      :disabled -> :noop
-    end
-
     if bot_user?(payload.user_id) do
       Logger.debug("Skipping leave sound lookup for bot user #{payload.user_id}")
       :noop
     else
+      # Play the leave sound before any auto-leave logic tears down the bot's
+      # voice session. This keeps the sound from racing the disconnect path.
       handle_leave_sound(payload.user_id)
+    end
+
+    case auto_join_mode() do
+      :enabled -> handle_bot_alone_check(payload.guild_id)
+      :disabled -> :noop
     end
   end
 
@@ -676,9 +678,8 @@ defmodule SoundboardWeb.DiscordHandler do
 
     case user_with_sounds do
       {_user_id, join_sound} when not is_nil(join_sound) ->
-        Logger.info("Scheduling join sound: #{join_sound}")
-        # Send delayed sound to AudioPlayer instead of self()
-        Process.send_after(SoundboardWeb.AudioPlayer, {:play_delayed_sound, join_sound}, 1000)
+        Logger.info("Playing join sound immediately: #{join_sound}")
+        SoundboardWeb.AudioPlayer.play_sound(join_sound, "System")
 
       _ ->
         Logger.info("No join sound found for user #{user_id}")
