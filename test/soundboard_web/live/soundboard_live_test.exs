@@ -167,12 +167,11 @@ defmodule SoundboardWeb.SoundboardLiveTest do
         "volume" => "80"
       }
 
-      # Ensure directory exists
-      File.mkdir_p!("priv/static/uploads")
+      uploads_dir = uploads_dir()
+      File.mkdir_p!(uploads_dir)
 
-      # Create test file if it doesn't exist
-      test_file = "priv/static/uploads/test.mp3"
-      updated_file = "priv/static/uploads/updated.mp3"
+      test_file = Path.join(uploads_dir, "test.mp3")
+      updated_file = Path.join(uploads_dir, "updated.mp3")
 
       unless File.exists?(test_file) do
         File.write!(test_file, "test content")
@@ -206,6 +205,38 @@ defmodule SoundboardWeb.SoundboardLiveTest do
       assert_in_delta updated_sound.volume, 0.8, 0.0001
       assert :ets.lookup(:sound_meta_cache, sound.filename) == []
       assert :ets.lookup(:sound_meta_cache, "updated.mp3") == []
+    end
+
+    test "non-uploaders can edit but cannot delete another user's sound", %{conn: conn} do
+      {:ok, other_user} =
+        %User{}
+        |> User.changeset(%{
+          username: "other_#{System.unique_integer([:positive])}",
+          discord_id: Integer.to_string(System.unique_integer([:positive])),
+          avatar: "other.jpg"
+        })
+        |> Repo.insert()
+
+      {:ok, other_sound} =
+        %Sound{}
+        |> Sound.changeset(%{
+          filename: "other-owned.mp3",
+          source_type: "local",
+          user_id: other_user.id
+        })
+        |> Repo.insert()
+
+      {:ok, view, _html} = live(conn, "/")
+
+      assert has_element?(view, "[phx-click='edit'][phx-value-id='#{other_sound.id}']")
+
+      rendered =
+        view
+        |> element("[phx-click='edit'][phx-value-id='#{other_sound.id}']")
+        |> render_click()
+
+      assert rendered =~ "Edit Sound"
+      refute rendered =~ "Delete Sound"
     end
 
     test "edit validation preserves the current sound extension when checking duplicates", %{
@@ -273,9 +304,10 @@ defmodule SoundboardWeb.SoundboardLiveTest do
     test "can delete sound", %{conn: conn, sound: sound} do
       {:ok, view, _html} = live(conn, "/")
 
-      # Create temporary file for the test
-      File.mkdir_p!("priv/static/uploads")
-      File.write!("priv/static/uploads/test.mp3", "test content")
+      uploads_dir = uploads_dir()
+      test_file = Path.join(uploads_dir, "test.mp3")
+      File.mkdir_p!(uploads_dir)
+      File.write!(test_file, "test content")
 
       view
       |> element("[phx-click='edit'][phx-value-id='#{sound.id}']")
@@ -290,16 +322,14 @@ defmodule SoundboardWeb.SoundboardLiveTest do
 
       :ets.insert(
         :sound_meta_cache,
-        {sound.filename,
-         %{source_type: "local", input: "priv/static/uploads/test.mp3", volume: 0.5}}
+        {sound.filename, %{source_type: "local", input: test_file, volume: 0.5}}
       )
 
       view
       |> element("[phx-click='delete_sound']")
       |> render_click()
 
-      # Clean up
-      File.rm_rf!("priv/static/uploads/test.mp3")
+      File.rm_rf!(test_file)
 
       # Give the delete operation time to complete
       Process.sleep(100)
@@ -467,6 +497,6 @@ defmodule SoundboardWeb.SoundboardLiveTest do
   end
 
   defp uploads_dir do
-    Application.get_env(:soundboard, :uploads_dir, "priv/static/uploads")
+    Soundboard.UploadsPath.dir()
   end
 end

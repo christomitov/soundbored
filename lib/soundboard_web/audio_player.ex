@@ -939,12 +939,7 @@ defmodule SoundboardWeb.AudioPlayer do
   end
 
   defp resolve_upload_path(filename) do
-    if File.exists?("/app/priv/static/uploads") do
-      "/app/priv/static/uploads/#{filename}"
-    else
-      priv_dir = :code.priv_dir(:soundboard)
-      Path.join([priv_dir, "static/uploads", filename])
-    end
+    Soundboard.UploadsPath.file_path(filename)
   end
 
   @doc """

@@ -10,6 +10,7 @@ defmodule SoundboardWeb.Live.PresenceLive do
         if connected?(socket) do
           user = get_user_from_session(session)
 
+          Phoenix.PubSub.subscribe(Soundboard.PubSub, @presence_topic)
           Process.put(:connected_pid, self())
           Process.put(:socket_id, socket.id)
           Process.put(:current_user, user)
@@ -50,6 +51,19 @@ defmodule SoundboardWeb.Live.PresenceLive do
                diff,
                socket.assigns.presence_count
              )
+         )}
+      end
+
+      @impl true
+      def handle_info(%Phoenix.Socket.Broadcast{event: "presence_diff", payload: diff}, socket) do
+        presences = Presence.list(@presence_topic)
+
+        {:noreply,
+         socket
+         |> assign(:presences, presences)
+         |> assign(
+           :presence_count,
+           PresenceHandler.handle_presence_diff(diff, socket.assigns.presence_count)
          )}
       end
     end

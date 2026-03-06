@@ -9,7 +9,6 @@ defmodule SoundboardWeb.StatsLive do
   require Logger
 
   @pubsub_topic "soundboard"
-  @presence_topic "soundboard:presence"
   @recent_limit 5
 
   @impl true
@@ -65,16 +64,6 @@ defmodule SoundboardWeb.StatsLive do
      socket
      |> put_flash(:error, message)
      |> clear_flash_after_timeout()}
-  end
-
-  @impl true
-  def handle_info(%Phoenix.Socket.Broadcast{event: "presence_diff", payload: _diff}, socket) do
-    presences = Presence.list(@presence_topic)
-
-    {:noreply,
-     socket
-     |> assign(:presences, presences)
-     |> assign(:presence_count, map_size(presences))}
   end
 
   @impl true

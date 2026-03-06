@@ -51,9 +51,8 @@ defmodule SoundboardWeb.Router do
     live "/settings", SettingsLive
   end
 
-  # Public uploads route
   scope "/uploads" do
-    pipe_through :browser
+    pipe_through [:browser, :auth, :ensure_authenticated_user, :require_basic_auth]
 
     get "/*path", SoundboardWeb.UploadController, :show
   end

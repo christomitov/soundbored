@@ -41,8 +41,8 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
                 id="upload-form"
                 class="mt-4"
               >
-                <% upload_ready =
-                  upload_input_ready?(@source_type, @uploads.audio.entries, @url, @upload_error) %>
+                <% source_ready =
+                  source_input_ready?(@source_type, @uploads.audio.entries, @url, @upload_error) %>
                 <% local_upload_pending = local_upload_pending?(@source_type, @uploads.audio.entries) %>
                 <% url_upload_pending = url_upload_pending?(@source_type, @url) %>
                 
@@ -119,7 +119,7 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
                     placeholder="Sound name"
                     phx-change="validate_upload"
                     phx-debounce="400"
-                    disabled={!upload_ready}
+                    disabled={!source_ready}
                     class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm
                              focus:border-blue-500 focus:ring-blue-500 sm:text-sm
                              dark:bg-gray-700 dark:text-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -152,7 +152,7 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
                         value={@upload_tag_input}
                         placeholder="Type a tag and press Enter or Tab..."
                         input_id="upload-tag-input"
-                        disabled={!upload_ready}
+                        disabled={!source_ready}
                         phx-keyup="upload_tag_input"
                         phx-keydown="add_upload_tag"
                         phx-value-value={@upload_tag_input}
@@ -175,7 +175,7 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
                 </div>
 
                 <% preview_kind = if @source_type == "local", do: "local-upload", else: "url" %>
-                <% preview_disabled = not upload_ready %>
+                <% preview_disabled = not source_ready %>
                 <VolumeControl.volume_control
                   id="upload-volume-control"
                   value={@upload_volume}
@@ -200,7 +200,7 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
                           value="true"
                           checked={@is_join_sound}
                           phx-click="toggle_join_sound"
-                          disabled={!upload_ready}
+                          disabled={!source_ready}
                           class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-600 dark:border-gray-600 dark:focus:ring-offset-gray-800"
                         />
                       </div>
@@ -219,7 +219,7 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
                           value="true"
                           checked={@is_leave_sound}
                           phx-click="toggle_leave_sound"
-                          disabled={!upload_ready}
+                          disabled={!source_ready}
                           class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-600 dark:border-gray-600 dark:focus:ring-offset-gray-800"
                         />
                       </div>
@@ -236,7 +236,7 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
                   <button
                     type="submit"
                     phx-disable-with="Adding..."
-                    disabled={!upload_ready}
+                    disabled={!source_ready}
                     class="inline-flex w-full justify-center rounded-md bg-blue-600 px-3 py-2
                              text-sm font-semibold text-white shadow-sm hover:bg-blue-500
                              focus-visible:outline focus-visible:outline-2
@@ -255,13 +255,13 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
     """
   end
 
-  defp upload_input_ready?(_source_type, _entries, _url, upload_error)
+  defp source_input_ready?(_source_type, _entries, _url, upload_error)
        when is_binary(upload_error) and upload_error != "",
        do: false
 
-  defp upload_input_ready?("local", entries, _url, _upload_error), do: entries != []
-  defp upload_input_ready?("url", _entries, url, _upload_error), do: String.trim(url || "") != ""
-  defp upload_input_ready?(_, _entries, _url, _upload_error), do: false
+  defp source_input_ready?("local", entries, _url, _upload_error), do: entries != []
+  defp source_input_ready?("url", _entries, url, _upload_error), do: String.trim(url || "") != ""
+  defp source_input_ready?(_, _entries, _url, _upload_error), do: false
 
   defp local_upload_pending?(source_type, entries), do: source_type == "local" and entries == []
 

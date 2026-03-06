@@ -2,8 +2,7 @@ defmodule SoundboardWeb.UploadController do
   use SoundboardWeb, :controller
 
   def show(conn, %{"path" => path}) do
-    # Ensure the path is safe and within uploads directory
-    file_path = Path.join([Application.app_dir(:soundboard), "priv", "static", "uploads", path])
+    file_path = Soundboard.UploadsPath.joined_path(path)
 
     if File.exists?(file_path) do
       send_file(conn, 200, file_path)

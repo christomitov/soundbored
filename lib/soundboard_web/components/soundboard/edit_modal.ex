@@ -6,16 +6,16 @@ defmodule SoundboardWeb.Components.Soundboard.EditModal do
   alias Soundboard.Volume
   alias SoundboardWeb.Components.Soundboard.{TagComponents, VolumeControl}
 
+  attr :flash, :map, default: %{}
+  attr :edit_name_error, :string, default: nil
+  attr :current_user, :map, required: true
+  attr :current_sound, :map, required: true
+  attr :tag_input, :string, default: ""
+  attr :tag_suggestions, :list, default: []
+
   def edit_modal(assigns) do
     assigns = assign_new(assigns, :edit_name_error, fn -> nil end)
 
-    # Add a default empty list for tags if they're not loaded
-    assigns =
-      assign_new(assigns, :current_sound, fn ->
-        %{tags: [], is_join_sound: false, is_leave_sound: false}
-      end)
-
-    # Ensure tags is a list even if not loaded
     assigns =
       update(assigns, :current_sound, fn sound ->
         tags =

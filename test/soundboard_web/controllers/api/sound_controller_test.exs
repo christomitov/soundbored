@@ -360,7 +360,7 @@ defmodule SoundboardWeb.API.SoundControllerTest do
   end
 
   defp uploads_dir do
-    Application.get_env(:soundboard, :uploads_dir, "priv/static/uploads")
+    Soundboard.UploadsPath.dir()
   end
 
   defp temp_upload_path(filename) do

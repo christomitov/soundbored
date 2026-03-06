@@ -6,7 +6,6 @@ defmodule SoundboardWeb.SoundboardLive do
   import DeleteModal
   import UploadModal
   import SoundboardWeb.Components.Soundboard.TagComponents, only: [tag_filter_button: 1]
-  alias SoundboardWeb.Presence
   alias Soundboard.{Favorites, Repo, Sound, Volume}
   alias Soundboard.Sounds.{Management, Uploads}
   require Logger
@@ -17,25 +16,13 @@ defmodule SoundboardWeb.SoundboardLive do
 
   import FileFilter, only: [filter_files: 3]
 
-  @presence_topic "soundboard:presence"
   @pubsub_topic "soundboard"
 
   @impl true
   def mount(_params, session, socket) do
     socket =
       if connected?(socket) do
-        sounds =
-          Soundboard.Sound
-          |> Repo.all()
-          |> Repo.preload([
-            :tags,
-            :user,
-            user_sound_settings: [user: []]
-          ])
-
-        socket = assign(socket, :uploaded_files, sounds)
         Phoenix.PubSub.subscribe(Soundboard.PubSub, @pubsub_topic)
-        Phoenix.PubSub.subscribe(Soundboard.PubSub, "soundboard:presence")
         send(self(), :load_sound_files)
         socket
       else
@@ -74,7 +61,6 @@ defmodule SoundboardWeb.SoundboardLive do
     |> assign(:upload_tags, [])
     |> assign(:upload_tag_input, "")
     |> assign(:upload_tag_suggestions, [])
-    |> assign(:upload_ready, false)
     |> assign(:show_delete_confirm, false)
     |> assign(:selected_tags, [])
     |> assign(:is_join_sound, false)
@@ -131,18 +117,6 @@ defmodule SoundboardWeb.SoundboardLive do
   @impl true
   def handle_event("toggle_tag_list", _params, socket) do
     {:noreply, assign(socket, :show_all_tags, !socket.assigns.show_all_tags)}
-  end
-
-  @impl true
-  def handle_event("save", %{"name" => custom_name}, socket) do
-    case UploadHandler.handle_upload(
-           socket,
-           %{"name" => custom_name},
-           &Phoenix.LiveView.consume_uploaded_entries/3
-         ) do
-      {:ok, _} -> {:noreply, load_sound_files(socket)}
-      {:error, _, socket} -> {:noreply, socket}
-    end
   end
 
   @impl true
@@ -381,17 +355,6 @@ defmodule SoundboardWeb.SoundboardLive do
   end
 
   @impl true
-  def handle_event("close_edit_modal", _params, socket) do
-    {:noreply,
-     socket
-     |> assign(:show_modal, false)
-     |> assign(:current_sound, nil)
-     |> assign(:edit_name_error, nil)
-     |> assign(:tag_input, "")
-     |> assign(:tag_suggestions, [])}
-  end
-
-  @impl true
   def handle_event("close_modal_key", %{"key" => "Escape"}, socket) do
     if socket.assigns.show_modal || socket.assigns.show_upload_modal do
       handle_event("close_modal", %{}, socket)
@@ -446,8 +409,9 @@ defmodule SoundboardWeb.SoundboardLive do
   @impl true
   def handle_event("delete_sound", _params, socket) do
     sound = socket.assigns.current_sound
+    user_id = socket.assigns.current_user.id
 
-    case Management.delete_sound(sound) do
+    case Management.delete_sound(sound, user_id) do
       :ok ->
         {:noreply,
          socket
@@ -456,6 +420,12 @@ defmodule SoundboardWeb.SoundboardLive do
          |> assign(:current_sound, nil)
          |> load_sound_files()
          |> put_flash(:info, "Sound deleted successfully")}
+
+      {:error, :forbidden} ->
+        {:noreply,
+         socket
+         |> put_flash(:error, "You can only delete your own sounds")
+         |> assign(:show_delete_confirm, false)}
 
       {:error, _changeset} ->
         {:noreply,
@@ -556,16 +526,6 @@ defmodule SoundboardWeb.SoundboardLive do
      socket
      |> put_flash(:info, "#{username} played #{filename}")
      |> clear_flash_after_timeout()}
-  end
-
-  @impl true
-  def handle_info(%{event: "presence_diff", payload: _diff}, socket) do
-    presences = Presence.list(@presence_topic)
-
-    {:noreply,
-     socket
-     |> assign(:presences, presences)
-     |> assign(:presence_count, map_size(presences))}
   end
 
   @impl true

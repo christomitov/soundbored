@@ -23,7 +23,7 @@ defmodule Soundboard.Sounds.Uploads do
   import Ecto.Changeset
   import Ecto.Query
 
-  alias Soundboard.{Repo, Sound, Stats, Tag, UserSoundSetting, Volume}
+  alias Soundboard.{Repo, Sound, Stats, Tag, UploadsPath, UserSoundSetting, Volume}
 
   @allowed_extensions ~w(.mp3 .wav .ogg .m4a)
 
@@ -195,8 +195,8 @@ defmodule Soundboard.Sounds.Uploads do
   end
 
   defp copy_local_file(src_path, filename) do
-    uploads_dir = uploads_dir()
-    dest_path = Path.join(uploads_dir, filename)
+    uploads_dir = UploadsPath.dir()
+    dest_path = UploadsPath.file_path(filename)
 
     if filename_taken?(filename) or File.exists?(dest_path) do
       {:error, add_error(change(%Sound{}), :filename, "has already been taken")}
@@ -396,10 +396,6 @@ defmodule Soundboard.Sounds.Uploads do
 
   defp get_param(map, key, default \\ nil) do
     Map.get(map, key, Map.get(map, to_string(key), default))
-  end
-
-  defp uploads_dir do
-    Application.get_env(:soundboard, :uploads_dir, "priv/static/uploads")
   end
 
   defp blank?(value), do: value in [nil, ""]

@@ -150,6 +150,6 @@ defmodule Soundboard.Sounds.UploadsTest do
   end
 
   defp uploads_dir do
-    Application.get_env(:soundboard, :uploads_dir, "priv/static/uploads")
+    Soundboard.UploadsPath.dir()
   end
 end

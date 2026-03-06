@@ -3,7 +3,7 @@ defmodule Soundboard.Sounds.Management do
   Domain-level sound update/delete operations used by LiveViews.
   """
 
-  alias Soundboard.{Repo, Sound, Volume}
+  alias Soundboard.{Repo, Sound, UploadsPath, Volume}
   require Logger
 
   def update_sound(%Sound{} = sound, user_id, params) do
@@ -12,10 +12,9 @@ defmodule Soundboard.Sounds.Management do
         Repo.get!(Sound, sound.id)
         |> Repo.preload(:user_sound_settings)
 
-      uploads_dir = uploads_dir()
-      old_path = Path.join(uploads_dir, db_sound.filename)
+      old_path = UploadsPath.file_path(db_sound.filename)
       new_filename = params["filename"] <> Path.extname(db_sound.filename)
-      new_path = Path.join(uploads_dir, new_filename)
+      new_path = UploadsPath.file_path(new_filename)
 
       sound_params = %{
         filename: new_filename,
@@ -46,20 +45,25 @@ defmodule Soundboard.Sounds.Management do
     end)
   end
 
-  def delete_sound(%Sound{} = sound) do
-    case Repo.delete(sound) do
-      {:ok, _deleted_sound} ->
-        SoundboardWeb.AudioPlayer.invalidate_cache(sound.filename)
+  def delete_sound(%Sound{} = sound, user_id) do
+    db_sound = Repo.get!(Sound, sound.id)
 
-        if sound.source_type == "local" do
-          sound_path = Path.join(uploads_dir(), sound.filename)
-          _ = File.rm(sound_path)
-        end
+    if db_sound.user_id == user_id do
+      case Repo.delete(db_sound) do
+        {:ok, _deleted_sound} ->
+          SoundboardWeb.AudioPlayer.invalidate_cache(db_sound.filename)
 
-        :ok
+          if db_sound.source_type == "local" do
+            _ = File.rm(UploadsPath.file_path(db_sound.filename))
+          end
 
-      {:error, changeset} ->
-        {:error, changeset}
+          :ok
+
+        {:error, changeset} ->
+          {:error, changeset}
+      end
+    else
+      {:error, :forbidden}
     end
   end
 
@@ -88,10 +92,6 @@ defmodule Soundboard.Sounds.Management do
   end
 
   defp maybe_rename_local_file(_, _, _), do: :ok
-
-  defp uploads_dir do
-    Application.get_env(:soundboard, :uploads_dir, "priv/static/uploads")
-  end
 
   defp update_user_settings(sound, user_id, updated_sound, params) do
     user_setting =
