@@ -33,6 +33,14 @@ defmodule Soundboard.Favorites do
     end
   end
 
+  def error_message(%Ecto.Changeset{} = changeset) do
+    Enum.map_join(changeset.errors, ", ", fn
+      {:base, {msg, _}} -> msg
+      {:sound, {"does not exist", _}} -> "Sound does not exist"
+      {field, {msg, _}} -> "#{field} #{msg}"
+    end)
+  end
+
   defp add_favorite(user_id, sound_id) do
     case Repo.get(Sound, sound_id) do
       nil ->
@@ -44,7 +52,12 @@ defmodule Soundboard.Favorites do
         count = Repo.one(from f in Favorite, where: f.user_id == ^user_id, select: count())
 
         if count >= @max_favorites do
-          {:error, "You can only have #{@max_favorites} favorites"}
+          {:error,
+           Ecto.Changeset.add_error(
+             Ecto.Changeset.change(%Favorite{}),
+             :base,
+             "You can only have #{@max_favorites} favorites"
+           )}
         else
           %Favorite{}
           |> Favorite.changeset(%{user_id: user_id, sound_id: sound_id})

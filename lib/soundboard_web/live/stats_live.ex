@@ -387,8 +387,8 @@ defmodule SoundboardWeb.StatsLive do
          |> stream(:recent_plays, recent_plays, reset: true)
          |> put_flash(:info, "Favorites updated!")}
 
-      {:error, _changeset} ->
-        {:noreply, put_flash(socket, :error, "Could not update favorites")}
+      {:error, reason} ->
+        {:noreply, put_flash(socket, :error, Favorites.error_message(reason))}
     end
   end
 

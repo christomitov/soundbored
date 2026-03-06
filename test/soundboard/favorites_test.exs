@@ -52,8 +52,8 @@ defmodule Soundboard.FavoritesTest do
       # Try to add one more favorite - should fail
       last_sound = List.last(sounds)
 
-      assert {:error, "You can only have 16 favorites"} =
-               Favorites.toggle_favorite(user.id, last_sound.id)
+      assert {:error, changeset} = Favorites.toggle_favorite(user.id, last_sound.id)
+      assert "You can only have 16 favorites" in errors_on(changeset).base
     end
 
     test "toggle_favorite/2 rejects missing sounds", %{user: user} do
