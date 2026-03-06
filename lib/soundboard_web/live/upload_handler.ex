@@ -42,7 +42,7 @@ defmodule SoundboardWeb.Live.UploadHandler do
         handle_local_upload(socket, params, consume_uploaded_entries_fn)
 
       _ ->
-        {:error, "source_type must be either 'local' or 'url'", socket}
+        {:error, error_changeset(:source_type, "must be either 'local' or 'url'"), socket}
     end
   end
 
@@ -55,7 +55,7 @@ defmodule SoundboardWeb.Live.UploadHandler do
 
     case Uploads.create(params) do
       {:ok, sound} -> {:ok, sound}
-      {:error, reason} -> {:error, Uploads.error_message(reason), socket}
+      {:error, reason} -> {:error, reason, socket}
     end
   end
 
@@ -81,11 +81,13 @@ defmodule SoundboardWeb.Live.UploadHandler do
   defp handle_local_upload_result([{:ok, {:ok, sound}}], _socket), do: {:ok, sound}
 
   defp handle_local_upload_result([{:ok, {:error, reason}}], socket),
-    do: {:error, Uploads.error_message(reason), socket}
+    do: {:error, reason, socket}
 
-  defp handle_local_upload_result([], socket), do: {:error, "Please select a file", socket}
+  defp handle_local_upload_result([], socket),
+    do: {:error, error_changeset(:file, "Please select a file"), socket}
 
-  defp handle_local_upload_result(_results, socket), do: {:error, "Error saving file", socket}
+  defp handle_local_upload_result(_results, socket),
+    do: {:error, error_changeset(:file, "Error saving file"), socket}
 
   defp base_upload_params(socket, params) do
     Uploads.build_create_request(params, socket.assigns.current_user, %{
@@ -176,5 +178,9 @@ defmodule SoundboardWeb.Live.UploadHandler do
       {_, [entry | _]} -> Path.extname(entry.client_name)
       _ -> ""
     end
+  end
+
+  defp error_changeset(field, message) do
+    add_error(change(%Sound{}), field, message)
   end
 end

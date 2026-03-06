@@ -150,11 +150,12 @@ defmodule SoundboardWeb.Live.UploadHandlerTest do
         "name" => "error_sound"
       }
 
-      # Mock failing consume function
       consume_fn = fn _socket, :audio, _func -> {:error, "Error saving file"} end
 
-      assert {:error, message, _socket} = UploadHandler.handle_upload(socket, params, consume_fn)
-      assert message == "Error saving file"
+      assert {:error, changeset, _socket} =
+               UploadHandler.handle_upload(socket, params, consume_fn)
+
+      assert "Error saving file" in errors_on(changeset).file
     end
   end
 end

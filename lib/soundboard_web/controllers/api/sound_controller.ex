@@ -30,11 +30,6 @@ defmodule SoundboardWeb.API.SoundController do
         conn
         |> put_status(:unprocessable_entity)
         |> json(%{errors: changeset_errors(changeset)})
-
-      {:error, reason} when is_binary(reason) ->
-        conn
-        |> put_status(:unprocessable_entity)
-        |> json(%{error: reason})
     end
   end
 

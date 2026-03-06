@@ -186,8 +186,8 @@ defmodule SoundboardWeb.SoundboardLive do
          |> load_sound_files()
          |> put_flash(:info, "Sound added successfully")}
 
-      {:error, message, socket} ->
-        {:noreply, put_flash(socket, :error, message)}
+      {:error, reason, socket} ->
+        {:noreply, put_flash(socket, :error, Uploads.error_message(reason))}
     end
   end
 
