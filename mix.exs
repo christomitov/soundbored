@@ -99,7 +99,7 @@ defmodule Soundboard.MixProject do
       {:ueberauth_discord, "~> 0.6"},
       {:httpoison, "~> 2.2"},
       {:mock, "~> 0.3.9", only: :test},
-      {:dotenvy, "~> 1.0.0", only: :dev},
+      {:dotenvy, "~> 1.0.0", runtime: false},
       {:excoveralls, "~> 0.18.5", only: :test},
       {:credo, "~> 1.7.12", only: [:dev, :test], runtime: false},
       {:ex_doc, "~> 0.34", only: :dev, runtime: false}

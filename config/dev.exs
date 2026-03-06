@@ -103,20 +103,3 @@ config :phoenix_live_view,
 config :swoosh, :api_client, false
 
 config :soundboard, env: :dev
-
-host = System.get_env("PHX_HOST") || "localhost:4000"
-scheme = System.get_env("SCHEME") || "http"
-
-# Configure Discord OAuth
-config :ueberauth, Ueberauth.Strategy.Discord.OAuth,
-  client_id: System.get_env("DISCORD_CLIENT_ID"),
-  client_secret: System.get_env("DISCORD_CLIENT_SECRET"),
-  redirect_uri: "#{scheme}://#{host}/auth/discord/callback"
-
-# Store token for application use (bot will fetch it from here)
-config :soundboard,
-  discord_token: System.get_env("DISCORD_TOKEN")
-
-# Configure EDA in development
-config :eda,
-  token: System.get_env("DISCORD_TOKEN")
