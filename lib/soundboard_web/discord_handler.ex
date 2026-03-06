@@ -124,74 +124,72 @@ defmodule SoundboardWeb.DiscordHandler do
     end
   end
 
-  # Add helper function for leaving voice channel
   defp leave_voice_channel(guild_id) do
     if connected_to_discord?() do
       Logger.info("Bot leaving voice channel in guild #{guild_id}")
-      State.set_current_voice_channel(nil)
 
-      # Clear the AudioPlayer's voice channel
-      SoundboardWeb.AudioPlayer.set_voice_channel(nil, nil)
+      case run_voice_command("leave voice channel", fn -> Voice.leave_channel(guild_id) end) do
+        :ok ->
+          State.set_current_voice_channel(nil)
+          SoundboardWeb.AudioPlayer.set_voice_channel(nil, nil)
 
-      # Add rate limit protection
-      try do
-        Voice.leave_channel(guild_id)
-      rescue
-        e ->
-          error_msg = Exception.message(e)
+        {:error, error_msg} ->
           Logger.error("Error leaving voice channel: #{error_msg}")
-
-          # If rate limited, retry after delay
-          if is_binary(error_msg) and String.contains?(error_msg, "rate limit") do
-            Logger.warning(
-              "Rate limited while trying to leave voice channel, retrying in 5 seconds..."
-            )
-
-            Process.sleep(5000)
-            Voice.leave_channel(guild_id)
-          end
       end
-
-      # Update AudioPlayer - set to nil (not {nil, nil})
-      SoundboardWeb.AudioPlayer.set_voice_channel(nil, nil)
     else
       Logger.warning("Skipping leave_voice_channel - not connected to Discord")
     end
   end
 
-  # Add helper function for joining voice channel
   defp join_voice_channel(guild_id, channel_id) do
     if connected_to_discord?() do
       Logger.info("Bot joining voice channel #{channel_id} in guild #{guild_id}")
-      State.set_current_voice_channel({guild_id, channel_id})
 
-      # Set the AudioPlayer's voice channel so join sounds can play
-      SoundboardWeb.AudioPlayer.set_voice_channel(guild_id, channel_id)
+      case run_voice_command("join voice channel", fn ->
+             Voice.join_channel(guild_id, channel_id)
+           end) do
+        :ok ->
+          State.set_current_voice_channel({guild_id, channel_id})
+          SoundboardWeb.AudioPlayer.set_voice_channel(guild_id, channel_id)
 
-      # Add rate limit protection
-      try do
-        Voice.join_channel(guild_id, channel_id)
-      rescue
-        e ->
-          error_msg = Exception.message(e)
+        {:error, error_msg} ->
           Logger.error("Error joining voice channel: #{error_msg}")
-
-          # If rate limited, retry after delay
-          if is_binary(error_msg) and String.contains?(error_msg, "rate limit") do
-            Logger.warning(
-              "Rate limited while trying to join voice channel, retrying in 5 seconds..."
-            )
-
-            Process.sleep(5000)
-            Voice.join_channel(guild_id, channel_id)
-          end
       end
-
-      # Update AudioPlayer
-      SoundboardWeb.AudioPlayer.set_voice_channel(guild_id, channel_id)
     else
       Logger.warning("Skipping join_voice_channel - not connected to Discord")
     end
+  end
+
+  defp run_voice_command(action, command) do
+    case safely_run_voice_command(command) do
+      :ok ->
+        :ok
+
+      {:error, error_msg} ->
+        if rate_limited?(error_msg) do
+          Logger.warning("Rate limited while trying to #{action}, retrying in 5 seconds...")
+
+          Process.sleep(5000)
+          safely_run_voice_command(command)
+        else
+          {:error, error_msg}
+        end
+    end
+  end
+
+  defp safely_run_voice_command(command) do
+    try do
+      case command.() do
+        :ok -> :ok
+        other -> {:error, inspect(other)}
+      end
+    rescue
+      e -> {:error, Exception.message(e)}
+    end
+  end
+
+  defp rate_limited?(error_msg) do
+    is_binary(error_msg) and String.contains?(String.downcase(error_msg), "rate limit")
   end
 
   # Add this helper function to check Discord connection state

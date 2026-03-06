@@ -179,7 +179,10 @@ defmodule SoundboardWeb.DiscordHandlerTest do
                Agent.update(recorder, &(&1 ++ [{:play_sound, filename, played_by}]))
                :ok
              end,
-             set_voice_channel: fn _, _ -> :ok end
+             set_voice_channel: fn guild, channel ->
+               Agent.update(recorder, &(&1 ++ [{:set_voice_channel, guild, channel}]))
+               :ok
+             end
            ]}
         ]) do
           payload = %{
@@ -193,7 +196,68 @@ defmodule SoundboardWeb.DiscordHandlerTest do
 
           assert Agent.get(recorder, & &1) == [
                    {:play_sound, "leave.mp3", "System"},
-                   :leave_channel
+                   :leave_channel,
+                   {:set_voice_channel, nil, nil}
+                 ]
+        end
+      end)
+    end
+
+    test "voice commands update the audio player once after the Discord call succeeds" do
+      guild_id = "456"
+      channel_id = "123"
+      user_id = "777"
+
+      guild = %{
+        id: guild_id,
+        voice_states: [
+          %{user_id: user_id, channel_id: channel_id, guild_id: guild_id, session_id: "voice"}
+        ]
+      }
+
+      {:ok, recorder} = Agent.start_link(fn -> [] end)
+
+      capture_log(fn ->
+        with_mocks([
+          {Soundboard.Discord.GuildCache, [], [get!: fn ^guild_id -> guild end]},
+          {Soundboard.Discord.Self, [], [get: fn -> {:ok, %{id: "999"}} end]},
+          {Soundboard.Discord.Message, [], [create: fn _, _ -> :ok end]},
+          {Soundboard.Discord.Voice, [],
+           [
+             join_channel: fn ^guild_id, ^channel_id ->
+               Agent.update(recorder, &(&1 ++ [{:join_channel, guild_id, channel_id}]))
+               :ok
+             end,
+             leave_channel: fn ^guild_id ->
+               Agent.update(recorder, &(&1 ++ [{:leave_channel, guild_id}]))
+               :ok
+             end
+           ]},
+          {SoundboardWeb.AudioPlayer, [],
+           [
+             set_voice_channel: fn guild, channel ->
+               Agent.update(recorder, &(&1 ++ [{:set_voice_channel, guild, channel}]))
+               :ok
+             end
+           ]}
+        ]) do
+          DiscordHandler.handle_event({
+            :MESSAGE_CREATE,
+            %{content: "!join", guild_id: guild_id, channel_id: "text", author: %{id: user_id}},
+            nil
+          })
+
+          DiscordHandler.handle_event({
+            :MESSAGE_CREATE,
+            %{content: "!leave", guild_id: guild_id, channel_id: "text", author: %{id: user_id}},
+            nil
+          })
+
+          assert Agent.get(recorder, & &1) == [
+                   {:join_channel, guild_id, channel_id},
+                   {:set_voice_channel, guild_id, channel_id},
+                   {:leave_channel, guild_id},
+                   {:set_voice_channel, nil, nil}
                  ]
         end
       end)
