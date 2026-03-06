@@ -4,7 +4,7 @@
 
 ## Code Health Scorecard
 
-<img src="scorecard.png" width="100%">
+<img src="https://raw.githubusercontent.com/christomitov/soundbored/main/scorecard.png?v=20260306-2216" width="100%">
 
 Soundbored is an unlimited, no-cost, self-hosted soundboard for Discord. It allows you to play sounds in a voice channel.
 
