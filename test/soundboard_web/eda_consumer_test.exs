@@ -1,12 +1,12 @@
-defmodule SoundboardWeb.EDAConsumerTest do
+defmodule Soundboard.Discord.ConsumerTest do
   use ExUnit.Case, async: false
 
-  alias SoundboardWeb.{DiscordHandler, EDAConsumer}
+  alias Soundboard.Discord.{Consumer, Handler}
 
   setup do
     on_exit(fn ->
-      if Process.whereis(DiscordHandler) == self() do
-        Process.unregister(DiscordHandler)
+      if Process.whereis(Handler) == self() do
+        Process.unregister(Handler)
       end
     end)
 
@@ -14,16 +14,16 @@ defmodule SoundboardWeb.EDAConsumerTest do
   end
 
   test "dispatches events through the DiscordHandler GenServer boundary" do
-    Process.register(self(), DiscordHandler)
+    Process.register(self(), Handler)
 
-    assert :ok = EDAConsumer.handle_event({:READY, %{id: "1"}})
+    assert :ok = Consumer.handle_event({:READY, %{id: "1"}})
 
     assert_receive {:"$gen_cast", {:eda_event, {:READY, %{id: "1"}, nil}}}
   end
 
   test "returns error when the DiscordHandler is unavailable" do
-    refute Process.whereis(DiscordHandler)
+    refute Process.whereis(Handler)
 
-    assert :error = EDAConsumer.handle_event({:READY, %{id: "1"}})
+    assert :error = Consumer.handle_event({:READY, %{id: "1"}})
   end
 end

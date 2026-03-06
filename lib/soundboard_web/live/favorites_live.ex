@@ -29,7 +29,7 @@ defmodule SoundboardWeb.FavoritesLive do
         do: socket.assigns.current_user.username,
         else: "Anonymous"
 
-    SoundboardWeb.AudioPlayer.play_sound(filename, username)
+    Soundboard.AudioPlayer.play_sound(filename, username)
     {:noreply, socket}
   end
 

@@ -20,9 +20,9 @@ defmodule Soundboard.Application do
       SoundboardWeb.Presence,
       SoundboardWeb.Live.PresenceHandler,
       SoundboardWeb.Endpoint,
-      {SoundboardWeb.AudioPlayer, []},
+      {Soundboard.AudioPlayer, []},
       Soundboard.Repo,
-      SoundboardWeb.DiscordHandler.State
+      Soundboard.Discord.Handler.State
     ]
 
     # Add Discord bot only in non-test environments
@@ -30,7 +30,7 @@ defmodule Soundboard.Application do
       if Application.get_env(:soundboard, :env) != :test do
         # EDA gateway runs in its own OTP application.
         # We keep the handler GenServer for app-specific state/tasks.
-        base_children ++ [SoundboardWeb.DiscordHandler]
+        base_children ++ [Soundboard.Discord.Handler]
       else
         base_children
       end

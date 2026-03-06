@@ -1,4 +1,4 @@
-defmodule SoundboardWeb.DiscordHandlerTest do
+defmodule Soundboard.Discord.HandlerTest do
   @moduledoc """
   Tests the DiscordHandler module.
   """
@@ -8,8 +8,8 @@ defmodule SoundboardWeb.DiscordHandlerTest do
   import Mock
 
   alias Soundboard.{Accounts.User, Repo, Sound, UserSoundSetting}
+  alias Soundboard.Discord.Handler
   alias Soundboard.Discord.Voice
-  alias SoundboardWeb.DiscordHandler
 
   setup do
     :persistent_term.put(:soundboard_bot_ready, true)
@@ -52,7 +52,7 @@ defmodule SoundboardWeb.DiscordHandlerTest do
             session_id: "abc"
           }
 
-          DiscordHandler.handle_event({:VOICE_STATE_UPDATE, payload, nil})
+          Handler.handle_event({:VOICE_STATE_UPDATE, payload, nil})
 
           assert_called(Voice.join_channel("456", "123"))
         end
@@ -83,7 +83,7 @@ defmodule SoundboardWeb.DiscordHandlerTest do
             session_id: "abc"
           }
 
-          DiscordHandler.handle_event({:VOICE_STATE_UPDATE, payload, nil})
+          Handler.handle_event({:VOICE_STATE_UPDATE, payload, nil})
 
           assert Agent.get(recorder, & &1) == []
         end
@@ -118,7 +118,7 @@ defmodule SoundboardWeb.DiscordHandlerTest do
         with_mocks([
           {Soundboard.Discord.GuildCache, [], [all: fn -> [guild] end]},
           {Soundboard.Discord.Self, [], [get: fn -> {:ok, %{id: bot_id}} end]},
-          {SoundboardWeb.AudioPlayer, [],
+          {Soundboard.AudioPlayer, [],
            [
              play_sound: fn filename, played_by ->
                Agent.update(recorder, &(&1 ++ [{:play_sound, filename, played_by}]))
@@ -133,7 +133,7 @@ defmodule SoundboardWeb.DiscordHandlerTest do
             session_id: "abc"
           }
 
-          DiscordHandler.handle_event({:VOICE_STATE_UPDATE, payload, nil})
+          Handler.handle_event({:VOICE_STATE_UPDATE, payload, nil})
 
           assert Agent.get(recorder, & &1) == [{:play_sound, "join.mp3", "System"}]
         end
@@ -173,7 +173,7 @@ defmodule SoundboardWeb.DiscordHandlerTest do
                :ok
              end
            ]},
-          {SoundboardWeb.AudioPlayer, [],
+          {Soundboard.AudioPlayer, [],
            [
              play_sound: fn filename, played_by ->
                Agent.update(recorder, &(&1 ++ [{:play_sound, filename, played_by}]))
@@ -192,7 +192,7 @@ defmodule SoundboardWeb.DiscordHandlerTest do
             session_id: "gone"
           }
 
-          DiscordHandler.handle_event({:VOICE_STATE_UPDATE, payload, nil})
+          Handler.handle_event({:VOICE_STATE_UPDATE, payload, nil})
 
           assert Agent.get(recorder, & &1) == [
                    {:play_sound, "leave.mp3", "System"},
@@ -233,7 +233,7 @@ defmodule SoundboardWeb.DiscordHandlerTest do
                :ok
              end
            ]},
-          {SoundboardWeb.AudioPlayer, [],
+          {Soundboard.AudioPlayer, [],
            [
              set_voice_channel: fn guild, channel ->
                Agent.update(recorder, &(&1 ++ [{:set_voice_channel, guild, channel}]))
@@ -241,13 +241,13 @@ defmodule SoundboardWeb.DiscordHandlerTest do
              end
            ]}
         ]) do
-          DiscordHandler.handle_event({
+          Handler.handle_event({
             :MESSAGE_CREATE,
             %{content: "!join", guild_id: guild_id, channel_id: "text", author: %{id: user_id}},
             nil
           })
 
-          DiscordHandler.handle_event({
+          Handler.handle_event({
             :MESSAGE_CREATE,
             %{content: "!leave", guild_id: guild_id, channel_id: "text", author: %{id: user_id}},
             nil

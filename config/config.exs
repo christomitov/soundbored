@@ -16,7 +16,7 @@ import Config
 # Prefix commands like `!join` require :message_content intent.
 config :eda,
   intents: [:guilds, :guild_messages, :guild_voice_states, :message_content],
-  consumer: SoundboardWeb.EDAConsumer,
+  consumer: Soundboard.Discord.Consumer,
   gateway_encoding: :etf,
   dave: true
 

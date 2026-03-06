@@ -6,10 +6,9 @@ defmodule SoundboardWeb.SoundboardLive do
   import DeleteModal
   import UploadModal
   import SoundboardWeb.Components.Soundboard.TagComponents, only: [tag_filter_button: 1]
-  alias Soundboard.{Favorites, Sound, Volume}
-  alias Soundboard.Sounds.{Management, Uploads}
-  require Logger
-  alias SoundboardWeb.Live.{FileFilter, TagHandler, UploadHandler}
+  alias Soundboard.{Favorites, Sound}
+  alias SoundboardWeb.Live.{FileFilter, TagHandler}
+  alias SoundboardWeb.Live.SoundboardLive.{EditFlow, UploadFlow}
   import TagHandler, only: [all_tags: 1, tag_selected?: 2]
 
   import FileFilter, only: [filter_files: 3]
@@ -48,25 +47,10 @@ defmodule SoundboardWeb.SoundboardLive do
     |> assign(:loading_sounds, true)
     |> assign(:search_query, "")
     |> assign(:editing, nil)
-    |> assign(:show_modal, false)
-    |> assign(:current_sound, nil)
-    |> assign(:tag_input, "")
-    |> assign(:tag_suggestions, [])
-    |> assign(:show_upload_modal, false)
-    |> assign(:source_type, "local")
-    |> assign(:upload_name, "")
-    |> assign(:url, "")
-    |> assign(:upload_tags, [])
-    |> assign(:upload_tag_input, "")
-    |> assign(:upload_tag_suggestions, [])
-    |> assign(:show_delete_confirm, false)
     |> assign(:selected_tags, [])
-    |> assign(:is_join_sound, false)
-    |> assign(:is_leave_sound, false)
-    |> assign(:upload_error, nil)
-    |> assign(:upload_volume, 100)
     |> assign(:show_all_tags, false)
-    |> assign(:edit_name_error, nil)
+    |> UploadFlow.assign_defaults()
+    |> EditFlow.assign_defaults()
     |> allow_upload(:audio,
       accept: ~w(audio/mpeg audio/wav audio/ogg audio/x-m4a),
       max_entries: 1,
@@ -85,26 +69,12 @@ defmodule SoundboardWeb.SoundboardLive do
 
   @impl true
   def handle_event("change_source_type", %{"source_type" => source_type}, socket) do
-    {:noreply, assign(socket, :source_type, source_type)}
+    UploadFlow.change_source_type(socket, source_type)
   end
 
   @impl true
-  def handle_event("validate_sound", %{"_target" => ["filename"]} = params, socket) do
-    current_sound_id = params["sound_id"]
-    extension = current_sound_extension(current_sound_id)
-    filename = String.trim(params["filename"] || "") <> extension
-
-    if Sound.filename_taken_excluding?(filename, current_sound_id) do
-      {:noreply, assign(socket, :edit_name_error, "A sound with that name already exists")}
-    else
-      {:noreply, assign(socket, :edit_name_error, nil)}
-    end
-  end
-
-  # Catch-all for other validate_sound events
-  @impl true
-  def handle_event("validate_sound", _params, socket) do
-    {:noreply, socket}
+  def handle_event("validate_sound", params, socket) do
+    EditFlow.validate_sound(socket, params)
   end
 
   @impl true
@@ -120,7 +90,7 @@ defmodule SoundboardWeb.SoundboardLive do
         else: "Anonymous"
 
     if socket.assigns.current_user do
-      SoundboardWeb.AudioPlayer.play_sound(filename, username)
+      Soundboard.AudioPlayer.play_sound(filename, username)
     end
 
     {:noreply, socket}
@@ -150,201 +120,90 @@ defmodule SoundboardWeb.SoundboardLive do
 
   @impl true
   def handle_event("edit", %{"id" => id}, socket) do
-    sound = Soundboard.Sound.get_sound!(id)
-
-    {:noreply,
-     socket
-     |> assign(:current_sound, sound)
-     |> assign(:show_modal, true)
-     |> assign(:edit_name_error, nil)}
+    EditFlow.open_modal(socket, id)
   end
 
   @impl true
   def handle_event("save_upload", params, socket) do
-    params =
-      params
-      |> Map.merge(%{
-        "is_join_sound" => socket.assigns.is_join_sound,
-        "is_leave_sound" => socket.assigns.is_leave_sound,
-        "source_type" => socket.assigns.source_type,
-        "name" => params["name"],
-        "url" => params["url"]
-      })
-
-    case UploadHandler.handle_upload(socket, params, &Phoenix.LiveView.consume_uploaded_entries/3) do
-      {:ok, _sound} ->
-        {:noreply,
-         socket
-         |> close_upload_modal_state()
-         |> load_sound_files()
-         |> put_flash(:info, "Sound added successfully")}
-
-      {:error, reason, socket} ->
-        {:noreply, put_flash(socket, :error, Uploads.error_message(reason))}
-    end
+    UploadFlow.save(socket, params, &Phoenix.LiveView.consume_uploaded_entries/3)
   end
 
   @impl true
-  def handle_event("validate_upload", %{"_target" => [field]} = params, socket)
-      when field in ["name", "url", "source_type"] do
-    # For simple text/url/source_type changes, skip re-validating upload entries
-    handle_upload_validation(socket, params)
-  end
-
   def handle_event("validate_upload", params, socket) do
-    socket = validate_existing_entries(socket)
-    handle_upload_validation(socket, params)
+    UploadFlow.validate(socket, params)
   end
 
   @impl true
   def handle_event("show_upload_modal", _params, socket) do
-    {:noreply,
-     socket
-     |> reset_upload_form_state()
-     |> assign(:show_upload_modal, true)}
+    UploadFlow.show_modal(socket)
   end
 
   @impl true
   def handle_event("hide_upload_modal", _params, socket) do
-    {:noreply, close_upload_modal_state(socket)}
+    UploadFlow.hide_modal(socket)
   end
 
   @impl true
   def handle_event("add_upload_tag", %{"key" => key, "value" => value}, socket) do
-    if key == "Enter" && value != "" do
-      socket
-      |> TagHandler.add_tag(value, socket.assigns.upload_tags)
-      |> handle_tag_response(socket, :upload)
-    else
-      suggestions = TagHandler.search_tags(value)
-
-      {:noreply,
-       socket
-       |> assign(:upload_tag_input, value)
-       |> assign(:upload_tag_suggestions, suggestions)}
-    end
+    UploadFlow.add_tag(socket, key, value)
   end
 
   @impl true
   def handle_event("remove_upload_tag", %{"tag" => tag_name}, socket) do
-    upload_tags = Enum.reject(socket.assigns.upload_tags, &(&1.name == tag_name))
-    {:noreply, assign(socket, :upload_tags, upload_tags)}
+    UploadFlow.remove_tag(socket, tag_name)
   end
 
   @impl true
   def handle_event("select_upload_tag_suggestion", %{"tag" => tag_name}, socket) do
-    socket
-    |> TagHandler.add_tag(tag_name, socket.assigns.upload_tags)
-    |> handle_tag_response(socket, :upload)
+    UploadFlow.select_tag_suggestion(socket, tag_name)
   end
 
   @impl true
   def handle_event("upload_tag_input", %{"key" => _key, "value" => value}, socket) do
-    suggestions = TagHandler.search_tags(value)
-
-    {:noreply,
-     socket
-     |> assign(:upload_tag_input, value)
-     |> assign(:upload_tag_suggestions, suggestions)}
+    UploadFlow.update_tag_input(socket, value)
   end
 
   @impl true
   def handle_event("add_tag", %{"key" => key, "value" => value}, socket) do
-    if key == "Enter" && value != "" do
-      socket
-      |> TagHandler.add_tag(value, socket.assigns.current_sound.tags)
-      |> handle_tag_response(socket, :current)
-    else
-      suggestions = TagHandler.search_tags(value)
-
-      {:noreply,
-       socket
-       |> assign(:tag_input, value)
-       |> assign(:tag_suggestions, suggestions)}
-    end
+    EditFlow.add_tag(socket, key, value)
   end
 
   @impl true
   def handle_event("remove_tag", %{"tag" => tag_name}, socket) do
-    sound = socket.assigns.current_sound
-    tags = Enum.reject(sound.tags, &(&1.name == tag_name))
-
-    {:ok, updated_sound} = TagHandler.update_sound_tags(sound, tags)
-
-    {:noreply,
-     socket
-     |> assign(:current_sound, updated_sound)
-     |> load_sound_files()}
+    EditFlow.remove_tag(socket, tag_name)
   end
 
   @impl true
   def handle_event("select_tag_suggestion", %{"tag" => tag_name}, socket) do
-    socket
-    |> TagHandler.add_tag(tag_name, socket.assigns.current_sound.tags)
-    |> handle_tag_response(socket, :current)
+    EditFlow.select_tag_suggestion(socket, tag_name)
   end
 
   @impl true
   def handle_event("tag_input", %{"key" => _key, "value" => value}, socket) do
-    suggestions = TagHandler.search_tags(value)
-
-    {:noreply,
-     socket
-     |> assign(:tag_input, value)
-     |> assign(:tag_suggestions, suggestions)}
+    EditFlow.update_tag_input(socket, value)
   end
 
   @impl true
   def handle_event("select_tag", %{"tag" => tag_name}, socket) do
-    tag = Enum.find(TagHandler.search_tags(""), &(&1.name == tag_name))
-    sound = socket.assigns.current_sound
-
-    if tag do
-      case TagHandler.update_sound_tags(sound, [tag | sound.tags]) do
-        {:ok, updated_sound} ->
-          {:noreply,
-           socket
-           |> assign(:current_sound, updated_sound)
-           |> assign(:tag_input, "")
-           |> assign(:tag_suggestions, [])
-           |> load_sound_files()}
-
-        {:error, _} ->
-          {:noreply,
-           socket
-           |> put_flash(:error, "Failed to add tag")}
-      end
-    else
-      {:noreply,
-       socket
-       |> put_flash(:error, "Tag not found")}
-    end
+    EditFlow.select_tag(socket, tag_name)
   end
 
   @impl true
   def handle_event("save_sound", params, socket) do
-    handle_save_sound(
-      socket.assigns.current_sound,
-      socket.assigns.current_user.id,
-      params,
-      socket
-    )
+    EditFlow.save_sound(socket, params)
   end
 
   @impl true
   def handle_event("close_upload_modal", _params, socket) do
-    {:noreply, close_upload_modal_state(socket)}
+    UploadFlow.hide_modal(socket)
   end
 
   @impl true
   def handle_event("close_modal", _params, socket) do
     {:noreply,
      socket
-     |> close_upload_modal_state()
-     |> assign(:show_modal, false)
-     |> assign(:current_sound, nil)
-     |> assign(:edit_name_error, nil)
-     |> reset_tag_assigns(:current)}
+     |> UploadFlow.close_modal()
+     |> EditFlow.close_modal()}
   end
 
   @impl true
@@ -358,15 +217,7 @@ defmodule SoundboardWeb.SoundboardLive do
 
   @impl true
   def handle_event("select_upload_tag", %{"tag" => tag_name}, socket) do
-    tag = Enum.find(TagHandler.search_tags(""), &(&1.name == tag_name))
-
-    if tag do
-      socket
-      |> TagHandler.add_tag(tag_name, socket.assigns.upload_tags)
-      |> handle_tag_response(socket, :upload)
-    else
-      {:noreply, put_flash(socket, :error, "Tag not found")}
-    end
+    UploadFlow.select_tag(socket, tag_name)
   end
 
   @impl true
@@ -391,77 +242,37 @@ defmodule SoundboardWeb.SoundboardLive do
 
   @impl true
   def handle_event("show_delete_confirm", _params, socket) do
-    {:noreply, assign(socket, :show_delete_confirm, true)}
+    EditFlow.show_delete_confirm(socket)
   end
 
   @impl true
   def handle_event("hide_delete_confirm", _params, socket) do
-    {:noreply, assign(socket, :show_delete_confirm, false)}
+    EditFlow.hide_delete_confirm(socket)
   end
 
   @impl true
   def handle_event("delete_sound", _params, socket) do
-    sound = socket.assigns.current_sound
-    user_id = socket.assigns.current_user.id
-
-    case Management.delete_sound(sound, user_id) do
-      :ok ->
-        {:noreply,
-         socket
-         |> assign(:show_modal, false)
-         |> assign(:show_delete_confirm, false)
-         |> assign(:current_sound, nil)
-         |> load_sound_files()
-         |> put_flash(:info, "Sound deleted successfully")}
-
-      {:error, :forbidden} ->
-        {:noreply,
-         socket
-         |> put_flash(:error, "You can only delete your own sounds")
-         |> assign(:show_delete_confirm, false)}
-
-      {:error, _changeset} ->
-        {:noreply,
-         socket
-         |> put_flash(:error, "Failed to delete sound")
-         |> assign(:show_delete_confirm, false)}
-    end
+    EditFlow.delete_sound(socket)
   end
 
   @impl true
   def handle_event("toggle_join_sound", _params, socket) do
-    {:noreply, assign(socket, :is_join_sound, !socket.assigns.is_join_sound)}
+    UploadFlow.toggle_join_sound(socket)
   end
 
   @impl true
   def handle_event("toggle_leave_sound", _params, socket) do
-    {:noreply, assign(socket, :is_leave_sound, !socket.assigns.is_leave_sound)}
+    UploadFlow.toggle_leave_sound(socket)
   end
 
   @impl true
   def handle_event("update_volume", %{"volume" => volume, "target" => "edit"}, socket) do
-    case socket.assigns.current_sound do
-      nil ->
-        {:noreply, socket}
-
-      sound ->
-        default_percent = Volume.decimal_to_percent(sound.volume)
-
-        updated_sound =
-          Map.put(sound, :volume, Volume.percent_to_decimal(volume, default_percent))
-
-        {:noreply, assign(socket, :current_sound, updated_sound)}
-    end
+    EditFlow.update_volume(socket, volume)
   end
 
   @impl true
   def handle_event("update_volume", %{"volume" => volume, "target" => "upload"}, socket) do
-    {:noreply,
-     assign(
-       socket,
-       :upload_volume,
-       Volume.normalize_percent(volume, socket.assigns.upload_volume)
-     )}
+    UploadFlow.update_volume(socket, volume)
   end
 
   @impl true
@@ -488,7 +299,7 @@ defmodule SoundboardWeb.SoundboardLive do
 
         # Broadcast to Discord if connected
         if connected?(socket) do
-          SoundboardWeb.AudioPlayer.play_sound(sound.filename, username)
+          Soundboard.AudioPlayer.play_sound(sound.filename, username)
         end
 
         {:noreply, socket}
@@ -502,7 +313,7 @@ defmodule SoundboardWeb.SoundboardLive do
 
     # Stop Discord bot sounds if user is logged in
     if socket.assigns.current_user do
-      SoundboardWeb.AudioPlayer.stop_sound()
+      Soundboard.AudioPlayer.stop_sound()
     end
 
     {:noreply, socket}
@@ -544,21 +355,6 @@ defmodule SoundboardWeb.SoundboardLive do
     {:noreply, load_sound_files(socket)}
   end
 
-  defp handle_save_sound(sound, user_id, params, socket) do
-    case Management.update_sound(sound, user_id, params) do
-      {:ok, _updated_sound} -> handle_successful_update(socket)
-      {:error, error} -> handle_update_error(socket, error)
-    end
-  end
-
-  defp error_message(changeset) do
-    Enum.map_join(changeset.errors, ", ", fn {field, {msg, _opts}} ->
-      "#{field} #{msg}"
-    end)
-  end
-
-  defp current_sound_extension(sound_id), do: Sound.filename_extension(sound_id)
-
   defp assign_favorites(socket, nil), do: assign(socket, :favorites, [])
 
   defp assign_favorites(socket, user) do
@@ -579,135 +375,6 @@ defmodule SoundboardWeb.SoundboardLive do
 
   defp get_random_sound(sounds) do
     Enum.random(sounds)
-  end
-
-  defp broadcast_update do
-    Phoenix.PubSub.broadcast(Soundboard.PubSub, "soundboard", {:files_updated})
-  end
-
-  defp handle_successful_update(socket) do
-    broadcast_update()
-
-    {:noreply,
-     socket
-     |> put_flash(:info, "Sound updated successfully")
-     |> assign(:show_modal, false)
-     |> assign(:current_sound, nil)
-     |> assign(:edit_name_error, nil)
-     |> load_sound_files()}
-  end
-
-  defp handle_update_error(socket, error) do
-    error_message =
-      case error do
-        %Ecto.Changeset{} = changeset -> error_message(changeset)
-        _ -> "Failed to update sound"
-      end
-
-    {:noreply,
-     socket
-     |> put_flash(:error, "Error updating sound: #{error_message}")}
-  end
-
-  defp validate_existing_entries(socket) do
-    if socket.assigns.uploads.audio.entries == [] do
-      socket
-    else
-      validate_audio_entries(socket)
-    end
-  end
-
-  defp handle_upload_validation(socket, params) do
-    params = normalize_upload_params(socket, params)
-
-    case UploadHandler.validate_upload(socket, params) do
-      {:ok, _socket} ->
-        {:noreply, assign_upload_params(socket, params, nil)}
-
-      {:error, changeset} ->
-        {:noreply, assign_upload_params(socket, params, Uploads.error_message(changeset))}
-    end
-  end
-
-  defp normalize_upload_params(socket, params) do
-    params
-    |> Map.put_new("source_type", socket.assigns.source_type)
-    |> Map.put_new("name", socket.assigns.upload_name)
-    |> Map.put_new("url", socket.assigns.url)
-  end
-
-  defp assign_upload_params(socket, params, error) do
-    socket
-    |> assign(:upload_error, error)
-    |> assign(:upload_name, params["name"] || socket.assigns.upload_name)
-    |> assign(:url, params["url"] || socket.assigns.url)
-    |> assign(:source_type, params["source_type"] || socket.assigns.source_type)
-  end
-
-  defp handle_tag_response({:ok, updated_socket}, _socket, context) do
-    {:noreply, reset_tag_assigns(updated_socket, context)}
-  end
-
-  defp handle_tag_response({:error, message}, socket, context) do
-    {:noreply,
-     socket
-     |> reset_tag_assigns(context)
-     |> put_flash(:error, message)}
-  end
-
-  defp reset_tag_assigns(socket, :upload) do
-    socket
-    |> assign(:upload_tag_input, "")
-    |> assign(:upload_tag_suggestions, [])
-  end
-
-  defp reset_tag_assigns(socket, :current) do
-    socket
-    |> assign(:tag_input, "")
-    |> assign(:tag_suggestions, [])
-  end
-
-  defp reset_upload_form_state(socket) do
-    socket
-    |> assign(:source_type, "local")
-    |> assign(:upload_tags, [])
-    |> assign(:upload_name, "")
-    |> assign(:url, "")
-    |> assign(:upload_tag_input, "")
-    |> assign(:upload_tag_suggestions, [])
-    |> assign(:is_join_sound, false)
-    |> assign(:is_leave_sound, false)
-    |> assign(:upload_error, nil)
-    |> assign(:upload_volume, 100)
-  end
-
-  defp close_upload_modal_state(socket) do
-    socket
-    |> reset_upload_form_state()
-    |> assign(:show_upload_modal, false)
-  end
-
-  defp validate_audio(entry, _socket) do
-    case entry.client_type do
-      type when type in ~w(audio/mpeg audio/wav audio/ogg audio/x-m4a) ->
-        {:ok, entry}
-
-      _ ->
-        {:error, "Invalid file type"}
-    end
-  end
-
-  defp validate_audio_entries(socket) do
-    case socket.assigns.uploads.audio.entries do
-      [entry | _] ->
-        case validate_audio(entry, socket) do
-          {:ok, _} -> socket
-          {:error, error} -> put_flash(socket, :error, error)
-        end
-
-      _ ->
-        socket
-    end
   end
 
   defp handle_progress(:audio, _entry, socket) do

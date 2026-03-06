@@ -61,7 +61,7 @@ defmodule SoundboardWeb.SoundboardLiveTest do
     test "can play sound", %{conn: conn, sound: sound} do
       {:ok, view, _html} = live(conn, "/")
 
-      with_mock SoundboardWeb.AudioPlayer, play_sound: fn _, _ -> :ok end do
+      with_mock Soundboard.AudioPlayer, play_sound: fn _, _ -> :ok end do
         rendered =
           view
           |> element("[phx-click='play'][phx-value-name='#{sound.filename}']")
@@ -86,12 +86,12 @@ defmodule SoundboardWeb.SoundboardLiveTest do
       |> element("form")
       |> render_change(%{"query" => "filtered"})
 
-      with_mock SoundboardWeb.AudioPlayer, play_sound: fn _, _ -> :ok end do
+      with_mock Soundboard.AudioPlayer, play_sound: fn _, _ -> :ok end do
         view
         |> element("[phx-click='play_random']")
         |> render_click()
 
-        assert_called(SoundboardWeb.AudioPlayer.play_sound("filtered.mp3", :_))
+        assert_called(Soundboard.AudioPlayer.play_sound("filtered.mp3", :_))
       end
     end
 
@@ -116,12 +116,12 @@ defmodule SoundboardWeb.SoundboardLiveTest do
       |> element("div.hidden.sm\\:flex button[phx-value-tag='funny']")
       |> render_click()
 
-      with_mock SoundboardWeb.AudioPlayer, play_sound: fn _, _ -> :ok end do
+      with_mock Soundboard.AudioPlayer, play_sound: fn _, _ -> :ok end do
         view
         |> element("[phx-click='play_random']")
         |> render_click()
 
-        assert_called(SoundboardWeb.AudioPlayer.play_sound("funny.mp3", :_))
+        assert_called(Soundboard.AudioPlayer.play_sound("funny.mp3", :_))
       end
     end
 
@@ -178,8 +178,8 @@ defmodule SoundboardWeb.SoundboardLiveTest do
       end
 
       # Seed playback cache with stale metadata to ensure it is cleared on update
-      SoundboardWeb.AudioPlayer.invalidate_cache(sound.filename)
-      SoundboardWeb.AudioPlayer.invalidate_cache("updated.mp3")
+      Soundboard.AudioPlayer.invalidate_cache(sound.filename)
+      Soundboard.AudioPlayer.invalidate_cache("updated.mp3")
 
       :ets.insert(
         :sound_meta_cache,
@@ -318,7 +318,7 @@ defmodule SoundboardWeb.SoundboardLiveTest do
       |> render_click()
 
       # Seed cache entry to confirm deletion clears it
-      SoundboardWeb.AudioPlayer.invalidate_cache(sound.filename)
+      Soundboard.AudioPlayer.invalidate_cache(sound.filename)
 
       :ets.insert(
         :sound_meta_cache,

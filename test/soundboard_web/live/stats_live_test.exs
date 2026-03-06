@@ -106,7 +106,7 @@ defmodule SoundboardWeb.StatsLiveTest do
   test "handles play_sound event", %{conn: conn, user: user, sound: sound} do
     {:ok, view, _html} = live_as_user(conn, user)
 
-    with_mock SoundboardWeb.AudioPlayer, play_sound: fn _, _ -> :ok end do
+    with_mock Soundboard.AudioPlayer, play_sound: fn _, _ -> :ok end do
       html = render_click(view, "play_sound", %{"sound" => sound.filename})
       assert html =~ SoundHelpers.display_name(sound.filename)
     end

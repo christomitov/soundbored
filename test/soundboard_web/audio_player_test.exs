@@ -1,10 +1,10 @@
-defmodule SoundboardWeb.AudioPlayerTest do
+defmodule Soundboard.AudioPlayerTest do
   use ExUnit.Case, async: false
 
   import Mock
 
-  alias SoundboardWeb.AudioPlayer
-  alias SoundboardWeb.AudioPlayer.State
+  alias Soundboard.AudioPlayer
+  alias Soundboard.AudioPlayer.State
 
   setup do
     original_state = :sys.get_state(AudioPlayer)

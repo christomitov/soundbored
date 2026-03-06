@@ -40,14 +40,14 @@ defmodule SoundboardWeb.APIAuthDBTokenTest do
 
   test "POST /api/sounds/:id/play authorized via DB token", %{conn: conn, sound: sound} do
     # Mock the audio player so we don't actually attempt voice playback
-    with_mock SoundboardWeb.AudioPlayer, play_sound: fn _, _ -> :ok end do
+    with_mock Soundboard.AudioPlayer, play_sound: fn _, _ -> :ok end do
       conn = post(conn, ~p"/api/sounds/#{sound.id}/play")
       assert %{"status" => "success"} = json_response(conn, 200)
     end
   end
 
   test "POST /api/sounds/stop authorized via DB token", %{conn: conn} do
-    with_mock SoundboardWeb.AudioPlayer, stop_sound: fn -> :ok end do
+    with_mock Soundboard.AudioPlayer, stop_sound: fn -> :ok end do
       conn = post(conn, ~p"/api/sounds/stop")
       assert %{"status" => "success"} = json_response(conn, 200)
     end

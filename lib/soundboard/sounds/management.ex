@@ -4,6 +4,7 @@ defmodule Soundboard.Sounds.Management do
   """
 
   alias Soundboard.{Repo, Sound, UploadsPath, Volume}
+  alias Soundboard.Sounds.Cache
   require Logger
 
   def update_sound(%Sound{} = sound, user_id, params) do
@@ -30,8 +31,8 @@ defmodule Soundboard.Sounds.Management do
         case Sound.changeset(db_sound, sound_params) |> Repo.update() do
           {:ok, updated_sound} ->
             updated_sound = update_user_settings(db_sound, user_id, updated_sound, params)
-            SoundboardWeb.AudioPlayer.invalidate_cache(db_sound.filename)
-            SoundboardWeb.AudioPlayer.invalidate_cache(updated_sound.filename)
+            Cache.invalidate(db_sound.filename)
+            Cache.invalidate(updated_sound.filename)
             updated_sound
 
           {:error, changeset} ->
@@ -48,24 +49,23 @@ defmodule Soundboard.Sounds.Management do
   def delete_sound(%Sound{} = sound, user_id) do
     db_sound = Repo.get!(Sound, sound.id)
 
-    if db_sound.user_id == user_id do
-      case Repo.delete(db_sound) do
-        {:ok, _deleted_sound} ->
-          SoundboardWeb.AudioPlayer.invalidate_cache(db_sound.filename)
-
-          if db_sound.source_type == "local" do
-            _ = File.rm(UploadsPath.file_path(db_sound.filename))
-          end
-
-          :ok
-
-        {:error, changeset} ->
-          {:error, changeset}
-      end
+    with true <- db_sound.user_id == user_id,
+         {:ok, _deleted_sound} <- Repo.delete(db_sound) do
+      Cache.invalidate(db_sound.filename)
+      maybe_remove_local_file(db_sound)
+      :ok
     else
-      {:error, :forbidden}
+      false -> {:error, :forbidden}
+      {:error, changeset} -> {:error, changeset}
     end
   end
+
+  defp maybe_remove_local_file(%{source_type: "local", filename: filename}) do
+    _ = File.rm(UploadsPath.file_path(filename))
+    :ok
+  end
+
+  defp maybe_remove_local_file(_), do: :ok
 
   defp maybe_rename_local_file(%{source_type: "local"} = sound, old_path, new_path) do
     cond do

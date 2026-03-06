@@ -47,7 +47,7 @@ defmodule SoundboardWeb.API.SoundController do
             _ -> get_req_header(conn, "x-username") |> List.first() || "API User"
           end
 
-        SoundboardWeb.AudioPlayer.play_sound(sound.filename, username)
+        Soundboard.AudioPlayer.play_sound(sound.filename, username)
 
         json(conn, %{
           status: "success",
@@ -58,7 +58,7 @@ defmodule SoundboardWeb.API.SoundController do
   end
 
   def stop(conn, _params) do
-    SoundboardWeb.AudioPlayer.stop_sound()
+    Soundboard.AudioPlayer.stop_sound()
 
     json(conn, %{
       status: "success",

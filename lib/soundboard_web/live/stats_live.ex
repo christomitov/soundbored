@@ -449,7 +449,7 @@ defmodule SoundboardWeb.StatsLive do
         {:noreply, put_flash(socket, :error, "You must be logged in to play sounds")}
 
       user ->
-        SoundboardWeb.AudioPlayer.play_sound(sound_name, user.username)
+        Soundboard.AudioPlayer.play_sound(sound_name, user.username)
         {:noreply, socket}
     end
   end
