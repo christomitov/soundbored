@@ -1,6 +1,5 @@
 defmodule SoundboardWeb.Router do
   use SoundboardWeb, :router
-  require Logger
 
   pipeline :browser do
     plug :accepts, ["html"]
@@ -64,11 +63,12 @@ defmodule SoundboardWeb.Router do
     get "/*path", SoundboardWeb.UploadController, :show
   end
 
-  # Debug route
-  scope "/debug", SoundboardWeb do
-    pipe_through [:browser]
+  if Mix.env() == :test do
+    scope "/debug", SoundboardWeb do
+      pipe_through [:browser]
 
-    get "/session", AuthController, :debug_session
+      get "/session", AuthController, :debug_session
+    end
   end
 
   # Add this new scope for API routes before your other scopes
@@ -100,15 +100,9 @@ defmodule SoundboardWeb.Router do
   end
 
   def ensure_authenticated_user(conn, _opts) do
-    Logger.debug("Checking authentication. Current user: #{inspect(conn.assigns[:current_user])}")
-    Logger.debug("Session: #{inspect(get_session(conn))}")
-
     if conn.assigns[:current_user] do
-      Logger.debug("User authenticated")
       conn
     else
-      Logger.debug("User not authenticated, redirecting to Discord")
-
       conn
       |> put_session(:return_to, conn.request_path)
       |> redirect(to: "/auth/discord")

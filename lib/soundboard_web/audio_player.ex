@@ -305,7 +305,19 @@ defmodule SoundboardWeb.AudioPlayer do
        when not is_nil(guild_id) and not is_nil(channel_id) do
     joined? = Voice.channel_id(guild_id) == to_string(channel_id)
     ready? = safe_voice_ready(guild_id)
-    playing? = safe_voice_playing(guild_id)
+
+    playing? =
+      case safe_voice_playing(guild_id) do
+        {:ok, value} ->
+          value
+
+        :error ->
+          Logger.warning(
+            "Voice playback status unavailable for guild #{guild_id}; continuing maintenance"
+          )
+
+          false
+      end
 
     cond do
       playing? ->
@@ -780,9 +792,9 @@ defmodule SoundboardWeb.AudioPlayer do
   end
 
   defp safe_voice_playing(guild_id) do
-    Voice.playing?(guild_id)
+    {:ok, Voice.playing?(guild_id)}
   rescue
-    _ -> :unknown
+    _ -> :error
   end
 
   # Removed unused wait_for_audio_to_finish/2 to keep compile clean and hot path lean

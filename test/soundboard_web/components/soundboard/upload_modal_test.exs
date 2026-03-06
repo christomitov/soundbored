@@ -28,6 +28,22 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModalTest do
     refute html =~ "Enter a URL first to name it."
   end
 
+  test "disables submit when upload validation error is present" do
+    html =
+      render_component(
+        &UploadModal.upload_modal/1,
+        upload_assigns(%{
+          source_type: "url",
+          url: "https://example.com/clip.mp3",
+          upload_name: "clip",
+          upload_error: "URL is invalid"
+        })
+      )
+
+    assert html =~ "disabled"
+    assert html =~ "URL is invalid"
+  end
+
   defp upload_assigns(overrides \\ %{}) do
     base = %{
       source_type: "url",

@@ -41,7 +41,8 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
                 id="upload-form"
                 class="mt-4"
               >
-                <% upload_ready = upload_input_ready?(@source_type, @uploads.audio.entries, @url) %>
+                <% upload_ready =
+                  upload_input_ready?(@source_type, @uploads.audio.entries, @url, @upload_error) %>
                 <% local_upload_pending = local_upload_pending?(@source_type, @uploads.audio.entries) %>
                 <% url_upload_pending = url_upload_pending?(@source_type, @url) %>
                 
@@ -254,9 +255,13 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
     """
   end
 
-  defp upload_input_ready?("local", entries, _url), do: entries != []
-  defp upload_input_ready?("url", _entries, url), do: String.trim(url || "") != ""
-  defp upload_input_ready?(_, _entries, _url), do: false
+  defp upload_input_ready?(_source_type, _entries, _url, upload_error)
+       when is_binary(upload_error) and upload_error != "",
+       do: false
+
+  defp upload_input_ready?("local", entries, _url, _upload_error), do: entries != []
+  defp upload_input_ready?("url", _entries, url, _upload_error), do: String.trim(url || "") != ""
+  defp upload_input_ready?(_, _entries, _url, _upload_error), do: false
 
   defp local_upload_pending?(source_type, entries), do: source_type == "local" and entries == []
 

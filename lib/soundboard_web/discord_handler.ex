@@ -198,15 +198,15 @@ defmodule SoundboardWeb.DiscordHandler do
   # Simplified check_users_in_voice function - safe against cache races
   defp check_users_in_voice(guild_id, channel_id) do
     cond do
-      not valid_discord_id?(guild_id) -> warn_and_default(guild_id, channel_id)
-      is_nil(channel_id) -> warn_and_default(guild_id, channel_id)
+      not valid_discord_id?(guild_id) -> unavailable_voice_state(guild_id, channel_id)
+      is_nil(channel_id) -> unavailable_voice_state(guild_id, channel_id)
       true -> count_users_in_channel(guild_id, channel_id)
     end
   end
 
-  defp warn_and_default(guild_id, channel_id) do
+  defp unavailable_voice_state(guild_id, channel_id) do
     log_voice_cache_warning(guild_id, channel_id)
-    1
+    :error
   end
 
   defp count_users_in_channel(guild_id, channel_id) do
@@ -220,10 +220,10 @@ defmodule SoundboardWeb.DiscordHandler do
           |> Enum.count(fn vs -> vs.channel_id == channel_id && vs.user_id != bot_id end)
 
         log_voice_state_snapshot(channel_id, users_in_channel, bot_id, voice_states)
-        users_in_channel
+        {:ok, users_in_channel}
 
       _ ->
-        warn_and_default(guild_id, channel_id)
+        unavailable_voice_state(guild_id, channel_id)
     end
   end
 
@@ -407,13 +407,7 @@ defmodule SoundboardWeb.DiscordHandler do
   def handle_info({:recheck_alone, guild_id, channel_id}, state) do
     case get_current_voice_channel() do
       {gid, cid} when gid == guild_id and cid == channel_id ->
-        users = check_users_in_voice(guild_id, channel_id)
-        Logger.info("Recheck alone: channel #{channel_id} now has #{users} non-bot users")
-
-        if users == 0 do
-          Logger.info("Recheck confirms bot is alone; leaving channel #{channel_id}")
-          leave_voice_channel(guild_id)
-        end
+        handle_recheck_alone(guild_id, channel_id)
 
       _ ->
         Logger.debug("Recheck skipped; voice target changed")
@@ -431,6 +425,24 @@ defmodule SoundboardWeb.DiscordHandler do
       _ -> nil
     end
   end
+
+  defp handle_recheck_alone(guild_id, channel_id) do
+    case check_users_in_voice(guild_id, channel_id) do
+      {:ok, users} ->
+        Logger.info("Recheck alone: channel #{channel_id} now has #{users} non-bot users")
+        maybe_leave_if_bot_alone(guild_id, channel_id, users)
+
+      :error ->
+        Logger.warning("Recheck skipped because voice state was unavailable")
+    end
+  end
+
+  defp maybe_leave_if_bot_alone(guild_id, channel_id, 0) do
+    Logger.info("Recheck confirms bot is alone; leaving channel #{channel_id}")
+    leave_voice_channel(guild_id)
+  end
+
+  defp maybe_leave_if_bot_alone(_guild_id, _channel_id, _users), do: :ok
 
   defp find_bot_voice_channel(bot_id) do
     case get_cached_guilds() do
@@ -555,16 +567,20 @@ defmodule SoundboardWeb.DiscordHandler do
 
   defp check_and_maybe_leave(guild_id, channel_id) do
     if valid_discord_id?(guild_id) and not is_nil(channel_id) do
-      users = check_users_in_voice(guild_id, channel_id)
+      case check_users_in_voice(guild_id, channel_id) do
+        {:ok, 0} ->
+          Logger.info("No non-bot users remaining in channel, leaving now")
+          leave_voice_channel(guild_id)
 
-      if users == 0 do
-        Logger.info("No non-bot users remaining in channel, leaving now")
-        leave_voice_channel(guild_id)
-      else
-        # GuildCache may lag briefly after a VOICE_STATE_UPDATE; recheck shortly
-        Logger.info("Non-bot users detected (#{users}); scheduling recheck in 1.5s")
-        Process.send_after(self(), {:recheck_alone, guild_id, channel_id}, 1_500)
-        :noop
+        {:ok, users} ->
+          # GuildCache may lag briefly after a VOICE_STATE_UPDATE; recheck shortly
+          Logger.info("Non-bot users detected (#{users}); scheduling recheck in 1.5s")
+          Process.send_after(self(), {:recheck_alone, guild_id, channel_id}, 1_500)
+          :noop
+
+        :error ->
+          Logger.warning("Skipping leave check because voice state was unavailable")
+          :noop
       end
     else
       Logger.debug(
@@ -609,31 +625,25 @@ defmodule SoundboardWeb.DiscordHandler do
   end
 
   defp handle_bot_not_in_voice(payload) do
-    users_in_channel = check_users_in_voice(payload.guild_id, payload.channel_id)
-    Logger.info("Found #{users_in_channel} users in channel #{payload.channel_id}")
+    case check_users_in_voice(payload.guild_id, payload.channel_id) do
+      {:ok, users_in_channel} ->
+        Logger.info("Found #{users_in_channel} users in channel #{payload.channel_id}")
+        maybe_join_channel_for_payload(payload, users_in_channel)
 
-    if users_in_channel > 0 do
-      # Check if bot is actually already in this channel (Voice.ready? check)
-      if Voice.ready?(payload.guild_id) do
-        Logger.debug("Bot already connected to voice in guild #{payload.guild_id}, skipping join")
-      else
-        Logger.info("Joining channel #{payload.channel_id} with #{users_in_channel} users")
-        join_voice_channel(payload.guild_id, payload.channel_id)
-      end
+      :error ->
+        Logger.warning("Skipping auto-join because voice state was unavailable")
     end
   end
 
   defp handle_bot_in_different_channel(guild_id, current_channel_id) do
     if valid_discord_id?(guild_id) and not is_nil(current_channel_id) do
-      users = check_users_in_voice(guild_id, current_channel_id)
-      Logger.info("Current channel #{current_channel_id} has #{users} users")
+      case check_users_in_voice(guild_id, current_channel_id) do
+        {:ok, users} ->
+          Logger.info("Current channel #{current_channel_id} has #{users} users")
+          handle_current_channel_users(guild_id, current_channel_id, users)
 
-      if users == 0 do
-        Logger.info("Bot is alone in channel #{current_channel_id}, leaving")
-        leave_voice_channel(guild_id)
-      else
-        # Recheck shortly to avoid cache staleness keeping the bot around
-        Process.send_after(self(), {:recheck_alone, guild_id, current_channel_id}, 1_500)
+        :error ->
+          Logger.warning("Skipping channel switch handling because voice state was unavailable")
       end
     else
       Logger.debug(
@@ -642,6 +652,27 @@ defmodule SoundboardWeb.DiscordHandler do
 
       :noop
     end
+  end
+
+  defp maybe_join_channel_for_payload(_payload, users_in_channel) when users_in_channel <= 0,
+    do: :noop
+
+  defp maybe_join_channel_for_payload(payload, users_in_channel) do
+    if Voice.ready?(payload.guild_id) do
+      Logger.debug("Bot already connected to voice in guild #{payload.guild_id}, skipping join")
+    else
+      Logger.info("Joining channel #{payload.channel_id} with #{users_in_channel} users")
+      join_voice_channel(payload.guild_id, payload.channel_id)
+    end
+  end
+
+  defp handle_current_channel_users(guild_id, current_channel_id, 0) do
+    Logger.info("Bot is alone in channel #{current_channel_id}, leaving")
+    leave_voice_channel(guild_id)
+  end
+
+  defp handle_current_channel_users(guild_id, current_channel_id, _users) do
+    Process.send_after(self(), {:recheck_alone, guild_id, current_channel_id}, 1_500)
   end
 
   defp handle_join_sound(user_id, previous_state, new_channel_id) do

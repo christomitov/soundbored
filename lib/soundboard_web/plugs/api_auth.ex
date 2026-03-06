@@ -19,10 +19,9 @@ defmodule SoundboardWeb.Plugs.APIAuth do
   end
 
   defp authenticate_with_token(conn, token) do
-    # First honor legacy env token for tests/backward compatibility
-    if token == System.get_env("API_TOKEN") do
-      Logger.warning("API using legacy env token. Migrate to user tokens.")
-      conn
+    if legacy_token?(token) do
+      Logger.warning("Rejecting deprecated legacy API_TOKEN auth. Use a user API token.")
+      unauthorized(conn, "Legacy API_TOKEN is no longer accepted. Use a user API token.")
     else
       case verify_db_token(token) do
         {:ok, user, api_token} ->
@@ -36,11 +35,18 @@ defmodule SoundboardWeb.Plugs.APIAuth do
     end
   end
 
-  defp unauthorized(conn) do
+  defp unauthorized(conn, message \\ "Invalid API token") do
     conn
     |> put_status(:unauthorized)
-    |> Phoenix.Controller.json(%{error: "Invalid API token"})
+    |> Phoenix.Controller.json(%{error: message})
     |> halt()
+  end
+
+  defp legacy_token?(token) do
+    case System.get_env("API_TOKEN") do
+      legacy when is_binary(legacy) and legacy != "" -> token == legacy
+      _ -> false
+    end
   end
 
   defp verify_db_token(token), do: ApiTokens.verify_token(token)

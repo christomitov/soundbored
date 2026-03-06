@@ -42,7 +42,7 @@ defmodule SoundboardWeb.DiscordHandlerTest do
              join_channel: fn _, _ -> :ok end,
              ready?: fn _ -> false end
            ]},
-          {Soundboard.Discord.GuildCache, [], [get!: fn _guild_id -> mock_guild end]},
+          {Soundboard.Discord.GuildCache, [], [get: fn _guild_id -> {:ok, mock_guild} end]},
           {Soundboard.Discord.Self, [], [get: fn -> {:ok, %{id: "999"}} end]}
         ]) do
           payload = %{
@@ -55,6 +55,37 @@ defmodule SoundboardWeb.DiscordHandlerTest do
           DiscordHandler.handle_event({:VOICE_STATE_UPDATE, payload, nil})
 
           assert_called(Voice.join_channel("456", "123"))
+        end
+      end)
+    end
+
+    test "does not auto-join when guild cache is unavailable" do
+      {:ok, recorder} = Agent.start_link(fn -> [] end)
+
+      capture_log(fn ->
+        with_mocks([
+          {Soundboard.Discord.Voice, [],
+           [
+             join_channel: fn guild_id, channel_id ->
+               Agent.update(recorder, &(&1 ++ [{guild_id, channel_id}]))
+               :ok
+             end,
+             ready?: fn _ -> false end
+           ]},
+          {Soundboard.Discord.GuildCache, [],
+           [all: fn -> [] end, get: fn _guild_id -> :error end]},
+          {Soundboard.Discord.Self, [], [get: fn -> {:ok, %{id: "999"}} end]}
+        ]) do
+          payload = %{
+            channel_id: "123",
+            guild_id: "456",
+            user_id: "789",
+            session_id: "abc"
+          }
+
+          DiscordHandler.handle_event({:VOICE_STATE_UPDATE, payload, nil})
+
+          assert Agent.get(recorder, & &1) == []
         end
       end)
     end

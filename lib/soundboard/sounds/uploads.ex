@@ -217,9 +217,8 @@ defmodule Soundboard.Sounds.Uploads do
     Repo.transaction(fn ->
       with {:ok, tags} <- resolve_tags(params.tags),
            {:ok, sound} <- insert_sound(params, source, tags),
-           {:ok, _setting} <- upsert_user_setting(sound, params),
+           {:ok, _setting} <- insert_user_setting(sound, params),
            sound <- Repo.preload(sound, [:tags, :user, :user_sound_settings]) do
-        broadcast_updates()
         sound
       else
         {:error, reason} -> Repo.rollback(reason)
@@ -227,6 +226,7 @@ defmodule Soundboard.Sounds.Uploads do
     end)
     |> case do
       {:ok, sound} ->
+        broadcast_updates()
         {:ok, sound}
 
       {:error, reason} ->
@@ -250,7 +250,7 @@ defmodule Soundboard.Sounds.Uploads do
     |> Repo.insert()
   end
 
-  defp upsert_user_setting(sound, params) do
+  defp insert_user_setting(sound, params) do
     attrs = %{
       user_id: params.user.id,
       sound_id: sound.id,

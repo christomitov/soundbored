@@ -128,17 +128,17 @@ defmodule SoundboardWeb.AuthControllerTest do
       refute get_session(conn, :user_id)
     end
 
-    test "debug_session/2 returns session info", %{conn: conn} do
+    test "debug_session/2 returns limited session info", %{conn: conn} do
       user = insert_user()
 
       conn =
         conn
+        |> put_session(:session_id, 123)
         |> put_session(:user_id, user.id)
         |> get(~p"/debug/session")
 
       assert json = json_response(conn, 200)
-      assert json["session"]["user_id"] == user.id
-      assert is_map(json["cookies"])
+      assert json == %{"session" => %{"session_id" => 123, "user_id" => user.id}}
     end
   end
 

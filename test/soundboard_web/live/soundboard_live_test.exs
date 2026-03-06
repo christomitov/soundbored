@@ -208,6 +208,45 @@ defmodule SoundboardWeb.SoundboardLiveTest do
       assert :ets.lookup(:sound_meta_cache, "updated.mp3") == []
     end
 
+    test "edit validation preserves the current sound extension when checking duplicates", %{
+      conn: conn,
+      user: user
+    } do
+      {:ok, current_sound} =
+        %Sound{}
+        |> Sound.changeset(%{
+          filename: "current.wav",
+          source_type: "local",
+          user_id: user.id
+        })
+        |> Repo.insert()
+
+      {:ok, _existing_sound} =
+        %Sound{}
+        |> Sound.changeset(%{
+          filename: "taken.wav",
+          source_type: "local",
+          user_id: user.id
+        })
+        |> Repo.insert()
+
+      {:ok, view, _html} = live(conn, "/")
+
+      view
+      |> element("[phx-click='edit'][phx-value-id='#{current_sound.id}']")
+      |> render_click()
+
+      view
+      |> element("#edit-form")
+      |> render_change(%{
+        "_target" => ["filename"],
+        "sound_id" => current_sound.id,
+        "filename" => "taken"
+      })
+
+      assert render(view) =~ "A sound with that name already exists"
+    end
+
     test "slider volume change persists on save", %{conn: conn, sound: sound} do
       {:ok, view, _html} = live(conn, "/")
 

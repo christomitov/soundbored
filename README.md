@@ -24,7 +24,6 @@ Install the cross-platform CLI with `npm i -g soundbored` for quick automation. 
    # DISCORD_TOKEN=...
    # DISCORD_CLIENT_ID=...
    # DISCORD_CLIENT_SECRET=...
-   # API_TOKEN=choose_a_secret
    # PHX_HOST=localhost
    # SCHEME=http
    ```
@@ -68,12 +67,11 @@ All available keys live in `.env.example`. Configure the ones that match your se
 | `DISCORD_TOKEN` | ✔ | Bot token used to play audio in voice channels. |
 | `EDA_DAVE` | optional | Override for Discord E2EE voice negotiation in EDA. Default is enabled; set `false` only for troubleshooting. |
 | `DISCORD_CLIENT_ID` / `DISCORD_CLIENT_SECRET` | ✔ | OAuth credentials for Discord login. |
-| `API_TOKEN` | ✔ | Shared bearer token for the REST API. |
+| `BASIC_AUTH_USERNAME` / `BASIC_AUTH_PASSWORD` | optional | Protect the UI with HTTP basic auth. |
 | `SECRET_KEY_BASE` | ✔ | Signing/encryption secret; generate via `mix phx.gen.secret` or `openssl rand -base64 48`. Takes precedence over `SECRET_KEY_BASE_FILE`.|
 | `SECRET_KEY_BASE_FILE` | optional | Path to file containing signing/encryption secret (e.g. for docker secrets). Preferred for security. |
 | `PHX_HOST` | ✔ | Hostname the app advertises (`localhost` for local runs). |
 | `SCHEME` | ✔ | `http` locally, `https` in production. |
-| `BASIC_AUTH_USERNAME` / `BASIC_AUTH_PASSWORD` | optional | Protect the UI with HTTP basic auth. |
 | `AUTO_JOIN` | optional | Set to `true` to let the bot auto-join voice channels. |
 
 ## Deployment
@@ -95,16 +93,16 @@ The bot is also able to auto-join and auto-leave voice channels. This is control
 
 ## API
 
-The API is used to trigger sounds from other applications. It is protected by the API_TOKEN in the .env file. The API has the following endpoints:
+The API is used to trigger sounds from other applications. Create a personal API token in **Settings** after signing in, then use it as a bearer token. The API has the following endpoints:
 
 ```
 # Get list of sounds to find the ID
 curl https://soundboardurl.com/api/sounds \
-  -H "Authorization: Bearer API_TOKEN"
+  -H "Authorization: Bearer <USER_API_TOKEN>"
 
 # Play a sound by ID
 curl -X POST https://soundboardurl.com/api/sounds/123/play \
-  -H "Authorization: Bearer API_TOKEN"
+  -H "Authorization: Bearer <USER_API_TOKEN>"
 ```
 
 

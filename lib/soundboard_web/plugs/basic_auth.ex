@@ -12,11 +12,9 @@ defmodule SoundboardWeb.Plugs.BasicAuth do
     password = credential("BASIC_AUTH_PASSWORD")
 
     if is_nil(username) or is_nil(password) do
-      # Skip basic auth if credentials are blank or missing
-      Logger.info("Basic auth credentials not configured - skipping authentication")
+      Logger.warning("Basic auth credentials not configured - skipping authentication")
       conn
     else
-      Logger.info("Basic auth enabled with configured credentials")
       authenticate(conn, username, password)
     end
   end
@@ -36,24 +34,26 @@ defmodule SoundboardWeb.Plugs.BasicAuth do
   end
 
   defp authenticate(conn, username, password) do
-    Logger.debug("""
-    Basic Auth Debug:
-    Username set: #{username}
-    Auth header: #{inspect(get_req_header(conn, "authorization"))}
-    """)
-
     with ["Basic " <> auth] <- get_req_header(conn, "authorization"),
          {:ok, decoded} <- Base.decode64(auth),
-         [^username, ^password] <- String.split(decoded, ":") do
+         {provided_username, provided_password} <- split_credentials(decoded),
+         true <- provided_username == username and provided_password == password do
       conn
     else
       _ -> unauthorized(conn)
     end
   end
 
+  defp split_credentials(decoded) do
+    case String.split(decoded, ":", parts: 2) do
+      [username, password] -> {username, password}
+      _ -> :error
+    end
+  end
+
   defp unauthorized(conn) do
     conn
-    |> put_resp_header("www-authenticate", ~s(Basic realm="Soundbored"))
+    |> put_resp_header("www-authenticate", ~s(Basic realm="Soundboard"))
     |> put_resp_content_type("text/plain")
     |> send_resp(401, "Unauthorized")
     |> halt()

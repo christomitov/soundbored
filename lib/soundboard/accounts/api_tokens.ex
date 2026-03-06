@@ -46,7 +46,7 @@ defmodule Soundboard.Accounts.ApiTokens do
 
       token ->
         token = Repo.preload(token, :user)
-        # update last_used_at asynchronously
+        # Persist last_used_at before returning the verified token
         _ = update_last_used_at(token)
         {:ok, token.user, token}
     end
@@ -91,8 +91,8 @@ defmodule Soundboard.Accounts.ApiTokens do
 
   defp normalize_id(id) when is_binary(id) do
     case Integer.parse(id) do
-      {int, _} -> int
-      :error -> -1
+      {int, ""} -> int
+      _ -> -1
     end
   end
 end

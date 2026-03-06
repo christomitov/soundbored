@@ -75,4 +75,13 @@ defmodule Soundboard.Accounts.ApiTokensTest do
     # Passing invalid string normalizes to -1 and should still be not_found
     assert {:error, :not_found} == ApiTokens.revoke_token(user, "not_an_int")
   end
+
+  test "revoke_token rejects partially parsed string ids", %{user: user} do
+    {:ok, _raw, token} = ApiTokens.generate_token(user, %{label: "strict-id"})
+
+    assert {:error, :not_found} == ApiTokens.revoke_token(user, "#{token.id}garbage")
+
+    assert [listed] = ApiTokens.list_tokens(user)
+    assert listed.id == token.id
+  end
 end

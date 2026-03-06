@@ -246,7 +246,7 @@ defmodule SoundboardWeb.API.SoundControllerTest do
       assert json_response(conn, 401)
     end
 
-    test "returns forbidden for legacy env token without user context" do
+    test "rejects deprecated legacy env token" do
       System.put_env("API_TOKEN", "legacy-token")
       on_exit(fn -> System.delete_env("API_TOKEN") end)
 
@@ -259,7 +259,8 @@ defmodule SoundboardWeb.API.SoundControllerTest do
           "url" => "https://example.com/test.mp3"
         })
 
-      assert %{"error" => "Uploads require a user API token"} = json_response(conn, 403)
+      assert %{"error" => "Legacy API_TOKEN is no longer accepted. Use a user API token."} =
+               json_response(conn, 401)
     end
   end
 

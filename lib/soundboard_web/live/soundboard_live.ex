@@ -107,9 +107,9 @@ defmodule SoundboardWeb.SoundboardLive do
   def handle_event("validate_sound", %{"_target" => ["filename"]} = params, socket) do
     Logger.info("Validating sound edit with params: #{inspect(params)}")
 
-    # Check if filename already exists for another sound
-    filename = (params["filename"] || "") <> ".mp3"
     current_sound_id = params["sound_id"]
+    extension = current_sound_extension(current_sound_id)
+    filename = String.trim(params["filename"] || "") <> extension
 
     existing_sound =
       Sound
@@ -119,7 +119,7 @@ defmodule SoundboardWeb.SoundboardLive do
     if existing_sound do
       {:noreply, put_flash(socket, :error, "A sound with that name already exists")}
     else
-      {:noreply, socket}
+      {:noreply, clear_flash(socket, :error)}
     end
   end
 
@@ -605,6 +605,13 @@ defmodule SoundboardWeb.SoundboardLive do
     Enum.map_join(changeset.errors, ", ", fn {field, {msg, _opts}} ->
       "#{field} #{msg}"
     end)
+  end
+
+  defp current_sound_extension(sound_id) do
+    case Repo.get(Sound, sound_id) do
+      %Sound{filename: filename} -> Path.extname(filename)
+      _ -> ".mp3"
+    end
   end
 
   defp assign_favorites(socket, nil), do: assign(socket, :favorites, [])
