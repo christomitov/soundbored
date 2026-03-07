@@ -204,7 +204,10 @@ defmodule SoundboardWeb.SoundboardLive do
 
   @impl true
   def handle_event("close_modal_key", %{"key" => "Escape"}, socket) do
-    if socket.assigns.show_modal || socket.assigns.show_upload_modal do
+    edit_open = socket.assigns[:edit_state] && socket.assigns.edit_state.show_modal
+    upload_open = socket.assigns[:upload_state] && socket.assigns.upload_state.show_upload_modal
+
+    if edit_open || upload_open do
       handle_event("close_modal", %{}, socket)
     else
       {:noreply, socket}
