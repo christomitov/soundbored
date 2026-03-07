@@ -1,4 +1,4 @@
-defmodule SoundboardWeb.Live.PresenceHandler do
+defmodule SoundboardWeb.PresenceHandler do
   @moduledoc """
   Handles presence tracking for the Soundboard app.
   """

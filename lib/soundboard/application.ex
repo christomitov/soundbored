@@ -4,49 +4,35 @@ defmodule Soundboard.Application do
   @moduledoc false
 
   use Application
-  alias EDA.Voice.Dave.Native
+  alias Soundboard.Discord.RuntimeCapability
   require Logger
 
   @impl true
   def start(_type, _args) do
     Logger.info("Starting Soundboard Application")
 
-    ensure_dave_runtime!()
-
-    # Base children that always start
-    base_children = [
+    children = [
       SoundboardWeb.Telemetry,
       {Phoenix.PubSub, name: Soundboard.PubSub},
       SoundboardWeb.Presence,
-      SoundboardWeb.Live.PresenceHandler,
+      SoundboardWeb.PresenceHandler,
       SoundboardWeb.Endpoint,
       {Soundboard.AudioPlayer, []},
       Soundboard.Repo,
       Soundboard.Discord.Handler.State
+      | discord_children()
     ]
-
-    # Add Discord bot only in non-test environments
-    children =
-      if Application.get_env(:soundboard, :env) != :test do
-        # EDA gateway runs in its own OTP application.
-        # We keep the handler GenServer for app-specific state/tasks.
-        base_children ++ [Soundboard.Discord.Handler]
-      else
-        base_children
-      end
 
     opts = [strategy: :one_for_one, name: Soundboard.Supervisor]
     Supervisor.start_link(children, opts)
   end
 
-  defp ensure_dave_runtime! do
-    if Application.get_env(:soundboard, :env) != :test and Application.get_env(:eda, :dave, false) and
-         not Native.available?() do
-      raise """
-      EDA DAVE is enabled, but the native library is unavailable.
-      Build and package the native artifact as part of your release pipeline,
-      or disable DAVE with EDA_DAVE=false.
-      """
+  defp discord_children do
+    if RuntimeCapability.discord_handler_enabled?() do
+      [Soundboard.Discord.Handler]
+    else
+      RuntimeCapability.log_degraded_mode()
+      []
     end
   end
 

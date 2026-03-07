@@ -207,7 +207,9 @@ defmodule SoundboardWeb.SoundboardLiveTest do
       assert :ets.lookup(:sound_meta_cache, "updated.mp3") == []
     end
 
-    test "non-uploaders can edit but cannot delete another user's sound", %{conn: conn} do
+    test "shared sounds can be edited by any signed-in user but only deleted by the uploader", %{
+      conn: conn
+    } do
       {:ok, other_user} =
         %User{}
         |> User.changeset(%{
@@ -236,6 +238,8 @@ defmodule SoundboardWeb.SoundboardLiveTest do
         |> render_click()
 
       assert rendered =~ "Edit Sound"
+      assert rendered =~ "Shared sound details can be edited by any signed-in user"
+      assert rendered =~ "Only the original uploader can delete this sound"
       refute rendered =~ "Delete Sound"
     end
 

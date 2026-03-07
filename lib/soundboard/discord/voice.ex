@@ -44,8 +44,10 @@ defmodule Soundboard.Discord.Voice do
   # Compatibility shape for existing RTP probe code.
   def get_voice(guild_id) do
     case EDAVoice.get_voice_state(to_id(guild_id)) do
-      {:ok, %{sequence: seq} = state} -> %{rtp_sequence: seq, state: state}
-      _ -> nil
+      {:ok, %{sequence: seq} = state} -> {:ok, %{rtp_sequence: seq, state: state}}
+      {:ok, state} -> {:ok, %{state: state}}
+      {:error, reason} -> {:error, reason}
+      other -> {:error, {:unexpected_voice_state, other}}
     end
   end
 

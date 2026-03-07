@@ -50,9 +50,11 @@ defmodule Soundboard.AudioPlayer do
   end
 
   def current_voice_channel do
-    GenServer.call(__MODULE__, :get_voice_channel)
+    {:ok, GenServer.call(__MODULE__, :get_voice_channel)}
   rescue
-    _ -> nil
+    error -> {:error, {:voice_channel_unavailable, Exception.message(error)}}
+  catch
+    :exit, reason -> {:error, {:voice_channel_unavailable, reason}}
   end
 
   @doc """
@@ -233,7 +235,7 @@ defmodule Soundboard.AudioPlayer do
         Voice.stop(guild_id)
         {:noreply, state |> clear_current_playback() |> maybe_start_pending()}
 
-      Voice.playing?(guild_id) ->
+      match?({:ok, true}, safe_voice_playing(guild_id)) ->
         Logger.debug(
           "Interrupt watchdog: audio still playing in guild #{guild_id}, retrying stop"
         )
@@ -273,7 +275,7 @@ defmodule Soundboard.AudioPlayer do
     Logger.debug("Interrupting current playback in guild #{guild_id} for latest request")
     Voice.stop(guild_id)
 
-    if Voice.playing?(guild_id) do
+    if match?({:ok, true}, safe_voice_playing(guild_id)) do
       state
       |> Map.put(:interrupting, true)
       |> schedule_interrupt_watchdog(guild_id, 1)
@@ -290,45 +292,9 @@ defmodule Soundboard.AudioPlayer do
 
   defp maintain_voice_connection(%{voice_channel: {guild_id, channel_id}} = state)
        when not is_nil(guild_id) and not is_nil(channel_id) do
-    joined? = Voice.channel_id(guild_id) == to_string(channel_id)
-    ready? = safe_voice_ready(guild_id)
-
-    playing? =
-      case safe_voice_playing(guild_id) do
-        {:ok, value} ->
-          value
-
-        :error ->
-          Logger.warning(
-            "Voice playback status unavailable for guild #{guild_id}; continuing maintenance"
-          )
-
-          false
-      end
-
-    cond do
-      playing? ->
-        Logger.debug("Skipping voice maintenance while audio is playing in guild #{guild_id}")
-        state
-
-      joined? and ready? ->
-        Logger.debug("Voice connection healthy for guild #{guild_id}")
-        state
-
-      joined? ->
-        Logger.warning(
-          "Voice session unready for guild #{guild_id} in channel #{channel_id}, attempting refresh"
-        )
-
-        attempt_voice_join(state, guild_id, channel_id, "refresh")
-
-      true ->
-        Logger.warning(
-          "Voice channel mismatch for guild #{guild_id}, attempting to rejoin #{channel_id}"
-        )
-
-        attempt_voice_join(state, guild_id, channel_id, "rejoin")
-    end
+    guild_id
+    |> voice_maintenance_status(channel_id)
+    |> perform_voice_maintenance(state)
   end
 
   defp maintain_voice_connection(state) do
@@ -336,13 +302,76 @@ defmodule Soundboard.AudioPlayer do
     state
   end
 
-  defp attempt_voice_join(state, guild_id, channel_id, action) do
-    Voice.join_channel(guild_id, channel_id)
+  defp voice_maintenance_status(guild_id, channel_id) do
+    %{
+      guild_id: guild_id,
+      channel_id: channel_id,
+      joined?: Voice.channel_id(guild_id) == to_string(channel_id),
+      ready?: voice_ready_for_maintenance(guild_id),
+      playing?: voice_playing_for_maintenance(guild_id)
+    }
+  end
+
+  defp voice_ready_for_maintenance(guild_id) do
+    case safe_voice_ready(guild_id) do
+      {:ok, value} ->
+        value
+
+      {:error, reason} ->
+        Logger.warning("Voice readiness unavailable for guild #{guild_id}: #{inspect(reason)}")
+        false
+    end
+  end
+
+  defp voice_playing_for_maintenance(guild_id) do
+    case safe_voice_playing(guild_id) do
+      {:ok, value} ->
+        value
+
+      {:error, reason} ->
+        Logger.warning(
+          "Voice playback status unavailable for guild #{guild_id}: #{inspect(reason)}; continuing maintenance"
+        )
+
+        false
+    end
+  end
+
+  defp perform_voice_maintenance(%{playing?: true, guild_id: guild_id}, state) do
+    Logger.debug("Skipping voice maintenance while audio is playing in guild #{guild_id}")
     state
-  rescue
-    error ->
-      Logger.error("Failed to #{action} voice channel: #{inspect(error)}")
-      %{state | voice_channel: nil}
+  end
+
+  defp perform_voice_maintenance(%{joined?: true, ready?: true, guild_id: guild_id}, state) do
+    Logger.debug("Voice connection healthy for guild #{guild_id}")
+    state
+  end
+
+  defp perform_voice_maintenance(%{joined?: true} = status, state) do
+    Logger.warning(
+      "Voice session unready for guild #{status.guild_id} in channel #{status.channel_id}, attempting refresh"
+    )
+
+    attempt_voice_join(state, status.guild_id, status.channel_id, "refresh")
+  end
+
+  defp perform_voice_maintenance(status, state) do
+    Logger.warning(
+      "Voice channel mismatch for guild #{status.guild_id}, attempting to rejoin #{status.channel_id}"
+    )
+
+    attempt_voice_join(state, status.guild_id, status.channel_id, "rejoin")
+  end
+
+  defp attempt_voice_join(state, guild_id, channel_id, action) do
+    case safe_join_voice_channel(guild_id, channel_id) do
+      :ok ->
+        state
+
+      {:error, reason} ->
+        Logger.error("Failed to #{action} voice channel: #{inspect(reason)}")
+        %{state | voice_channel: nil}
+    end
   end
 
   defp handle_playback_finished(state, guild_id) do
@@ -428,15 +457,22 @@ defmodule Soundboard.AudioPlayer do
   defp cancel_playback_task(_), do: :ok
 
   defp safe_voice_ready(guild_id) do
-    Voice.ready?(guild_id)
+    {:ok, Voice.ready?(guild_id)}
   rescue
-    _ -> false
+    error -> {:error, {:voice_not_ready, Exception.message(error)}}
   end
 
   defp safe_voice_playing(guild_id) do
     {:ok, Voice.playing?(guild_id)}
   rescue
-    _ -> :error
+    error -> {:error, {:voice_playing_unavailable, Exception.message(error)}}
+  end
+
+  defp safe_join_voice_channel(guild_id, channel_id) do
+    Voice.join_channel(guild_id, channel_id)
+    :ok
+  rescue
+    error -> {:error, {:voice_join_failed, Exception.message(error)}}
   end
 
   defp schedule_voice_check do

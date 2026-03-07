@@ -84,14 +84,7 @@ defmodule SoundboardWeb.SoundboardLive do
 
   @impl true
   def handle_event("play", %{"name" => filename}, socket) do
-    username =
-      if socket.assigns.current_user,
-        do: socket.assigns.current_user.username,
-        else: "Anonymous"
-
-    if socket.assigns.current_user do
-      Soundboard.AudioPlayer.play_sound(filename, username)
-    end
+    Soundboard.AudioPlayer.play_sound(filename, current_username(socket))
 
     {:noreply, socket}
   end
@@ -292,14 +285,9 @@ defmodule SoundboardWeb.SoundboardLive do
         {:noreply, socket}
 
       sound ->
-        username =
-          if socket.assigns.current_user,
-            do: socket.assigns.current_user.username,
-            else: "Anonymous"
-
         # Broadcast to Discord if connected
         if connected?(socket) do
-          Soundboard.AudioPlayer.play_sound(sound.filename, username)
+          Soundboard.AudioPlayer.play_sound(sound.filename, current_username(socket))
         end
 
         {:noreply, socket}
@@ -376,6 +364,8 @@ defmodule SoundboardWeb.SoundboardLive do
   defp get_random_sound(sounds) do
     Enum.random(sounds)
   end
+
+  defp current_username(socket), do: socket.assigns.current_user.username
 
   defp handle_progress(:audio, _entry, socket) do
     {:noreply, socket}

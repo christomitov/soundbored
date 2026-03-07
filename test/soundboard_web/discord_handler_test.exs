@@ -43,7 +43,7 @@ defmodule Soundboard.Discord.HandlerTest do
              ready?: fn _ -> false end
            ]},
           {Soundboard.Discord.GuildCache, [], [get: fn _guild_id -> {:ok, mock_guild} end]},
-          {Soundboard.Discord.Self, [], [get: fn -> {:ok, %{id: "999"}} end]}
+          {Soundboard.Discord.BotIdentity, [], [fetch: fn -> {:ok, %{id: "999"}} end]}
         ]) do
           payload = %{
             channel_id: "123",
@@ -74,7 +74,7 @@ defmodule Soundboard.Discord.HandlerTest do
            ]},
           {Soundboard.Discord.GuildCache, [],
            [all: fn -> [] end, get: fn _guild_id -> :error end]},
-          {Soundboard.Discord.Self, [], [get: fn -> {:ok, %{id: "999"}} end]}
+          {Soundboard.Discord.BotIdentity, [], [fetch: fn -> {:ok, %{id: "999"}} end]}
         ]) do
           payload = %{
             channel_id: "123",
@@ -117,7 +117,7 @@ defmodule Soundboard.Discord.HandlerTest do
       capture_log(fn ->
         with_mocks([
           {Soundboard.Discord.GuildCache, [], [all: fn -> [guild] end]},
-          {Soundboard.Discord.Self, [], [get: fn -> {:ok, %{id: bot_id}} end]},
+          {Soundboard.Discord.BotIdentity, [], [fetch: fn -> {:ok, %{id: bot_id}} end]},
           {Soundboard.AudioPlayer, [],
            [
              play_sound: fn filename, played_by ->
@@ -165,7 +165,7 @@ defmodule Soundboard.Discord.HandlerTest do
              all: fn -> [guild] end,
              get: fn ^guild_id -> {:ok, guild} end
            ]},
-          {Soundboard.Discord.Self, [], [get: fn -> {:ok, %{id: bot_id}} end]},
+          {Soundboard.Discord.BotIdentity, [], [fetch: fn -> {:ok, %{id: bot_id}} end]},
           {Soundboard.Discord.Voice, [],
            [
              leave_channel: fn ^guild_id ->
@@ -219,8 +219,9 @@ defmodule Soundboard.Discord.HandlerTest do
 
       capture_log(fn ->
         with_mocks([
-          {Soundboard.Discord.GuildCache, [], [get!: fn ^guild_id -> guild end]},
-          {Soundboard.Discord.Self, [], [get: fn -> {:ok, %{id: "999"}} end]},
+          {Soundboard.Discord.GuildCache, [],
+           [get!: fn ^guild_id -> guild end, get: fn ^guild_id -> {:ok, guild} end]},
+          {Soundboard.Discord.BotIdentity, [], [fetch: fn -> {:ok, %{id: "999"}} end]},
           {Soundboard.Discord.Message, [], [create: fn _, _ -> :ok end]},
           {Soundboard.Discord.Voice, [],
            [

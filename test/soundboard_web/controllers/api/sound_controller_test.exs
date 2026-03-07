@@ -10,8 +10,6 @@ defmodule SoundboardWeb.API.SoundControllerTest do
   alias Soundboard.{Repo, Sound, Tag, UserSoundSetting}
 
   setup %{conn: conn} do
-    System.delete_env("API_TOKEN")
-
     user = insert_user()
     sound = insert_sound(user)
     tag = insert_tag()
@@ -245,23 +243,6 @@ defmodule SoundboardWeb.API.SoundControllerTest do
 
       assert json_response(conn, 401)
     end
-
-    test "rejects deprecated legacy env token" do
-      System.put_env("API_TOKEN", "legacy-token")
-      on_exit(fn -> System.delete_env("API_TOKEN") end)
-
-      conn =
-        build_conn()
-        |> put_req_header("authorization", "Bearer legacy-token")
-        |> post(~p"/api/sounds", %{
-          "source_type" => "url",
-          "name" => "legacy_upload",
-          "url" => "https://example.com/test.mp3"
-        })
-
-      assert %{"error" => "Legacy API_TOKEN is no longer accepted. Use a user API token."} =
-               json_response(conn, 401)
-    end
   end
 
   describe "play" do
@@ -273,12 +254,17 @@ defmodule SoundboardWeb.API.SoundControllerTest do
           |> post(~p"/api/sounds/#{sound.id}/play")
 
         assert %{
-                 "status" => "success",
-                 "message" => "Playing sound: " <> _,
-                 "played_by" => played_by
-               } = json_response(conn, 200)
+                 "data" => %{
+                   "status" => "accepted",
+                   "message" => "Playback request accepted for " <> _,
+                   "requested_by" => requested_by,
+                   "sound" => %{"id" => sound_id, "filename" => filename}
+                 }
+               } = json_response(conn, 202)
 
-        assert played_by == user.username
+        assert requested_by == user.username
+        assert sound_id == sound.id
+        assert filename == sound.filename
       end
     end
 
@@ -291,12 +277,17 @@ defmodule SoundboardWeb.API.SoundControllerTest do
         conn = post(conn, ~p"/api/sounds/#{sound.id}/play")
 
         assert %{
-                 "status" => "success",
-                 "message" => "Playing sound: " <> _,
-                 "played_by" => played_by
-               } = json_response(conn, 200)
+                 "data" => %{
+                   "status" => "accepted",
+                   "message" => "Playback request accepted for " <> _,
+                   "requested_by" => requested_by,
+                   "sound" => %{"id" => sound_id, "filename" => filename}
+                 }
+               } = json_response(conn, 202)
 
-        assert played_by == user.username
+        assert requested_by == user.username
+        assert sound_id == sound.id
+        assert filename == sound.filename
       end
     end
 

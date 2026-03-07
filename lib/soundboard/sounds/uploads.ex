@@ -23,7 +23,8 @@ defmodule Soundboard.Sounds.Uploads do
   import Ecto.Changeset
   import Ecto.Query
 
-  alias Soundboard.{Repo, Sound, Stats, Tag, UploadsPath, UserSoundSetting, Volume}
+  alias Soundboard.{Repo, Sound, Stats, UploadsPath, UserSoundSetting, Volume}
+  alias Soundboard.Sounds.Tags
 
   @allowed_extensions ~w(.mp3 .wav .ogg .m4a)
 
@@ -47,6 +48,19 @@ defmodule Soundboard.Sounds.Uploads do
     |> Map.merge(overrides)
   end
 
+  def validate(%CreateRequest{} = request) do
+    request
+    |> Map.from_struct()
+    |> validate()
+  end
+
+  def validate(attrs) when is_map(attrs) do
+    with {:ok, params} <- normalize_params(attrs),
+         {:ok, _source} <- prepare_source(params, :validate) do
+      {:ok, params}
+    end
+  end
+
   def create(%CreateRequest{} = request) do
     request
     |> Map.from_struct()
@@ -55,7 +69,7 @@ defmodule Soundboard.Sounds.Uploads do
 
   def create(attrs) when is_map(attrs) do
     with {:ok, params} <- normalize_params(attrs),
-         {:ok, source} <- prepare_source(params) do
+         {:ok, source} <- prepare_source(params, :create) do
       persist_sound(params, source)
     end
   end
@@ -129,7 +143,7 @@ defmodule Soundboard.Sounds.Uploads do
 
   defp normalize_default_volume(value), do: Volume.normalize_percent(value, 100)
 
-  defp prepare_source(%{source_type: "url"} = params) do
+  defp prepare_source(%{source_type: "url"} = params, _mode) do
     filename = params.name <> url_file_extension(params.url)
 
     {:ok,
@@ -141,10 +155,26 @@ defmodule Soundboard.Sounds.Uploads do
      }}
   end
 
-  defp prepare_source(%{source_type: "local"} = params) do
-    with {:ok, upload} <- validate_local_upload(params.upload),
+  defp prepare_source(%{source_type: "local"} = params, :validate) do
+    with {:ok, upload} <- validate_local_upload(params.upload, :validate),
          {:ok, ext} <- validate_local_extension(upload.filename),
          filename <- params.name <> ext,
+         :ok <- validate_destination_filename(filename) do
+      {:ok,
+       %{
+         filename: filename,
+         source_type: "local",
+         url: nil,
+         copied_file_path: nil
+       }}
+    end
+  end
+
+  defp prepare_source(%{source_type: "local"} = params, :create) do
+    with {:ok, upload} <- validate_local_upload(params.upload, :create),
+         {:ok, ext} <- validate_local_extension(upload.filename),
+         filename <- params.name <> ext,
+         :ok <- validate_destination_filename(filename),
          {:ok, copied_file_path} <- copy_local_file(upload.path, filename) do
       {:ok,
        %{
@@ -156,14 +186,22 @@ defmodule Soundboard.Sounds.Uploads do
     end
   end
 
-  defp prepare_source(_params) do
+  defp prepare_source(_params, _mode) do
     {:error, add_error(change(%Sound{}), :source_type, "must be either 'local' or 'url'")}
   end
 
-  defp validate_local_upload(nil),
+  defp validate_local_upload(nil, _mode),
     do: {:error, add_error(change(%Sound{}), :file, "Please select a file")}
 
-  defp validate_local_upload(%{path: path, filename: filename}) when is_binary(path) do
+  defp validate_local_upload(%{filename: filename} = upload, :validate) do
+    if blank?(filename) do
+      {:error, add_error(change(%Sound{}), :file, "Please select a file")}
+    else
+      {:ok, %{path: Map.get(upload, :path), filename: filename}}
+    end
+  end
+
+  defp validate_local_upload(%{path: path, filename: filename}, :create) when is_binary(path) do
     if blank?(filename) do
       {:error,
        add_error(
@@ -176,7 +214,7 @@ defmodule Soundboard.Sounds.Uploads do
     end
   end
 
-  defp validate_local_upload(_),
+  defp validate_local_upload(_, _mode),
     do: {:error, add_error(change(%Sound{}), :file, "Please select a file")}
 
   defp validate_local_extension(filename) do
@@ -198,18 +236,14 @@ defmodule Soundboard.Sounds.Uploads do
     uploads_dir = UploadsPath.dir()
     dest_path = UploadsPath.file_path(filename)
 
-    if filename_taken?(filename) or File.exists?(dest_path) do
-      {:error, add_error(change(%Sound{}), :filename, "has already been taken")}
-    else
-      File.mkdir_p!(uploads_dir)
+    File.mkdir_p!(uploads_dir)
 
-      case File.cp(src_path, dest_path) do
-        :ok ->
-          {:ok, dest_path}
+    case File.cp(src_path, dest_path) do
+      :ok ->
+        {:ok, dest_path}
 
-        {:error, _reason} ->
-          {:error, add_error(change(%Sound{}), :file, "Error saving file")}
-      end
+      {:error, _reason} ->
+        {:error, add_error(change(%Sound{}), :file, "Error saving file")}
     end
   end
 
@@ -263,59 +297,15 @@ defmodule Soundboard.Sounds.Uploads do
     |> Repo.insert()
   end
 
-  defp resolve_tags(tags) when is_list(tags) do
-    tags
-    |> Enum.uniq()
-    |> Enum.reduce_while({:ok, []}, fn tag, {:ok, acc} ->
-      case resolve_tag(tag) do
-        {:ok, nil} -> {:cont, {:ok, acc}}
-        {:ok, resolved_tag} -> {:cont, {:ok, [resolved_tag | acc]}}
-        {:error, reason} -> {:halt, {:error, reason}}
-      end
-    end)
-    |> case do
-      {:ok, tag_list} -> {:ok, Enum.reverse(tag_list) |> Enum.uniq_by(& &1.id)}
-      error -> error
-    end
-  end
+  defp resolve_tags(tags), do: Tags.resolve_many(tags)
 
-  defp resolve_tags(_), do: {:ok, []}
+  defp validate_destination_filename(filename) do
+    dest_path = UploadsPath.file_path(filename)
 
-  defp resolve_tag(%Tag{} = tag), do: {:ok, tag}
-
-  defp resolve_tag(tag_name) when is_binary(tag_name) do
-    normalized =
-      tag_name
-      |> String.trim()
-      |> String.downcase()
-
-    if normalized == "" do
-      {:error, add_error(change(%Sound{}), :tags, "can't be blank")}
+    if filename_taken?(filename) or File.exists?(dest_path) do
+      {:error, add_error(change(%Sound{}), :filename, "has already been taken")}
     else
-      find_or_create_tag(normalized)
-    end
-  end
-
-  defp resolve_tag(_), do: {:ok, nil}
-
-  defp find_or_create_tag(name) do
-    case Repo.get_by(Tag, name: name) do
-      %Tag{} = tag -> {:ok, tag}
-      nil -> insert_or_get_tag(name)
-    end
-  end
-
-  defp insert_or_get_tag(name) do
-    case %Tag{} |> Tag.changeset(%{name: name}) |> Repo.insert() do
-      {:ok, tag} -> {:ok, tag}
-      {:error, _} -> fetch_tag_after_insert_conflict(name)
-    end
-  end
-
-  defp fetch_tag_after_insert_conflict(name) do
-    case Repo.get_by(Tag, name: name) do
-      %Tag{} = tag -> {:ok, tag}
-      nil -> {:error, add_error(change(%Sound{}), :tags, "is invalid")}
+      :ok
     end
   end
 

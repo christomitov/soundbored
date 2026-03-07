@@ -6,7 +6,7 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
   alias Soundboard.Sound
   alias Soundboard.Sounds.Uploads
   alias Soundboard.Volume
-  alias SoundboardWeb.Live.{TagHandler, UploadHandler}
+  alias SoundboardWeb.Live.TagHandler
 
   @default_assigns %{
     show_upload_modal: false,
@@ -29,26 +29,32 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
   end
 
   def save(socket, params, consume_uploaded_entries_fn) do
-    params =
-      params
-      |> Map.merge(%{
-        "is_join_sound" => socket.assigns.is_join_sound,
-        "is_leave_sound" => socket.assigns.is_leave_sound,
-        "source_type" => socket.assigns.source_type,
-        "name" => params["name"],
-        "url" => params["url"]
-      })
+    case socket.assigns.source_type do
+      "url" ->
+        case Uploads.create(build_request(socket, params)) do
+          {:ok, _sound} ->
+            {:noreply,
+             socket
+             |> close_modal()
+             |> assign(:uploaded_files, Sound.list_detailed())
+             |> Phoenix.LiveView.put_flash(:info, "Sound added successfully")}
 
-    case UploadHandler.handle_upload(socket, params, consume_uploaded_entries_fn) do
-      {:ok, _sound} ->
-        {:noreply,
-         socket
-         |> close_modal()
-         |> assign(:uploaded_files, Sound.list_detailed())
-         |> Phoenix.LiveView.put_flash(:info, "Sound added successfully")}
+          {:error, reason} ->
+            {:noreply, Phoenix.LiveView.put_flash(socket, :error, Uploads.error_message(reason))}
+        end
 
-      {:error, reason, socket} ->
-        {:noreply, Phoenix.LiveView.put_flash(socket, :error, Uploads.error_message(reason))}
+      _ ->
+        results =
+          consume_uploaded_entries_fn.(socket, :audio, fn meta, entry ->
+            request =
+              build_request(socket, params, %{
+                upload: %{path: meta.path, filename: entry.client_name}
+              })
+
+            {:ok, Uploads.create(request)}
+          end)
+
+        handle_save_results(socket, results)
     end
   end
 
@@ -56,8 +62,8 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
     socket = validate_existing_entries(socket)
     params = normalize_params(socket, params)
 
-    case UploadHandler.validate_upload(socket, params) do
-      {:ok, _socket} ->
+    case validate_request(socket, params) do
+      :ok ->
         {:noreply, assign_params(socket, params, nil)}
 
       {:error, changeset} ->
@@ -208,6 +214,79 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
       _ -> {:error, "Invalid file type"}
     end
   end
+
+  defp validate_request(socket, %{"source_type" => "url", "name" => name, "url" => url}) do
+    if blank?(name) and blank?(url) do
+      :ok
+    else
+      case Uploads.validate(build_request(socket, %{"name" => name, "url" => url})) do
+        {:ok, _params} -> :ok
+        {:error, changeset} -> {:error, changeset}
+      end
+    end
+  end
+
+  defp validate_request(socket, params) do
+    case Uploads.validate(build_request(socket, params, %{upload: current_upload(socket)})) do
+      {:ok, _params} -> :ok
+      {:error, changeset} -> {:error, changeset}
+    end
+  end
+
+  defp handle_save_results(socket, [{:ok, {:ok, _sound}}]) do
+    {:noreply,
+     socket
+     |> close_modal()
+     |> assign(:uploaded_files, Sound.list_detailed())
+     |> Phoenix.LiveView.put_flash(:info, "Sound added successfully")}
+  end
+
+  defp handle_save_results(socket, [{:ok, {:error, reason}}]) do
+    {:noreply, Phoenix.LiveView.put_flash(socket, :error, Uploads.error_message(reason))}
+  end
+
+  defp handle_save_results(socket, []) do
+    {:noreply,
+     Phoenix.LiveView.put_flash(
+       socket,
+       :error,
+       Uploads.error_message(
+         %Ecto.Changeset{}
+         |> Ecto.Changeset.change()
+         |> Ecto.Changeset.add_error(:file, "Please select a file")
+       )
+     )}
+  end
+
+  defp handle_save_results(socket, _results) do
+    {:noreply, Phoenix.LiveView.put_flash(socket, :error, "Error saving file")}
+  end
+
+  defp build_request(socket, params, overrides \\ %{}) do
+    params
+    |> Map.merge(%{
+      "is_join_sound" => socket.assigns.is_join_sound,
+      "is_leave_sound" => socket.assigns.is_leave_sound,
+      "source_type" => socket.assigns.source_type,
+      "name" => params["name"],
+      "url" => params["url"]
+    })
+    |> Uploads.build_create_request(socket.assigns.current_user, %{
+      tags: socket.assigns.upload_tags,
+      default_volume_percent: socket.assigns[:upload_volume] || 100
+    })
+    |> Map.merge(overrides)
+  end
+
+  defp current_upload(socket) do
+    case Phoenix.LiveView.uploaded_entries(socket, :audio) do
+      {[entry | _], _} -> %{filename: entry.client_name}
+      {_, [entry | _]} -> %{filename: entry.client_name}
+      _ -> nil
+    end
+  end
+
+  defp blank?(value), do: value in [nil, ""]
 
   defp assign_many(socket, attrs) do
     Enum.reduce(attrs, socket, fn {key, value}, acc -> assign(acc, key, value) end)

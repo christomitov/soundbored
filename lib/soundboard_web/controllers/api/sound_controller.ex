@@ -49,10 +49,15 @@ defmodule SoundboardWeb.API.SoundController do
 
         Soundboard.AudioPlayer.play_sound(sound.filename, username)
 
-        json(conn, %{
-          status: "success",
-          message: "Playing sound: #{sound.filename}",
-          played_by: username
+        conn
+        |> put_status(:accepted)
+        |> json(%{
+          data: %{
+            status: "accepted",
+            message: "Playback request accepted for #{sound.filename}",
+            requested_by: username,
+            sound: %{id: sound.id, filename: sound.filename}
+          }
         })
     end
   end
@@ -60,9 +65,13 @@ defmodule SoundboardWeb.API.SoundController do
   def stop(conn, _params) do
     Soundboard.AudioPlayer.stop_sound()
 
-    json(conn, %{
-      status: "success",
-      message: "Stopped all sounds"
+    conn
+    |> put_status(:accepted)
+    |> json(%{
+      data: %{
+        status: "accepted",
+        message: "Stop request accepted"
+      }
     })
   end
 

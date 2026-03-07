@@ -1,6 +1,8 @@
 defmodule Soundboard.Sounds.UploadsTest do
   use Soundboard.DataCase
 
+  import Soundboard.DataCase, only: [errors_on: 1]
+
   alias Soundboard.Accounts.User
   alias Soundboard.Sounds.Uploads
   alias Soundboard.{Repo, Sound, UserSoundSetting}
@@ -16,6 +18,50 @@ defmodule Soundboard.Sounds.UploadsTest do
       |> Repo.insert()
 
     %{user: user}
+  end
+
+  describe "validate/1" do
+    test "validates URL uploads when enough input is present", %{user: user} do
+      assert {:ok, _params} =
+               Uploads.validate(%{
+                 user: user,
+                 source_type: "url",
+                 name: "validated_url",
+                 url: "https://example.com/sound.mp3"
+               })
+    end
+
+    test "rejects duplicate local filenames before copying", %{user: user} do
+      {:ok, _existing} =
+        %Sound{}
+        |> Sound.changeset(%{
+          filename: "duplicate_name.mp3",
+          source_type: "local",
+          user_id: user.id
+        })
+        |> Repo.insert()
+
+      assert {:error, changeset} =
+               Uploads.validate(%{
+                 user: user,
+                 source_type: "local",
+                 name: "duplicate_name",
+                 upload: %{filename: "dup.mp3"}
+               })
+
+      assert "has already been taken" in errors_on(changeset).filename
+    end
+
+    test "requires a local file selection for local uploads", %{user: user} do
+      assert {:error, changeset} =
+               Uploads.validate(%{
+                 user: user,
+                 source_type: "local",
+                 name: "missing_file"
+               })
+
+      assert "Please select a file" in errors_on(changeset).file
+    end
   end
 
   describe "create/1" do

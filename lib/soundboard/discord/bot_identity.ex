@@ -1,17 +1,17 @@
-defmodule Soundboard.Discord.Self do
+defmodule Soundboard.Discord.BotIdentity do
   @moduledoc false
 
   alias EDA.API.User
   alias EDA.Cache
 
-  def get do
+  def fetch do
     case Cache.me() do
-      nil -> fetch_self()
+      nil -> fetch_from_api()
       user -> {:ok, normalize_user(user)}
     end
   end
 
-  defp fetch_self do
+  defp fetch_from_api do
     case User.me() do
       {:ok, user} ->
         Cache.put_me(user)

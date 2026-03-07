@@ -2,6 +2,7 @@ defmodule SoundboardWeb.SettingsLive do
   use SoundboardWeb, :live_view
   use SoundboardWeb.Live.PresenceLive
   alias Soundboard.Accounts.ApiTokens
+  alias Soundboard.PublicURL
 
   @impl true
   def mount(_params, session, socket) do
@@ -12,15 +13,14 @@ defmodule SoundboardWeb.SettingsLive do
       |> assign(:current_user, get_user_from_session(session))
       |> assign(:tokens, [])
       |> assign(:new_token, nil)
-      |> assign(:base_url, nil)
+      |> assign(:base_url, PublicURL.current())
 
     {:ok, load_tokens(socket)}
   end
 
   @impl true
   def handle_params(_params, uri, socket) do
-    base_url = base_url_from_uri(uri)
-    {:noreply, assign(socket, :base_url, base_url)}
+    {:noreply, assign(socket, :base_url, PublicURL.from_uri_or_current(uri))}
   end
 
   @impl true
@@ -183,12 +183,12 @@ defmodule SoundboardWeb.SettingsLive do
                   id="copy-list-sounds"
                   type="button"
                   phx-hook="CopyButton"
-                  data-copy-text={"curl -H \"Authorization: Bearer #{(@example_token || "<TOKEN>")}\" #{(@base_url || SoundboardWeb.Endpoint.url())}/api/sounds"}
+                  data-copy-text={"curl -H \"Authorization: Bearer #{(@example_token || "<TOKEN>")}\" #{@base_url}/api/sounds"}
                   class="absolute right-2 top-2 text-xs px-2 py-1 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100 rounded"
                 >
                   Copy
                 </button>
-                <pre class="mt-1 p-2 pr-16 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded text-xs overflow-x-auto whitespace-nowrap min-h-[56px]"><code class="text-gray-800 dark:text-gray-100 font-mono">curl -H \"Authorization: Bearer {(@example_token || "<TOKEN>")}\" {(@base_url || SoundboardWeb.Endpoint.url())}/api/sounds</code></pre>
+                <pre class="mt-1 p-2 pr-16 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded text-xs overflow-x-auto whitespace-nowrap min-h-[56px]"><code class="text-gray-800 dark:text-gray-100 font-mono">curl -H \"Authorization: Bearer {(@example_token || "<TOKEN>")}\" {@base_url}/api/sounds</code></pre>
               </div>
             </div>
             <div class="text-xs text-gray-600 dark:text-gray-400">
@@ -210,7 +210,7 @@ defmodule SoundboardWeb.SettingsLive do
                   id="copy-upload-local"
                   type="button"
                   phx-hook="CopyButton"
-                  data-copy-text={"curl -X POST -H \"Authorization: Bearer #{(@example_token || "<TOKEN>")}\" -F \"source_type=local\" -F \"name=<NAME>\" -F \"file=@/path/to/sound.mp3\" -F \"tags[]=meme\" -F \"tags[]=alert\" -F \"volume=90\" -F \"is_join_sound=true\" #{(@base_url || SoundboardWeb.Endpoint.url())}/api/sounds"}
+                  data-copy-text={"curl -X POST -H \"Authorization: Bearer #{(@example_token || "<TOKEN>")}\" -F \"source_type=local\" -F \"name=<NAME>\" -F \"file=@/path/to/sound.mp3\" -F \"tags[]=meme\" -F \"tags[]=alert\" -F \"volume=90\" -F \"is_join_sound=true\" #{@base_url}/api/sounds"}
                   class="absolute right-2 top-2 text-xs px-2 py-1 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100 rounded"
                 >
                   Copy
@@ -224,7 +224,7 @@ defmodule SoundboardWeb.SettingsLive do
     -F "tags[]=alert" \
     -F "volume=90" \
     -F "is_join_sound=true" \
-    {(@base_url || SoundboardWeb.Endpoint.url())}/api/sounds</code></pre>
+    {@base_url}/api/sounds</code></pre>
               </div>
             </div>
             <div>
@@ -236,7 +236,7 @@ defmodule SoundboardWeb.SettingsLive do
                   id="copy-upload-url"
                   type="button"
                   phx-hook="CopyButton"
-                  data-copy-text={"curl -X POST -H \"Authorization: Bearer #{(@example_token || "<TOKEN>")}\" -H \"Content-Type: application/json\" -d '{\"source_type\":\"url\",\"name\":\"wow\",\"url\":\"https://example.com/wow.mp3\",\"tags\":[\"meme\",\"reaction\"],\"volume\":90,\"is_leave_sound\":true}' #{(@base_url || SoundboardWeb.Endpoint.url())}/api/sounds"}
+                  data-copy-text={"curl -X POST -H \"Authorization: Bearer #{(@example_token || "<TOKEN>")}\" -H \"Content-Type: application/json\" -d '{\"source_type\":\"url\",\"name\":\"wow\",\"url\":\"https://example.com/wow.mp3\",\"tags\":[\"meme\",\"reaction\"],\"volume\":90,\"is_leave_sound\":true}' #{@base_url}/api/sounds"}
                   class="absolute right-2 top-2 text-xs px-2 py-1 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100 rounded"
                 >
                   Copy
@@ -245,7 +245,7 @@ defmodule SoundboardWeb.SettingsLive do
     -H "Authorization: Bearer {(@example_token || "<TOKEN>")}" \
     -H "Content-Type: application/json" \
     -d '&#123;"source_type":"url","name":"wow","url":"https://example.com/wow.mp3","tags":["meme","reaction"],"volume":90,"is_leave_sound":true&#125;' \
-    {(@base_url || SoundboardWeb.Endpoint.url())}/api/sounds</code></pre>
+    {@base_url}/api/sounds</code></pre>
               </div>
             </div>
             <div>
@@ -257,12 +257,12 @@ defmodule SoundboardWeb.SettingsLive do
                   id="copy-play-sound"
                   type="button"
                   phx-hook="CopyButton"
-                  data-copy-text={"curl -X POST -H \"Authorization: Bearer #{(@example_token || "<TOKEN>")}\" #{(@base_url || SoundboardWeb.Endpoint.url())}/api/sounds/<SOUND_ID>/play"}
+                  data-copy-text={"curl -X POST -H \"Authorization: Bearer #{(@example_token || "<TOKEN>")}\" #{@base_url}/api/sounds/<SOUND_ID>/play"}
                   class="absolute right-2 top-2 text-xs px-2 py-1 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100 rounded"
                 >
                   Copy
                 </button>
-                <pre class="mt-1 p-2 pr-16 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded text-xs overflow-x-auto whitespace-nowrap min-h-[56px]"><code class="text-gray-800 dark:text-gray-100 font-mono">curl -X POST -H \"Authorization: Bearer {(@example_token || "<TOKEN>")}\" {(@base_url || SoundboardWeb.Endpoint.url())}/api/sounds/&lt;SOUND_ID&gt;/play</code></pre>
+                <pre class="mt-1 p-2 pr-16 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded text-xs overflow-x-auto whitespace-nowrap min-h-[56px]"><code class="text-gray-800 dark:text-gray-100 font-mono">curl -X POST -H \"Authorization: Bearer {(@example_token || "<TOKEN>")}\" {@base_url}/api/sounds/&lt;SOUND_ID&gt;/play</code></pre>
               </div>
             </div>
             <div>
@@ -272,12 +272,12 @@ defmodule SoundboardWeb.SettingsLive do
                   id="copy-stop-sounds"
                   type="button"
                   phx-hook="CopyButton"
-                  data-copy-text={"curl -X POST -H \"Authorization: Bearer #{(@example_token || "<TOKEN>")}\" #{(@base_url || SoundboardWeb.Endpoint.url())}/api/sounds/stop"}
+                  data-copy-text={"curl -X POST -H \"Authorization: Bearer #{(@example_token || "<TOKEN>")}\" #{@base_url}/api/sounds/stop"}
                   class="absolute right-2 top-2 text-xs px-2 py-1 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100 rounded"
                 >
                   Copy
                 </button>
-                <pre class="mt-1 p-2 pr-16 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded text-xs overflow-x-auto whitespace-nowrap min-h-[56px]"><code class="text-gray-800 dark:text-gray-100 font-mono">curl -X POST -H \"Authorization: Bearer {(@example_token || "<TOKEN>")}\" {(@base_url || SoundboardWeb.Endpoint.url())}/api/sounds/stop</code></pre>
+                <pre class="mt-1 p-2 pr-16 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded text-xs overflow-x-auto whitespace-nowrap min-h-[56px]"><code class="text-gray-800 dark:text-gray-100 font-mono">curl -X POST -H \"Authorization: Bearer {(@example_token || "<TOKEN>")}\" {@base_url}/api/sounds/stop</code></pre>
               </div>
             </div>
           </div>
@@ -289,24 +289,4 @@ defmodule SoundboardWeb.SettingsLive do
 
   defp format_dt(nil), do: nil
   defp format_dt(%NaiveDateTime{} = dt), do: Calendar.strftime(dt, "%Y-%m-%d %H:%M")
-
-  defp base_url_from_uri(nil), do: SoundboardWeb.Endpoint.url()
-
-  defp base_url_from_uri(uri) do
-    case URI.parse(uri) do
-      %URI{scheme: scheme, host: host, port: port} when is_binary(host) ->
-        port_part =
-          case {scheme, port} do
-            {"http", 80} -> ""
-            {"https", 443} -> ""
-            {_, nil} -> ""
-            {_, p} -> ":#{p}"
-          end
-
-        scheme <> "://" <> host <> port_part
-
-      _ ->
-        SoundboardWeb.Endpoint.url()
-    end
-  end
 end

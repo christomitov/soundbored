@@ -1,7 +1,7 @@
 defmodule SoundboardWeb.StatsLive do
   use SoundboardWeb, :live_view
   use SoundboardWeb.Live.PresenceLive
-  alias SoundboardWeb.Live.PresenceHandler
+  alias SoundboardWeb.PresenceHandler
   import Phoenix.Component
   import SoundboardWeb.SoundHelpers
   alias Soundboard.{Accounts, Favorites, Sound, Stats}

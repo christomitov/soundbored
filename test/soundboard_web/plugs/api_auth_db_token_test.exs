@@ -6,9 +6,6 @@ defmodule SoundboardWeb.APIAuthDBTokenTest do
   alias Soundboard.Accounts.{ApiTokens, User}
 
   setup %{conn: conn} do
-    # Ensure legacy token does not interfere
-    System.delete_env("API_TOKEN")
-
     {:ok, user} =
       %User{}
       |> User.changeset(%{
@@ -42,14 +39,23 @@ defmodule SoundboardWeb.APIAuthDBTokenTest do
     # Mock the audio player so we don't actually attempt voice playback
     with_mock Soundboard.AudioPlayer, play_sound: fn _, _ -> :ok end do
       conn = post(conn, ~p"/api/sounds/#{sound.id}/play")
-      assert %{"status" => "success"} = json_response(conn, 200)
+
+      assert %{
+               "data" => %{
+                 "status" => "accepted",
+                 "sound" => %{"id" => sound_id, "filename" => filename}
+               }
+             } = json_response(conn, 202)
+
+      assert sound_id == sound.id
+      assert filename == sound.filename
     end
   end
 
   test "POST /api/sounds/stop authorized via DB token", %{conn: conn} do
     with_mock Soundboard.AudioPlayer, stop_sound: fn -> :ok end do
       conn = post(conn, ~p"/api/sounds/stop")
-      assert %{"status" => "success"} = json_response(conn, 200)
+      assert %{"data" => %{"status" => "accepted"}} = json_response(conn, 202)
     end
   end
 

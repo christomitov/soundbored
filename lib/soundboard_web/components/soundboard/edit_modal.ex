@@ -160,7 +160,16 @@ defmodule SoundboardWeb.Components.Soundboard.EditModal do
                 
     <!-- Sound Settings -->
                 <div class="mt-5 mb-4">
-                  <div class="flex flex-col gap-3 text-left">
+                  <div class="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-left text-sm text-blue-900 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-100">
+                    Shared sound details can be edited by any signed-in user. Join and leave toggles only affect your account.
+                    <%= if @current_sound.user_id == @current_user.id do %>
+                      You can also delete this sound because you uploaded it.
+                    <% else %>
+                      Only the original uploader can delete this sound.
+                    <% end %>
+                  </div>
+
+                  <div class="mt-4 flex flex-col gap-3 text-left">
                     <% user_setting =
                       Enum.find(
                         @current_sound.user_sound_settings || [],

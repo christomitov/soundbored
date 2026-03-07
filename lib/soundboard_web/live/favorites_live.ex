@@ -24,12 +24,7 @@ defmodule SoundboardWeb.FavoritesLive do
 
   @impl true
   def handle_event("play", %{"name" => filename}, socket) do
-    username =
-      if socket.assigns.current_user,
-        do: socket.assigns.current_user.username,
-        else: "Anonymous"
-
-    Soundboard.AudioPlayer.play_sound(filename, username)
+    Soundboard.AudioPlayer.play_sound(filename, current_username(socket))
     {:noreply, socket}
   end
 
@@ -63,14 +58,9 @@ defmodule SoundboardWeb.FavoritesLive do
 
   @impl true
   def handle_info({:sound_played, filename}, socket) when is_binary(filename) do
-    username =
-      if socket.assigns.current_user,
-        do: socket.assigns.current_user.username,
-        else: "Anonymous"
-
     {:noreply,
      socket
-     |> put_flash(:info, "#{username} played #{filename}")
+     |> put_flash(:info, "#{current_username(socket)} played #{filename}")
      |> clear_flash_after_timeout()}
   end
 
@@ -114,4 +104,6 @@ defmodule SoundboardWeb.FavoritesLive do
     Process.send_after(self(), :clear_flash, 3000)
     socket
   end
+
+  defp current_username(socket), do: socket.assigns.current_user.username
 end

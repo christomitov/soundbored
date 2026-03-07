@@ -65,7 +65,9 @@ defmodule Soundboard.Sounds.ManagementTest do
     refute setting.is_leave_sound
   end
 
-  test "update_sound/3 allows non-uploaders to edit and stores their own settings", %{user: user} do
+  test "update_sound/3 keeps sound metadata collaborative while preserving uploader ownership", %{
+    user: user
+  } do
     filename = "shared_#{System.unique_integer([:positive])}.mp3"
     sound = insert_local_sound(user, filename)
 
@@ -107,7 +109,7 @@ defmodule Soundboard.Sounds.ManagementTest do
     refute setting.is_leave_sound
   end
 
-  test "delete_sound/2 rejects non-owners", %{user: user} do
+  test "delete_sound/2 stays owner-only even when metadata edits are collaborative", %{user: user} do
     sound = insert_local_sound(user, "locked_#{System.unique_integer([:positive])}.mp3")
 
     {:ok, intruder} =

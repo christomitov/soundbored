@@ -64,7 +64,7 @@ defmodule SoundboardWeb.Components.Layouts.Navbar do
                     class={[
                       "px-2 py-1 rounded-full text-xs select-none transition-all duration-150 flex items-center gap-1",
                       "cursor-default",
-                      SoundboardWeb.Live.PresenceHandler.get_user_color(user.username)
+                      SoundboardWeb.PresenceHandler.get_user_color(user.username)
                     ]}
                   >
                     <img
@@ -163,7 +163,7 @@ defmodule SoundboardWeb.Components.Layouts.Navbar do
                   class={[
                     "px-3 py-2 rounded-full text-sm select-none transition-all duration-150 flex items-center gap-2",
                     "cursor-default leading-relaxed tracking-wide",
-                    SoundboardWeb.Live.PresenceHandler.get_user_color(user.username)
+                    SoundboardWeb.PresenceHandler.get_user_color(user.username)
                   ]}
                 >
                   <img

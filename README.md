@@ -93,18 +93,53 @@ The bot is also able to auto-join and auto-leave voice channels. This is control
 
 ## API
 
-The API is used to trigger sounds from other applications. Create a personal API token in **Settings** after signing in, then use it as a bearer token. The API has the following endpoints:
+The API is used to trigger sounds from other applications. Create a personal API token in **Settings** after signing in, then send it as `Authorization: Bearer <USER_API_TOKEN>`.
 
-```
-# Get list of sounds to find the ID
+### Endpoints
+
+#### List sounds
+```bash
 curl https://soundboardurl.com/api/sounds \
   -H "Authorization: Bearer <USER_API_TOKEN>"
+```
+Returns `200 OK` with `%{data: [...]}`.
 
-# Play a sound by ID
+#### Upload a local file
+```bash
+curl -X POST https://soundboardurl.com/api/sounds \
+  -H "Authorization: Bearer <USER_API_TOKEN>" \
+  -F "source_type=local" \
+  -F "name=wow" \
+  -F "file=@/path/to/wow.mp3" \
+  -F "tags[]=meme" \
+  -F "volume=90"
+```
+Returns `201 Created` with `%{data: sound}`.
+
+#### Create a URL-backed sound
+```bash
+curl -X POST https://soundboardurl.com/api/sounds \
+  -H "Authorization: Bearer <USER_API_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"source_type":"url","name":"wow","url":"https://example.com/wow.mp3","tags":["meme","reaction"],"volume":90}'
+```
+Returns `201 Created` with `%{data: sound}`.
+
+#### Queue playback for a sound
+```bash
 curl -X POST https://soundboardurl.com/api/sounds/123/play \
   -H "Authorization: Bearer <USER_API_TOKEN>"
 ```
+Returns `202 Accepted` with `%{data: %{status: "accepted", ...}}` because playback is queued asynchronously.
 
+#### Stop active playback
+```bash
+curl -X POST https://soundboardurl.com/api/sounds/stop \
+  -H "Authorization: Bearer <USER_API_TOKEN>"
+```
+Returns `202 Accepted` with `%{data: %{status: "accepted", ...}}` because the stop request is also asynchronous.
+
+Errors use `%{error: message}` or `%{errors: changeset_errors}` depending on whether the failure is request-level or validation-level.
 
 ## Changelog
 
@@ -146,7 +181,7 @@ curl -X POST https://soundboardurl.com/api/sounds/123/play \
 - Coverage improved to ~96% (via mix coveralls).
 
 #### 🔁 Compatibility
-- Legacy env `API_TOKEN` remains supported for a transition period (logs deprecation); DB tokens are the preferred path going forward.
+- DB-backed personal API tokens are the supported authentication path for API access.
 
 ### v1.4.0 (2025-08-22)
 

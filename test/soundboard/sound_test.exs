@@ -1,4 +1,4 @@
-defmodule Soundboard.Sounds.SoundTest do
+defmodule Soundboard.SoundTest do
   @moduledoc """
   Tests the Sound module.
   """
@@ -491,6 +491,22 @@ defmodule Soundboard.Sounds.SoundTest do
       sound = Repo.preload(sound, :tags)
 
       assert sound.tags == []
+    end
+  end
+
+  describe "repo persistence" do
+    test "can rename sound", %{sound: sound} do
+      {:ok, updated_sound} =
+        Sound.changeset(sound, %{filename: "renamed_sound.mp3"})
+        |> Repo.update()
+
+      assert updated_sound.filename == "renamed_sound.mp3"
+      assert updated_sound.id == sound.id
+    end
+
+    test "owner can delete sound", %{sound: sound} do
+      assert {:ok, _} = Repo.delete(sound)
+      refute Repo.get(Sound, sound.id)
     end
   end
 

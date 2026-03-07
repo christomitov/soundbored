@@ -30,7 +30,7 @@ defmodule Soundboard.Volume do
     |> convert_percent_to_decimal()
   end
 
-  @spec decimal_to_percent(float() | nil) :: percent()
+  @spec decimal_to_percent(number() | nil) :: percent()
   def decimal_to_percent(nil), do: 100
 
   def decimal_to_percent(decimal) when is_number(decimal) do

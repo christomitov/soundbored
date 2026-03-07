@@ -3,6 +3,7 @@ defmodule Soundboard.Discord.Handler.CommandHandler do
 
   alias Soundboard.Discord.Handler.VoiceRuntime
   alias Soundboard.Discord.Message
+  alias Soundboard.PublicURL
 
   def handle_message(%{content: "!join"} = msg) do
     case VoiceRuntime.user_voice_channel(msg.guild_id, msg.author.id) do
@@ -24,9 +25,7 @@ defmodule Soundboard.Discord.Handler.CommandHandler do
   def handle_message(_msg), do: :ignore
 
   defp joined_message do
-    scheme = System.get_env("SCHEME")
-    web_url = Application.get_env(:soundboard, SoundboardWeb.Endpoint)[:url][:host] || "localhost"
-    url = "#{scheme}://#{web_url}"
+    url = PublicURL.current()
 
     """
     Joined your voice channel!

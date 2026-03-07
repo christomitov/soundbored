@@ -1,3 +1,1 @@
-# No default seed data is required for this project.
-#
-# Add idempotent inserts here when you need local bootstrapping data.
+# Soundbored has no default seed data. Add only idempotent local bootstrap data here when needed.
