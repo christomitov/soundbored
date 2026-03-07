@@ -87,7 +87,7 @@ defmodule Soundboard.MixProject do
       {:jason, "~> 1.2"},
       {:bandit, "~> 1.8"},
       {:eda,
-       git: "https://github.com/christomitov/EDA", ref: "3bf0e17ca072826bb9a7a26fa42165c2e346ae1d"},
+       git: "https://github.com/christomitov/EDA", branch: "fix/dave-audio-encryption"},
       {:rustler, "~> 0.35", runtime: false},
       {:ecto_sqlite3, "~> 0.22"},
       {:ueberauth, "~> 0.10.5"},
