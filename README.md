@@ -147,7 +147,7 @@ Errors use `%{error: message}` or `%{errors: changeset_errors}` depending on whe
 
 ## Changelog
 
-### v1.7.0 (2026-03-06)
+### v1.7.0 (2026-03-07)
 
 #### ✨ New Features
 - Switched the Discord voice/runtime integration over to EDA, bringing DAVE support for current Discord voice encryption negotiation.
