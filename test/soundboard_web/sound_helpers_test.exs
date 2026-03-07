@@ -14,6 +14,10 @@ defmodule SoundboardWeb.SoundHelpersTest do
     test "handles nil" do
       assert SoundHelpers.display_name(nil) == ""
     end
+
+    test "stringifies non-binary values" do
+      assert SoundHelpers.display_name(123) == "123"
+    end
   end
 
   describe "slugify/1" do
