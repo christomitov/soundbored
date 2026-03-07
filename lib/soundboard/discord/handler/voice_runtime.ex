@@ -99,7 +99,7 @@ defmodule Soundboard.Discord.Handler.VoiceRuntime do
     bot_id = current_bot_id()
 
     case Enum.find(voice_states, fn vs -> vs.user_id != bot_id && vs.channel_id != nil end) do
-      %{channel_id: channel_id} when not is_nil(channel_id) ->
+      %{channel_id: channel_id} ->
         Logger.info("Auto-joining guild #{guild.id} channel #{channel_id} during bootstrap")
         Voice.join_channel(guild.id, channel_id)
         AudioPlayer.set_voice_channel(guild.id, channel_id)
