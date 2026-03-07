@@ -232,7 +232,7 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
     end
   end
 
-  defp handle_save_results(socket, [{:ok, {:ok, _sound}}]) do
+  defp handle_save_results(socket, [{:ok, _sound}]) do
     {:noreply,
      socket
      |> close_modal()
@@ -240,7 +240,7 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
      |> Phoenix.LiveView.put_flash(:info, "Sound added successfully")}
   end
 
-  defp handle_save_results(socket, [{:ok, {:error, reason}}]) do
+  defp handle_save_results(socket, [{:error, reason}]) do
     {:noreply, Phoenix.LiveView.put_flash(socket, :error, Uploads.error_message(reason))}
   end
 
