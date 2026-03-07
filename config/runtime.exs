@@ -135,10 +135,12 @@ if config_env() == :prod and is_nil(env!("SKIP_RUNTIME_CONFIG", :string, nil)) d
 
   # Configure endpoint first
   config :soundboard, SoundboardWeb.Endpoint,
+    # In prod, PHX_HOST represents the externally visible host. Do not append
+    # the app's internal listen port unless the host itself already includes one.
     url: [
       scheme: scheme,
       host: host,
-      port: port
+      port: nil
     ],
     http: [
       ip: {0, 0, 0, 0},
@@ -146,7 +148,7 @@ if config_env() == :prod and is_nil(env!("SKIP_RUNTIME_CONFIG", :string, nil)) d
     ],
     static_url: [
       host: host,
-      port: port
+      port: nil
     ],
     check_origin: false,
     force_ssl: scheme == "https",
