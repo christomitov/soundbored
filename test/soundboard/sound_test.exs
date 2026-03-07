@@ -4,7 +4,7 @@ defmodule Soundboard.SoundTest do
   """
   use Soundboard.DataCase
   alias Soundboard.Accounts.User
-  alias Soundboard.{Repo, Sound, Tag, UserSoundSetting}
+  alias Soundboard.{Repo, Sound, Sounds, Tag, UserSoundSetting}
 
   describe "changeset validation" do
     test "validates required fields" do
@@ -157,7 +157,7 @@ defmodule Soundboard.SoundTest do
         [sound.id, tag.id, now, now]
       )
 
-      result = Sound.list_files() |> Enum.find(&(&1.id == sound.id))
+      result = Sounds.list_files() |> Enum.find(&(&1.id == sound.id))
       assert result.id == sound.id
       assert [%{name: "test_tag"}] = result.tags
     end
@@ -171,7 +171,7 @@ defmodule Soundboard.SoundTest do
         [sound.id, tag.id, now, now]
       )
 
-      result = Sound.get_sound!(sound.id)
+      result = Sounds.get_sound!(sound.id)
       assert result.id == sound.id
       assert [%{name: "test_tag"}] = result.tags
     end
@@ -303,21 +303,21 @@ defmodule Soundboard.SoundTest do
 
   describe "fetch_sound_id/1" do
     test "returns sound id when sound exists", %{sound: sound} do
-      assert Sound.fetch_sound_id(sound.filename) == {:ok, sound.id}
+      assert Sounds.fetch_sound_id(sound.filename) == {:ok, sound.id}
     end
 
     test "returns :error when sound doesn't exist" do
-      assert Sound.fetch_sound_id("nonexistent.mp3") == :error
+      assert Sounds.fetch_sound_id("nonexistent.mp3") == :error
     end
   end
 
   describe "fetch_filename_extension/1" do
     test "returns the stored file extension", %{sound: sound} do
-      assert Sound.fetch_filename_extension(sound.id) == {:ok, ".mp3"}
+      assert Sounds.fetch_filename_extension(sound.id) == {:ok, ".mp3"}
     end
 
     test "returns :error when sound doesn't exist" do
-      assert Sound.fetch_filename_extension(-1) == :error
+      assert Sounds.fetch_filename_extension(-1) == :error
     end
   end
 
@@ -330,7 +330,7 @@ defmodule Soundboard.SoundTest do
           sound
         end
 
-      results = Sound.get_recent_uploads()
+      results = Sounds.get_recent_uploads()
 
       # Should return 10 most recent
       assert length(results) >= 10
@@ -350,7 +350,7 @@ defmodule Soundboard.SoundTest do
       # Create 5 sounds
       for _ <- 1..5, do: insert_sound(user)
 
-      results = Sound.get_recent_uploads(limit: 3)
+      results = Sounds.get_recent_uploads(limit: 3)
       assert length(results) == 3
     end
 
@@ -358,7 +358,7 @@ defmodule Soundboard.SoundTest do
       # Delete all sounds
       Repo.delete_all(Sound)
 
-      results = Sound.get_recent_uploads()
+      results = Sounds.get_recent_uploads()
       assert results == []
     end
   end
@@ -373,7 +373,7 @@ defmodule Soundboard.SoundTest do
         tags: [tag]
       }
 
-      {:ok, updated_sound} = Sound.update_sound(sound, attrs)
+      {:ok, updated_sound} = Sounds.update_sound(sound, attrs)
 
       assert updated_sound.description == "Updated description"
       assert length(updated_sound.tags) == 1
@@ -383,7 +383,7 @@ defmodule Soundboard.SoundTest do
     test "validates on update", %{sound: sound} do
       attrs = %{source_type: "invalid"}
 
-      {:error, changeset} = Sound.update_sound(sound, attrs)
+      {:error, changeset} = Sounds.update_sound(sound, attrs)
       assert "must be either 'local' or 'url'" in errors_on(changeset).source_type
     end
   end
@@ -403,11 +403,11 @@ defmodule Soundboard.SoundTest do
         )
         |> Repo.insert()
 
-      assert Sound.get_user_join_sound(user.id) == sound.filename
+      assert Sounds.get_user_join_sound(user.id) == sound.filename
     end
 
     test "get_user_join_sound/1 returns nil when no join sound", %{user: user} do
-      assert Sound.get_user_join_sound(user.id) == nil
+      assert Sounds.get_user_join_sound(user.id) == nil
     end
 
     test "get_user_leave_sound/1 returns leave sound filename", %{user: user, sound: sound} do
@@ -424,11 +424,11 @@ defmodule Soundboard.SoundTest do
         )
         |> Repo.insert()
 
-      assert Sound.get_user_leave_sound(user.id) == sound.filename
+      assert Sounds.get_user_leave_sound(user.id) == sound.filename
     end
 
     test "get_user_leave_sound/1 returns nil when no leave sound", %{user: user} do
-      assert Sound.get_user_leave_sound(user.id) == nil
+      assert Sounds.get_user_leave_sound(user.id) == nil
     end
   end
 
@@ -473,7 +473,7 @@ defmodule Soundboard.SoundTest do
       user_id = user.id
 
       assert %{user_id: ^user_id, join_sound: join_filename, leave_sound: leave_filename} =
-               Sound.get_user_sound_preferences_by_discord_id(user.discord_id)
+               Sounds.get_user_sound_preferences_by_discord_id(user.discord_id)
 
       assert join_filename == join_sound.filename
       assert leave_filename == leave_sound.filename
@@ -483,11 +483,11 @@ defmodule Soundboard.SoundTest do
       user_id = user.id
 
       assert %{user_id: ^user_id, join_sound: nil, leave_sound: nil} =
-               Sound.get_user_sound_preferences_by_discord_id(user.discord_id)
+               Sounds.get_user_sound_preferences_by_discord_id(user.discord_id)
     end
 
     test "returns nil when user doesn't exist" do
-      assert Sound.get_user_sound_preferences_by_discord_id("nonexistent_discord_id") == nil
+      assert Sounds.get_user_sound_preferences_by_discord_id("nonexistent_discord_id") == nil
     end
   end
 

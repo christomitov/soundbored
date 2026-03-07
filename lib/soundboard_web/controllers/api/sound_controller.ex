@@ -1,9 +1,7 @@
 defmodule SoundboardWeb.API.SoundController do
   use SoundboardWeb, :controller
 
-  alias Soundboard.{Repo, Sound}
-  alias Soundboard.Sounds.Uploads
-  alias Soundboard.Sounds.Uploads.CreateRequest
+  alias Soundboard.{Repo, Sound, Sounds}
 
   def index(conn, _params) do
     sounds =
@@ -82,8 +80,8 @@ defmodule SoundboardWeb.API.SoundController do
 
   defp create_sound(user, params) do
     user
-    |> CreateRequest.new(params)
-    |> Uploads.create()
+    |> Sounds.new_create_request(params)
+    |> Sounds.create_sound()
   end
 
   defp require_upload_user(conn) do

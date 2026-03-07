@@ -3,8 +3,7 @@ defmodule SoundboardWeb.Live.SoundboardLive.EditFlow do
 
   import Phoenix.Component, only: [assign: 3]
 
-  alias Soundboard.{Sound, Volume}
-  alias Soundboard.Sounds.Management
+  alias Soundboard.{Sound, Sounds, Volume}
   alias SoundboardWeb.Live.{LiveTags, TagForm}
 
   @tag_form %{input_key: :tag_input, suggestions_key: :tag_suggestions}
@@ -37,11 +36,11 @@ defmodule SoundboardWeb.Live.SoundboardLive.EditFlow do
     current_sound_id = params["sound_id"]
 
     error =
-      case Sound.fetch_filename_extension(current_sound_id) do
+      case Sounds.fetch_filename_extension(current_sound_id) do
         {:ok, extension} ->
           filename = String.trim(params["filename"] || "") <> extension
 
-          if Sound.filename_taken_excluding?(filename, current_sound_id) do
+          if Sounds.filename_taken_excluding?(filename, current_sound_id) do
             "A sound with that name already exists"
           end
 
@@ -55,7 +54,7 @@ defmodule SoundboardWeb.Live.SoundboardLive.EditFlow do
   def validate_sound(socket, _params), do: {:noreply, socket}
 
   def open_modal(socket, id) do
-    sound = Sound.get_sound!(id)
+    sound = Sounds.get_sound!(id)
 
     {:noreply,
      socket
@@ -82,7 +81,7 @@ defmodule SoundboardWeb.Live.SoundboardLive.EditFlow do
     {:noreply,
      socket
      |> update_state(&%{&1 | current_sound: updated_sound})
-     |> assign(:uploaded_files, Sound.list_detailed())}
+     |> assign(:uploaded_files, Sounds.list_detailed())}
   end
 
   def select_tag_suggestion(socket, tag_name), do: select_tag(socket, tag_name)
@@ -98,7 +97,7 @@ defmodule SoundboardWeb.Live.SoundboardLive.EditFlow do
   def save_sound(socket, params) do
     edit = state(socket)
 
-    case Management.update_sound(edit.current_sound, edit.current_user_id, params) do
+    case Sounds.update_sound(edit.current_sound, edit.current_user_id, params) do
       {:ok, _updated_sound} ->
         LiveTags.broadcast_update()
 
@@ -106,7 +105,7 @@ defmodule SoundboardWeb.Live.SoundboardLive.EditFlow do
          socket
          |> Phoenix.LiveView.put_flash(:info, "Sound updated successfully")
          |> close_modal()
-         |> assign(:uploaded_files, Sound.list_detailed())}
+         |> assign(:uploaded_files, Sounds.list_detailed())}
 
       {:error, error} ->
         {:noreply,
@@ -129,12 +128,12 @@ defmodule SoundboardWeb.Live.SoundboardLive.EditFlow do
   def delete_sound(socket) do
     edit = state(socket)
 
-    case Management.delete_sound(edit.current_sound, edit.current_user_id) do
+    case Sounds.delete_sound(edit.current_sound, edit.current_user_id) do
       :ok ->
         {:noreply,
          socket
          |> close_modal()
-         |> assign(:uploaded_files, Sound.list_detailed())
+         |> assign(:uploaded_files, Sounds.list_detailed())
          |> Phoenix.LiveView.put_flash(:info, "Sound deleted successfully")}
 
       {:error, :forbidden} ->

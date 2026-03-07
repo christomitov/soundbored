@@ -6,7 +6,7 @@ defmodule SoundboardWeb.SoundboardLive do
   import DeleteModal
   import UploadModal
   import SoundboardWeb.Components.Soundboard.TagComponents, only: [tag_filter_button: 1]
-  alias Soundboard.{Favorites, PubSubTopics, Sound}
+  alias Soundboard.{Favorites, PubSubTopics, Sounds}
   alias SoundboardWeb.Live.{LiveTags, SoundPlayback}
   alias SoundboardWeb.Live.SoundboardLive.{EditFlow, UploadFlow}
   alias SoundboardWeb.Soundboard.SoundFilter
@@ -347,7 +347,7 @@ defmodule SoundboardWeb.SoundboardLive do
   end
 
   defp load_sound_files(socket) do
-    assign(socket, :uploaded_files, Sound.list_detailed())
+    assign(socket, :uploaded_files, Sounds.list_detailed())
   end
 
   defp clear_flash_after_timeout(socket) do

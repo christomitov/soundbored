@@ -5,10 +5,10 @@ defmodule Soundboard.Stats do
   import Ecto.Query
   import Ecto.Changeset, only: [add_error: 3, change: 1]
 
-  alias Soundboard.{Accounts.User, PubSubTopics, Repo, Sound, Stats.Play}
+  alias Soundboard.{Accounts.User, PubSubTopics, Repo, Sounds, Stats.Play}
 
   def track_play(sound_name, user_id) do
-    with {:ok, sound_id} <- Sound.fetch_sound_id(sound_name),
+    with {:ok, sound_id} <- Sounds.fetch_sound_id(sound_name),
          {:ok, play} <-
            insert_play(%{played_filename: sound_name, sound_id: sound_id, user_id: user_id}) do
       broadcast_stats_update()

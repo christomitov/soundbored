@@ -3,10 +3,7 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
 
   import Phoenix.Component, only: [assign: 3]
 
-  alias Soundboard.Sound
-  alias Soundboard.Sounds.Uploads
-  alias Soundboard.Sounds.Uploads.CreateRequest
-  alias Soundboard.Volume
+  alias Soundboard.{Sounds, Volume}
   alias SoundboardWeb.Live.TagForm
 
   @tag_form %{input_key: :upload_tag_input, suggestions_key: :upload_tag_suggestions}
@@ -58,17 +55,17 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
 
     case upload.source_type do
       "url" ->
-        case Uploads.create(build_request(upload, params)) do
+        case Sounds.create_sound(build_request(upload, params)) do
           {:ok, _sound} ->
             {:noreply,
              socket
              |> close_modal()
-             |> assign(:uploaded_files, Sound.list_detailed())
+             |> assign(:uploaded_files, Sounds.list_detailed())
              |> Phoenix.LiveView.put_flash(:info, "Sound added successfully")}
 
           {:error, changeset} ->
             {:noreply,
-             Phoenix.LiveView.put_flash(socket, :error, Uploads.error_message(changeset))}
+             Phoenix.LiveView.put_flash(socket, :error, Sounds.create_error_message(changeset))}
         end
 
       _ ->
@@ -77,9 +74,9 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
             request =
               upload
               |> build_request(params)
-              |> CreateRequest.put_upload(%{path: meta.path, filename: entry.client_name})
+              |> Sounds.put_request_upload(%{path: meta.path, filename: entry.client_name})
 
-            {:ok, Uploads.create(request)}
+            {:ok, Sounds.create_sound(request)}
           end)
 
         handle_save_results(socket, results)
@@ -97,7 +94,7 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
         {:noreply, assign_params(socket, upload, params, nil)}
 
       {:error, changeset} ->
-        {:noreply, assign_params(socket, upload, params, Uploads.error_message(changeset))}
+        {:noreply, assign_params(socket, upload, params, Sounds.create_error_message(changeset))}
     end
   end
 
@@ -205,7 +202,7 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
     if blank?(name) and blank?(url) do
       :ok
     else
-      case Uploads.validate(build_request(upload, %{"name" => name, "url" => url})) do
+      case Sounds.validate_create(build_request(upload, %{"name" => name, "url" => url})) do
         {:ok, _params} -> :ok
         {:error, changeset} -> {:error, changeset}
       end
@@ -216,9 +213,9 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
     request =
       upload
       |> build_request(params)
-      |> CreateRequest.put_upload(upload.current_upload)
+      |> Sounds.put_request_upload(upload.current_upload)
 
-    case Uploads.validate(request) do
+    case Sounds.validate_create(request) do
       {:ok, _params} -> :ok
       {:error, changeset} -> {:error, changeset}
     end
@@ -228,12 +225,12 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
     {:noreply,
      socket
      |> close_modal()
-     |> assign(:uploaded_files, Sound.list_detailed())
+     |> assign(:uploaded_files, Sounds.list_detailed())
      |> Phoenix.LiveView.put_flash(:info, "Sound added successfully")}
   end
 
   defp handle_save_results(socket, [{:error, changeset}]) do
-    {:noreply, Phoenix.LiveView.put_flash(socket, :error, Uploads.error_message(changeset))}
+    {:noreply, Phoenix.LiveView.put_flash(socket, :error, Sounds.create_error_message(changeset))}
   end
 
   defp handle_save_results(socket, []) do
@@ -241,7 +238,7 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
      Phoenix.LiveView.put_flash(
        socket,
        :error,
-       Uploads.error_message(
+       Sounds.create_error_message(
          %Ecto.Changeset{}
          |> Ecto.Changeset.change()
          |> Ecto.Changeset.add_error(:file, "Please select a file")
@@ -254,7 +251,7 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
   end
 
   defp build_request(%State{} = upload, params) do
-    CreateRequest.new(upload.current_user, %{
+    Sounds.new_create_request(upload.current_user, %{
       source_type: upload.source_type,
       name: params["name"],
       url: params["url"],
