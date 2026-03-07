@@ -122,15 +122,9 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
   end
 
   def select_tag(socket, tag_name) do
-    tag = Enum.find(TagHandler.search_tags(""), &(&1.name == tag_name))
-
-    if tag do
-      socket
-      |> TagHandler.add_tag(tag_name, socket.assigns.upload_tags)
-      |> handle_tag_response(socket)
-    else
-      {:noreply, Phoenix.LiveView.put_flash(socket, :error, "Tag not found")}
-    end
+    socket
+    |> TagHandler.add_tag(tag_name, socket.assigns.upload_tags)
+    |> handle_tag_response(socket)
   end
 
   def toggle_join_sound(socket) do

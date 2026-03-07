@@ -96,25 +96,9 @@ defmodule SoundboardWeb.Live.SoundboardLive.EditFlow do
   end
 
   def select_tag(socket, tag_name) do
-    tag = Enum.find(TagHandler.search_tags(""), &(&1.name == tag_name))
-    sound = socket.assigns.current_sound
-
-    if tag do
-      case TagHandler.update_sound_tags(sound, [tag | sound.tags]) do
-        {:ok, updated_sound} ->
-          {:noreply,
-           socket
-           |> assign(:current_sound, updated_sound)
-           |> assign(:tag_input, "")
-           |> assign(:tag_suggestions, [])
-           |> assign(:uploaded_files, Sound.list_detailed())}
-
-        {:error, _} ->
-          {:noreply, Phoenix.LiveView.put_flash(socket, :error, "Failed to add tag")}
-      end
-    else
-      {:noreply, Phoenix.LiveView.put_flash(socket, :error, "Tag not found")}
-    end
+    socket
+    |> TagHandler.add_tag(tag_name, socket.assigns.current_sound.tags)
+    |> handle_tag_response(socket)
   end
 
   def save_sound(socket, params) do
