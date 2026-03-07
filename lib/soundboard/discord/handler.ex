@@ -75,7 +75,6 @@ defmodule Soundboard.Discord.Handler do
 
     if VoiceRuntime.bot_user?(payload.user_id) do
       Logger.debug("Skipping leave sound lookup for bot user #{payload.user_id}")
-      :noop
     else
       SoundEffects.handle_leave(payload.user_id)
     end
@@ -95,20 +94,21 @@ defmodule Soundboard.Discord.Handler do
     previous_state = State.get_state(payload.user_id)
     State.update_state(payload.user_id, payload.channel_id, payload.session_id)
 
-    VoiceRuntime.handle_connect(payload)
+    runtime_actions = VoiceRuntime.handle_connect(payload)
 
     if VoiceRuntime.bot_user?(payload.user_id) do
       Logger.debug("Skipping join sound lookup for bot user #{payload.user_id}")
-      :noop
     else
       SoundEffects.handle_join(payload.user_id, previous_state, payload.channel_id)
     end
+
+    runtime_actions
   end
 
   def handle_event({:READY, _payload, _ws_state}) do
     Logger.info("Bot is READY - gateway connection established")
     :persistent_term.put(:soundboard_bot_ready, true)
-    :noop
+    []
   end
 
   def handle_event({:VOICE_READY, payload, _ws_state}) do
@@ -118,38 +118,48 @@ defmodule Soundboard.Discord.Handler do
     Channel ID: #{payload.channel_id}
     """)
 
-    :noop
+    []
   end
 
   def handle_event({:VOICE_PLAYBACK_FINISHED, payload, _ws_state}) do
     Soundboard.AudioPlayer.playback_finished(payload.guild_id)
-    :noop
+    []
   end
 
-  def handle_event({:VOICE_SERVER_UPDATE, _payload, _ws_state}), do: :noop
+  def handle_event({:VOICE_SERVER_UPDATE, _payload, _ws_state}), do: []
 
-  def handle_event({:VOICE_CHANNEL_STATUS_UPDATE, _payload, _ws_state}), do: :noop
+  def handle_event({:VOICE_CHANNEL_STATUS_UPDATE, _payload, _ws_state}), do: []
 
   def handle_event({:MESSAGE_CREATE, msg, _ws_state}) do
     CommandHandler.handle_message(msg)
+    []
   end
 
-  def handle_event(_event), do: :noop
+  def handle_event(_event), do: []
 
   @impl true
   def handle_cast({:eda_event, event}, state) do
-    handle_event(event)
+    event
+    |> handle_event()
+    |> apply_runtime_actions()
+
     {:noreply, state}
   end
 
   @impl true
   def handle_info({:event, {event_name, payload, ws_state}}, state) do
-    handle_event({event_name, payload, ws_state})
+    {event_name, payload, ws_state}
+    |> handle_event()
+    |> apply_runtime_actions()
+
     {:noreply, state}
   end
 
   def handle_info({:recheck_alone, guild_id, channel_id}, state) do
-    VoiceRuntime.recheck_alone(guild_id, channel_id)
+    guild_id
+    |> VoiceRuntime.recheck_alone(channel_id)
+    |> apply_runtime_actions()
+
     {:noreply, state}
   end
 
@@ -158,4 +168,16 @@ defmodule Soundboard.Discord.Handler do
   def get_current_voice_channel do
     VoiceRuntime.get_current_voice_channel()
   end
+
+  defp apply_runtime_actions(actions) when is_list(actions) do
+    Enum.each(actions, &apply_runtime_action/1)
+  end
+
+  defp apply_runtime_actions(_actions), do: :ok
+
+  defp apply_runtime_action({:schedule_recheck_alone, guild_id, channel_id, delay_ms}) do
+    Process.send_after(self(), {:recheck_alone, guild_id, channel_id}, delay_ms)
+  end
+
+  defp apply_runtime_action(_action), do: :ok
 end

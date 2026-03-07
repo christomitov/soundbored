@@ -7,6 +7,8 @@ defmodule Soundboard.Discord.Handler.VoiceRuntime do
   alias Soundboard.Discord.Handler.{AutoJoinPolicy, VoiceCommands, VoicePresence}
   alias Soundboard.Discord.Voice
 
+  @type runtime_action :: {:schedule_recheck_alone, String.t(), String.t(), non_neg_integer()}
+
   def bootstrap do
     Logger.info("Starting DiscordHandler...")
 
@@ -23,27 +25,30 @@ defmodule Soundboard.Discord.Handler.VoiceRuntime do
 
   def leave_voice_channel(guild_id), do: VoiceCommands.leave_voice_channel(guild_id)
 
+  @spec handle_connect(map()) :: [runtime_action()]
   def handle_connect(payload) do
     case AutoJoinPolicy.mode() do
       :enabled -> handle_auto_join_leave(payload)
-      :disabled -> :noop
+      :disabled -> []
     end
   end
 
+  @spec handle_disconnect(map()) :: [runtime_action()]
   def handle_disconnect(payload) do
     case AutoJoinPolicy.mode() do
       :enabled -> handle_bot_alone_check(payload.guild_id)
-      :disabled -> :noop
+      :disabled -> []
     end
   end
 
+  @spec recheck_alone(String.t(), String.t()) :: [runtime_action()]
   def recheck_alone(guild_id, channel_id) do
     case current_voice_channel_status() do
       {:ok, {^guild_id, ^channel_id}} -> handle_recheck_alone(guild_id, channel_id)
       _ -> Logger.debug("Recheck skipped; voice target changed")
     end
 
-    :ok
+    []
   end
 
   def get_current_voice_channel do
@@ -125,7 +130,7 @@ defmodule Soundboard.Discord.Handler.VoiceRuntime do
   defp handle_bot_alone_check(_guild_id) do
     case current_voice_channel_status() do
       {:ok, {guild_id, channel_id}} -> check_and_maybe_leave(guild_id, channel_id)
-      _ -> :noop
+      _ -> []
     end
   end
 
@@ -134,25 +139,25 @@ defmodule Soundboard.Discord.Handler.VoiceRuntime do
       {:ok, 0} ->
         Logger.info("No non-bot users remaining in channel, leaving now")
         leave_voice_channel(guild_id)
+        []
 
       {:ok, users} ->
         Logger.info("Non-bot users detected (#{users}); scheduling recheck in 1.5s")
-        Process.send_after(self(), {:recheck_alone, guild_id, channel_id}, 1_500)
-        :noop
+        [schedule_recheck(guild_id, channel_id)]
 
       {:error, reason} ->
         Logger.warning(
           "Skipping leave check because voice state was unavailable: #{inspect(reason)}"
         )
 
-        :noop
+        []
     end
   end
 
   defp handle_auto_join_leave(payload) do
     if bot_user?(payload.user_id) do
       Logger.debug("Ignoring bot's own voice state update in auto-join logic")
-      :noop
+      []
     else
       process_user_voice_update(payload)
     end
@@ -168,7 +173,7 @@ defmodule Soundboard.Discord.Handler.VoiceRuntime do
 
       _ ->
         Logger.debug("No action needed for voice state update")
-        :noop
+        []
     end
   end
 
@@ -177,11 +182,14 @@ defmodule Soundboard.Discord.Handler.VoiceRuntime do
       {:ok, users_in_channel} ->
         Logger.info("Found #{users_in_channel} users in channel #{payload.channel_id}")
         maybe_join_channel_for_payload(payload, users_in_channel)
+        []
 
       {:error, reason} ->
         Logger.warning(
           "Skipping auto-join because voice state was unavailable: #{inspect(reason)}"
         )
+
+        []
     end
   end
 
@@ -195,11 +203,13 @@ defmodule Soundboard.Discord.Handler.VoiceRuntime do
         Logger.warning(
           "Skipping channel switch handling because voice state was unavailable: #{inspect(reason)}"
         )
+
+        []
     end
   end
 
   defp maybe_join_channel_for_payload(_payload, users_in_channel) when users_in_channel <= 0,
-    do: :noop
+    do: :ok
 
   defp maybe_join_channel_for_payload(payload, users_in_channel) do
     if Voice.ready?(payload.guild_id) do
@@ -213,11 +223,15 @@ defmodule Soundboard.Discord.Handler.VoiceRuntime do
   defp handle_current_channel_users(guild_id, current_channel_id, 0) do
     Logger.info("Bot is alone in channel #{current_channel_id}, leaving")
     leave_voice_channel(guild_id)
+    []
   end
 
   defp handle_current_channel_users(guild_id, current_channel_id, _users) do
-    Process.send_after(self(), {:recheck_alone, guild_id, current_channel_id}, 1_500)
+    [schedule_recheck(guild_id, current_channel_id)]
   end
+
+  defp schedule_recheck(guild_id, channel_id),
+    do: {:schedule_recheck_alone, guild_id, channel_id, 1_500}
 
   defp current_voice_channel_status do
     case VoicePresence.current_voice_channel() do
