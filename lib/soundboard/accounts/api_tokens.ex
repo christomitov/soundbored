@@ -2,12 +2,20 @@ defmodule Soundboard.Accounts.ApiTokens do
   @moduledoc """
   Context for managing API tokens bound to users.
   """
+  require Logger
+
   import Ecto.Query
   alias Soundboard.Repo
   alias Soundboard.Accounts.{ApiToken, User}
 
+  @type verify_error :: :invalid | :token_update_failed
+  @type verify_result :: {:ok, User.t(), ApiToken.t()} | {:error, verify_error}
+  @type revoke_result ::
+          {:ok, ApiToken.t()} | {:error, :forbidden | :not_found | Ecto.Changeset.t()}
+
   @prefix "sb_"
 
+  @spec list_tokens(User.t()) :: [ApiToken.t()]
   def list_tokens(%User{id: user_id}) do
     from(t in ApiToken,
       where: t.user_id == ^user_id and is_nil(t.revoked_at),
@@ -16,6 +24,8 @@ defmodule Soundboard.Accounts.ApiTokens do
     |> Repo.all()
   end
 
+  @spec generate_token(User.t(), map()) ::
+          {:ok, String.t(), ApiToken.t()} | {:error, Ecto.Changeset.t()}
   def generate_token(%User{id: user_id}, attrs \\ %{}) do
     raw = random_token()
     hash = hash_token(raw)
@@ -35,6 +45,7 @@ defmodule Soundboard.Accounts.ApiTokens do
     end
   end
 
+  @spec verify_token(String.t()) :: verify_result()
   def verify_token(raw) when is_binary(raw) do
     query =
       from t in ApiToken,
@@ -46,12 +57,19 @@ defmodule Soundboard.Accounts.ApiTokens do
 
       token ->
         token = Repo.preload(token, :user)
-        # Persist last_used_at before returning the verified token
-        _ = update_last_used_at(token)
-        {:ok, token.user, token}
+
+        case update_last_used_at(token) do
+          {:ok, _updated_token} ->
+            {:ok, token.user, token}
+
+          {:error, changeset} ->
+            Logger.error("Failed to update API token last_used_at: #{inspect(changeset.errors)}")
+            {:error, :token_update_failed}
+        end
     end
   end
 
+  @spec revoke_token(User.t(), integer() | String.t()) :: revoke_result()
   def revoke_token(%User{id: user_id}, token_id) do
     token_id = normalize_id(token_id)
 

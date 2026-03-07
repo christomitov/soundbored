@@ -24,8 +24,11 @@ defmodule SoundboardWeb.Plugs.APIAuth do
         |> assign(:current_user, user)
         |> assign(:api_token, api_token)
 
-      _ ->
+      {:error, :invalid} ->
         unauthorized(conn)
+
+      {:error, :token_update_failed} ->
+        internal_error(conn)
     end
   end
 
@@ -33,6 +36,13 @@ defmodule SoundboardWeb.Plugs.APIAuth do
     conn
     |> put_status(:unauthorized)
     |> Phoenix.Controller.json(%{error: message})
+    |> halt()
+  end
+
+  defp internal_error(conn) do
+    conn
+    |> put_status(:internal_server_error)
+    |> Phoenix.Controller.json(%{error: "API token verification failed"})
     |> halt()
   end
 

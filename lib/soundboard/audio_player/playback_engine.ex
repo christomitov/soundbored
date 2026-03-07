@@ -6,7 +6,7 @@ defmodule Soundboard.AudioPlayer.PlaybackEngine do
   alias Soundboard.Accounts.User
   alias Soundboard.{AudioPlayer, AudioPlayer.SoundLibrary, Discord.Voice, PubSubTopics}
 
-  @system_users ["System", "API User"]
+  @system_users ["System"]
   @rtp_probe_poll_ms 20
   @rtp_probe_default_timeout_ms 6_000
   @voice_not_ready_retry_ms 350
@@ -17,10 +17,10 @@ defmodule Soundboard.AudioPlayer.PlaybackEngine do
   @rejoin_retry_threshold 3
   @max_play_attempts 20
 
-  def play(guild_id, channel_id, sound_name, path_or_url, volume, username) do
+  def play(guild_id, channel_id, sound_name, path_or_url, volume, actor) do
     join_state = ensure_joined_channel(guild_id, channel_id)
     maybe_settle_before_play(join_state)
-    play_sound_with_connection(guild_id, sound_name, path_or_url, volume, username)
+    play_sound_with_connection(guild_id, sound_name, path_or_url, volume, actor)
   end
 
   defp maybe_settle_before_play({:joined, :ok}) do
@@ -29,7 +29,7 @@ defmodule Soundboard.AudioPlayer.PlaybackEngine do
 
   defp maybe_settle_before_play(_), do: :ok
 
-  defp play_sound_with_connection(guild_id, sound_name, path_or_url, volume, username) do
+  defp play_sound_with_connection(guild_id, sound_name, path_or_url, volume, actor) do
     if is_nil(System.find_executable("ffmpeg")) do
       Logger.error("ffmpeg not found in PATH. Cannot play #{sound_name}")
       broadcast_error("ffmpeg is not installed on this host")
@@ -43,7 +43,7 @@ defmodule Soundboard.AudioPlayer.PlaybackEngine do
         play_type: play_type,
         play_options: [volume: clamp_volume(volume)],
         sound_name: sound_name,
-        username: username
+        actor: actor
       }
 
       play_with_retries(play_request, 0, false)
@@ -55,8 +55,8 @@ defmodule Soundboard.AudioPlayer.PlaybackEngine do
     case voice_play(play_request) |> classify_play_attempt() do
       :ok ->
         maybe_probe_first_rtp(play_request.guild_id, play_request.sound_name, attempt + 1)
-        track_play_if_needed(play_request.sound_name, play_request.username)
-        broadcast_success(play_request.sound_name, play_request.username)
+        track_play_if_needed(play_request.sound_name, play_request.actor)
+        broadcast_success(play_request.sound_name, play_request.actor)
         :ok
 
       {:retry, retry} ->
@@ -351,19 +351,29 @@ defmodule Soundboard.AudioPlayer.PlaybackEngine do
     error -> {:error, {:voice_playback_unavailable, Exception.message(error)}}
   end
 
-  defp track_play_if_needed(sound_name, username) do
-    if system_user?(username) do
-      :ok
-    else
-      case Soundboard.Repo.get_by(User, username: username) do
-        %{id: user_id} -> Soundboard.Stats.track_play(sound_name, user_id)
-        nil -> Logger.warning("Could not find user_id for #{username}")
-      end
+  defp track_play_if_needed(sound_name, actor) do
+    cond do
+      system_user?(actor) ->
+        :ok
+
+      is_integer(actor_user_id(actor)) ->
+        Soundboard.Stats.track_play(sound_name, actor_user_id(actor))
+
+      is_binary(actor_display_name(actor)) ->
+        username = actor_display_name(actor)
+
+        case Soundboard.Repo.get_by(User, username: username) do
+          %{id: user_id} -> Soundboard.Stats.track_play(sound_name, user_id)
+          nil -> Logger.warning("Could not find user_id for #{username}")
+        end
+
+      true ->
+        Logger.warning("Could not determine playback actor for #{sound_name}")
     end
   end
 
-  defp broadcast_success(sound_name, username) do
-    PubSubTopics.broadcast_sound_played(sound_name, username)
+  defp broadcast_success(sound_name, actor) do
+    PubSubTopics.broadcast_sound_played(sound_name, actor_display_name(actor) || "Unknown")
   end
 
   defp broadcast_error(message) do
@@ -382,5 +392,16 @@ defmodule Soundboard.AudioPlayer.PlaybackEngine do
 
   defp clamp_volume(_), do: 1.0
 
-  defp system_user?(username), do: username in @system_users
+  defp actor_display_name(%{display_name: display_name}) when is_binary(display_name),
+    do: display_name
+
+  defp actor_display_name(%User{username: username}) when is_binary(username), do: username
+  defp actor_display_name(username) when is_binary(username), do: username
+  defp actor_display_name(_), do: nil
+
+  defp actor_user_id(%{user_id: user_id}) when is_integer(user_id), do: user_id
+  defp actor_user_id(%User{id: user_id}) when is_integer(user_id), do: user_id
+  defp actor_user_id(_), do: nil
+
+  defp system_user?(actor), do: actor_display_name(actor) in @system_users
 end

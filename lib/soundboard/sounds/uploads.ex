@@ -171,18 +171,18 @@ defmodule Soundboard.Sounds.Uploads do
         source_type = normalize_source_type(get_param(attrs, :source_type), upload, url)
         name = normalize_name(get_param(attrs, :name))
 
-        build_normalized_params(
-          user,
-          source_type,
-          name,
-          url,
-          get_param(attrs, :tags, []),
-          get_param(attrs, :volume),
-          get_param(attrs, :is_join_sound),
-          get_param(attrs, :is_leave_sound),
-          get_param(attrs, :default_volume_percent, 100),
-          upload
-        )
+        build_normalized_params(%{
+          user: user,
+          source_type: source_type,
+          name: name,
+          url: url,
+          tags: get_param(attrs, :tags, []),
+          volume: get_param(attrs, :volume),
+          is_join_sound: get_param(attrs, :is_join_sound),
+          is_leave_sound: get_param(attrs, :is_leave_sound),
+          default_volume_percent: get_param(attrs, :default_volume_percent, 100),
+          upload: upload
+        })
 
       error ->
         error
@@ -195,18 +195,18 @@ defmodule Soundboard.Sounds.Uploads do
     source_type = normalize_source_type(request.source_type, upload, url)
     name = normalize_name(request.name)
 
-    build_normalized_params(
-      request.user,
-      source_type,
-      name,
-      url,
-      request.tags,
-      request.volume,
-      request.is_join_sound,
-      request.is_leave_sound,
-      request.default_volume_percent || 100,
-      upload
-    )
+    build_normalized_params(%{
+      user: request.user,
+      source_type: source_type,
+      name: name,
+      url: url,
+      tags: request.tags,
+      volume: request.volume,
+      is_join_sound: request.is_join_sound,
+      is_leave_sound: request.is_leave_sound,
+      default_volume_percent: request.default_volume_percent || 100,
+      upload: upload
+    })
   end
 
   defp fetch_user(attrs) do
@@ -216,18 +216,18 @@ defmodule Soundboard.Sounds.Uploads do
     end
   end
 
-  defp build_normalized_params(
-         %Soundboard.Accounts.User{} = user,
-         source_type,
-         name,
-         url,
-         tags,
-         volume,
-         is_join_sound,
-         is_leave_sound,
-         default_volume_percent,
-         upload
-       ) do
+  defp build_normalized_params(%{
+         user: %Soundboard.Accounts.User{} = user,
+         source_type: source_type,
+         name: name,
+         url: url,
+         tags: tags,
+         volume: volume,
+         is_join_sound: is_join_sound,
+         is_leave_sound: is_leave_sound,
+         default_volume_percent: default_volume_percent,
+         upload: upload
+       }) do
     if blank?(name) do
       {:error, add_error(change(%Sound{}), :filename, "can't be blank")}
     else
@@ -247,18 +247,7 @@ defmodule Soundboard.Sounds.Uploads do
     end
   end
 
-  defp build_normalized_params(
-         _user,
-         _source_type,
-         _name,
-         _url,
-         _tags,
-         _volume,
-         _is_join_sound,
-         _is_leave_sound,
-         _default_volume_percent,
-         _upload
-       ) do
+  defp build_normalized_params(_params) do
     {:error, add_error(change(%Sound{}), :user_id, "can't be blank")}
   end
 

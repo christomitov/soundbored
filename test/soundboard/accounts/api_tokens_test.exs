@@ -1,7 +1,10 @@
 defmodule Soundboard.Accounts.ApiTokensTest do
   use Soundboard.DataCase
+
+  import Mock
+
   alias Soundboard.Repo
-  alias Soundboard.Accounts.{ApiTokens, User}
+  alias Soundboard.Accounts.{ApiToken, ApiTokens, User}
 
   setup do
     {:ok, user} =
@@ -42,6 +45,21 @@ defmodule Soundboard.Accounts.ApiTokensTest do
   test "verify_token returns error for invalid token", %{user: _user} do
     # ensure user created to avoid false positives
     assert {:error, :invalid} == ApiTokens.verify_token("sb_invalid_token")
+  end
+
+  test "verify_token returns error when last_used_at update fails", %{user: user} do
+    {:ok, raw, token} = ApiTokens.generate_token(user, %{label: "failing-update"})
+
+    stored_token = Repo.get!(ApiToken, token.id)
+    preloaded_token = Repo.preload(stored_token, :user)
+    failed_changeset = Ecto.Changeset.change(stored_token)
+
+    with_mock Soundboard.Repo,
+      one: fn _query -> stored_token end,
+      preload: fn ^stored_token, :user -> preloaded_token end,
+      update: fn _changeset -> {:error, failed_changeset} end do
+      assert {:error, :token_update_failed} == ApiTokens.verify_token(raw)
+    end
   end
 
   test "revoke_token forbids other users", %{user: user} do

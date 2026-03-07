@@ -5,6 +5,15 @@ defmodule Soundboard.Accounts.User do
   use Ecto.Schema
   import Ecto.Changeset
 
+  @type t :: %__MODULE__{
+          id: integer() | nil,
+          discord_id: String.t() | nil,
+          username: String.t() | nil,
+          avatar: String.t() | nil,
+          inserted_at: NaiveDateTime.t() | nil,
+          updated_at: NaiveDateTime.t() | nil
+        }
+
   schema "users" do
     field :discord_id, :string
     field :username, :string

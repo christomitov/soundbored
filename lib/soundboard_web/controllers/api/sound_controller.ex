@@ -41,24 +41,28 @@ defmodule SoundboardWeb.API.SoundController do
         |> json(%{error: "Sound not found"})
 
       sound ->
-        username =
-          case conn.assigns[:current_user] do
-            %Soundboard.Accounts.User{username: uname} -> uname
-            _ -> get_req_header(conn, "x-username") |> List.first() || "API User"
-          end
+        case require_play_user(conn) do
+          {:ok, user} ->
+            actor = %{display_name: user.username, user_id: user.id}
 
-        Soundboard.AudioPlayer.play_sound(sound.filename, username)
+            Soundboard.AudioPlayer.play_sound(sound.filename, actor)
 
-        conn
-        |> put_status(:accepted)
-        |> json(%{
-          data: %{
-            status: "accepted",
-            message: "Playback request accepted for #{sound.filename}",
-            requested_by: username,
-            sound: %{id: sound.id, filename: sound.filename}
-          }
-        })
+            conn
+            |> put_status(:accepted)
+            |> json(%{
+              data: %{
+                status: "accepted",
+                message: "Playback request accepted for #{sound.filename}",
+                requested_by: actor.display_name,
+                sound: %{id: sound.id, filename: sound.filename}
+              }
+            })
+
+          {:error, :forbidden_auth_state} ->
+            conn
+            |> put_status(:forbidden)
+            |> json(%{error: "Playback requires a user API token"})
+        end
     end
   end
 
@@ -87,6 +91,8 @@ defmodule SoundboardWeb.API.SoundController do
       _ -> {:error, :forbidden_auth_state}
     end
   end
+
+  defp require_play_user(conn), do: require_upload_user(conn)
 
   defp format_sound(sound, current_user \\ nil) do
     user_setting = find_user_setting(sound, current_user)

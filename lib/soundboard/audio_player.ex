@@ -29,8 +29,8 @@ defmodule Soundboard.AudioPlayer do
     GenServer.start_link(__MODULE__, %State{}, name: __MODULE__)
   end
 
-  def play_sound(sound_name, username) do
-    GenServer.cast(__MODULE__, {:play_sound, sound_name, username})
+  def play_sound(sound_name, actor) do
+    GenServer.cast(__MODULE__, {:play_sound, sound_name, actor})
   end
 
   def stop_sound do
@@ -125,13 +125,13 @@ defmodule Soundboard.AudioPlayer do
     {:noreply, handle_playback_finished(state, guild_id)}
   end
 
-  def handle_cast({:play_sound, _sound_name, _username}, %{voice_channel: nil} = state) do
+  def handle_cast({:play_sound, _sound_name, _actor}, %{voice_channel: nil} = state) do
     broadcast_error("Bot is not connected to a voice channel. Use !join in Discord first.")
     {:noreply, state}
   end
 
   def handle_cast(
-        {:play_sound, sound_name, username},
+        {:play_sound, sound_name, actor},
         %{voice_channel: {guild_id, channel_id}} = state
       ) do
     case SoundLibrary.get_sound_path(sound_name) do
@@ -142,7 +142,7 @@ defmodule Soundboard.AudioPlayer do
           sound_name: sound_name,
           path_or_url: path_or_url,
           volume: volume,
-          username: username
+          actor: actor
         }
 
         new_state =
@@ -254,7 +254,7 @@ defmodule Soundboard.AudioPlayer do
           request.sound_name,
           request.path_or_url,
           request.volume,
-          request.username
+          request.actor
         )
       end)
 

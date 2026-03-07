@@ -9,6 +9,19 @@ defmodule Soundboard.Accounts.ApiToken do
   import Ecto.Changeset
   alias Soundboard.Accounts.User
 
+  @type t :: %__MODULE__{
+          id: integer() | nil,
+          user_id: integer() | nil,
+          user: User.t() | Ecto.Association.NotLoaded.t() | nil,
+          token_hash: String.t() | nil,
+          token: String.t() | nil,
+          label: String.t() | nil,
+          revoked_at: NaiveDateTime.t() | nil,
+          last_used_at: NaiveDateTime.t() | nil,
+          inserted_at: NaiveDateTime.t() | nil,
+          updated_at: NaiveDateTime.t() | nil
+        }
+
   schema "api_tokens" do
     belongs_to :user, User
     field :token_hash, :string

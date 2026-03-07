@@ -35,7 +35,13 @@ defmodule SoundboardWeb.APIAuthDBTokenTest do
     assert json_response(conn, 200)["data"] |> is_list()
   end
 
-  test "POST /api/sounds/:id/play authorized via DB token", %{conn: conn, sound: sound} do
+  test "POST /api/sounds/:id/play authorized via DB token", %{
+    conn: conn,
+    sound: sound,
+    user: user
+  } do
+    actor = %{display_name: user.username, user_id: user.id}
+
     # Mock the audio player so we don't actually attempt voice playback
     with_mock Soundboard.AudioPlayer, play_sound: fn _, _ -> :ok end do
       conn = post(conn, ~p"/api/sounds/#{sound.id}/play")
@@ -49,6 +55,7 @@ defmodule SoundboardWeb.APIAuthDBTokenTest do
 
       assert sound_id == sound.id
       assert filename == sound.filename
+      assert_called(Soundboard.AudioPlayer.play_sound(sound.filename, actor))
     end
   end
 
@@ -63,5 +70,17 @@ defmodule SoundboardWeb.APIAuthDBTokenTest do
     conn = build_conn() |> put_req_header("authorization", "Bearer badtoken")
     conn = get(conn, ~p"/api/sounds")
     assert json_response(conn, 401)
+  end
+
+  test "returns internal server error when token bookkeeping fails", %{conn: _conn} do
+    with_mock Soundboard.Accounts.ApiTokens,
+      verify_token: fn _ -> {:error, :token_update_failed} end do
+      conn =
+        build_conn()
+        |> put_req_header("authorization", "Bearer anytoken")
+        |> get(~p"/api/sounds")
+
+      assert %{"error" => "API token verification failed"} = json_response(conn, 500)
+    end
   end
 end

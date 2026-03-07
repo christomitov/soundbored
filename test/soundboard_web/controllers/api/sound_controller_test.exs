@@ -246,34 +246,10 @@ defmodule SoundboardWeb.API.SoundControllerTest do
   end
 
   describe "play" do
-    test "plays a sound successfully", %{conn: conn, sound: sound, user: user} do
-      with_mock Soundboard.AudioPlayer, play_sound: fn _filename, _username -> :ok end do
-        conn =
-          conn
-          |> put_req_header("x-username", "TestUser")
-          |> post(~p"/api/sounds/#{sound.id}/play")
+    test "plays a sound as the authenticated token user", %{conn: conn, sound: sound, user: user} do
+      actor = %{display_name: user.username, user_id: user.id}
 
-        assert %{
-                 "data" => %{
-                   "status" => "accepted",
-                   "message" => "Playback request accepted for " <> _,
-                   "requested_by" => requested_by,
-                   "sound" => %{"id" => sound_id, "filename" => filename}
-                 }
-               } = json_response(conn, 202)
-
-        assert requested_by == user.username
-        assert sound_id == sound.id
-        assert filename == sound.filename
-      end
-    end
-
-    test "plays a sound with default username when x-username not provided", %{
-      conn: conn,
-      sound: sound,
-      user: user
-    } do
-      with_mock Soundboard.AudioPlayer, play_sound: fn _filename, _username -> :ok end do
+      with_mock Soundboard.AudioPlayer, play_sound: fn _filename, _actor -> :ok end do
         conn = post(conn, ~p"/api/sounds/#{sound.id}/play")
 
         assert %{
@@ -288,6 +264,34 @@ defmodule SoundboardWeb.API.SoundControllerTest do
         assert requested_by == user.username
         assert sound_id == sound.id
         assert filename == sound.filename
+        assert_called(Soundboard.AudioPlayer.play_sound(sound.filename, actor))
+      end
+    end
+
+    test "ignores x-username and attributes playback to the token user", %{
+      conn: conn,
+      sound: sound,
+      user: user
+    } do
+      actor = %{display_name: user.username, user_id: user.id}
+
+      with_mock Soundboard.AudioPlayer, play_sound: fn _filename, _actor -> :ok end do
+        conn =
+          conn
+          |> put_req_header("x-username", "TestUser")
+          |> post(~p"/api/sounds/#{sound.id}/play")
+
+        assert %{
+                 "data" => %{
+                   "requested_by" => requested_by,
+                   "sound" => %{"id" => sound_id, "filename" => filename}
+                 }
+               } = json_response(conn, 202)
+
+        assert requested_by == user.username
+        assert sound_id == sound.id
+        assert filename == sound.filename
+        assert_called(Soundboard.AudioPlayer.play_sound(sound.filename, actor))
       end
     end
 
