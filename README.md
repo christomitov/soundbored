@@ -8,6 +8,7 @@
 
 Soundbored is an unlimited, no-cost, self-hosted soundboard for Discord. It allows you to play sounds in a voice channel.
 
+
 [Hexdocs](https://christomitov.github.io/soundbored/)
 
 <img width="1468" alt="Screenshot 2025-01-18 at 1 26 07 PM" src="https://github.com/user-attachments/assets/4a504100-5ef9-47bc-b406-35b67837e116" />
@@ -95,6 +96,13 @@ The bot is also able to auto-join and auto-leave voice channels. This is control
 
 The API is used to trigger sounds from other applications. Create a personal API token in **Settings** after signing in, then send it as `Authorization: Bearer <USER_API_TOKEN>`.
 
+Current API workflow supports:
+- listing sounds
+- uploading local files
+- creating URL-backed sounds
+- queueing playback for a specific sound
+- stopping active playback
+
 ### Endpoints
 
 #### List sounds
@@ -142,6 +150,24 @@ Returns `202 Accepted` with `%{data: %{status: "accepted", ...}}` because the st
 Errors use `%{error: message}` or `%{errors: changeset_errors}` depending on whether the failure is request-level or validation-level.
 
 ## Changelog
+
+### v1.7.0 (2026-03-06)
+
+#### ✨ New Features
+- Switched the Discord voice/runtime integration over to EDA, bringing DAVE support for current Discord voice encryption negotiation.
+- Expanded the authenticated API so external tools can list sounds, upload local files, create URL-backed sounds, queue playback, and stop playback with personal user tokens.
+- Public URL handling is now centralized so Discord invite/auth links and API examples stay aligned with the configured host and scheme.
+
+#### ⚙️ Improvements
+- Audio playback startup is faster and more resilient, reducing common delay/glitch cases during sound playback.
+- Voice runtime handling was split into smaller policy/command/presence modules, making Discord connection behavior easier to reason about and maintain.
+- Upload and tag persistence flows were consolidated so the LiveView and API paths share the same domain logic.
+- The app now boots in a degraded mode when optional voice runtime capabilities are unavailable instead of failing startup entirely.
+
+#### 🧪 Tests & Quality
+- Added coverage for command handling, runtime capability detection, public URL behavior, API auth, upload flows, and collaborative sound management rules.
+- Clarified the intended collaboration model: any signed-in user can edit shared sound details, but only the original uploader can delete a sound.
+- Removed stale dependencies and cleanup scaffolding while continuing the broader code-health refactor.
 
 ### v1.6.0 (2025-10-01)
 
