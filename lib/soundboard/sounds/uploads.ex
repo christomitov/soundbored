@@ -107,9 +107,10 @@ defmodule Soundboard.Sounds.Uploads do
 
   @spec validate(create_attrs()) :: {:ok, map()} | {:error, Ecto.Changeset.t()}
   def validate(%CreateRequest{} = request) do
-    request
-    |> request_to_attrs()
-    |> validate()
+    with {:ok, params} <- normalize_request(request),
+         {:ok, _source} <- prepare_source(params, :validate) do
+      {:ok, params}
+    end
   end
 
   def validate(attrs) when is_map(attrs) do
@@ -121,9 +122,10 @@ defmodule Soundboard.Sounds.Uploads do
 
   @spec create(create_attrs()) :: create_result()
   def create(%CreateRequest{} = request) do
-    request
-    |> request_to_attrs()
-    |> create()
+    with {:ok, params} <- normalize_request(request),
+         {:ok, source} <- prepare_source(params, :create) do
+      persist_sound(params, source)
+    end
   end
 
   def create(attrs) when is_map(attrs) do
@@ -169,30 +171,42 @@ defmodule Soundboard.Sounds.Uploads do
         source_type = normalize_source_type(get_param(attrs, :source_type), upload, url)
         name = normalize_name(get_param(attrs, :name))
 
-        if blank?(name) do
-          {:error, add_error(change(%Sound{}), :filename, "can't be blank")}
-        else
-          {:ok,
-           %{
-             user: user,
-             source_type: source_type,
-             name: name,
-             url: url,
-             tags: normalize_tags(get_param(attrs, :tags, [])),
-             volume:
-               Volume.percent_to_decimal(
-                 get_param(attrs, :volume),
-                 normalize_default_volume(get_param(attrs, :default_volume_percent, 100))
-               ),
-             is_join_sound: to_boolean(get_param(attrs, :is_join_sound)),
-             is_leave_sound: to_boolean(get_param(attrs, :is_leave_sound)),
-             upload: upload
-           }}
-        end
+        build_normalized_params(
+          user,
+          source_type,
+          name,
+          url,
+          get_param(attrs, :tags, []),
+          get_param(attrs, :volume),
+          get_param(attrs, :is_join_sound),
+          get_param(attrs, :is_leave_sound),
+          get_param(attrs, :default_volume_percent, 100),
+          upload
+        )
 
       error ->
         error
     end
+  end
+
+  defp normalize_request(%CreateRequest{} = request) do
+    upload = normalize_upload(request.upload)
+    url = normalize_url(request.url)
+    source_type = normalize_source_type(request.source_type, upload, url)
+    name = normalize_name(request.name)
+
+    build_normalized_params(
+      request.user,
+      source_type,
+      name,
+      url,
+      request.tags,
+      request.volume,
+      request.is_join_sound,
+      request.is_leave_sound,
+      request.default_volume_percent || 100,
+      upload
+    )
   end
 
   defp fetch_user(attrs) do
@@ -200,6 +214,52 @@ defmodule Soundboard.Sounds.Uploads do
       %Soundboard.Accounts.User{} = user -> {:ok, user}
       _ -> {:error, add_error(change(%Sound{}), :user_id, "can't be blank")}
     end
+  end
+
+  defp build_normalized_params(
+         %Soundboard.Accounts.User{} = user,
+         source_type,
+         name,
+         url,
+         tags,
+         volume,
+         is_join_sound,
+         is_leave_sound,
+         default_volume_percent,
+         upload
+       ) do
+    if blank?(name) do
+      {:error, add_error(change(%Sound{}), :filename, "can't be blank")}
+    else
+      {:ok,
+       %{
+         user: user,
+         source_type: source_type,
+         name: name,
+         url: url,
+         tags: normalize_tags(tags),
+         volume:
+           Volume.percent_to_decimal(volume, normalize_default_volume(default_volume_percent)),
+         is_join_sound: to_boolean(is_join_sound),
+         is_leave_sound: to_boolean(is_leave_sound),
+         upload: upload
+       }}
+    end
+  end
+
+  defp build_normalized_params(
+         _user,
+         _source_type,
+         _name,
+         _url,
+         _tags,
+         _volume,
+         _is_join_sound,
+         _is_leave_sound,
+         _default_volume_percent,
+         _upload
+       ) do
+    {:error, add_error(change(%Sound{}), :user_id, "can't be blank")}
   end
 
   defp normalize_default_volume(value), do: Volume.normalize_percent(value, 100)
@@ -463,21 +523,6 @@ defmodule Soundboard.Sounds.Uploads do
       end
     end)
     |> then(&struct!(request, &1))
-  end
-
-  defp request_to_attrs(%CreateRequest{} = request) do
-    %{
-      user: request.user,
-      source_type: request.source_type,
-      name: request.name,
-      url: request.url,
-      upload: request.upload,
-      tags: request.tags,
-      volume: request.volume,
-      is_join_sound: request.is_join_sound,
-      is_leave_sound: request.is_leave_sound,
-      default_volume_percent: request.default_volume_percent
-    }
   end
 
   defp request_field(key)

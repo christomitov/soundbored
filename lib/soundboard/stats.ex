@@ -10,7 +10,7 @@ defmodule Soundboard.Stats do
   def track_play(sound_name, user_id) do
     with {:ok, sound_id} <- Sound.fetch_sound_id(sound_name),
          {:ok, play} <-
-           insert_play(%{sound_name: sound_name, sound_id: sound_id, user_id: user_id}) do
+           insert_play(%{played_filename: sound_name, sound_id: sound_id, user_id: user_id}) do
       broadcast_stats_update()
       {:ok, play}
     else
@@ -51,8 +51,8 @@ defmodule Soundboard.Stats do
     from(p in Play,
       left_join: s in assoc(p, :sound),
       where: fragment("DATE(?) BETWEEN ? AND ?", p.inserted_at, ^start_date, ^end_date),
-      group_by: fragment("COALESCE(?, ?)", s.filename, p.sound_name),
-      select: {fragment("COALESCE(?, ?)", s.filename, p.sound_name), count(p.id)},
+      group_by: fragment("COALESCE(?, ?)", s.filename, p.played_filename),
+      select: {fragment("COALESCE(?, ?)", s.filename, p.played_filename), count(p.id)},
       order_by: [desc: count(p.id)],
       limit: ^limit
     )
@@ -68,7 +68,8 @@ defmodule Soundboard.Stats do
       join: u in User,
       on: p.user_id == u.id,
       select:
-        {p.id, fragment("COALESCE(?, ?)", s.filename, p.sound_name), u.username, p.inserted_at},
+        {p.id, fragment("COALESCE(?, ?)", s.filename, p.played_filename), u.username,
+         p.inserted_at},
       order_by: [desc: p.inserted_at, desc: p.id],
       limit: ^limit
     )

@@ -14,7 +14,7 @@ defmodule Soundboard.StatsTest do
 
     test "track_play creates a play record", %{user: user, sound: sound} do
       assert {:ok, play} = Stats.track_play(sound.filename, user.id)
-      assert play.sound_name == sound.filename
+      assert play.played_filename == sound.filename
       assert play.sound_id == sound.id
       assert play.user_id == user.id
     end
@@ -56,7 +56,7 @@ defmodule Soundboard.StatsTest do
       sound: sound
     } do
       %Play{}
-      |> Play.legacy_changeset(%{sound_name: sound.filename, user_id: user.id})
+      |> Play.legacy_changeset(%{played_filename: sound.filename, user_id: user.id})
       |> Repo.insert!()
 
       assert [{_id, filename, username, _timestamp}] = Stats.get_recent_plays(limit: 1)
@@ -103,7 +103,7 @@ defmodule Soundboard.StatsTest do
         |> NaiveDateTime.add(-8, :day)
         |> NaiveDateTime.truncate(:second)
 
-      play = %Play{sound_name: sound.filename, user_id: user.id, inserted_at: old_date}
+      play = %Play{played_filename: sound.filename, user_id: user.id, inserted_at: old_date}
       Repo.insert!(play)
 
       # Create a recent play
