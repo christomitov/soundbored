@@ -1,16 +1,16 @@
 defmodule SoundboardWeb.SoundboardLive do
   use SoundboardWeb, :live_view
-  use SoundboardWeb.Live.PresenceLive
+  use SoundboardWeb.Live.Support.PresenceLive
   alias SoundboardWeb.Components.Soundboard.{DeleteModal, EditModal, UploadModal}
   import EditModal
   import DeleteModal
   import UploadModal
   import SoundboardWeb.Components.Soundboard.TagComponents, only: [tag_filter_button: 1]
   alias Soundboard.{Favorites, PubSubTopics, Sounds}
-  alias SoundboardWeb.Live.{LiveTags, SoundPlayback}
+  alias SoundboardWeb.Live.Support.SoundPlayback
   alias SoundboardWeb.Live.SoundboardLive.{EditFlow, UploadFlow}
   alias SoundboardWeb.Soundboard.SoundFilter
-  import LiveTags, only: [all_tags: 1, tag_selected?: 2]
+  import SoundboardWeb.Live.Support.LiveTags, only: [all_tags: 1, tag_selected?: 2]
 
   import SoundFilter, only: [filter_sounds: 3]
 

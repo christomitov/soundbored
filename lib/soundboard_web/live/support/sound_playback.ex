@@ -1,4 +1,4 @@
-defmodule SoundboardWeb.Live.SoundPlayback do
+defmodule SoundboardWeb.Live.Support.SoundPlayback do
   @moduledoc false
 
   import Phoenix.LiveView, only: [put_flash: 3]

@@ -4,7 +4,7 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
   import Phoenix.Component, only: [assign: 3]
 
   alias Soundboard.{Sounds, Volume}
-  alias SoundboardWeb.Live.TagForm
+  alias SoundboardWeb.Live.Support.TagForm
 
   @tag_form %{input_key: :upload_tag_input, suggestions_key: :upload_tag_suggestions}
 

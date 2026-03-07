@@ -1,10 +1,10 @@
-defmodule SoundboardWeb.Live.TagForm do
+defmodule SoundboardWeb.Live.Support.TagForm do
   @moduledoc false
 
   import Phoenix.Component, only: [assign: 3]
   import Phoenix.LiveView, only: [put_flash: 3]
 
-  alias SoundboardWeb.Live.LiveTags
+  alias SoundboardWeb.Live.Support.LiveTags
 
   @type config :: %{required(:input_key) => atom(), required(:suggestions_key) => atom()}
 

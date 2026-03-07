@@ -4,7 +4,7 @@ defmodule SoundboardWeb.Live.SoundboardLive.EditFlow do
   import Phoenix.Component, only: [assign: 3]
 
   alias Soundboard.{Sound, Sounds, Volume}
-  alias SoundboardWeb.Live.{LiveTags, TagForm}
+  alias SoundboardWeb.Live.Support.{LiveTags, TagForm}
 
   @tag_form %{input_key: :tag_input, suggestions_key: :tag_suggestions}
 

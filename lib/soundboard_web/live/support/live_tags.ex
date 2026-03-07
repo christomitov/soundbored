@@ -1,4 +1,4 @@
-defmodule SoundboardWeb.Live.LiveTags do
+defmodule SoundboardWeb.Live.Support.LiveTags do
   @moduledoc """
   LiveView-facing tag queries and mutations for the soundboard.
   """

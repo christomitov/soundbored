@@ -1,11 +1,11 @@
 defmodule SoundboardWeb.StatsLive do
   use SoundboardWeb, :live_view
-  use SoundboardWeb.Live.PresenceLive
+  use SoundboardWeb.Live.Support.PresenceLive
   alias SoundboardWeb.PresenceHandler
   import Phoenix.Component
   import SoundboardWeb.SoundHelpers
   alias Soundboard.{Accounts, Favorites, PubSubTopics, Sounds, Stats}
-  alias SoundboardWeb.Live.SoundPlayback
+  alias SoundboardWeb.Live.Support.SoundPlayback
   require Logger
 
   @recent_limit 5

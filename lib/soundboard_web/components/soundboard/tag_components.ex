@@ -3,7 +3,7 @@ defmodule SoundboardWeb.Components.Soundboard.TagComponents do
   Shared tag UI helpers for the soundboard modals.
   """
   use Phoenix.Component
-  alias SoundboardWeb.Live.LiveTags
+  alias SoundboardWeb.Live.Support.LiveTags
 
   attr :tags, :list, default: []
   attr :remove_event, :string, required: true
