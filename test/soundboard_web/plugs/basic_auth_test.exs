@@ -8,11 +8,11 @@ defmodule SoundboardWeb.BasicAuthPlugTest do
   setup do
     previous_username = System.get_env("BASIC_AUTH_USERNAME")
     previous_password = System.get_env("BASIC_AUTH_PASSWORD")
-    previous_required = Application.get_env(:soundboard, :basic_auth_required)
+    previous_required = Application.get_env(:soundboard, :browser_basic_auth_required)
 
     System.delete_env("BASIC_AUTH_USERNAME")
     System.delete_env("BASIC_AUTH_PASSWORD")
-    Application.put_env(:soundboard, :basic_auth_required, false)
+    Application.put_env(:soundboard, :browser_basic_auth_required, false)
 
     # Reset env between tests and restore shell values afterward.
     on_exit(fn ->
@@ -20,9 +20,9 @@ defmodule SoundboardWeb.BasicAuthPlugTest do
       restore_env("BASIC_AUTH_PASSWORD", previous_password)
 
       if is_nil(previous_required) do
-        Application.delete_env(:soundboard, :basic_auth_required)
+        Application.delete_env(:soundboard, :browser_basic_auth_required)
       else
-        Application.put_env(:soundboard, :basic_auth_required, previous_required)
+        Application.put_env(:soundboard, :browser_basic_auth_required, previous_required)
       end
     end)
 
@@ -33,14 +33,14 @@ defmodule SoundboardWeb.BasicAuthPlugTest do
   defp restore_env(key, value), do: System.put_env(key, value)
 
   test "bypasses auth when credentials are missing and the optional bypass is explicit" do
-    Application.put_env(:soundboard, :basic_auth_required, false)
+    Application.put_env(:soundboard, :browser_basic_auth_required, false)
 
     conn = conn(:get, "/") |> BasicAuth.call(%{})
     refute conn.halted
   end
 
   test "fails closed when credentials are missing and auth is required" do
-    Application.put_env(:soundboard, :basic_auth_required, true)
+    Application.put_env(:soundboard, :browser_basic_auth_required, true)
 
     conn = conn(:get, "/") |> BasicAuth.call(%{})
     assert conn.halted
@@ -48,7 +48,7 @@ defmodule SoundboardWeb.BasicAuthPlugTest do
   end
 
   test "treats blank credentials as missing and fails closed when auth is required" do
-    Application.put_env(:soundboard, :basic_auth_required, true)
+    Application.put_env(:soundboard, :browser_basic_auth_required, true)
     System.put_env("BASIC_AUTH_USERNAME", "  ")
     System.put_env("BASIC_AUTH_PASSWORD", "")
 

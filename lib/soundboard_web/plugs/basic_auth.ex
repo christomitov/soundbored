@@ -14,14 +14,14 @@ defmodule SoundboardWeb.Plugs.BasicAuth do
     case {username, password, auth_required?()} do
       {nil, nil, false} ->
         Logger.warning(
-          "Basic auth credentials not configured; bypassing auth because :basic_auth_required is false"
+          "Browser basic auth credentials not configured; bypassing auth because :browser_basic_auth_required is false"
         )
 
         conn
 
       {nil, nil, true} ->
         Logger.error(
-          "Basic auth credentials not configured while :basic_auth_required is true; failing closed"
+          "Browser basic auth credentials not configured while :browser_basic_auth_required is true; failing closed"
         )
 
         unauthorized(conn)
@@ -50,7 +50,7 @@ defmodule SoundboardWeb.Plugs.BasicAuth do
   end
 
   defp auth_required? do
-    Application.get_env(:soundboard, :basic_auth_required, false)
+    Application.get_env(:soundboard, :browser_basic_auth_required, false)
   end
 
   defp authenticate(conn, username, password) do
