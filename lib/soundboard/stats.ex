@@ -49,10 +49,9 @@ defmodule Soundboard.Stats do
     limit = Keyword.get(opts, :limit, 10)
 
     from(p in Play,
-      left_join: s in assoc(p, :sound),
       where: fragment("DATE(?) BETWEEN ? AND ?", p.inserted_at, ^start_date, ^end_date),
-      group_by: fragment("COALESCE(?, ?)", s.filename, p.played_filename),
-      select: {fragment("COALESCE(?, ?)", s.filename, p.played_filename), count(p.id)},
+      group_by: p.played_filename,
+      select: {p.played_filename, count(p.id)},
       order_by: [desc: count(p.id)],
       limit: ^limit
     )
@@ -62,14 +61,10 @@ defmodule Soundboard.Stats do
   def get_recent_plays(opts \\ []) do
     limit = Keyword.get(opts, :limit, 5)
 
-    # Preserve historical plays even if the linked sound was renamed or deleted.
     from(p in Play,
-      left_join: s in assoc(p, :sound),
       join: u in User,
       on: p.user_id == u.id,
-      select:
-        {p.id, fragment("COALESCE(?, ?)", s.filename, p.played_filename), u.username,
-         p.inserted_at},
+      select: {p.id, p.played_filename, u.username, p.inserted_at},
       order_by: [desc: p.inserted_at, desc: p.id],
       limit: ^limit
     )

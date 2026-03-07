@@ -19,23 +19,26 @@ defmodule Soundboard.StatsTest do
       assert play.user_id == user.id
     end
 
-    test "get_top_sounds keeps renamed sounds visible via sound_id", %{user: user, sound: sound} do
+    test "get_top_sounds preserves the played filename snapshot after a sound is renamed", %{
+      user: user,
+      sound: sound
+    } do
       today = Date.utc_today()
-      Stats.track_play(sound.filename, user.id)
+      original_filename = sound.filename
+      Stats.track_play(original_filename, user.id)
 
-      {:ok, renamed_sound} =
+      {:ok, _renamed_sound} =
         sound
         |> Sound.changeset(%{filename: "renamed_#{System.unique_integer()}.mp3"})
         |> Repo.update()
 
-      renamed_filename = renamed_sound.filename
       results = Stats.get_top_sounds(today, today)
 
       sound_plays =
-        Enum.find(results, fn {filename, _count} -> filename == renamed_filename end)
+        Enum.find(results, fn {filename, _count} -> filename == original_filename end)
 
       assert sound_plays != nil
-      assert {^renamed_filename, count} = sound_plays
+      assert {^original_filename, count} = sound_plays
       assert count >= 1
     end
 
@@ -51,17 +54,10 @@ defmodule Soundboard.StatsTest do
       assert username == user.username
     end
 
-    test "get_recent_plays still returns legacy rows without sound_id", %{
-      user: user,
-      sound: sound
-    } do
-      %Play{}
-      |> Play.legacy_changeset(%{played_filename: sound.filename, user_id: user.id})
-      |> Repo.insert!()
+    test "play changeset requires sound_id" do
+      changeset = Play.changeset(%Play{}, %{played_filename: "beep.mp3", user_id: 123})
 
-      assert [{_id, filename, username, _timestamp}] = Stats.get_recent_plays(limit: 1)
-      assert filename == sound.filename
-      assert username == user.username
+      assert %{sound_id: ["can't be blank"]} = errors_on(changeset)
     end
 
     test "get_top_users returns users ordered by play count", %{user: user, sound: sound} do
@@ -103,7 +99,13 @@ defmodule Soundboard.StatsTest do
         |> NaiveDateTime.add(-8, :day)
         |> NaiveDateTime.truncate(:second)
 
-      play = %Play{played_filename: sound.filename, user_id: user.id, inserted_at: old_date}
+      play = %Play{
+        played_filename: sound.filename,
+        sound_id: sound.id,
+        user_id: user.id,
+        inserted_at: old_date
+      }
+
       Repo.insert!(play)
 
       # Create a recent play
