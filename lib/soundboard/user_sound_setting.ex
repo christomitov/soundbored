@@ -5,6 +5,7 @@ defmodule Soundboard.UserSoundSetting do
   use Ecto.Schema
   import Ecto.Changeset
   import Ecto.Query
+
   alias Soundboard.Repo
 
   schema "user_sound_settings" do
@@ -20,57 +21,39 @@ defmodule Soundboard.UserSoundSetting do
     settings
     |> cast(attrs, [:user_id, :sound_id, :is_join_sound, :is_leave_sound])
     |> validate_required([:user_id, :sound_id])
-    |> clear_other_settings()
   end
 
-  # Clear other settings when setting new join/leave sounds
-  defp clear_other_settings(changeset) do
-    case {get_field(changeset, :user_id), get_field(changeset, :sound_id)} do
-      {user_id, sound_id} when not is_nil(user_id) and not is_nil(sound_id) ->
-        changeset
-        |> maybe_clear_join_sound(user_id, sound_id)
-        |> maybe_clear_leave_sound(user_id, sound_id)
-
-      _ ->
-        changeset
-    end
+  def clear_conflicting_settings(user_id, sound_id, is_join_sound, is_leave_sound) do
+    maybe_clear_join_sound(user_id, sound_id, is_join_sound)
+    maybe_clear_leave_sound(user_id, sound_id, is_leave_sound)
+    :ok
   end
 
-  defp maybe_clear_join_sound(changeset, user_id, sound_id) do
-    case get_change(changeset, :is_join_sound) do
-      true ->
-        # Only clear other join sounds if we're setting this one as a join sound
-        from(uss in __MODULE__,
-          where:
-            uss.user_id == ^user_id and
-              uss.sound_id != ^sound_id and
-              uss.is_join_sound == true
-        )
-        |> Repo.update_all(set: [is_join_sound: false])
+  defp maybe_clear_join_sound(user_id, sound_id, true) do
+    from(uss in __MODULE__,
+      where:
+        uss.user_id == ^user_id and
+          uss.sound_id != ^sound_id and
+          uss.is_join_sound == true
+    )
+    |> Repo.update_all(set: [is_join_sound: false])
 
-        changeset
-
-      _ ->
-        changeset
-    end
+    :ok
   end
 
-  defp maybe_clear_leave_sound(changeset, user_id, sound_id) do
-    case get_change(changeset, :is_leave_sound) do
-      true ->
-        # Only clear other leave sounds if we're setting this one as a leave sound
-        from(uss in __MODULE__,
-          where:
-            uss.user_id == ^user_id and
-              uss.sound_id != ^sound_id and
-              uss.is_leave_sound == true
-        )
-        |> Repo.update_all(set: [is_leave_sound: false])
+  defp maybe_clear_join_sound(_user_id, _sound_id, _is_join_sound), do: :ok
 
-        changeset
+  defp maybe_clear_leave_sound(user_id, sound_id, true) do
+    from(uss in __MODULE__,
+      where:
+        uss.user_id == ^user_id and
+          uss.sound_id != ^sound_id and
+          uss.is_leave_sound == true
+    )
+    |> Repo.update_all(set: [is_leave_sound: false])
 
-      _ ->
-        changeset
-    end
+    :ok
   end
+
+  defp maybe_clear_leave_sound(_user_id, _sound_id, _is_leave_sound), do: :ok
 end

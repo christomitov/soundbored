@@ -1,8 +1,8 @@
 defmodule SoundboardWeb.FavoritesLive do
   use SoundboardWeb, :live_view
-  use SoundboardWeb.Live.PresenceLive
+  use SoundboardWeb.Live.Support.PresenceLive
   alias Soundboard.{Favorites, PubSubTopics}
-  alias SoundboardWeb.Live.SoundPlayback
+  alias SoundboardWeb.Live.Support.SoundPlayback
   require Logger
 
   @impl true

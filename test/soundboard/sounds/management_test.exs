@@ -1,6 +1,8 @@
 defmodule Soundboard.Sounds.ManagementTest do
   use Soundboard.DataCase
 
+  import Mock
+
   alias Soundboard.Accounts.User
   alias Soundboard.Sounds.Management
   alias Soundboard.{Repo, Sound, UserSoundSetting}
@@ -27,7 +29,10 @@ defmodule Soundboard.Sounds.ManagementTest do
     on_exit(fn -> File.rm(local_path) end)
     assert File.exists?(local_path)
 
-    assert :ok = Management.delete_sound(sound, user.id)
+    with_mock Soundboard.AudioPlayer, invalidate_cache: fn ^filename -> :ok end do
+      assert :ok = Management.delete_sound(sound, user.id)
+      assert_called(Soundboard.AudioPlayer.invalidate_cache(filename))
+    end
 
     refute File.exists?(local_path)
     assert Repo.get(Sound, sound.id) == nil
@@ -50,19 +55,26 @@ defmodule Soundboard.Sounds.ManagementTest do
       "is_leave_sound" => "false"
     }
 
-    assert {:ok, updated_sound} = Management.update_sound(sound, user.id, params)
-
     new_filename = params["filename"] <> ".mp3"
-    new_path = Path.join(uploads_dir(), new_filename)
-    on_exit(fn -> File.rm(new_path) end)
 
-    assert updated_sound.filename == new_filename
-    assert File.exists?(new_path)
-    refute File.exists?(old_path)
+    with_mock Soundboard.AudioPlayer,
+      invalidate_cache: fn cache_key when cache_key in [filename, new_filename] -> :ok end do
+      assert {:ok, updated_sound} = Management.update_sound(sound, user.id, params)
 
-    setting = Repo.get_by!(UserSoundSetting, user_id: user.id, sound_id: updated_sound.id)
-    assert setting.is_join_sound
-    refute setting.is_leave_sound
+      assert_called(Soundboard.AudioPlayer.invalidate_cache(filename))
+      assert_called(Soundboard.AudioPlayer.invalidate_cache(new_filename))
+
+      new_path = Path.join(uploads_dir(), new_filename)
+      on_exit(fn -> File.rm(new_path) end)
+
+      assert updated_sound.filename == new_filename
+      assert File.exists?(new_path)
+      refute File.exists?(old_path)
+
+      setting = Repo.get_by!(UserSoundSetting, user_id: user.id, sound_id: updated_sound.id)
+      assert setting.is_join_sound
+      refute setting.is_leave_sound
+    end
   end
 
   test "update_sound/3 keeps sound metadata collaborative while preserving uploader ownership", %{

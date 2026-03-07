@@ -40,6 +40,12 @@ defmodule SoundboardWeb.AuthControllerTest do
              )
     end
 
+    test "request/2 rejects unsupported providers with a controlled 404", %{conn: conn} do
+      conn = get(conn, "/auth/not-real")
+
+      assert response(conn, 404) == "Unsupported auth provider"
+    end
+
     test "callback/2 creates new user on successful auth", %{conn: conn} do
       auth_data = %{
         uid: "12345",

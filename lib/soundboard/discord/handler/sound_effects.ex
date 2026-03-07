@@ -3,8 +3,7 @@ defmodule Soundboard.Discord.Handler.SoundEffects do
 
   require Logger
 
-  alias Soundboard.AudioPlayer
-  alias Soundboard.Sound
+  alias Soundboard.{AudioPlayer, Sounds}
 
   def handle_join(user_id, previous_state, new_channel_id) do
     is_join_event =
@@ -26,7 +25,7 @@ defmodule Soundboard.Discord.Handler.SoundEffects do
   end
 
   def handle_leave(user_id) do
-    case Sound.get_user_leave_sound_by_discord_id(user_id) do
+    case Sounds.get_user_leave_sound_by_discord_id(user_id) do
       leave_sound when is_binary(leave_sound) ->
         Logger.info("Playing leave sound: #{leave_sound}")
         AudioPlayer.play_sound(leave_sound, "System")
@@ -37,7 +36,7 @@ defmodule Soundboard.Discord.Handler.SoundEffects do
   end
 
   defp play_join_sound(user_id) do
-    join_sound = Sound.get_user_join_sound_by_discord_id(user_id)
+    join_sound = Sounds.get_user_join_sound_by_discord_id(user_id)
 
     Logger.info("Join sound query result for user #{user_id}: #{inspect(join_sound)}")
 

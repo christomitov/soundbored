@@ -3,7 +3,7 @@ defmodule SoundboardWeb.Components.Soundboard.TagComponents do
   Shared tag UI helpers for the soundboard modals.
   """
   use Phoenix.Component
-  alias SoundboardWeb.Live.TagHandler
+  alias SoundboardWeb.Live.Support.LiveTags
 
   attr :tags, :list, default: []
   attr :remove_event, :string, required: true
@@ -86,7 +86,7 @@ defmodule SoundboardWeb.Components.Soundboard.TagComponents do
       phx-value-tag={tag_value(@tag, @tag_key)}
       class={[
         "inline-flex items-center gap-1 rounded-full px-3 py-1 text-sm font-medium",
-        if(TagHandler.tag_selected?(@tag, @selected_tags),
+        if(LiveTags.tag_selected?(@tag, @selected_tags),
           do: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
           else:
             "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
@@ -95,7 +95,7 @@ defmodule SoundboardWeb.Components.Soundboard.TagComponents do
       ]}
     >
       {tag_value(@tag, @tag_key)}
-      <span class="text-xs">({TagHandler.count_sounds_with_tag(@uploaded_files, @tag)})</span>
+      <span class="text-xs">({LiveTags.count_sounds_with_tag(@uploaded_files, @tag)})</span>
     </button>
     """
   end

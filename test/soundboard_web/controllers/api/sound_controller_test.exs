@@ -48,6 +48,28 @@ defmodule SoundboardWeb.API.SoundControllerTest do
       assert test_sound["filename"] == sound.filename
       assert is_list(test_sound["tags"])
     end
+
+    test "includes join and leave flags for the authenticated user", %{
+      conn: conn,
+      sound: sound,
+      user: user
+    } do
+      %UserSoundSetting{}
+      |> UserSoundSetting.changeset(%{
+        user_id: user.id,
+        sound_id: sound.id,
+        is_join_sound: true,
+        is_leave_sound: false
+      })
+      |> Repo.insert!()
+
+      conn = get(conn, ~p"/api/sounds")
+      assert %{"data" => sounds} = json_response(conn, 200)
+
+      test_sound = Enum.find(sounds, &(&1["id"] == sound.id))
+      assert test_sound["is_join_sound"] == true
+      assert test_sound["is_leave_sound"] == false
+    end
   end
 
   describe "create" do

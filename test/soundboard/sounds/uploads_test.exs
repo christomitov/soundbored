@@ -5,6 +5,7 @@ defmodule Soundboard.Sounds.UploadsTest do
 
   alias Soundboard.Accounts.User
   alias Soundboard.Sounds.Uploads
+  alias Soundboard.Sounds.Uploads.CreateRequest
   alias Soundboard.{Repo, Sound, UserSoundSetting}
 
   setup do
@@ -23,21 +24,23 @@ defmodule Soundboard.Sounds.UploadsTest do
   describe "validate/1" do
     test "validates URL uploads when enough input is present", %{user: user} do
       assert {:ok, _params} =
-               Uploads.validate(%{
-                 user: user,
+               user
+               |> request(%{
                  source_type: "url",
                  name: "validated_url",
                  url: "https://example.com/sound.mp3"
                })
+               |> Uploads.validate()
     end
 
     test "requires a url for url uploads", %{user: user} do
       assert {:error, changeset} =
-               Uploads.validate(%{
-                 user: user,
+               user
+               |> request(%{
                  source_type: "url",
                  name: "validated_url"
                })
+               |> Uploads.validate()
 
       assert "can't be blank" in errors_on(changeset).url
     end
@@ -53,23 +56,25 @@ defmodule Soundboard.Sounds.UploadsTest do
         |> Repo.insert()
 
       assert {:error, changeset} =
-               Uploads.validate(%{
-                 user: user,
+               user
+               |> request(%{
                  source_type: "local",
                  name: "duplicate_name",
                  upload: %{filename: "dup.mp3"}
                })
+               |> Uploads.validate()
 
       assert "has already been taken" in errors_on(changeset).filename
     end
 
     test "requires a local file selection for local uploads", %{user: user} do
       assert {:error, changeset} =
-               Uploads.validate(%{
-                 user: user,
+               user
+               |> request(%{
                  source_type: "local",
                  name: "missing_file"
                })
+               |> Uploads.validate()
 
       assert "Please select a file" in errors_on(changeset).file
     end
@@ -80,8 +85,8 @@ defmodule Soundboard.Sounds.UploadsTest do
       name = "upload_url_#{System.unique_integer([:positive])}"
 
       assert {:ok, sound} =
-               Uploads.create(%{
-                 user: user,
+               user
+               |> request(%{
                  source_type: "url",
                  name: name,
                  url: "https://example.com/sound.mp3",
@@ -89,6 +94,7 @@ defmodule Soundboard.Sounds.UploadsTest do
                  volume: "45",
                  is_join_sound: "true"
                })
+               |> Uploads.create()
 
       assert sound.filename == "#{name}.mp3"
       assert sound.source_type == "url"
@@ -109,12 +115,13 @@ defmodule Soundboard.Sounds.UploadsTest do
       name = "upload_events_#{System.unique_integer([:positive])}"
 
       assert {:ok, _sound} =
-               Uploads.create(%{
-                 user: user,
+               user
+               |> request(%{
                  source_type: "url",
                  name: name,
                  url: "https://example.com/events.mp3"
                })
+               |> Uploads.create()
 
       assert_receive {:files_updated}
       assert_receive {:stats_updated}
@@ -128,12 +135,13 @@ defmodule Soundboard.Sounds.UploadsTest do
       on_exit(fn -> File.rm(tmp_path) end)
 
       assert {:ok, sound} =
-               Uploads.create(%{
-                 user: user,
+               user
+               |> request(%{
                  source_type: "local",
                  name: name,
                  upload: %{path: tmp_path, filename: "local.wav"}
                })
+               |> Uploads.create()
 
       copied_path = Path.join(uploads_dir(), sound.filename)
       assert File.exists?(copied_path)
@@ -146,22 +154,24 @@ defmodule Soundboard.Sounds.UploadsTest do
       second_name = "second_join_#{System.unique_integer([:positive])}"
 
       assert {:ok, first_sound} =
-               Uploads.create(%{
-                 user: user,
+               user
+               |> request(%{
                  source_type: "url",
                  name: first_name,
                  url: "https://example.com/first.mp3",
                  is_join_sound: true
                })
+               |> Uploads.create()
 
       assert {:ok, second_sound} =
-               Uploads.create(%{
-                 user: user,
+               user
+               |> request(%{
                  source_type: "url",
                  name: second_name,
                  url: "https://example.com/second.mp3",
                  is_join_sound: true
                })
+               |> Uploads.create()
 
       first_setting = Repo.get_by!(UserSoundSetting, user_id: user.id, sound_id: first_sound.id)
       second_setting = Repo.get_by!(UserSoundSetting, user_id: user.id, sound_id: second_sound.id)
@@ -172,11 +182,12 @@ defmodule Soundboard.Sounds.UploadsTest do
 
     test "returns error when local file is missing", %{user: user} do
       assert {:error, changeset} =
-               Uploads.create(%{
-                 user: user,
+               user
+               |> request(%{
                  source_type: "local",
                  name: "missing_file"
                })
+               |> Uploads.create()
 
       assert "Please select a file" in errors_on(changeset).file
     end
@@ -196,15 +207,20 @@ defmodule Soundboard.Sounds.UploadsTest do
       on_exit(fn -> File.rm(tmp_path) end)
 
       assert {:error, changeset} =
-               Uploads.create(%{
-                 user: user,
+               user
+               |> request(%{
                  source_type: "local",
                  name: "duplicate_name",
                  upload: %{path: tmp_path, filename: "dup.mp3"}
                })
+               |> Uploads.create()
 
       assert "has already been taken" in errors_on(changeset).filename
     end
+  end
+
+  defp request(user, attrs) do
+    CreateRequest.new(user, attrs)
   end
 
   defp uploads_dir do

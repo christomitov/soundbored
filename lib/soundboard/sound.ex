@@ -1,24 +1,21 @@
 defmodule Soundboard.Sound do
   @moduledoc """
-  The Sound module.
+  Sound schema.
   """
+
   use Ecto.Schema
   import Ecto.Changeset
   import Ecto.Query
-  alias Soundboard.Accounts.User
-  alias Soundboard.Repo
 
-  @detailed_preloads [
-    :tags,
-    :user,
-    user_sound_settings: [user: []]
-  ]
+  @type t :: %__MODULE__{}
+
+  @spec changeset(t(), map()) :: Ecto.Changeset.t()
+  @spec with_tags(Ecto.Queryable.t()) :: Ecto.Query.t()
+  @spec by_tag(Ecto.Queryable.t(), String.t()) :: Ecto.Query.t()
 
   schema "sounds" do
     field :filename, :string
-    # New field for remote sounds
     field :url, :string
-    # "local" or "url"
     field :source_type, :string, default: "local"
     field :description, :string
     field :volume, :float, default: 1.0
@@ -50,6 +47,17 @@ defmodule Soundboard.Sound do
     |> put_tags(attrs)
   end
 
+  def with_tags(query \\ __MODULE__) do
+    from s in query,
+      preload: [:tags]
+  end
+
+  def by_tag(query \\ __MODULE__, tag_name) do
+    from s in query,
+      join: t in assoc(s, :tags),
+      where: t.name == ^tag_name
+  end
+
   defp validate_source_type(changeset) do
     case get_field(changeset, :source_type) do
       "local" -> validate_required(changeset, [:filename])
@@ -77,152 +85,5 @@ defmodule Soundboard.Sound do
       cs ->
         cs
     end
-  end
-
-  def with_tags(query \\ __MODULE__) do
-    from s in query,
-      preload: [:tags]
-  end
-
-  def by_tag(query \\ __MODULE__, tag_name) do
-    from s in query,
-      join: t in assoc(s, :tags),
-      where: t.name == ^tag_name
-  end
-
-  def list_files do
-    __MODULE__
-    |> with_tags()
-    |> preload(:user_sound_settings)
-    |> Repo.all()
-  end
-
-  def list_detailed do
-    __MODULE__
-    |> Repo.all()
-    |> Repo.preload(@detailed_preloads)
-    |> Enum.sort_by(&String.downcase(&1.filename))
-  end
-
-  def fetch_sound_id(filename) when is_binary(filename) do
-    case Repo.get_by(__MODULE__, filename: filename) do
-      nil -> :error
-      sound -> {:ok, sound.id}
-    end
-  end
-
-  def ids_by_filename([]), do: %{}
-
-  def ids_by_filename(filenames) when is_list(filenames) do
-    from(s in __MODULE__, where: s.filename in ^filenames, select: {s.filename, s.id})
-    |> Repo.all()
-    |> Map.new()
-  end
-
-  def filename_taken?(filename) when is_binary(filename) do
-    Repo.exists?(from s in __MODULE__, where: s.filename == ^filename)
-  end
-
-  def filename_taken_excluding?(filename, sound_id) do
-    from(s in __MODULE__, where: s.filename == ^filename and s.id != ^sound_id)
-    |> Repo.exists?()
-  end
-
-  def filename_conflicts_across_extensions?(base_name, extensions) when is_list(extensions) do
-    names = Enum.map(extensions, &(base_name <> &1))
-
-    from(s in __MODULE__, where: s.filename in ^names)
-    |> Repo.exists?()
-  end
-
-  def fetch_filename_extension(sound_id) do
-    case Repo.get(__MODULE__, sound_id) do
-      %__MODULE__{filename: filename} -> {:ok, Path.extname(filename)}
-      _ -> :error
-    end
-  end
-
-  def get_recent_uploads(opts \\ []) do
-    limit = Keyword.get(opts, :limit, 10)
-
-    from(s in Soundboard.Sound,
-      join: u in User,
-      on: s.user_id == u.id,
-      select: {s.filename, u.username, s.inserted_at},
-      order_by: [desc: s.inserted_at],
-      limit: ^limit
-    )
-    |> Repo.all()
-  end
-
-  def update_sound(sound, attrs) do
-    sound
-    |> changeset(attrs)
-    |> Repo.update()
-  end
-
-  def get_user_join_sound(user_id) do
-    Repo.one(
-      from uss in Soundboard.UserSoundSetting,
-        join: s in __MODULE__,
-        on: uss.sound_id == s.id,
-        where: uss.user_id == ^user_id and uss.is_join_sound == true,
-        select: s.filename
-    )
-  end
-
-  def get_user_leave_sound(user_id) do
-    Repo.one(
-      from uss in Soundboard.UserSoundSetting,
-        join: s in __MODULE__,
-        on: uss.sound_id == s.id,
-        where: uss.user_id == ^user_id and uss.is_leave_sound == true,
-        select: s.filename
-    )
-  end
-
-  def get_user_join_sound_by_discord_id(discord_id) do
-    Repo.one(
-      from u in User,
-        where: u.discord_id == ^to_string(discord_id),
-        left_join: uss in Soundboard.UserSoundSetting,
-        on: uss.user_id == u.id and uss.is_join_sound == true,
-        left_join: s in __MODULE__,
-        on: s.id == uss.sound_id,
-        select: s.filename,
-        limit: 1
-    )
-  end
-
-  def get_user_leave_sound_by_discord_id(discord_id) do
-    Repo.one(
-      from u in User,
-        where: u.discord_id == ^to_string(discord_id),
-        left_join: uss in Soundboard.UserSoundSetting,
-        on: uss.user_id == u.id and uss.is_leave_sound == true,
-        left_join: s in __MODULE__,
-        on: s.id == uss.sound_id,
-        select: s.filename,
-        limit: 1
-    )
-  end
-
-  def get_user_sounds_by_discord_id(discord_id) do
-    Repo.one(
-      from u in User,
-        where: u.discord_id == ^to_string(discord_id),
-        left_join: uss in Soundboard.UserSoundSetting,
-        on: uss.user_id == u.id,
-        left_join: s in __MODULE__,
-        on: uss.sound_id == s.id and (uss.is_join_sound == true or uss.is_leave_sound == true),
-        select: {u.id, s.filename, uss.is_join_sound, uss.is_leave_sound}
-    )
-  end
-
-  # Get a sound with all its associations loaded
-  def get_sound!(id) do
-    __MODULE__
-    |> Repo.get!(id)
-    |> Repo.preload(@detailed_preloads)
   end
 end

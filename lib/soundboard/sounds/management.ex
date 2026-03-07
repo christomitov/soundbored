@@ -8,8 +8,7 @@ defmodule Soundboard.Sounds.Management do
   sound ownership.
   """
 
-  alias Soundboard.{Repo, Sound, UploadsPath, Volume}
-  alias Soundboard.Sounds.Cache
+  alias Soundboard.{AudioPlayer, Repo, Sound, UploadsPath, Volume}
   require Logger
 
   def update_sound(%Sound{} = sound, user_id, params) do
@@ -36,8 +35,8 @@ defmodule Soundboard.Sounds.Management do
         case Sound.changeset(db_sound, sound_params) |> Repo.update() do
           {:ok, updated_sound} ->
             updated_sound = update_user_settings(db_sound, user_id, updated_sound, params)
-            Cache.invalidate(db_sound.filename)
-            Cache.invalidate(updated_sound.filename)
+            AudioPlayer.invalidate_cache(db_sound.filename)
+            AudioPlayer.invalidate_cache(updated_sound.filename)
             updated_sound
 
           {:error, changeset} ->
@@ -56,7 +55,7 @@ defmodule Soundboard.Sounds.Management do
 
     with true <- db_sound.user_id == user_id,
          {:ok, _deleted_sound} <- Repo.delete(db_sound) do
-      Cache.invalidate(db_sound.filename)
+      AudioPlayer.invalidate_cache(db_sound.filename)
       maybe_remove_local_file(db_sound)
       :ok
     else
@@ -109,6 +108,13 @@ defmodule Soundboard.Sounds.Management do
       is_join_sound: params["is_join_sound"] == "true",
       is_leave_sound: params["is_leave_sound"] == "true"
     }
+
+    Soundboard.UserSoundSetting.clear_conflicting_settings(
+      user_id,
+      sound.id,
+      setting_params.is_join_sound,
+      setting_params.is_leave_sound
+    )
 
     case user_setting
          |> Soundboard.UserSoundSetting.changeset(setting_params)

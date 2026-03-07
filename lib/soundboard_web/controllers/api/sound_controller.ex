@@ -1,15 +1,14 @@
 defmodule SoundboardWeb.API.SoundController do
   use SoundboardWeb, :controller
 
-  alias Soundboard.{Repo, Sound}
-  alias Soundboard.Sounds.Uploads
+  alias Soundboard.{Repo, Sound, Sounds}
 
   def index(conn, _params) do
     sounds =
       Sound
       |> Sound.with_tags()
       |> Repo.all()
-      |> Enum.map(&format_sound/1)
+      |> Enum.map(&format_sound(&1, conn.assigns[:current_user]))
 
     json(conn, %{data: sounds})
   end
@@ -80,9 +79,9 @@ defmodule SoundboardWeb.API.SoundController do
   end
 
   defp create_sound(user, params) do
-    params
-    |> Uploads.build_api_request(user)
-    |> Uploads.create()
+    user
+    |> Sounds.new_create_request(params)
+    |> Sounds.create_sound()
   end
 
   defp require_upload_user(conn) do
@@ -94,7 +93,7 @@ defmodule SoundboardWeb.API.SoundController do
 
   defp require_play_user(conn), do: require_upload_user(conn)
 
-  defp format_sound(sound, current_user \\ nil) do
+  defp format_sound(sound, current_user) do
     user_setting = find_user_setting(sound, current_user)
 
     %{

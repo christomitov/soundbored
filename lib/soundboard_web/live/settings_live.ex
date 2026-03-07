@@ -1,6 +1,6 @@
 defmodule SoundboardWeb.SettingsLive do
   use SoundboardWeb, :live_view
-  use SoundboardWeb.Live.PresenceLive
+  use SoundboardWeb.Live.Support.PresenceLive
   alias Soundboard.Accounts.ApiTokens
   alias Soundboard.PublicURL
 

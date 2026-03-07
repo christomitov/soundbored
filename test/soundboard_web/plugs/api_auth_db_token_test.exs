@@ -2,10 +2,22 @@ defmodule SoundboardWeb.APIAuthDBTokenTest do
   use SoundboardWeb.ConnCase
   import Phoenix.ConnTest
   import Mock
+
   alias Soundboard.{Repo, Sound}
   alias Soundboard.Accounts.{ApiTokens, User}
 
   setup %{conn: conn} do
+    previous_required = Application.get_env(:soundboard, :browser_basic_auth_required)
+    Application.put_env(:soundboard, :browser_basic_auth_required, false)
+
+    on_exit(fn ->
+      if is_nil(previous_required) do
+        Application.delete_env(:soundboard, :browser_basic_auth_required)
+      else
+        Application.put_env(:soundboard, :browser_basic_auth_required, previous_required)
+      end
+    end)
+
     {:ok, user} =
       %User{}
       |> User.changeset(%{
@@ -64,6 +76,13 @@ defmodule SoundboardWeb.APIAuthDBTokenTest do
       conn = post(conn, ~p"/api/sounds/stop")
       assert %{"data" => %{"status" => "accepted"}} = json_response(conn, 202)
     end
+  end
+
+  test "API token routes remain available when browser basic auth is enabled", %{conn: conn} do
+    Application.put_env(:soundboard, :browser_basic_auth_required, true)
+
+    conn = get(conn, ~p"/api/sounds")
+    assert json_response(conn, 200)["data"] |> is_list()
   end
 
   test "unauthorized when token invalid", %{conn: _conn} do

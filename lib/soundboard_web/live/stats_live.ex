@@ -1,11 +1,11 @@
 defmodule SoundboardWeb.StatsLive do
   use SoundboardWeb, :live_view
-  use SoundboardWeb.Live.PresenceLive
+  use SoundboardWeb.Live.Support.PresenceLive
   alias SoundboardWeb.PresenceHandler
   import Phoenix.Component
   import SoundboardWeb.SoundHelpers
-  alias Soundboard.{Accounts, Favorites, PubSubTopics, Sound, Stats}
-  alias SoundboardWeb.Live.SoundPlayback
+  alias Soundboard.{Accounts, Favorites, PubSubTopics, Sounds, Stats}
+  alias SoundboardWeb.Live.Support.SoundPlayback
   require Logger
 
   @recent_limit 5
@@ -69,7 +69,7 @@ defmodule SoundboardWeb.StatsLive do
 
     recent_plays = recent_plays()
 
-    recent_uploads = Sound.get_recent_uploads(limit: @recent_limit)
+    recent_uploads = Sounds.get_recent_uploads(limit: @recent_limit)
     favorites = get_favorites(socket.assigns.current_user)
     sound_ids_by_filename = load_sound_ids_by_filename(top_sounds, recent_plays, recent_uploads)
     avatars_by_username = load_avatars_by_username(top_users, recent_plays, recent_uploads)
@@ -351,7 +351,7 @@ defmodule SoundboardWeb.StatsLive do
   end
 
   defp handle_favorite_toggle(socket, user, sound_name) do
-    case Sound.fetch_sound_id(sound_name) do
+    case Sounds.fetch_sound_id(sound_name) do
       {:ok, sound_id} -> update_favorite(socket, user, sound_id)
       :error -> {:noreply, put_flash(socket, :error, "Sound not found")}
     end
@@ -401,7 +401,7 @@ defmodule SoundboardWeb.StatsLive do
         %{}
 
       _ ->
-        Sound.ids_by_filename(filenames)
+        Sounds.ids_by_filename(filenames)
     end
   end
 

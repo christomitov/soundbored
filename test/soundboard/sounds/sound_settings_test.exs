@@ -45,6 +45,65 @@ defmodule Soundboard.Sounds.SoundSettingsTest do
       assert get_field(changeset, :is_join_sound) == true
       assert get_field(changeset, :is_leave_sound) == false
     end
+
+    test "building a changeset does not mutate existing join settings", %{
+      user: user,
+      sound: sound
+    } do
+      other_sound = insert_sound!(user, "other_#{System.unique_integer([:positive])}.mp3")
+
+      %UserSoundSetting{}
+      |> UserSoundSetting.changeset(%{
+        user_id: user.id,
+        sound_id: other_sound.id,
+        is_join_sound: true
+      })
+      |> Repo.insert!()
+
+      _changeset =
+        UserSoundSetting.changeset(%UserSoundSetting{}, %{
+          user_id: user.id,
+          sound_id: sound.id,
+          is_join_sound: true
+        })
+
+      existing_setting =
+        Repo.get_by!(UserSoundSetting, user_id: user.id, sound_id: other_sound.id)
+
+      assert existing_setting.is_join_sound
+    end
+  end
+
+  describe "conflicting setting cleanup" do
+    test "clear_conflicting_settings/4 clears other join and leave flags", %{
+      user: user,
+      sound: sound
+    } do
+      other_sound = insert_sound!(user, "other_#{System.unique_integer([:positive])}.mp3")
+
+      join_setting =
+        %UserSoundSetting{}
+        |> UserSoundSetting.changeset(%{
+          user_id: user.id,
+          sound_id: other_sound.id,
+          is_join_sound: true
+        })
+        |> Repo.insert!()
+
+      leave_setting =
+        %UserSoundSetting{}
+        |> UserSoundSetting.changeset(%{
+          user_id: user.id,
+          sound_id: other_sound.id,
+          is_leave_sound: true
+        })
+        |> Repo.insert!()
+
+      assert :ok = UserSoundSetting.clear_conflicting_settings(user.id, sound.id, true, true)
+
+      refute Repo.get!(UserSoundSetting, join_setting.id).is_join_sound
+      refute Repo.get!(UserSoundSetting, leave_setting.id).is_leave_sound
+    end
   end
 
   describe "unique constraints" do
@@ -118,12 +177,17 @@ defmodule Soundboard.Sounds.SoundSettingsTest do
   end
 
   defp insert_sound(user) do
+    insert_sound!(user, "test_sound#{System.unique_integer()}.mp3")
+    |> then(&{:ok, &1})
+  end
+
+  defp insert_sound!(user, filename) do
     %Sound{}
     |> Sound.changeset(%{
-      filename: "test_sound#{System.unique_integer()}.mp3",
+      filename: filename,
       source_type: "local",
       user_id: user.id
     })
-    |> Repo.insert()
+    |> Repo.insert!()
   end
 end

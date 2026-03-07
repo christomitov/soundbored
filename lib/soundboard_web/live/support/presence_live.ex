@@ -1,4 +1,4 @@
-defmodule SoundboardWeb.Live.PresenceLive do
+defmodule SoundboardWeb.Live.Support.PresenceLive do
   defmacro __using__(_opts) do
     quote do
       alias SoundboardWeb.{Presence, PresenceHandler}

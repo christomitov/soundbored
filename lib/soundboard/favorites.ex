@@ -2,11 +2,16 @@ defmodule Soundboard.Favorites do
   @moduledoc """
   The Favorites module.
   """
+
   import Ecto.Query
+
   alias Soundboard.{Favorites.Favorite, Repo, Sound}
+
+  @type favorite_result :: {:ok, Favorite.t()} | {:error, Ecto.Changeset.t()}
 
   @max_favorites 16
 
+  @spec list_favorites(integer()) :: [integer()]
   def list_favorites(user_id) do
     Favorite
     |> where([f], f.user_id == ^user_id)
@@ -14,6 +19,7 @@ defmodule Soundboard.Favorites do
     |> Repo.all()
   end
 
+  @spec list_favorite_sounds_with_tags(integer()) :: [Sound.t()]
   def list_favorite_sounds_with_tags(user_id) do
     favorite_ids_query =
       Favorite
@@ -26,6 +32,7 @@ defmodule Soundboard.Favorites do
     |> Repo.all()
   end
 
+  @spec toggle_favorite(integer(), integer()) :: favorite_result()
   def toggle_favorite(user_id, sound_id) do
     case Repo.get_by(Favorite, user_id: user_id, sound_id: sound_id) do
       nil -> add_favorite(user_id, sound_id)
@@ -33,6 +40,7 @@ defmodule Soundboard.Favorites do
     end
   end
 
+  @spec error_message(Ecto.Changeset.t()) :: String.t()
   def error_message(%Ecto.Changeset{} = changeset) do
     Enum.map_join(changeset.errors, ", ", fn
       {:base, {msg, _}} -> msg
@@ -66,9 +74,11 @@ defmodule Soundboard.Favorites do
     end
   end
 
+  @spec favorite?(integer(), integer()) :: boolean()
   def favorite?(user_id, sound_id) do
     Repo.exists?(from f in Favorite, where: f.user_id == ^user_id and f.sound_id == ^sound_id)
   end
 
+  @spec max_favorites() :: pos_integer()
   def max_favorites, do: @max_favorites
 end

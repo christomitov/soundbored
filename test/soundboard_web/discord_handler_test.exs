@@ -203,6 +203,25 @@ defmodule Soundboard.Discord.HandlerTest do
       end)
     end
 
+    test "schedules runtime follow-up messages from the handler boundary" do
+      payload = %{channel_id: "123", guild_id: "456", user_id: "999", session_id: "abc"}
+
+      with_mocks([
+        {Soundboard.Discord.Handler.VoiceRuntime, [],
+         [
+           bot_user?: fn _ -> true end,
+           handle_connect: fn ^payload ->
+             [{:schedule_recheck_alone, "456", "123", 0}]
+           end
+         ]}
+      ]) do
+        assert {:noreply, nil} =
+                 Handler.handle_cast({:eda_event, {:VOICE_STATE_UPDATE, payload, nil}}, nil)
+
+        assert_receive {:recheck_alone, "456", "123"}
+      end
+    end
+
     test "voice commands update the audio player once after the Discord call succeeds" do
       guild_id = "456"
       channel_id = "123"
