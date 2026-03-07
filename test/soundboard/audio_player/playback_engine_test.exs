@@ -1,6 +1,7 @@
 defmodule Soundboard.AudioPlayer.PlaybackEngineTest do
   use ExUnit.Case, async: false
 
+  import ExUnit.CaptureLog
   import Mock
 
   alias Soundboard.AudioPlayer.PlaybackEngine
@@ -103,5 +104,116 @@ defmodule Soundboard.AudioPlayer.PlaybackEngineTest do
       assert_receive :broadcast_played
       refute_received :tracked_play
     end
+  end
+
+  test "refreshes the current voice session after repeated encryption negotiation failures" do
+    test_pid = self()
+    attempt_ref = make_ref()
+    ready_ref = make_ref()
+    Process.put(attempt_ref, 0)
+    Process.put(ready_ref, 0)
+
+    with_mocks([
+      {Soundboard.AudioPlayer.SoundLibrary, [],
+       [
+         prepare_play_input: fn "refresh.mp3", "/tmp/refresh.mp3" ->
+           {"/tmp/refresh.mp3", :url}
+         end
+       ]},
+      {Soundboard.AudioPlayer, [],
+       [current_voice_channel: fn -> {:ok, {"guild-1", "channel-9"}} end]},
+      {Soundboard.Discord.Voice, [],
+       [
+         channel_id: fn "guild-1" -> "channel-9" end,
+         ready?: fn "guild-1" ->
+           case Process.get(ready_ref, 0) do
+             0 ->
+               Process.put(ready_ref, 1)
+               true
+
+             1 ->
+               Process.put(ready_ref, 2)
+               false
+
+             _ ->
+               true
+           end
+         end,
+         join_channel: fn "guild-1", "channel-9" -> send(test_pid, :refreshed_voice) end,
+         play: fn "guild-1", "/tmp/refresh.mp3", :url, [volume: 1.0] ->
+           attempt = Process.get(attempt_ref, 0)
+           Process.put(attempt_ref, attempt + 1)
+
+           if attempt < 4 do
+             {:error, "Voice session is still negotiating encryption."}
+           else
+             send(test_pid, :played_after_refresh)
+             :ok
+           end
+         end
+       ]},
+      {Soundboard.PubSubTopics, [],
+       [
+         broadcast_sound_played: fn "refresh.mp3", "System" ->
+           send(test_pid, :broadcast_played)
+         end,
+         broadcast_error: fn message -> flunk("unexpected playback error: #{message}") end
+       ]},
+      {Soundboard.Stats, [],
+       [track_play: fn _sound_name, _user_id -> send(test_pid, :tracked_play) end]}
+    ]) do
+      assert :ok =
+               PlaybackEngine.play(
+                 "guild-1",
+                 "channel-9",
+                 "refresh.mp3",
+                 "/tmp/refresh.mp3",
+                 1.0,
+                 "System"
+               )
+
+      assert_receive :refreshed_voice
+      assert_receive :played_after_refresh
+      assert_receive :broadcast_played
+      refute_received :tracked_play
+    end
+  end
+
+  test "logs when voice readiness times out before playback" do
+    log =
+      capture_log(fn ->
+        with_mocks([
+          {Soundboard.AudioPlayer.SoundLibrary, [],
+           [
+             prepare_play_input: fn "timeout.mp3", "/tmp/timeout.mp3" ->
+               {"/tmp/timeout.mp3", :url}
+             end
+           ]},
+          {Soundboard.Discord.Voice, [],
+           [
+             channel_id: fn "guild-1" -> "channel-9" end,
+             ready?: fn "guild-1" -> false end,
+             play: fn "guild-1", "/tmp/timeout.mp3", :url, [volume: 1.0] -> :ok end
+           ]},
+          {Soundboard.PubSubTopics, [],
+           [
+             broadcast_sound_played: fn _, _ -> :ok end,
+             broadcast_error: fn _ -> :ok end
+           ]},
+          {Soundboard.Stats, [], [track_play: fn _, _ -> :ok end]}
+        ]) do
+          assert :ok =
+                   PlaybackEngine.play(
+                     "guild-1",
+                     "channel-9",
+                     "timeout.mp3",
+                     "/tmp/timeout.mp3",
+                     1.0,
+                     "System"
+                   )
+        end
+      end)
+
+    assert log =~ "Timed out waiting for voice readiness in guild guild-1"
   end
 end
