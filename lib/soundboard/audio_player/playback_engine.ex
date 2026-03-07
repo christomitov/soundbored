@@ -4,7 +4,7 @@ defmodule Soundboard.AudioPlayer.PlaybackEngine do
   require Logger
 
   alias Soundboard.Accounts.User
-  alias Soundboard.{AudioPlayer, AudioPlayer.SoundLibrary, Discord.Voice, PubSubTopics}
+  alias Soundboard.{AudioPlayer, AudioPlayer.Notifier, AudioPlayer.SoundLibrary, Discord.Voice}
 
   @system_users ["System"]
   @rtp_probe_poll_ms 20
@@ -379,11 +379,11 @@ defmodule Soundboard.AudioPlayer.PlaybackEngine do
   end
 
   defp broadcast_success(sound_name, actor) do
-    PubSubTopics.broadcast_sound_played(sound_name, actor_display_name(actor) || "Unknown")
+    Notifier.sound_played(sound_name, actor_display_name(actor) || "Unknown")
   end
 
   defp broadcast_error(message) do
-    PubSubTopics.broadcast_error(message)
+    Notifier.error(message)
   end
 
   defp unwrap_sequence({:ok, sequence}), do: sequence
