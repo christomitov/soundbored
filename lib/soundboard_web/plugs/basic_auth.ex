@@ -11,12 +11,22 @@ defmodule SoundboardWeb.Plugs.BasicAuth do
     username = credential("BASIC_AUTH_USERNAME")
     password = credential("BASIC_AUTH_PASSWORD")
 
-    case {username, password} do
-      {nil, nil} ->
-        Logger.warning("Basic auth credentials not configured - skipping authentication")
+    case {username, password, auth_required?()} do
+      {nil, nil, false} ->
+        Logger.warning(
+          "Basic auth credentials not configured; bypassing auth because :basic_auth_required is false"
+        )
+
         conn
 
-      {username, password} when is_binary(username) and is_binary(password) ->
+      {nil, nil, true} ->
+        Logger.error(
+          "Basic auth credentials not configured while :basic_auth_required is true; failing closed"
+        )
+
+        unauthorized(conn)
+
+      {username, password, _required} when is_binary(username) and is_binary(password) ->
         authenticate(conn, username, password)
 
       _ ->
@@ -37,6 +47,10 @@ defmodule SoundboardWeb.Plugs.BasicAuth do
           value
         end
     end
+  end
+
+  defp auth_required? do
+    Application.get_env(:soundboard, :basic_auth_required, false)
   end
 
   defp authenticate(conn, username, password) do

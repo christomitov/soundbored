@@ -7,11 +7,12 @@ defmodule SoundboardWeb.SoundboardLive do
   import UploadModal
   import SoundboardWeb.Components.Soundboard.TagComponents, only: [tag_filter_button: 1]
   alias Soundboard.{Favorites, PubSubTopics, Sound}
-  alias SoundboardWeb.Live.{FileFilter, SoundPlayback, TagHandler}
+  alias SoundboardWeb.Live.{SoundPlayback, TagHandler}
   alias SoundboardWeb.Live.SoundboardLive.{EditFlow, UploadFlow}
+  alias SoundboardWeb.Soundboard.SoundFilter
   import TagHandler, only: [all_tags: 1, tag_selected?: 2]
 
-  import FileFilter, only: [filter_files: 3]
+  import SoundFilter, only: [filter_sounds: 3]
 
   @impl true
   def mount(_params, session, socket) do
@@ -93,14 +94,19 @@ defmodule SoundboardWeb.SoundboardLive do
 
   @impl true
   def handle_event("toggle_tag_filter", %{"tag" => tag_name}, socket) do
-    tag = Enum.find(all_tags(socket.assigns.uploaded_files), &(&1.name == tag_name))
-    current_tag = List.first(socket.assigns.selected_tags)
-    selected_tags = if current_tag && current_tag.id == tag.id, do: [], else: [tag]
+    case Enum.find(all_tags(socket.assigns.uploaded_files), &(&1.name == tag_name)) do
+      nil ->
+        {:noreply, socket}
 
-    {:noreply,
-     socket
-     |> assign(:selected_tags, selected_tags)
-     |> assign(:search_query, "")}
+      tag ->
+        current_tag = List.first(socket.assigns.selected_tags)
+        selected_tags = if current_tag && current_tag.id == tag.id, do: [], else: [tag]
+
+        {:noreply,
+         socket
+         |> assign(:selected_tags, selected_tags)
+         |> assign(:search_query, "")}
+    end
   end
 
   @impl true
@@ -271,7 +277,7 @@ defmodule SoundboardWeb.SoundboardLive do
   @impl true
   def handle_event("play_random", _params, socket) do
     filtered_sounds =
-      filter_files(
+      filter_sounds(
         socket.assigns.uploaded_files,
         socket.assigns.search_query,
         socket.assigns.selected_tags

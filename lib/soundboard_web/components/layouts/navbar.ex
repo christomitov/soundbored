@@ -50,12 +50,7 @@ defmodule SoundboardWeb.Components.Layouts.Navbar do
 
           <div class="hidden sm:ml-6 sm:flex sm:items-center">
             <div class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-              <%= @presences
-                  |> Enum.flat_map(fn {_id, presence} ->
-                    presence.metas
-                    |> Enum.map(& &1.user)
-                  end)
-                  |> Enum.uniq_by(& &1.username)
+              <%= visible_users(@presences)
                   |> Enum.map(fn user -> %>
                 <div class="flex items-center gap-1">
                   <span
@@ -149,12 +144,7 @@ defmodule SoundboardWeb.Components.Layouts.Navbar do
         </div>
         <div class="pt-4 pb-3 border-t border-gray-200 dark:border-gray-700">
           <div class="space-y-2 px-4">
-            <%= @presences
-                |> Enum.flat_map(fn {_id, presence} ->
-                  presence.metas
-                  |> Enum.map(& &1.user)
-                end)
-                |> Enum.uniq_by(& &1.username)
+            <%= visible_users(@presences)
                 |> Enum.map(fn user -> %>
               <div class="flex items-center gap-2 py-2">
                 <span
@@ -216,6 +206,14 @@ defmodule SoundboardWeb.Components.Layouts.Navbar do
       {render_slot(@inner_block)}
     </.link>
     """
+  end
+
+  defp visible_users(presences) do
+    presences
+    |> Enum.flat_map(fn {_id, presence} ->
+      Enum.map(presence.metas, & &1.user)
+    end)
+    |> Enum.uniq_by(& &1.username)
   end
 
   defp current_page?(current_path, path), do: current_path == path

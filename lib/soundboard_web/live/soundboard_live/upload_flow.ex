@@ -39,8 +39,9 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
              |> assign(:uploaded_files, Sound.list_detailed())
              |> Phoenix.LiveView.put_flash(:info, "Sound added successfully")}
 
-          {:error, reason} ->
-            {:noreply, Phoenix.LiveView.put_flash(socket, :error, Uploads.error_message(reason))}
+          {:error, changeset} ->
+            {:noreply,
+             Phoenix.LiveView.put_flash(socket, :error, Uploads.error_message(changeset))}
         end
 
       _ ->
@@ -240,8 +241,8 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
      |> Phoenix.LiveView.put_flash(:info, "Sound added successfully")}
   end
 
-  defp handle_save_results(socket, [{:error, reason}]) do
-    {:noreply, Phoenix.LiveView.put_flash(socket, :error, Uploads.error_message(reason))}
+  defp handle_save_results(socket, [{:error, changeset}]) do
+    {:noreply, Phoenix.LiveView.put_flash(socket, :error, Uploads.error_message(changeset))}
   end
 
   defp handle_save_results(socket, []) do

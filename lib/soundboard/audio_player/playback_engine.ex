@@ -20,7 +20,7 @@ defmodule Soundboard.AudioPlayer.PlaybackEngine do
   def play(guild_id, channel_id, sound_name, path_or_url, volume, actor) do
     join_state = ensure_joined_channel(guild_id, channel_id)
     maybe_settle_before_play(join_state)
-    play_sound_with_connection(guild_id, sound_name, path_or_url, volume, actor)
+    submit_play_request(guild_id, sound_name, path_or_url, volume, actor)
   end
 
   defp maybe_settle_before_play({:joined, :ok}) do
@@ -29,7 +29,7 @@ defmodule Soundboard.AudioPlayer.PlaybackEngine do
 
   defp maybe_settle_before_play(_), do: :ok
 
-  defp play_sound_with_connection(guild_id, sound_name, path_or_url, volume, actor) do
+  defp submit_play_request(guild_id, sound_name, path_or_url, volume, actor) do
     if is_nil(System.find_executable("ffmpeg")) do
       Logger.error("ffmpeg not found in PATH. Cannot play #{sound_name}")
       broadcast_error("ffmpeg is not installed on this host")
@@ -192,13 +192,19 @@ defmodule Soundboard.AudioPlayer.PlaybackEngine do
   end
 
   defp refresh_voice_session(guild_id, channel_id) do
-    Logger.info("Refreshing voice session in channel #{channel_id} with in-place rejoin")
-    Voice.join_channel(guild_id, channel_id)
-    wait_for_voice_ready(guild_id)
+    reconnect_voice_session(
+      guild_id,
+      channel_id,
+      "Refreshing voice session in channel #{channel_id} with in-place rejoin"
+    )
   end
 
   defp rejoin_voice_channel(guild_id, channel_id) do
-    Logger.info("Rejoining voice channel #{channel_id}")
+    reconnect_voice_session(guild_id, channel_id, "Rejoining voice channel #{channel_id}")
+  end
+
+  defp reconnect_voice_session(guild_id, channel_id, log_message) do
+    Logger.info(log_message)
     Voice.join_channel(guild_id, channel_id)
     wait_for_voice_ready(guild_id)
   end

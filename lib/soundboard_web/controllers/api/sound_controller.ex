@@ -9,7 +9,7 @@ defmodule SoundboardWeb.API.SoundController do
       Sound
       |> Sound.with_tags()
       |> Repo.all()
-      |> Enum.map(&format_sound/1)
+      |> Enum.map(&format_sound(&1, conn.assigns[:current_user]))
 
     json(conn, %{data: sounds})
   end
@@ -94,7 +94,7 @@ defmodule SoundboardWeb.API.SoundController do
 
   defp require_play_user(conn), do: require_upload_user(conn)
 
-  defp format_sound(sound, current_user \\ nil) do
+  defp format_sound(sound, current_user) do
     user_setting = find_user_setting(sound, current_user)
 
     %{

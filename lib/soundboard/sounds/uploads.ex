@@ -60,7 +60,8 @@ defmodule Soundboard.Sounds.Uploads do
         }
 
   @type create_attrs :: map() | CreateRequest.t()
-  @type create_result :: {:ok, struct()} | {:error, Ecto.Changeset.t()}
+  @type create_error :: Ecto.Changeset.t()
+  @type create_result :: {:ok, struct()} | {:error, create_error()}
 
   @allowed_extensions ~w(.mp3 .wav .ogg .m4a)
 
@@ -125,6 +126,8 @@ defmodule Soundboard.Sounds.Uploads do
     with {:ok, params} <- normalize_request(request),
          {:ok, source} <- prepare_source(params, :create) do
       persist_sound(params, source)
+    else
+      {:error, reason} -> {:error, normalize_create_error(reason)}
     end
   end
 
@@ -132,6 +135,8 @@ defmodule Soundboard.Sounds.Uploads do
     with {:ok, params} <- normalize_params(attrs),
          {:ok, source} <- prepare_source(params, :create) do
       persist_sound(params, source)
+    else
+      {:error, reason} -> {:error, normalize_create_error(reason)}
     end
   end
 
@@ -392,7 +397,7 @@ defmodule Soundboard.Sounds.Uploads do
 
       {:error, reason} ->
         maybe_cleanup_local_file(source.copied_file_path, params)
-        {:error, reason}
+        {:error, normalize_create_error(reason)}
     end
   end
 
@@ -452,6 +457,15 @@ defmodule Soundboard.Sounds.Uploads do
   end
 
   defp maybe_cleanup_local_file(_reason, _attrs), do: :ok
+
+  defp normalize_create_error(%Ecto.Changeset{} = changeset), do: changeset
+  defp normalize_create_error(message) when is_binary(message), do: add_base_error(message)
+  defp normalize_create_error(_reason), do: add_base_error("An unexpected error occurred")
+
+  defp add_base_error(message) do
+    change(%Sound{})
+    |> add_error(:base, message)
+  end
 
   defp normalize_tags(nil), do: []
 

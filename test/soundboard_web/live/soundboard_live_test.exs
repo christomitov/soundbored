@@ -333,8 +333,6 @@ defmodule SoundboardWeb.SoundboardLiveTest do
 
       File.rm_rf!(test_file)
 
-      # Give the delete operation time to complete
-      Process.sleep(100)
       assert Repo.get(Sound, sound.id) == nil
       assert :ets.lookup(:sound_meta_cache, sound.filename) == []
     end
@@ -433,7 +431,6 @@ defmodule SoundboardWeb.SoundboardLiveTest do
       |> element("[phx-click='delete_sound']")
       |> render_click()
 
-      Process.sleep(100)
       refute File.exists?(sound_path)
       assert Repo.get(Sound, sound.id) == nil
     end
