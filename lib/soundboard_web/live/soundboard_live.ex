@@ -7,10 +7,10 @@ defmodule SoundboardWeb.SoundboardLive do
   import UploadModal
   import SoundboardWeb.Components.Soundboard.TagComponents, only: [tag_filter_button: 1]
   alias Soundboard.{Favorites, PubSubTopics, Sound}
-  alias SoundboardWeb.Live.{SoundPlayback, TagHandler}
+  alias SoundboardWeb.Live.{LiveTags, SoundPlayback}
   alias SoundboardWeb.Live.SoundboardLive.{EditFlow, UploadFlow}
   alias SoundboardWeb.Soundboard.SoundFilter
-  import TagHandler, only: [all_tags: 1, tag_selected?: 2]
+  import LiveTags, only: [all_tags: 1, tag_selected?: 2]
 
   import SoundFilter, only: [filter_sounds: 3]
 

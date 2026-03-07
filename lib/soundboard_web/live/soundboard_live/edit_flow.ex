@@ -3,9 +3,11 @@ defmodule SoundboardWeb.Live.SoundboardLive.EditFlow do
 
   import Phoenix.Component, only: [assign: 3]
 
-  alias Soundboard.{Favorites, PubSubTopics, Sound, Volume}
+  alias Soundboard.{Favorites, Sound, Volume}
   alias Soundboard.Sounds.Management
-  alias SoundboardWeb.Live.TagHandler
+  alias SoundboardWeb.Live.{LiveTags, TagForm}
+
+  @tag_form %{input_key: :tag_input, suggestions_key: :tag_suggestions}
 
   @default_assigns %{
     show_modal: false,
@@ -54,18 +56,22 @@ defmodule SoundboardWeb.Live.SoundboardLive.EditFlow do
   end
 
   def add_tag(socket, key, value) do
-    if key == "Enter" and value != "" do
-      add_tag_value(socket, value)
-    else
-      assign_tag_suggestions(socket, value)
-    end
+    TagForm.handle_key(
+      socket,
+      key,
+      value,
+      socket.assigns.current_sound.tags,
+      &append_sound_tag/3,
+      @tag_form
+    )
   end
 
   def remove_tag(socket, tag_name) do
     sound = socket.assigns.current_sound
     tags = Enum.reject(sound.tags, &(&1.name == tag_name))
 
-    {:ok, updated_sound} = TagHandler.update_sound_tags(sound, tags)
+    {:ok, updated_sound} = LiveTags.update_sound_tags(sound, tags)
+    LiveTags.broadcast_update()
 
     {:noreply,
      socket
@@ -73,11 +79,19 @@ defmodule SoundboardWeb.Live.SoundboardLive.EditFlow do
      |> assign(:uploaded_files, Sound.list_detailed())}
   end
 
-  def select_tag_suggestion(socket, tag_name), do: add_tag_value(socket, tag_name)
+  def select_tag_suggestion(socket, tag_name), do: select_tag(socket, tag_name)
 
-  def update_tag_input(socket, value), do: assign_tag_suggestions(socket, value)
+  def update_tag_input(socket, value), do: TagForm.update_input(socket, value, @tag_form)
 
-  def select_tag(socket, tag_name), do: add_tag_value(socket, tag_name)
+  def select_tag(socket, tag_name) do
+    TagForm.select_tag(
+      socket,
+      tag_name,
+      socket.assigns.current_sound.tags,
+      &append_sound_tag/3,
+      @tag_form
+    )
+  end
 
   def save_sound(socket, params) do
     sound = socket.assigns.current_sound
@@ -85,7 +99,7 @@ defmodule SoundboardWeb.Live.SoundboardLive.EditFlow do
 
     case Management.update_sound(sound, user_id, params) do
       {:ok, _updated_sound} ->
-        broadcast_update()
+        LiveTags.broadcast_update()
 
         {:noreply,
          socket
@@ -163,40 +177,15 @@ defmodule SoundboardWeb.Live.SoundboardLive.EditFlow do
 
   defp error_message(_), do: "Failed to update sound"
 
-  defp add_tag_value(socket, tag_name) do
-    socket
-    |> TagHandler.add_tag(tag_name, socket.assigns.current_sound.tags)
-    |> handle_tag_response(socket)
-  end
+  defp append_sound_tag(socket, tag, current_tags) do
+    case LiveTags.update_sound_tags(socket.assigns.current_sound, [tag | current_tags]) do
+      {:ok, updated_sound} ->
+        LiveTags.broadcast_update()
+        {:ok, assign(socket, :current_sound, updated_sound)}
 
-  defp assign_tag_suggestions(socket, value) do
-    suggestions = TagHandler.search_tags(value)
-
-    {:noreply,
-     socket
-     |> assign(:tag_input, value)
-     |> assign(:tag_suggestions, suggestions)}
-  end
-
-  defp handle_tag_response({:ok, updated_socket}, _socket) do
-    {:noreply, reset_tag_assigns(updated_socket)}
-  end
-
-  defp handle_tag_response({:error, message}, socket) do
-    {:noreply,
-     socket
-     |> reset_tag_assigns()
-     |> Phoenix.LiveView.put_flash(:error, message)}
-  end
-
-  defp reset_tag_assigns(socket) do
-    socket
-    |> assign(:tag_input, "")
-    |> assign(:tag_suggestions, [])
-  end
-
-  defp broadcast_update do
-    PubSubTopics.broadcast_files_updated()
+      {:error, _} ->
+        {:error, "Failed to add tag"}
+    end
   end
 
   defp assign_many(socket, attrs) do

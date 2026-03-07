@@ -197,6 +197,8 @@ defmodule Soundboard.SoundTest do
         |> Repo.insert()
 
       # Set sound2 as join sound (should only unset sound1's join sound)
+      :ok = UserSoundSetting.clear_conflicting_settings(user.id, sound2.id, true, false)
+
       {:ok, setting2} =
         UserSoundSetting.changeset(
           %UserSoundSetting{},
@@ -241,6 +243,8 @@ defmodule Soundboard.SoundTest do
         |> Repo.insert()
 
       # Set sound2 as leave sound (should only unset sound1's leave sound)
+      :ok = UserSoundSetting.clear_conflicting_settings(user.id, sound2.id, false, true)
+
       {:ok, setting2} =
         UserSoundSetting.changeset(
           %UserSoundSetting{},

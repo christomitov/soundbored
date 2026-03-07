@@ -5,8 +5,11 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
 
   alias Soundboard.Sound
   alias Soundboard.Sounds.Uploads
+  alias Soundboard.Sounds.Uploads.CreateRequest
   alias Soundboard.Volume
-  alias SoundboardWeb.Live.TagHandler
+  alias SoundboardWeb.Live.TagForm
+
+  @tag_form %{input_key: :upload_tag_input, suggestions_key: :upload_tag_suggestions}
 
   @default_assigns %{
     show_upload_modal: false,
@@ -50,7 +53,7 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
             request =
               socket
               |> build_request(params)
-              |> Uploads.put_upload(%{path: meta.path, filename: entry.client_name})
+              |> CreateRequest.put_upload(%{path: meta.path, filename: entry.client_name})
 
             {:ok, Uploads.create(request)}
           end)
@@ -88,11 +91,14 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
   end
 
   def add_tag(socket, key, value) do
-    if key == "Enter" and value != "" do
-      add_tag_value(socket, value)
-    else
-      assign_tag_suggestions(socket, value)
-    end
+    TagForm.handle_key(
+      socket,
+      key,
+      value,
+      socket.assigns.upload_tags,
+      &append_upload_tag/3,
+      @tag_form
+    )
   end
 
   def remove_tag(socket, tag_name) do
@@ -100,11 +106,19 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
     {:noreply, assign(socket, :upload_tags, upload_tags)}
   end
 
-  def select_tag_suggestion(socket, tag_name), do: add_tag_value(socket, tag_name)
+  def select_tag_suggestion(socket, tag_name), do: select_tag(socket, tag_name)
 
-  def update_tag_input(socket, value), do: assign_tag_suggestions(socket, value)
+  def update_tag_input(socket, value), do: TagForm.update_input(socket, value, @tag_form)
 
-  def select_tag(socket, tag_name), do: add_tag_value(socket, tag_name)
+  def select_tag(socket, tag_name) do
+    TagForm.select_tag(
+      socket,
+      tag_name,
+      socket.assigns.upload_tags,
+      &append_upload_tag/3,
+      @tag_form
+    )
+  end
 
   def toggle_join_sound(socket) do
     {:noreply, assign(socket, :is_join_sound, !socket.assigns.is_join_sound)}
@@ -123,36 +137,8 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
      )}
   end
 
-  defp add_tag_value(socket, tag_name) do
-    socket
-    |> TagHandler.add_tag(tag_name, socket.assigns.upload_tags)
-    |> handle_tag_response(socket)
-  end
-
-  defp assign_tag_suggestions(socket, value) do
-    suggestions = TagHandler.search_tags(value)
-
-    {:noreply,
-     socket
-     |> assign(:upload_tag_input, value)
-     |> assign(:upload_tag_suggestions, suggestions)}
-  end
-
-  defp handle_tag_response({:ok, updated_socket}, _socket) do
-    {:noreply, reset_tag_assigns(updated_socket)}
-  end
-
-  defp handle_tag_response({:error, message}, socket) do
-    {:noreply,
-     socket
-     |> reset_tag_assigns()
-     |> Phoenix.LiveView.put_flash(:error, message)}
-  end
-
-  defp reset_tag_assigns(socket) do
-    socket
-    |> assign(:upload_tag_input, "")
-    |> assign(:upload_tag_suggestions, [])
+  defp append_upload_tag(socket, tag, current_tags) do
+    {:ok, assign(socket, :upload_tags, [tag | current_tags])}
   end
 
   defp reset_state(socket) do
@@ -218,7 +204,7 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
     request =
       socket
       |> build_request(params)
-      |> Uploads.put_upload(current_upload(socket))
+      |> CreateRequest.put_upload(current_upload(socket))
 
     case Uploads.validate(request) do
       {:ok, _params} -> :ok
@@ -256,9 +242,12 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
   end
 
   defp build_request(socket, params) do
-    Uploads.build_live_view_request(params, socket.assigns.current_user, %{
+    CreateRequest.new(socket.assigns.current_user, %{
       source_type: socket.assigns.source_type,
+      name: params["name"],
+      url: params["url"],
       tags: socket.assigns.upload_tags,
+      volume: params["volume"],
       default_volume_percent: socket.assigns[:upload_volume] || 100,
       is_join_sound: socket.assigns.is_join_sound,
       is_leave_sound: socket.assigns.is_leave_sound
