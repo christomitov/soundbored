@@ -89,16 +89,9 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
 
   def add_tag(socket, key, value) do
     if key == "Enter" and value != "" do
-      socket
-      |> TagHandler.add_tag(value, socket.assigns.upload_tags)
-      |> handle_tag_response(socket)
+      add_tag_value(socket, value)
     else
-      suggestions = TagHandler.search_tags(value)
-
-      {:noreply,
-       socket
-       |> assign(:upload_tag_input, value)
-       |> assign(:upload_tag_suggestions, suggestions)}
+      assign_tag_suggestions(socket, value)
     end
   end
 
@@ -107,26 +100,11 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
     {:noreply, assign(socket, :upload_tags, upload_tags)}
   end
 
-  def select_tag_suggestion(socket, tag_name) do
-    socket
-    |> TagHandler.add_tag(tag_name, socket.assigns.upload_tags)
-    |> handle_tag_response(socket)
-  end
+  def select_tag_suggestion(socket, tag_name), do: add_tag_value(socket, tag_name)
 
-  def update_tag_input(socket, value) do
-    suggestions = TagHandler.search_tags(value)
+  def update_tag_input(socket, value), do: assign_tag_suggestions(socket, value)
 
-    {:noreply,
-     socket
-     |> assign(:upload_tag_input, value)
-     |> assign(:upload_tag_suggestions, suggestions)}
-  end
-
-  def select_tag(socket, tag_name) do
-    socket
-    |> TagHandler.add_tag(tag_name, socket.assigns.upload_tags)
-    |> handle_tag_response(socket)
-  end
+  def select_tag(socket, tag_name), do: add_tag_value(socket, tag_name)
 
   def toggle_join_sound(socket) do
     {:noreply, assign(socket, :is_join_sound, !socket.assigns.is_join_sound)}
@@ -143,6 +121,21 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
        :upload_volume,
        Volume.normalize_percent(volume, socket.assigns.upload_volume)
      )}
+  end
+
+  defp add_tag_value(socket, tag_name) do
+    socket
+    |> TagHandler.add_tag(tag_name, socket.assigns.upload_tags)
+    |> handle_tag_response(socket)
+  end
+
+  defp assign_tag_suggestions(socket, value) do
+    suggestions = TagHandler.search_tags(value)
+
+    {:noreply,
+     socket
+     |> assign(:upload_tag_input, value)
+     |> assign(:upload_tag_suggestions, suggestions)}
   end
 
   defp handle_tag_response({:ok, updated_socket}, _socket) do

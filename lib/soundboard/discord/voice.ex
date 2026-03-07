@@ -10,11 +10,11 @@ defmodule Soundboard.Discord.Voice do
   @already_playing_error "Audio already playing in voice channel."
 
   def join_channel(guild_id, channel_id) do
-    EDAVoice.join(to_id(guild_id), to_id(channel_id))
+    voice_module().join(to_id(guild_id), to_id(channel_id))
   end
 
   def leave_channel(guild_id) do
-    EDAVoice.leave(to_id(guild_id))
+    voice_module().leave(to_id(guild_id))
   end
 
   def play(guild_id, input, type, opts \\ []) do
@@ -30,24 +30,24 @@ defmodule Soundboard.Discord.Voice do
   end
 
   def stop(guild_id) do
-    EDAVoice.stop(to_id(guild_id))
+    voice_module().stop(to_id(guild_id))
   end
 
   def ready?(guild_id) do
-    EDAVoice.ready?(to_id(guild_id))
+    voice_module().ready?(to_id(guild_id))
   end
 
   def channel_id(guild_id) do
-    EDAVoice.channel_id(to_id(guild_id))
+    voice_module().channel_id(to_id(guild_id))
   end
 
   def playing?(guild_id) do
-    EDAVoice.playing?(to_id(guild_id))
+    voice_module().playing?(to_id(guild_id))
   end
 
   # Compatibility shape for existing RTP probe code.
   def get_voice(guild_id) do
-    case EDAVoice.get_voice_state(to_id(guild_id)) do
+    case voice_module().get_voice_state(to_id(guild_id)) do
       {:ok, %{sequence: seq} = state} -> {:ok, %{rtp_sequence: seq, state: state}}
       {:ok, state} -> {:ok, %{state: state}}
       {:error, reason} -> {:error, reason}
@@ -56,17 +56,23 @@ defmodule Soundboard.Discord.Voice do
   end
 
   defp play_with_supported_arity(guild_id, input, type, opts) do
+    module = voice_module()
+
     cond do
-      function_exported?(EDAVoice, :play, 4) ->
-        :erlang.apply(EDAVoice, :play, [guild_id, input, type, opts])
+      function_exported?(module, :play, 4) ->
+        :erlang.apply(module, :play, [guild_id, input, type, opts])
 
       opts == [] ->
-        EDAVoice.play(guild_id, input, type)
+        module.play(guild_id, input, type)
 
       true ->
         Logger.debug("EDA.Voice.play/4 unavailable; dropping playback opts #{inspect(opts)}")
-        EDAVoice.play(guild_id, input, type)
+        module.play(guild_id, input, type)
     end
+  end
+
+  defp voice_module do
+    Application.get_env(:soundboard, :eda_voice_module, EDAVoice)
   end
 
   defp to_id(nil), do: nil

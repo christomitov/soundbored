@@ -104,17 +104,23 @@ defmodule Soundboard.Migrations.DataMigrationsTest do
 
     repo.query!("""
     INSERT INTO sounds (id, filename, tags, description, user_id, inserted_at, updated_at)
-    VALUES (1, 'beep.mp3', '["meme","alert"]', NULL, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    VALUES (1, 'beep.mp3', '[" meme ","MEME","alert",""]', NULL, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     """)
 
     repo.query!("""
-    INSERT INTO tags (name, inserted_at, updated_at)
-    VALUES ('meme', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    INSERT INTO tags (id, name, inserted_at, updated_at)
+    VALUES (1, 'meme', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    """)
+
+    repo.query!("""
+    INSERT INTO sound_tags (sound_id, tag_id, inserted_at, updated_at)
+    VALUES (1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     """)
 
     repo.query!("""
     INSERT INTO favorites (user_id, sound_id, inserted_at, updated_at)
-    VALUES (1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    VALUES (1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+           (1, 999, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     """)
 
     :ok =
@@ -129,6 +135,9 @@ defmodule Soundboard.Migrations.DataMigrationsTest do
 
     assert [["alert"], ["meme"]] =
              repo.query!("SELECT name FROM tags ORDER BY name").rows
+
+    assert [[1, 1]] =
+             repo.query!("SELECT user_id, sound_id FROM favorites ORDER BY sound_id").rows
 
     assert [[1, 1], [1, 2]] =
              repo.query!("SELECT sound_id, tag_id FROM sound_tags ORDER BY tag_id").rows

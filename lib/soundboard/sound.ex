@@ -207,16 +207,18 @@ defmodule Soundboard.Sound do
     )
   end
 
-  def get_user_sounds_by_discord_id(discord_id) do
-    Repo.one(
-      from u in User,
-        where: u.discord_id == ^to_string(discord_id),
-        left_join: uss in Soundboard.UserSoundSetting,
-        on: uss.user_id == u.id,
-        left_join: s in __MODULE__,
-        on: uss.sound_id == s.id and (uss.is_join_sound == true or uss.is_leave_sound == true),
-        select: {u.id, s.filename, uss.is_join_sound, uss.is_leave_sound}
-    )
+  def get_user_sound_preferences_by_discord_id(discord_id) do
+    case Repo.get_by(User, discord_id: to_string(discord_id)) do
+      nil ->
+        nil
+
+      user ->
+        %{
+          user_id: user.id,
+          join_sound: get_user_join_sound(user.id),
+          leave_sound: get_user_leave_sound(user.id)
+        }
+    end
   end
 
   # Get a sound with all its associations loaded

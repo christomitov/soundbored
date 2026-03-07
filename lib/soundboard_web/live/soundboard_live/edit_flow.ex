@@ -55,16 +55,9 @@ defmodule SoundboardWeb.Live.SoundboardLive.EditFlow do
 
   def add_tag(socket, key, value) do
     if key == "Enter" and value != "" do
-      socket
-      |> TagHandler.add_tag(value, socket.assigns.current_sound.tags)
-      |> handle_tag_response(socket)
+      add_tag_value(socket, value)
     else
-      suggestions = TagHandler.search_tags(value)
-
-      {:noreply,
-       socket
-       |> assign(:tag_input, value)
-       |> assign(:tag_suggestions, suggestions)}
+      assign_tag_suggestions(socket, value)
     end
   end
 
@@ -80,26 +73,11 @@ defmodule SoundboardWeb.Live.SoundboardLive.EditFlow do
      |> assign(:uploaded_files, Sound.list_detailed())}
   end
 
-  def select_tag_suggestion(socket, tag_name) do
-    socket
-    |> TagHandler.add_tag(tag_name, socket.assigns.current_sound.tags)
-    |> handle_tag_response(socket)
-  end
+  def select_tag_suggestion(socket, tag_name), do: add_tag_value(socket, tag_name)
 
-  def update_tag_input(socket, value) do
-    suggestions = TagHandler.search_tags(value)
+  def update_tag_input(socket, value), do: assign_tag_suggestions(socket, value)
 
-    {:noreply,
-     socket
-     |> assign(:tag_input, value)
-     |> assign(:tag_suggestions, suggestions)}
-  end
-
-  def select_tag(socket, tag_name) do
-    socket
-    |> TagHandler.add_tag(tag_name, socket.assigns.current_sound.tags)
-    |> handle_tag_response(socket)
-  end
+  def select_tag(socket, tag_name), do: add_tag_value(socket, tag_name)
 
   def save_sound(socket, params) do
     sound = socket.assigns.current_sound
@@ -184,6 +162,21 @@ defmodule SoundboardWeb.Live.SoundboardLive.EditFlow do
   end
 
   defp error_message(_), do: "Failed to update sound"
+
+  defp add_tag_value(socket, tag_name) do
+    socket
+    |> TagHandler.add_tag(tag_name, socket.assigns.current_sound.tags)
+    |> handle_tag_response(socket)
+  end
+
+  defp assign_tag_suggestions(socket, value) do
+    suggestions = TagHandler.search_tags(value)
+
+    {:noreply,
+     socket
+     |> assign(:tag_input, value)
+     |> assign(:tag_suggestions, suggestions)}
+  end
 
   defp handle_tag_response({:ok, updated_socket}, _socket) do
     {:noreply, reset_tag_assigns(updated_socket)}

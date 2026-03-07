@@ -428,42 +428,62 @@ defmodule Soundboard.SoundTest do
     end
   end
 
-  describe "get_user_sounds_by_discord_id/1" do
-    test "returns user sounds when user has join/leave sounds", %{user: user, sound: sound} do
-      # Create setting with both join and leave
-      {:ok, _} =
-        UserSoundSetting.changeset(
-          %UserSoundSetting{},
-          %{
-            user_id: user.id,
-            sound_id: sound.id,
-            is_join_sound: true,
-            is_leave_sound: true
-          }
-        )
+  describe "get_user_sound_preferences_by_discord_id/1" do
+    test "returns both join and leave sounds without assuming they share one row", %{user: user} do
+      {:ok, join_sound} =
+        %Sound{}
+        |> Sound.changeset(%{
+          filename: "join_#{System.unique_integer([:positive])}.mp3",
+          source_type: "local",
+          user_id: user.id
+        })
         |> Repo.insert()
 
-      result = Sound.get_user_sounds_by_discord_id(user.discord_id)
-      {user_id, filename, is_join, is_leave} = result
+      {:ok, leave_sound} =
+        %Sound{}
+        |> Sound.changeset(%{
+          filename: "leave_#{System.unique_integer([:positive])}.mp3",
+          source_type: "local",
+          user_id: user.id
+        })
+        |> Repo.insert()
 
-      assert user_id == user.id
-      assert filename == sound.filename
-      assert is_join == true
-      assert is_leave == true
+      %UserSoundSetting{}
+      |> UserSoundSetting.changeset(%{
+        user_id: user.id,
+        sound_id: join_sound.id,
+        is_join_sound: true,
+        is_leave_sound: false
+      })
+      |> Repo.insert!()
+
+      %UserSoundSetting{}
+      |> UserSoundSetting.changeset(%{
+        user_id: user.id,
+        sound_id: leave_sound.id,
+        is_join_sound: false,
+        is_leave_sound: true
+      })
+      |> Repo.insert!()
+
+      user_id = user.id
+
+      assert %{user_id: ^user_id, join_sound: join_filename, leave_sound: leave_filename} =
+               Sound.get_user_sound_preferences_by_discord_id(user.discord_id)
+
+      assert join_filename == join_sound.filename
+      assert leave_filename == leave_sound.filename
     end
 
-    test "returns user with nil sound when no join/leave sounds", %{user: user} do
-      result = Sound.get_user_sounds_by_discord_id(user.discord_id)
-      {user_id, filename, is_join, is_leave} = result
+    test "returns user preferences with nil sounds when no join/leave sounds", %{user: user} do
+      user_id = user.id
 
-      assert user_id == user.id
-      assert filename == nil
-      assert is_join == nil
-      assert is_leave == nil
+      assert %{user_id: ^user_id, join_sound: nil, leave_sound: nil} =
+               Sound.get_user_sound_preferences_by_discord_id(user.discord_id)
     end
 
     test "returns nil when user doesn't exist" do
-      assert Sound.get_user_sounds_by_discord_id("nonexistent_discord_id") == nil
+      assert Sound.get_user_sound_preferences_by_discord_id("nonexistent_discord_id") == nil
     end
   end
 

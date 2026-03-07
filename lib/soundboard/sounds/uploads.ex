@@ -6,6 +6,8 @@ defmodule Soundboard.Sounds.Uploads do
   defmodule CreateRequest do
     @moduledoc false
 
+    alias Soundboard.Accounts.User
+
     @enforce_keys [:user, :source_type, :name]
     defstruct [
       :user,
@@ -20,13 +22,17 @@ defmodule Soundboard.Sounds.Uploads do
       :default_volume_percent
     ]
 
-    @type upload :: %{
-            optional(:path) => String.t(),
-            optional(:filename) => String.t()
-          }
+    @type upload ::
+            %Plug.Upload{}
+            | %{
+                optional(:path) => String.t(),
+                optional(:filename) => String.t(),
+                optional(:client_name) => String.t(),
+                optional(String.t()) => String.t()
+              }
 
     @type t :: %__MODULE__{
-            user: struct(),
+            user: User.t(),
             source_type: String.t(),
             name: String.t(),
             url: String.t() | nil,
@@ -68,7 +74,7 @@ defmodule Soundboard.Sounds.Uploads do
   @spec allowed_extensions() :: [String.t()]
   def allowed_extensions, do: @allowed_extensions
 
-  @spec build_create_request(map(), struct(), map()) :: CreateRequest.t()
+  @spec build_create_request(map(), Soundboard.Accounts.User.t(), map()) :: CreateRequest.t()
   def build_create_request(raw_params, user, overrides \\ %{}) when is_map(raw_params) do
     source_type = infer_request_source_type(raw_params)
 
@@ -87,10 +93,11 @@ defmodule Soundboard.Sounds.Uploads do
     |> merge_request_overrides(overrides)
   end
 
-  @spec build_api_request(map(), struct()) :: CreateRequest.t()
+  @spec build_api_request(map(), Soundboard.Accounts.User.t()) :: CreateRequest.t()
   def build_api_request(raw_params, user), do: build_create_request(raw_params, user)
 
-  @spec build_live_view_request(map(), struct(), live_view_options()) :: CreateRequest.t()
+  @spec build_live_view_request(map(), Soundboard.Accounts.User.t(), live_view_options()) ::
+          CreateRequest.t()
   def build_live_view_request(raw_params, user, options) do
     build_create_request(raw_params, user, %{
       tags: Map.fetch!(options, :tags),
