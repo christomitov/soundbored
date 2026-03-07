@@ -489,11 +489,7 @@ defmodule SoundboardWeb.SoundboardLiveTest do
     test "handles pubsub updates", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/")
 
-      Phoenix.PubSub.broadcast(
-        Soundboard.PubSub,
-        "soundboard",
-        {:files_updated}
-      )
+      Soundboard.PubSubTopics.broadcast_files_updated()
 
       # Just verify the view is still alive
       assert render(view) =~ "SoundBored"

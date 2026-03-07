@@ -42,13 +42,21 @@ defmodule Soundboard.Sounds.Uploads do
   import Ecto.Changeset
   import Ecto.Query
 
-  alias Soundboard.{Repo, Sound, Stats, UploadsPath, UserSoundSetting, Volume}
+  alias Soundboard.{PubSubTopics, Repo, Sound, Stats, UploadsPath, UserSoundSetting, Volume}
   alias Soundboard.Sounds.Tags
 
   @type upload_attrs :: %{
           optional(:path) => String.t(),
           optional(:filename) => String.t(),
           optional(String.t()) => String.t()
+        }
+
+  @type live_view_options :: %{
+          required(:source_type) => String.t(),
+          required(:tags) => list(),
+          required(:default_volume_percent) => number(),
+          required(:is_join_sound) => boolean(),
+          required(:is_leave_sound) => boolean()
         }
 
   @type create_attrs :: map() | CreateRequest.t()
@@ -76,6 +84,25 @@ defmodule Soundboard.Sounds.Uploads do
       default_volume_percent: get_param(raw_params, :default_volume_percent)
     }
     |> merge_request_overrides(overrides)
+  end
+
+  @spec build_api_request(map(), struct()) :: CreateRequest.t()
+  def build_api_request(raw_params, user), do: build_create_request(raw_params, user)
+
+  @spec build_live_view_request(map(), struct(), live_view_options()) :: CreateRequest.t()
+  def build_live_view_request(raw_params, user, options) do
+    build_create_request(raw_params, user, %{
+      tags: Map.fetch!(options, :tags),
+      default_volume_percent: Map.fetch!(options, :default_volume_percent),
+      is_join_sound: Map.fetch!(options, :is_join_sound),
+      is_leave_sound: Map.fetch!(options, :is_leave_sound),
+      source_type: Map.fetch!(options, :source_type)
+    })
+  end
+
+  @spec put_upload(CreateRequest.t(), upload_attrs() | nil) :: CreateRequest.t()
+  def put_upload(%CreateRequest{} = request, upload) do
+    struct!(request, upload: normalize_upload(upload))
   end
 
   @spec validate(create_attrs()) :: {:ok, map()} | {:error, Ecto.Changeset.t()}
@@ -366,7 +393,7 @@ defmodule Soundboard.Sounds.Uploads do
   end
 
   defp broadcast_updates do
-    Phoenix.PubSub.broadcast(Soundboard.PubSub, "soundboard", {:files_updated})
+    PubSubTopics.broadcast_files_updated()
     Stats.broadcast_stats_update()
   end
 

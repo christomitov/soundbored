@@ -3,8 +3,7 @@ defmodule SoundboardWeb.Live.TagHandler do
   Handles UI-oriented tag interactions for sounds and uploads.
   """
 
-  alias Phoenix.PubSub
-  alias Soundboard.Sounds.Tags
+  alias Soundboard.{PubSubTopics, Sounds.Tags}
   import Phoenix.Component, only: [assign: 3]
 
   def add_tag(socket, tag_name, current_tags) do
@@ -73,6 +72,6 @@ defmodule SoundboardWeb.Live.TagHandler do
   end
 
   defp broadcast_update do
-    PubSub.broadcast(Soundboard.PubSub, "soundboard", {:files_updated})
+    PubSubTopics.broadcast_files_updated()
   end
 end

@@ -4,9 +4,7 @@ defmodule Soundboard.AudioPlayer.PlaybackEngine do
   require Logger
 
   alias Soundboard.Accounts.User
-  alias Soundboard.AudioPlayer
-  alias Soundboard.AudioPlayer.SoundLibrary
-  alias Soundboard.Discord.Voice
+  alias Soundboard.{AudioPlayer, AudioPlayer.SoundLibrary, Discord.Voice, PubSubTopics}
 
   @system_users ["System", "API User"]
   @rtp_probe_poll_ms 20
@@ -39,14 +37,6 @@ defmodule Soundboard.AudioPlayer.PlaybackEngine do
     else
       {play_input, play_type} = SoundLibrary.prepare_play_input(sound_name, path_or_url)
 
-      Logger.info(
-        "Calling Voice.play with guild_id: #{guild_id}, input: #{play_input}, type: #{play_type}"
-      )
-
-      Logger.info(
-        "Voice channel: #{inspect(Voice.channel_id(guild_id))}, Playing: #{Voice.playing?(guild_id)}"
-      )
-
       play_request = %{
         guild_id: guild_id,
         play_input: play_input,
@@ -56,7 +46,6 @@ defmodule Soundboard.AudioPlayer.PlaybackEngine do
         username: username
       }
 
-      Logger.info("Play options: #{inspect(play_request.play_options)}")
       play_with_retries(play_request, 0, false)
     end
   end
@@ -65,10 +54,6 @@ defmodule Soundboard.AudioPlayer.PlaybackEngine do
        when attempt < @max_play_attempts do
     case voice_play(play_request) |> classify_play_attempt() do
       :ok ->
-        Logger.info(
-          "Voice.play succeeded for #{play_request.sound_name} (attempt #{attempt + 1})"
-        )
-
         maybe_probe_first_rtp(play_request.guild_id, play_request.sound_name, attempt + 1)
         track_play_if_needed(play_request.sound_name, play_request.username)
         broadcast_success(play_request.sound_name, play_request.username)
@@ -368,7 +353,7 @@ defmodule Soundboard.AudioPlayer.PlaybackEngine do
 
   defp track_play_if_needed(sound_name, username) do
     if system_user?(username) do
-      Logger.info("Skipping play tracking for system user: #{username}")
+      :ok
     else
       case Soundboard.Repo.get_by(User, username: username) do
         %{id: user_id} -> Soundboard.Stats.track_play(sound_name, user_id)
@@ -378,19 +363,11 @@ defmodule Soundboard.AudioPlayer.PlaybackEngine do
   end
 
   defp broadcast_success(sound_name, username) do
-    Phoenix.PubSub.broadcast(
-      Soundboard.PubSub,
-      "soundboard",
-      {:sound_played, %{filename: sound_name, played_by: username}}
-    )
+    PubSubTopics.broadcast_sound_played(sound_name, username)
   end
 
   defp broadcast_error(message) do
-    Phoenix.PubSub.broadcast(
-      Soundboard.PubSub,
-      "soundboard",
-      {:error, message}
-    )
+    PubSubTopics.broadcast_error(message)
   end
 
   defp unwrap_sequence({:ok, sequence}), do: sequence

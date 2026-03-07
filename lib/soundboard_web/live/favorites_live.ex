@@ -1,16 +1,15 @@
 defmodule SoundboardWeb.FavoritesLive do
   use SoundboardWeb, :live_view
   use SoundboardWeb.Live.PresenceLive
-  alias Soundboard.Favorites
+  alias Soundboard.{Favorites, PubSubTopics}
   alias SoundboardWeb.Live.SoundPlayback
   require Logger
-
-  @pubsub_topic "soundboard"
 
   @impl true
   def mount(_params, session, socket) do
     if connected?(socket) do
-      Phoenix.PubSub.subscribe(Soundboard.PubSub, @pubsub_topic)
+      PubSubTopics.subscribe_files()
+      PubSubTopics.subscribe_playback()
     end
 
     socket =

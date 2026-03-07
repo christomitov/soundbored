@@ -3,32 +3,19 @@ defmodule Soundboard.Stats do
   Handles the stats of the soundboard.
   """
   import Ecto.Query
-  alias Phoenix.PubSub
-  alias Soundboard.{Accounts.User, Repo, Sound, Stats.Play}
+  import Ecto.Changeset, only: [add_error: 3, change: 1]
 
-  @pubsub_topic "soundboard"
+  alias Soundboard.{Accounts.User, PubSubTopics, Repo, Sound, Stats.Play}
 
   def track_play(sound_name, user_id) do
-    sound_id =
-      case Sound.fetch_sound_id(sound_name) do
-        {:ok, found_sound_id} -> found_sound_id
-        :error -> nil
-      end
-
-    %Play{}
-    |> Play.changeset(%{
-      sound_name: sound_name,
-      sound_id: sound_id,
-      user_id: user_id
-    })
-    |> Repo.insert()
-    |> case do
-      {:ok, _play} = result ->
-        broadcast_stats_update()
-        result
-
-      {:error, _changeset} = result ->
-        result
+    with {:ok, sound_id} <- Sound.fetch_sound_id(sound_name),
+         {:ok, play} <-
+           insert_play(%{sound_name: sound_name, sound_id: sound_id, user_id: user_id}) do
+      broadcast_stats_update()
+      {:ok, play}
+    else
+      :error -> {:error, add_error(change(%Play{}), :sound_id, "can't be blank")}
+      {:error, _changeset} = result -> result
     end
   end
 
@@ -98,8 +85,12 @@ defmodule Soundboard.Stats do
   end
 
   def broadcast_stats_update do
-    # Broadcast to both channels to ensure all stats are updated
-    PubSub.broadcast(Soundboard.PubSub, "stats", {:stats_updated})
-    PubSub.broadcast(Soundboard.PubSub, @pubsub_topic, {:stats_updated})
+    PubSubTopics.broadcast_stats_updated()
+  end
+
+  defp insert_play(attrs) do
+    %Play{}
+    |> Play.changeset(attrs)
+    |> Repo.insert()
   end
 end

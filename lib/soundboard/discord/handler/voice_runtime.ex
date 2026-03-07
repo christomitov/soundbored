@@ -84,39 +84,23 @@ defmodule Soundboard.Discord.Handler.VoiceRuntime do
   end
 
   defp process_guilds(guilds) do
-    Logger.info("Found #{length(guilds)} guilds")
+    Logger.info("Checking #{length(guilds)} guilds for active voice channels")
 
-    Enum.each(guilds, fn guild ->
-      Logger.info("Checking guild #{guild.id} for voice channels...")
-      check_and_join_voice(guild)
-    end)
+    Enum.each(guilds, &check_and_join_voice/1)
   end
 
   defp check_and_join_voice(guild) do
     voice_states = guild.voice_states
     bot_id = current_bot_id()
 
-    Logger.info("""
-    Checking voice states for guild #{guild.id}:
-    Total voice states: #{length(voice_states)}
-    Bot ID: #{bot_id}
-    Voice states: #{inspect(voice_states)}
-    """)
-
     case Enum.find(voice_states, fn vs -> vs.user_id != bot_id && vs.channel_id != nil end) do
-      %{channel_id: channel_id} = voice_state when not is_nil(channel_id) ->
-        Logger.info("""
-        Found user in voice channel:
-        Channel ID: #{channel_id}
-        Voice State: #{inspect(voice_state)}
-        Attempting to join...
-        """)
-
+      %{channel_id: channel_id} when not is_nil(channel_id) ->
+        Logger.info("Auto-joining guild #{guild.id} channel #{channel_id} during bootstrap")
         Voice.join_channel(guild.id, channel_id)
         AudioPlayer.set_voice_channel(guild.id, channel_id)
 
       _ ->
-        Logger.info("No users found in voice channels for guild #{guild.id}")
+        :ok
     end
   end
 
@@ -166,8 +150,6 @@ defmodule Soundboard.Discord.Handler.VoiceRuntime do
   end
 
   defp handle_auto_join_leave(payload) do
-    Logger.info("Handling auto join/leave for payload: #{inspect(payload)}")
-
     if bot_user?(payload.user_id) do
       Logger.debug("Ignoring bot's own voice state update in auto-join logic")
       :noop

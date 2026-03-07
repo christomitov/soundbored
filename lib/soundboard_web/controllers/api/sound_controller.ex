@@ -77,7 +77,7 @@ defmodule SoundboardWeb.API.SoundController do
 
   defp create_sound(user, params) do
     params
-    |> Uploads.build_create_request(user)
+    |> Uploads.build_api_request(user)
     |> Uploads.create()
   end
 

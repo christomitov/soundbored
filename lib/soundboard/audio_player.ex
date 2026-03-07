@@ -6,7 +6,7 @@ defmodule Soundboard.AudioPlayer do
   require Logger
 
   alias Soundboard.Discord.Voice
-  alias Soundboard.AudioPlayer.{PlaybackEngine, SoundLibrary}
+  alias Soundboard.{AudioPlayer.PlaybackEngine, AudioPlayer.SoundLibrary, PubSubTopics}
 
   @interrupt_watchdog_ms 35
   @interrupt_watchdog_max_attempts 20
@@ -26,22 +26,18 @@ defmodule Soundboard.AudioPlayer do
   end
 
   def start_link(_opts) do
-    Logger.info("Starting AudioPlayer GenServer")
     GenServer.start_link(__MODULE__, %State{}, name: __MODULE__)
   end
 
   def play_sound(sound_name, username) do
-    Logger.info("Received play_sound request for: #{sound_name} from #{username}")
     GenServer.cast(__MODULE__, {:play_sound, sound_name, username})
   end
 
   def stop_sound do
-    Logger.info("Stopping all sounds")
     GenServer.cast(__MODULE__, :stop_sound)
   end
 
   def set_voice_channel(guild_id, channel_id) do
-    Logger.info("Setting voice channel - Guild: #{guild_id}, Channel: #{channel_id}")
     GenServer.cast(__MODULE__, {:set_voice_channel, guild_id, channel_id})
   end
 
@@ -64,7 +60,6 @@ defmodule Soundboard.AudioPlayer do
 
   @impl true
   def init(state) do
-    Logger.info("Initializing AudioPlayer with state: #{inspect(state)}")
     SoundLibrary.ensure_cache()
     schedule_voice_check()
 
@@ -108,7 +103,6 @@ defmodule Soundboard.AudioPlayer do
   end
 
   def handle_cast(:stop_sound, %{voice_channel: {guild_id, _channel_id}} = state) do
-    Logger.info("Stopping all sounds in guild: #{guild_id}")
     Voice.stop(guild_id)
     broadcast_success("All sounds stopped", "System")
 
@@ -123,7 +117,6 @@ defmodule Soundboard.AudioPlayer do
   end
 
   def handle_cast(:stop_sound, state) do
-    Logger.info("Attempted to stop sounds but no voice channel connected")
     broadcast_error("Bot is not connected to a voice channel")
     {:noreply, state}
   end
@@ -297,10 +290,7 @@ defmodule Soundboard.AudioPlayer do
     |> perform_voice_maintenance(state)
   end
 
-  defp maintain_voice_connection(state) do
-    Logger.debug("No voice channel set")
-    state
-  end
+  defp maintain_voice_connection(state), do: state
 
   defp voice_maintenance_status(guild_id, channel_id) do
     %{
@@ -337,15 +327,9 @@ defmodule Soundboard.AudioPlayer do
     end
   end
 
-  defp perform_voice_maintenance(%{playing?: true, guild_id: guild_id}, state) do
-    Logger.debug("Skipping voice maintenance while audio is playing in guild #{guild_id}")
-    state
-  end
+  defp perform_voice_maintenance(%{playing?: true}, state), do: state
 
-  defp perform_voice_maintenance(%{joined?: true, ready?: true, guild_id: guild_id}, state) do
-    Logger.debug("Voice connection healthy for guild #{guild_id}")
-    state
-  end
+  defp perform_voice_maintenance(%{joined?: true, ready?: true}, state), do: state
 
   defp perform_voice_maintenance(%{joined?: true} = status, state) do
     Logger.warning(
@@ -480,18 +464,10 @@ defmodule Soundboard.AudioPlayer do
   end
 
   defp broadcast_success(sound_name, username) do
-    Phoenix.PubSub.broadcast(
-      Soundboard.PubSub,
-      "soundboard",
-      {:sound_played, %{filename: sound_name, played_by: username}}
-    )
+    PubSubTopics.broadcast_sound_played(sound_name, username)
   end
 
   defp broadcast_error(message) do
-    Phoenix.PubSub.broadcast(
-      Soundboard.PubSub,
-      "soundboard",
-      {:error, message}
-    )
+    PubSubTopics.broadcast_error(message)
   end
 end

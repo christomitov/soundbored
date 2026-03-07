@@ -3,11 +3,10 @@ defmodule SoundboardWeb.Live.SoundboardLive.EditFlow do
 
   import Phoenix.Component, only: [assign: 3]
 
-  alias Soundboard.{Favorites, Sound, Volume}
+  alias Soundboard.{Favorites, PubSubTopics, Sound, Volume}
   alias Soundboard.Sounds.Management
   alias SoundboardWeb.Live.TagHandler
 
-  @pubsub_topic "soundboard"
   @default_assigns %{
     show_modal: false,
     current_sound: nil,
@@ -220,7 +219,7 @@ defmodule SoundboardWeb.Live.SoundboardLive.EditFlow do
   end
 
   defp broadcast_update do
-    Phoenix.PubSub.broadcast(Soundboard.PubSub, @pubsub_topic, {:files_updated})
+    PubSubTopics.broadcast_files_updated()
   end
 
   defp assign_many(socket, attrs) do

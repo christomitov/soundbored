@@ -17,7 +17,6 @@ defmodule Soundboard.AudioPlayer.SoundLibrary do
   end
 
   def get_sound_path(sound_name) do
-    Logger.info("Getting sound path for: #{sound_name}")
     ensure_cache()
 
     case lookup_cached_sound(sound_name) do
@@ -30,30 +29,16 @@ defmodule Soundboard.AudioPlayer.SoundLibrary do
     ensure_cache()
 
     case :ets.lookup(:sound_meta_cache, sound_name) do
-      [{^sound_name, %{source_type: "url"}}] ->
-        Logger.info("Using URL directly for remote sound (cached)")
-        {path_or_url, :url}
-
-      [{^sound_name, %{source_type: "local"}}] ->
-        Logger.info("Using raw path for local file with :url type (cached)")
+      [{^sound_name, %{source_type: source_type}}] when source_type in ["url", "local"] ->
         {path_or_url, :url}
 
       _ ->
-        sound = Soundboard.Repo.get_by(Sound, filename: sound_name)
-        Logger.info("Playing sound (uncached): #{inspect(sound)}")
-        Logger.info("Original path/URL: #{path_or_url}")
-
-        case sound do
-          %{source_type: "url"} ->
-            Logger.info("Using URL directly for remote sound")
-            {path_or_url, :url}
-
-          %{source_type: "local"} ->
-            Logger.info("Using raw path for local file with :url type")
+        case Soundboard.Repo.get_by(Sound, filename: sound_name) do
+          %{source_type: source_type} when source_type in ["url", "local"] ->
             {path_or_url, :url}
 
           _ ->
-            Logger.warning("Unknown source type, defaulting to raw path with :url type")
+            Logger.warning("Unknown source type for #{sound_name}; defaulting to direct playback")
             {path_or_url, :url}
         end
     end
@@ -73,10 +58,6 @@ defmodule Soundboard.AudioPlayer.SoundLibrary do
   defp lookup_cached_sound(sound_name) do
     case :ets.lookup(:sound_meta_cache, sound_name) do
       [{^sound_name, %{source_type: source, input: input, volume: volume}}] ->
-        Logger.info(
-          "Found sound in cache: #{inspect(%{source_type: source, input: input, volume: volume})}"
-        )
-
         {:hit, {source, input, volume}}
 
       _ ->
@@ -91,14 +72,12 @@ defmodule Soundboard.AudioPlayer.SoundLibrary do
         {:error, "Sound not found"}
 
       %{source_type: "url", url: url, volume: volume} when is_binary(url) ->
-        Logger.info("Found URL sound: #{url}")
         meta = %{source_type: "url", input: url, volume: volume || 1.0}
         cache_sound(sound_name, meta)
         {:ok, {meta.input, meta.volume}}
 
       %{source_type: "local", filename: filename, volume: volume} when is_binary(filename) ->
         path = resolve_upload_path(filename)
-        Logger.info("Resolved local file path: #{path}")
 
         if File.exists?(path) do
           meta = %{source_type: "local", input: path, volume: volume || 1.0}
@@ -109,8 +88,8 @@ defmodule Soundboard.AudioPlayer.SoundLibrary do
           {:error, "Sound file not found at #{path}"}
         end
 
-      sound ->
-        Logger.error("Invalid sound configuration: #{inspect(sound)}")
+      _sound ->
+        Logger.error("Invalid sound configuration for #{sound_name}")
         {:error, "Invalid sound configuration"}
     end
   end

@@ -47,9 +47,9 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
         results =
           consume_uploaded_entries_fn.(socket, :audio, fn meta, entry ->
             request =
-              build_request(socket, params, %{
-                upload: %{path: meta.path, filename: entry.client_name}
-              })
+              socket
+              |> build_request(params)
+              |> Uploads.put_upload(%{path: meta.path, filename: entry.client_name})
 
             {:ok, Uploads.create(request)}
           end)
@@ -227,7 +227,12 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
   end
 
   defp validate_request(socket, params) do
-    case Uploads.validate(build_request(socket, params, %{upload: current_upload(socket)})) do
+    request =
+      socket
+      |> build_request(params)
+      |> Uploads.put_upload(current_upload(socket))
+
+    case Uploads.validate(request) do
       {:ok, _params} -> :ok
       {:error, changeset} -> {:error, changeset}
     end
@@ -262,20 +267,14 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
     {:noreply, Phoenix.LiveView.put_flash(socket, :error, "Error saving file")}
   end
 
-  defp build_request(socket, params, overrides \\ %{}) do
-    params
-    |> Map.merge(%{
-      "is_join_sound" => socket.assigns.is_join_sound,
-      "is_leave_sound" => socket.assigns.is_leave_sound,
-      "source_type" => socket.assigns.source_type,
-      "name" => params["name"],
-      "url" => params["url"]
-    })
-    |> Uploads.build_create_request(socket.assigns.current_user, %{
+  defp build_request(socket, params) do
+    Uploads.build_live_view_request(params, socket.assigns.current_user, %{
+      source_type: socket.assigns.source_type,
       tags: socket.assigns.upload_tags,
-      default_volume_percent: socket.assigns[:upload_volume] || 100
+      default_volume_percent: socket.assigns[:upload_volume] || 100,
+      is_join_sound: socket.assigns.is_join_sound,
+      is_leave_sound: socket.assigns.is_leave_sound
     })
-    |> Map.merge(overrides)
   end
 
   defp current_upload(socket) do

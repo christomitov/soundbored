@@ -6,20 +6,19 @@ defmodule SoundboardWeb.SoundboardLive do
   import DeleteModal
   import UploadModal
   import SoundboardWeb.Components.Soundboard.TagComponents, only: [tag_filter_button: 1]
-  alias Soundboard.{Favorites, Sound}
+  alias Soundboard.{Favorites, PubSubTopics, Sound}
   alias SoundboardWeb.Live.{FileFilter, SoundPlayback, TagHandler}
   alias SoundboardWeb.Live.SoundboardLive.{EditFlow, UploadFlow}
   import TagHandler, only: [all_tags: 1, tag_selected?: 2]
 
   import FileFilter, only: [filter_files: 3]
 
-  @pubsub_topic "soundboard"
-
   @impl true
   def mount(_params, session, socket) do
     socket =
       if connected?(socket) do
-        Phoenix.PubSub.subscribe(Soundboard.PubSub, @pubsub_topic)
+        PubSubTopics.subscribe_files()
+        PubSubTopics.subscribe_playback()
         send(self(), :load_sound_files)
         socket
       else
@@ -329,11 +328,6 @@ defmodule SoundboardWeb.SoundboardLive do
      socket
      |> load_sound_files()
      |> assign(:loading_sounds, false)}
-  end
-
-  @impl true
-  def handle_info({:stats_updated}, socket) do
-    {:noreply, load_sound_files(socket)}
   end
 
   defp assign_favorites(socket, nil), do: assign(socket, :favorites, [])

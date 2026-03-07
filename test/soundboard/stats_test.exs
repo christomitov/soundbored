@@ -3,7 +3,7 @@ defmodule Soundboard.StatsTest do
   Test for the Stats module.
   """
   use Soundboard.DataCase
-  alias Soundboard.{Accounts.User, Sound, Stats, Stats.Play}
+  alias Soundboard.{Accounts.User, PubSubTopics, Sound, Stats, Stats.Play}
 
   describe "stats" do
     setup do
@@ -56,7 +56,7 @@ defmodule Soundboard.StatsTest do
       sound: sound
     } do
       %Play{}
-      |> Play.changeset(%{sound_name: sound.filename, user_id: user.id})
+      |> Play.legacy_changeset(%{sound_name: sound.filename, user_id: user.id})
       |> Repo.insert!()
 
       assert [{_id, filename, username, _timestamp}] = Stats.get_recent_plays(limit: 1)
@@ -118,8 +118,7 @@ defmodule Soundboard.StatsTest do
     end
 
     test "track_play broadcasts stats only after a successful insert", %{sound: sound} do
-      Phoenix.PubSub.subscribe(Soundboard.PubSub, "stats")
-      Phoenix.PubSub.subscribe(Soundboard.PubSub, "soundboard")
+      PubSubTopics.subscribe_stats()
 
       assert {:error, changeset} = Stats.track_play(sound.filename, nil)
       assert "can't be blank" in errors_on(changeset).user_id
@@ -127,17 +126,16 @@ defmodule Soundboard.StatsTest do
 
       assert {:ok, _play} = Stats.track_play(sound.filename, sound.user_id)
       assert_receive {:stats_updated}
-      assert_receive {:stats_updated}
+      refute_receive {:stats_updated}
     end
 
     test "broadcast_stats_update sends update message" do
-      Phoenix.PubSub.subscribe(Soundboard.PubSub, "stats")
-      Phoenix.PubSub.subscribe(Soundboard.PubSub, "soundboard")
+      PubSubTopics.subscribe_stats()
 
       Stats.broadcast_stats_update()
 
       assert_receive {:stats_updated}
-      assert_receive {:stats_updated}
+      refute_receive {:stats_updated}
     end
   end
 

@@ -103,7 +103,8 @@ defmodule Soundboard.Sounds.UploadsTest do
     end
 
     test "publishes canonical soundboard events after create", %{user: user} do
-      Phoenix.PubSub.subscribe(Soundboard.PubSub, "soundboard")
+      Soundboard.PubSubTopics.subscribe_files()
+      Soundboard.PubSubTopics.subscribe_stats()
 
       name = "upload_events_#{System.unique_integer([:positive])}"
 

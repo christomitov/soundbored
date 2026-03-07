@@ -18,6 +18,13 @@ defmodule Soundboard.Stats.Play do
   def changeset(play, attrs) do
     play
     |> cast(attrs, [:sound_name, :sound_id, :user_id])
+    |> validate_required([:sound_name, :sound_id, :user_id])
+    |> assoc_constraint(:sound)
+  end
+
+  def legacy_changeset(play, attrs) do
+    play
+    |> cast(attrs, [:sound_name, :sound_id, :user_id])
     |> validate_required([:sound_name, :user_id])
     |> assoc_constraint(:sound)
   end

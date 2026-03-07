@@ -4,18 +4,18 @@ defmodule SoundboardWeb.StatsLive do
   alias SoundboardWeb.PresenceHandler
   import Phoenix.Component
   import SoundboardWeb.SoundHelpers
-  alias Soundboard.{Accounts, Favorites, Sound, Stats}
+  alias Soundboard.{Accounts, Favorites, PubSubTopics, Sound, Stats}
   alias SoundboardWeb.Live.SoundPlayback
   require Logger
 
-  @pubsub_topic "soundboard"
   @recent_limit 5
 
   @impl true
   def mount(_params, session, socket) do
     if connected?(socket) do
       :timer.send_interval(60 * 60 * 1000, self(), :check_week_rollover)
-      Phoenix.PubSub.subscribe(Soundboard.PubSub, @pubsub_topic)
+      PubSubTopics.subscribe_playback()
+      PubSubTopics.subscribe_stats()
     end
 
     current_week = get_week_range()
