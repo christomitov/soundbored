@@ -7,6 +7,12 @@ defmodule Soundboard.Sound do
   import Ecto.Changeset
   import Ecto.Query
 
+  @type t :: %__MODULE__{}
+
+  @spec changeset(t(), map()) :: Ecto.Changeset.t()
+  @spec with_tags(Ecto.Queryable.t()) :: Ecto.Query.t()
+  @spec by_tag(Ecto.Queryable.t(), String.t()) :: Ecto.Query.t()
+
   schema "sounds" do
     field :filename, :string
     field :url, :string

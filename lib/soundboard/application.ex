@@ -12,14 +12,14 @@ defmodule Soundboard.Application do
     Logger.info("Starting Soundboard Application")
 
     children = [
+      Soundboard.Repo,
+      {Soundboard.AudioPlayer, []},
       SoundboardWeb.Telemetry,
       {Phoenix.PubSub, name: Soundboard.PubSub},
       SoundboardWeb.Presence,
       SoundboardWeb.PresenceHandler,
-      SoundboardWeb.Endpoint,
-      {Soundboard.AudioPlayer, []},
-      Soundboard.Repo,
-      Soundboard.Discord.Handler.State
+      Soundboard.Discord.Handler.State,
+      SoundboardWeb.Endpoint
       | discord_children()
     ]
 
