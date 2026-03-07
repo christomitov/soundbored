@@ -43,4 +43,22 @@ defmodule SoundboardWeb.UploadControllerTest do
 
     assert response(conn, 200) == "audio"
   end
+
+  test "GET /uploads/*path rejects traversal attempts", %{conn: conn} do
+    {:ok, user} =
+      %User{}
+      |> User.changeset(%{
+        username: "upload_user_#{System.unique_integer([:positive])}",
+        discord_id: Integer.to_string(System.unique_integer([:positive])),
+        avatar: "avatar.png"
+      })
+      |> Repo.insert()
+
+    conn =
+      conn
+      |> init_test_session(%{user_id: user.id})
+      |> get("/uploads/../../mix.exs")
+
+    assert response(conn, 404) == "File not found"
+  end
 end

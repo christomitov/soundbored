@@ -31,6 +31,17 @@ defmodule Soundboard.Sounds.UploadsTest do
                })
     end
 
+    test "requires a url for url uploads", %{user: user} do
+      assert {:error, changeset} =
+               Uploads.validate(%{
+                 user: user,
+                 source_type: "url",
+                 name: "validated_url"
+               })
+
+      assert "can't be blank" in errors_on(changeset).url
+    end
+
     test "rejects duplicate local filenames before copying", %{user: user} do
       {:ok, _existing} =
         %Sound{}

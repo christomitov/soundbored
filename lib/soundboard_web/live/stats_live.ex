@@ -5,6 +5,7 @@ defmodule SoundboardWeb.StatsLive do
   import Phoenix.Component
   import SoundboardWeb.SoundHelpers
   alias Soundboard.{Accounts, Favorites, Sound, Stats}
+  alias SoundboardWeb.Live.SoundPlayback
   require Logger
 
   @pubsub_topic "soundboard"
@@ -34,16 +35,7 @@ defmodule SoundboardWeb.StatsLive do
 
   @impl true
   def handle_info({:sound_played, %{filename: filename, played_by: username}}, socket) do
-    recent_plays =
-      Stats.get_recent_plays(limit: @recent_limit)
-      |> Enum.map(fn {id, filename, username, timestamp} ->
-        %{
-          id: id,
-          filename: filename,
-          username: username,
-          timestamp: timestamp
-        }
-      end)
+    recent_plays = recent_plays()
 
     {:noreply,
      socket
@@ -75,16 +67,7 @@ defmodule SoundboardWeb.StatsLive do
     top_users = Stats.get_top_users(start_date, end_date, limit: @recent_limit)
     top_sounds = Stats.get_top_sounds(start_date, end_date, limit: @recent_limit)
 
-    recent_plays =
-      Stats.get_recent_plays(limit: @recent_limit)
-      |> Enum.map(fn {id, filename, username, timestamp} ->
-        %{
-          id: id,
-          filename: filename,
-          username: username,
-          timestamp: timestamp
-        }
-      end)
+    recent_plays = recent_plays()
 
     recent_uploads = Sound.get_recent_uploads(limit: @recent_limit)
     favorites = get_favorites(socket.assigns.current_user)
@@ -368,9 +351,9 @@ defmodule SoundboardWeb.StatsLive do
   end
 
   defp handle_favorite_toggle(socket, user, sound_name) do
-    case Sound.get_sound_id(sound_name) do
-      nil -> {:noreply, put_flash(socket, :error, "Sound not found")}
-      sound_id -> update_favorite(socket, user, sound_id)
+    case Sound.fetch_sound_id(sound_name) do
+      {:ok, sound_id} -> update_favorite(socket, user, sound_id)
+      :error -> {:noreply, put_flash(socket, :error, "Sound not found")}
     end
   end
 
@@ -378,7 +361,7 @@ defmodule SoundboardWeb.StatsLive do
     case Favorites.toggle_favorite(user.id, sound_id) do
       {:ok, _favorite} ->
         updated_favorites = Favorites.list_favorites(user.id)
-        recent_plays = get_recent_plays()
+        recent_plays = recent_plays()
 
         {:noreply,
          socket
@@ -391,16 +374,18 @@ defmodule SoundboardWeb.StatsLive do
     end
   end
 
-  defp get_recent_plays do
+  defp recent_plays do
     Stats.get_recent_plays(limit: @recent_limit)
-    |> Enum.map(fn {id, filename, username, timestamp} ->
-      %{
-        id: id,
-        filename: filename,
-        username: username,
-        timestamp: timestamp
-      }
-    end)
+    |> Enum.map(&map_recent_play/1)
+  end
+
+  defp map_recent_play({id, filename, username, timestamp}) do
+    %{
+      id: id,
+      filename: filename,
+      username: username,
+      timestamp: timestamp
+    }
   end
 
   defp load_sound_ids_by_filename(top_sounds, recent_plays, recent_uploads) do
@@ -444,14 +429,7 @@ defmodule SoundboardWeb.StatsLive do
 
   @impl true
   def handle_event("play_sound", %{"sound" => sound_name}, socket) do
-    case socket.assigns.current_user do
-      nil ->
-        {:noreply, put_flash(socket, :error, "You must be logged in to play sounds")}
-
-      user ->
-        Soundboard.AudioPlayer.play_sound(sound_name, user.username)
-        {:noreply, socket}
-    end
+    SoundPlayback.play(socket, sound_name)
   end
 
   @impl true

@@ -7,7 +7,7 @@ defmodule SoundboardWeb.SoundboardLive do
   import UploadModal
   import SoundboardWeb.Components.Soundboard.TagComponents, only: [tag_filter_button: 1]
   alias Soundboard.{Favorites, Sound}
-  alias SoundboardWeb.Live.{FileFilter, TagHandler}
+  alias SoundboardWeb.Live.{FileFilter, SoundPlayback, TagHandler}
   alias SoundboardWeb.Live.SoundboardLive.{EditFlow, UploadFlow}
   import TagHandler, only: [all_tags: 1, tag_selected?: 2]
 
@@ -84,9 +84,7 @@ defmodule SoundboardWeb.SoundboardLive do
 
   @impl true
   def handle_event("play", %{"name" => filename}, socket) do
-    Soundboard.AudioPlayer.play_sound(filename, current_username(socket))
-
-    {:noreply, socket}
+    SoundPlayback.play(socket, filename)
   end
 
   @impl true
@@ -285,12 +283,7 @@ defmodule SoundboardWeb.SoundboardLive do
         {:noreply, socket}
 
       sound ->
-        # Broadcast to Discord if connected
-        if connected?(socket) do
-          Soundboard.AudioPlayer.play_sound(sound.filename, current_username(socket))
-        end
-
-        {:noreply, socket}
+        SoundPlayback.play(socket, sound.filename)
     end
   end
 
@@ -364,8 +357,6 @@ defmodule SoundboardWeb.SoundboardLive do
   defp get_random_sound(sounds) do
     Enum.random(sounds)
   end
-
-  defp current_username(socket), do: socket.assigns.current_user.username
 
   defp handle_progress(:audio, _entry, socket) do
     {:noreply, socket}

@@ -104,10 +104,10 @@ defmodule Soundboard.Sound do
     |> Enum.sort_by(&String.downcase(&1.filename))
   end
 
-  def get_sound_id(filename) do
+  def fetch_sound_id(filename) when is_binary(filename) do
     case Repo.get_by(__MODULE__, filename: filename) do
-      nil -> nil
-      sound -> sound.id
+      nil -> :error
+      sound -> {:ok, sound.id}
     end
   end
 
@@ -135,10 +135,10 @@ defmodule Soundboard.Sound do
     |> Repo.exists?()
   end
 
-  def filename_extension(sound_id) do
+  def fetch_filename_extension(sound_id) do
     case Repo.get(__MODULE__, sound_id) do
-      %__MODULE__{filename: filename} -> Path.extname(filename)
-      _ -> ".mp3"
+      %__MODULE__{filename: filename} -> {:ok, Path.extname(filename)}
+      _ -> :error
     end
   end
 

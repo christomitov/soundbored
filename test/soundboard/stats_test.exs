@@ -117,6 +117,19 @@ defmodule Soundboard.StatsTest do
       assert final_count < initial_count
     end
 
+    test "track_play broadcasts stats only after a successful insert", %{sound: sound} do
+      Phoenix.PubSub.subscribe(Soundboard.PubSub, "stats")
+      Phoenix.PubSub.subscribe(Soundboard.PubSub, "soundboard")
+
+      assert {:error, changeset} = Stats.track_play(sound.filename, nil)
+      assert "can't be blank" in errors_on(changeset).user_id
+      refute_receive {:stats_updated}
+
+      assert {:ok, _play} = Stats.track_play(sound.filename, sound.user_id)
+      assert_receive {:stats_updated}
+      assert_receive {:stats_updated}
+    end
+
     test "broadcast_stats_update sends update message" do
       Phoenix.PubSub.subscribe(Soundboard.PubSub, "stats")
       Phoenix.PubSub.subscribe(Soundboard.PubSub, "soundboard")

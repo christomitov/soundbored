@@ -21,13 +21,19 @@ defmodule SoundboardWeb.Live.SoundboardLive.EditFlow do
 
   def validate_sound(socket, %{"_target" => ["filename"]} = params) do
     current_sound_id = params["sound_id"]
-    extension = Sound.filename_extension(current_sound_id)
-    filename = String.trim(params["filename"] || "") <> extension
 
-    if Sound.filename_taken_excluding?(filename, current_sound_id) do
-      {:noreply, assign(socket, :edit_name_error, "A sound with that name already exists")}
-    else
-      {:noreply, assign(socket, :edit_name_error, nil)}
+    case Sound.fetch_filename_extension(current_sound_id) do
+      {:ok, extension} ->
+        filename = String.trim(params["filename"] || "") <> extension
+
+        if Sound.filename_taken_excluding?(filename, current_sound_id) do
+          {:noreply, assign(socket, :edit_name_error, "A sound with that name already exists")}
+        else
+          {:noreply, assign(socket, :edit_name_error, nil)}
+        end
+
+      :error ->
+        {:noreply, assign(socket, :edit_name_error, nil)}
     end
   end
 

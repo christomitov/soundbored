@@ -5,6 +5,7 @@ defmodule Soundboard.Sounds.Uploads do
 
   defmodule CreateRequest do
     @moduledoc false
+
     @enforce_keys [:user, :source_type, :name]
     defstruct [
       :user,
@@ -18,6 +19,24 @@ defmodule Soundboard.Sounds.Uploads do
       :is_leave_sound,
       :default_volume_percent
     ]
+
+    @type upload :: %{
+            optional(:path) => String.t(),
+            optional(:filename) => String.t()
+          }
+
+    @type t :: %__MODULE__{
+            user: struct(),
+            source_type: String.t(),
+            name: String.t(),
+            url: String.t() | nil,
+            upload: upload() | nil,
+            tags: [map() | String.t()] | nil,
+            volume: String.t() | number() | nil,
+            is_join_sound: boolean() | String.t() | nil,
+            is_leave_sound: boolean() | String.t() | nil,
+            default_volume_percent: String.t() | number() | nil
+          }
   end
 
   import Ecto.Changeset
@@ -26,10 +45,21 @@ defmodule Soundboard.Sounds.Uploads do
   alias Soundboard.{Repo, Sound, Stats, UploadsPath, UserSoundSetting, Volume}
   alias Soundboard.Sounds.Tags
 
+  @type upload_attrs :: %{
+          optional(:path) => String.t(),
+          optional(:filename) => String.t(),
+          optional(String.t()) => String.t()
+        }
+
+  @type create_attrs :: map() | CreateRequest.t()
+  @type create_result :: {:ok, struct()} | {:error, Ecto.Changeset.t()}
+
   @allowed_extensions ~w(.mp3 .wav .ogg .m4a)
 
+  @spec allowed_extensions() :: [String.t()]
   def allowed_extensions, do: @allowed_extensions
 
+  @spec build_create_request(map(), struct(), map()) :: CreateRequest.t()
   def build_create_request(raw_params, user, overrides \\ %{}) when is_map(raw_params) do
     source_type = infer_request_source_type(raw_params)
 
@@ -45,12 +75,13 @@ defmodule Soundboard.Sounds.Uploads do
       is_leave_sound: get_param(raw_params, :is_leave_sound),
       default_volume_percent: get_param(raw_params, :default_volume_percent)
     }
-    |> Map.merge(overrides)
+    |> merge_request_overrides(overrides)
   end
 
+  @spec validate(create_attrs()) :: {:ok, map()} | {:error, Ecto.Changeset.t()}
   def validate(%CreateRequest{} = request) do
     request
-    |> Map.from_struct()
+    |> request_to_attrs()
     |> validate()
   end
 
@@ -61,9 +92,10 @@ defmodule Soundboard.Sounds.Uploads do
     end
   end
 
+  @spec create(create_attrs()) :: create_result()
   def create(%CreateRequest{} = request) do
     request
-    |> Map.from_struct()
+    |> request_to_attrs()
     |> create()
   end
 
@@ -74,6 +106,7 @@ defmodule Soundboard.Sounds.Uploads do
     end
   end
 
+  @spec error_message(Ecto.Changeset.t() | String.t() | term()) :: String.t()
   def error_message(%Ecto.Changeset{} = changeset) do
     Enum.map_join(changeset.errors, ", ", fn
       {:filename, {"has already been taken", _}} -> "A sound with that name already exists"
@@ -85,6 +118,7 @@ defmodule Soundboard.Sounds.Uploads do
   def error_message(error) when is_binary(error), do: error
   def error_message(_), do: "An unexpected error occurred"
 
+  @spec url_file_extension(String.t() | term()) :: String.t()
   def url_file_extension(url) when is_binary(url) do
     ext =
       url
@@ -144,15 +178,17 @@ defmodule Soundboard.Sounds.Uploads do
   defp normalize_default_volume(value), do: Volume.normalize_percent(value, 100)
 
   defp prepare_source(%{source_type: "url"} = params, _mode) do
-    filename = params.name <> url_file_extension(params.url)
-
-    {:ok,
-     %{
-       filename: filename,
-       source_type: "url",
-       url: params.url,
-       copied_file_path: nil
-     }}
+    with {:ok, url} <- validate_url(params.url),
+         filename <- params.name <> url_file_extension(url),
+         :ok <- validate_destination_filename(filename) do
+      {:ok,
+       %{
+         filename: filename,
+         source_type: "url",
+         url: url,
+         copied_file_path: nil
+       }}
+    end
   end
 
   defp prepare_source(%{source_type: "local"} = params, :validate) do
@@ -189,6 +225,16 @@ defmodule Soundboard.Sounds.Uploads do
   defp prepare_source(_params, _mode) do
     {:error, add_error(change(%Sound{}), :source_type, "must be either 'local' or 'url'")}
   end
+
+  defp validate_url(url) when is_binary(url) do
+    if blank?(url) do
+      {:error, add_error(change(%Sound{}), :url, "can't be blank")}
+    else
+      {:ok, url}
+    end
+  end
+
+  defp validate_url(_url), do: {:error, add_error(change(%Sound{}), :url, "can't be blank")}
 
   defp validate_local_upload(nil, _mode),
     do: {:error, add_error(change(%Sound{}), :file, "Please select a file")}
@@ -236,14 +282,19 @@ defmodule Soundboard.Sounds.Uploads do
     uploads_dir = UploadsPath.dir()
     dest_path = UploadsPath.file_path(filename)
 
-    File.mkdir_p!(uploads_dir)
-
-    case File.cp(src_path, dest_path) do
-      :ok ->
-        {:ok, dest_path}
-
+    with :ok <- ensure_uploads_dir(uploads_dir),
+         :ok <- File.cp(src_path, dest_path) do
+      {:ok, dest_path}
+    else
       {:error, _reason} ->
         {:error, add_error(change(%Sound{}), :file, "Error saving file")}
+    end
+  end
+
+  defp ensure_uploads_dir(uploads_dir) do
+    case File.mkdir_p(uploads_dir) do
+      :ok -> :ok
+      {:error, _reason} -> {:error, add_error(change(%Sound{}), :file, "Error saving file")}
     end
   end
 
@@ -375,6 +426,58 @@ defmodule Soundboard.Sounds.Uploads do
 
   defp to_boolean(value) when value in [true, "true", "1", 1, "on", "yes"], do: true
   defp to_boolean(_), do: false
+
+  defp merge_request_overrides(%CreateRequest{} = request, overrides) when is_map(overrides) do
+    overrides
+    |> Enum.reduce(%{}, fn {key, value}, acc ->
+      case request_field(key) do
+        nil -> acc
+        field -> Map.put(acc, field, value)
+      end
+    end)
+    |> then(&struct!(request, &1))
+  end
+
+  defp request_to_attrs(%CreateRequest{} = request) do
+    %{
+      user: request.user,
+      source_type: request.source_type,
+      name: request.name,
+      url: request.url,
+      upload: request.upload,
+      tags: request.tags,
+      volume: request.volume,
+      is_join_sound: request.is_join_sound,
+      is_leave_sound: request.is_leave_sound,
+      default_volume_percent: request.default_volume_percent
+    }
+  end
+
+  defp request_field(key)
+       when is_atom(key) and
+              key in [
+                :user,
+                :source_type,
+                :name,
+                :url,
+                :upload,
+                :tags,
+                :volume,
+                :is_join_sound,
+                :is_leave_sound,
+                :default_volume_percent
+              ],
+       do: key
+
+  defp request_field(key) when is_binary(key) do
+    key
+    |> String.to_existing_atom()
+    |> request_field()
+  rescue
+    ArgumentError -> nil
+  end
+
+  defp request_field(_key), do: nil
 
   defp infer_request_source_type(raw_params) do
     source_type = get_param(raw_params, :source_type)

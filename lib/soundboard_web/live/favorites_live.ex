@@ -2,6 +2,7 @@ defmodule SoundboardWeb.FavoritesLive do
   use SoundboardWeb, :live_view
   use SoundboardWeb.Live.PresenceLive
   alias Soundboard.Favorites
+  alias SoundboardWeb.Live.SoundPlayback
   require Logger
 
   @pubsub_topic "soundboard"
@@ -24,8 +25,7 @@ defmodule SoundboardWeb.FavoritesLive do
 
   @impl true
   def handle_event("play", %{"name" => filename}, socket) do
-    Soundboard.AudioPlayer.play_sound(filename, current_username(socket))
-    {:noreply, socket}
+    SoundPlayback.play(socket, filename)
   end
 
   @impl true
@@ -58,9 +58,15 @@ defmodule SoundboardWeb.FavoritesLive do
 
   @impl true
   def handle_info({:sound_played, filename}, socket) when is_binary(filename) do
+    username =
+      case SoundPlayback.current_username(socket) do
+        {:ok, current_username} -> current_username
+        :error -> "Someone"
+      end
+
     {:noreply,
      socket
-     |> put_flash(:info, "#{current_username(socket)} played #{filename}")
+     |> put_flash(:info, "#{username} played #{filename}")
      |> clear_flash_after_timeout()}
   end
 
@@ -104,6 +110,4 @@ defmodule SoundboardWeb.FavoritesLive do
     Process.send_after(self(), :clear_flash, 3000)
     socket
   end
-
-  defp current_username(socket), do: socket.assigns.current_user.username
 end

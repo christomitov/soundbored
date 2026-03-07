@@ -8,12 +8,6 @@ import Config
 config :soundboard, SoundboardWeb.Endpoint,
   cache_static_manifest: "priv/static/cache_manifest.json"
 
-# Disable Swoosh Local Memory Storage
-config :swoosh, local: false
-
-# Configure Swoosh API Client
-config :swoosh, api_client: Swoosh.ApiClient.Finch, finch_name: Soundboard.Finch
-
 config :soundboard, Soundboard.Repo,
   database: "/app/priv/static/uploads/soundboard_prod.db",
   pool_size: 5,

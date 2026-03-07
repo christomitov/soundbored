@@ -34,7 +34,6 @@ defmodule Soundboard.MixProject do
           SoundboardWeb.PageHTML,
           SoundboardWeb.UploadController,
           # Live views that might need separate testing strategy
-          SoundboardWeb.FavoritesLive,
           SoundboardWeb.PresenceLive,
           SoundboardWeb.Presence,
           # Repo and application modules
@@ -82,8 +81,6 @@ defmodule Soundboard.MixProject do
       {:esbuild, "~> 0.10", runtime: Mix.env() == :dev},
       {:tailwind, "~> 0.3", runtime: Mix.env() == :dev},
       {:heroicons, github: "tailwindlabs/heroicons", tag: "v2.1.1", app: false, compile: false},
-      {:swoosh, "~> 1.19"},
-      {:finch, "~> 0.20"},
       {:telemetry_metrics, "~> 1.1"},
       {:telemetry_poller, "~> 1.3"},
       {:gettext, "~> 1.0"},

@@ -297,13 +297,23 @@ defmodule Soundboard.SoundTest do
     end
   end
 
-  describe "get_sound_id/1" do
+  describe "fetch_sound_id/1" do
     test "returns sound id when sound exists", %{sound: sound} do
-      assert Sound.get_sound_id(sound.filename) == sound.id
+      assert Sound.fetch_sound_id(sound.filename) == {:ok, sound.id}
     end
 
-    test "returns nil when sound doesn't exist" do
-      assert Sound.get_sound_id("nonexistent.mp3") == nil
+    test "returns :error when sound doesn't exist" do
+      assert Sound.fetch_sound_id("nonexistent.mp3") == :error
+    end
+  end
+
+  describe "fetch_filename_extension/1" do
+    test "returns the stored file extension", %{sound: sound} do
+      assert Sound.fetch_filename_extension(sound.id) == {:ok, ".mp3"}
+    end
+
+    test "returns :error when sound doesn't exist" do
+      assert Sound.fetch_filename_extension(-1) == :error
     end
   end
 

@@ -9,19 +9,27 @@ defmodule Soundboard.Stats do
   @pubsub_topic "soundboard"
 
   def track_play(sound_name, user_id) do
-    result =
-      %Play{}
-      |> Play.changeset(%{
-        sound_name: sound_name,
-        sound_id: Sound.get_sound_id(sound_name),
-        user_id: user_id
-      })
-      |> Repo.insert()
+    sound_id =
+      case Sound.fetch_sound_id(sound_name) do
+        {:ok, found_sound_id} -> found_sound_id
+        :error -> nil
+      end
 
-    # Broadcast stats update after tracking play
-    broadcast_stats_update()
+    %Play{}
+    |> Play.changeset(%{
+      sound_name: sound_name,
+      sound_id: sound_id,
+      user_id: user_id
+    })
+    |> Repo.insert()
+    |> case do
+      {:ok, _play} = result ->
+        broadcast_stats_update()
+        result
 
-    result
+      {:error, _changeset} = result ->
+        result
+    end
   end
 
   defp get_week_range do
