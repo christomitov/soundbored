@@ -41,8 +41,8 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
                 id="upload-form"
                 class="mt-4"
               >
-                <% source_ready =
-                  source_input_ready?(@source_type, @uploads.audio.entries, @url, @upload_error) %>
+                <% source_ready = source_input_ready?(@source_type, @uploads.audio.entries, @url) %>
+                <% form_ready = form_ready?(@source_type, @uploads.audio.entries, @url, @upload_error) %>
                 <% local_upload_pending = local_upload_pending?(@source_type, @uploads.audio.entries) %>
                 <% url_upload_pending = url_upload_pending?(@source_type, @url) %>
                 
@@ -236,7 +236,7 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
                   <button
                     type="submit"
                     phx-disable-with="Adding..."
-                    disabled={!source_ready}
+                    disabled={!form_ready}
                     class="inline-flex w-full justify-center rounded-md bg-blue-600 px-3 py-2
                              text-sm font-semibold text-white shadow-sm hover:bg-blue-500
                              focus-visible:outline focus-visible:outline-2
@@ -255,13 +255,13 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
     """
   end
 
-  defp source_input_ready?(_source_type, _entries, _url, upload_error)
-       when is_binary(upload_error) and upload_error != "",
-       do: false
+  defp source_input_ready?("local", entries, _url), do: entries != []
+  defp source_input_ready?("url", _entries, url), do: String.trim(url || "") != ""
+  defp source_input_ready?(_, _entries, _url), do: false
 
-  defp source_input_ready?("local", entries, _url, _upload_error), do: entries != []
-  defp source_input_ready?("url", _entries, url, _upload_error), do: String.trim(url || "") != ""
-  defp source_input_ready?(_, _entries, _url, _upload_error), do: false
+  defp form_ready?(source_type, entries, url, upload_error) do
+    source_input_ready?(source_type, entries, url) and is_nil(upload_error)
+  end
 
   defp local_upload_pending?(source_type, entries), do: source_type == "local" and entries == []
 

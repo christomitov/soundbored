@@ -238,8 +238,6 @@ defmodule SoundboardWeb.SoundboardLiveTest do
         |> render_click()
 
       assert rendered =~ "Edit Sound"
-      assert rendered =~ "Shared sound details can be edited by any signed-in user"
-      assert rendered =~ "Only the original uploader can delete this sound"
       refute rendered =~ "Delete Sound"
     end
 

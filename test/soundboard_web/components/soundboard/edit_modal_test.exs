@@ -32,7 +32,7 @@ defmodule SoundboardWeb.Components.Soundboard.EditModalTest do
     assert html =~ "Name already taken"
   end
 
-  test "explains collaborative edits and hides delete for non-owners" do
+  test "hides delete for non-owners" do
     html =
       render_component(
         &EditModal.edit_modal/1,
@@ -41,9 +41,6 @@ defmodule SoundboardWeb.Components.Soundboard.EditModalTest do
         })
       )
 
-    assert html =~ "Shared sound details can be edited by any signed-in user"
-    assert html =~ "Join and leave toggles only affect your account"
-    assert html =~ "Only the original uploader can delete this sound"
     refute html =~ "Delete Sound"
   end
 

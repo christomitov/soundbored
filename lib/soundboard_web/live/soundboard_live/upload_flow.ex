@@ -175,7 +175,7 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
   defp normalize_params(socket, params) do
     params
     |> Map.put_new("source_type", socket.assigns.source_type)
-    |> Map.put_new("name", socket.assigns.upload_name)
+    |> Map.put_new("name", default_upload_name(socket, params))
     |> Map.put_new("url", socket.assigns.url)
   end
 
@@ -285,7 +285,43 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
     end
   end
 
+  defp default_upload_name(socket, params) do
+    current_name = socket.assigns.upload_name
+    source_type = params["source_type"] || socket.assigns.source_type
+    url = params["url"] || socket.assigns.url
+
+    cond do
+      present?(current_name) -> current_name
+      source_type == "local" -> inferred_upload_name(current_upload(socket))
+      source_type == "url" -> inferred_url_name(url)
+      true -> ""
+    end
+  end
+
+  defp inferred_upload_name(%{filename: filename}) when is_binary(filename) do
+    filename
+    |> Path.basename()
+    |> Path.rootname()
+  end
+
+  defp inferred_upload_name(_), do: ""
+
+  defp inferred_url_name(url) when is_binary(url) do
+    url
+    |> URI.parse()
+    |> Map.get(:path, "")
+    |> Path.basename()
+    |> Path.rootname()
+    |> case do
+      "." -> ""
+      name -> name
+    end
+  end
+
+  defp inferred_url_name(_), do: ""
+
   defp blank?(value), do: value in [nil, ""]
+  defp present?(value), do: not blank?(value)
 
   defp assign_many(socket, attrs) do
     Enum.reduce(attrs, socket, fn {key, value}, acc -> assign(acc, key, value) end)
