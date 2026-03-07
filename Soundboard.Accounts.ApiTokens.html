@@ -12,7 +12,7 @@
 
     <link rel="stylesheet" href="dist/html-elixir-RLZO5U2C.css" />
 
-    <script defer src="dist/sidebar_items-64916827.js"></script>
+    <script defer src="dist/sidebar_items-FBF7D7FC.js"></script>
     <script defer src="docs_config.js"></script>
     <script defer src="dist/html-Y223O6DN.js"></script>
 
@@ -96,6 +96,36 @@ soundboard
       </a>
       <span class="text">Summary</span>
     </h1>
+<div class="summary-types summary">
+  <h2>
+    <a href="#types">Types</a>
+  </h2>
+
+    <div class="summary-row">
+      <div class="summary-signature">
+        <a href="#t:revoke_result/0" data-no-tooltip="" translate="no">revoke_result()</a>
+
+      </div>
+
+    </div>
+
+    <div class="summary-row">
+      <div class="summary-signature">
+        <a href="#t:verify_error/0" data-no-tooltip="" translate="no">verify_error()</a>
+
+      </div>
+
+    </div>
+
+    <div class="summary-row">
+      <div class="summary-signature">
+        <a href="#t:verify_result/0" data-no-tooltip="" translate="no">verify_result()</a>
+
+      </div>
+
+    </div>
+
+</div>
 <div class="summary-functions summary">
   <h2>
     <a href="#functions">Functions</a>
@@ -138,6 +168,95 @@ soundboard
   </section>
 
 
+  <section id="types" class="details-list">
+    <h1 class="section-heading">
+      <a class="hover-link" href="#types">
+        <i class="ri-link-m" aria-hidden="true"></i>
+      </a>
+      <span class="text">Types</span>
+    </h1>
+
+    <div class="types-list">
+<section class="detail" id="t:revoke_result/0">
+
+  <div class="detail-header">
+    <a href="#t:revoke_result/0" class="detail-link" data-no-tooltip="" aria-label="Link to this type">
+      <i class="ri-link-m" aria-hidden="true"></i>
+    </a>
+    <div class="heading-with-actions">
+      <h1 class="signature" translate="no">revoke_result()</h1>
+
+
+    </div>
+  </div>
+
+  <section class="docstring">
+
+      <div class="specs">
+
+          <pre translate="no"><span class="attribute">@type</span> revoke_result() ::
+  {:ok, <a href="Soundboard.Accounts.ApiToken.html#t:t/0">Soundboard.Accounts.ApiToken.t</a>()}
+  | {:error, :forbidden | :not_found | <a href="https://hexdocs.pm/ecto/3.13.3/Ecto.Changeset.html#t:t/0">Ecto.Changeset.t</a>()}</pre>
+
+      </div>
+
+
+  </section>
+</section>
+<section class="detail" id="t:verify_error/0">
+
+  <div class="detail-header">
+    <a href="#t:verify_error/0" class="detail-link" data-no-tooltip="" aria-label="Link to this type">
+      <i class="ri-link-m" aria-hidden="true"></i>
+    </a>
+    <div class="heading-with-actions">
+      <h1 class="signature" translate="no">verify_error()</h1>
+
+
+    </div>
+  </div>
+
+  <section class="docstring">
+
+      <div class="specs">
+
+          <pre translate="no"><span class="attribute">@type</span> verify_error() :: :invalid | :token_update_failed</pre>
+
+      </div>
+
+
+  </section>
+</section>
+<section class="detail" id="t:verify_result/0">
+
+  <div class="detail-header">
+    <a href="#t:verify_result/0" class="detail-link" data-no-tooltip="" aria-label="Link to this type">
+      <i class="ri-link-m" aria-hidden="true"></i>
+    </a>
+    <div class="heading-with-actions">
+      <h1 class="signature" translate="no">verify_result()</h1>
+
+
+    </div>
+  </div>
+
+  <section class="docstring">
+
+      <div class="specs">
+
+          <pre translate="no"><span class="attribute">@type</span> verify_result() ::
+  {:ok, <a href="Soundboard.Accounts.User.html#t:t/0">Soundboard.Accounts.User.t</a>(), <a href="Soundboard.Accounts.ApiToken.html#t:t/0">Soundboard.Accounts.ApiToken.t</a>()}
+  | {:error, <a href="#t:verify_error/0">verify_error</a>()}</pre>
+
+      </div>
+
+
+  </section>
+</section>
+
+    </div>
+  </section>
+
   <section id="functions" class="details-list">
     <h1 class="section-heading">
       <a class="hover-link" href="#functions">
@@ -164,6 +283,14 @@ soundboard
 
   <section class="docstring">
 
+      <div class="specs">
+
+          <pre translate="no"><span class="attribute">@spec</span> generate_token(<a href="Soundboard.Accounts.User.html#t:t/0">Soundboard.Accounts.User.t</a>(), <a href="https://hexdocs.pm/elixir/typespecs.html#basic-types">map</a>()) ::
+  {:ok, <a href="https://hexdocs.pm/elixir/String.html#t:t/0">String.t</a>(), <a href="Soundboard.Accounts.ApiToken.html#t:t/0">Soundboard.Accounts.ApiToken.t</a>()}
+  | {:error, <a href="https://hexdocs.pm/ecto/3.13.3/Ecto.Changeset.html#t:t/0">Ecto.Changeset.t</a>()}</pre>
+
+      </div>
+
 
   </section>
 </section>
@@ -181,6 +308,12 @@ soundboard
   </div>
 
   <section class="docstring">
+
+      <div class="specs">
+
+          <pre translate="no"><span class="attribute">@spec</span> list_tokens(<a href="Soundboard.Accounts.User.html#t:t/0">Soundboard.Accounts.User.t</a>()) :: [<a href="Soundboard.Accounts.ApiToken.html#t:t/0">Soundboard.Accounts.ApiToken.t</a>()]</pre>
+
+      </div>
 
 
   </section>
@@ -200,6 +333,13 @@ soundboard
 
   <section class="docstring">
 
+      <div class="specs">
+
+          <pre translate="no"><span class="attribute">@spec</span> revoke_token(<a href="Soundboard.Accounts.User.html#t:t/0">Soundboard.Accounts.User.t</a>(), <a href="https://hexdocs.pm/elixir/typespecs.html#basic-types">integer</a>() | <a href="https://hexdocs.pm/elixir/String.html#t:t/0">String.t</a>()) ::
+  <a href="#t:revoke_result/0">revoke_result</a>()</pre>
+
+      </div>
+
 
   </section>
 </section>
@@ -217,6 +357,12 @@ soundboard
   </div>
 
   <section class="docstring">
+
+      <div class="specs">
+
+          <pre translate="no"><span class="attribute">@spec</span> verify_token(<a href="https://hexdocs.pm/elixir/String.html#t:t/0">String.t</a>()) :: <a href="#t:verify_result/0">verify_result</a>()</pre>
+
+      </div>
 
 
   </section>

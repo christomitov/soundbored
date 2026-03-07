@@ -8,11 +8,11 @@
     <meta name="project" content="soundboard v1.7.0">
 
 
-    <title>SoundboardWeb.Live.PresenceHandler — soundboard v1.7.0</title>
+    <title>Soundboard.Sounds.Cache — soundboard v1.7.0</title>
 
     <link rel="stylesheet" href="dist/html-elixir-RLZO5U2C.css" />
 
-    <script defer src="dist/sidebar_items-64916827.js"></script>
+    <script defer src="dist/sidebar_items-FBF7D7FC.js"></script>
     <script defer src="docs_config.js"></script>
     <script defer src="dist/html-Y223O6DN.js"></script>
 
@@ -75,7 +75,7 @@ soundboard
 <div id="top-content">
   <div class="heading-with-actions top-heading">
     <h1>
-      <span translate="no">SoundboardWeb.Live.PresenceHandler</span> 
+      <span translate="no">Soundboard.Sounds.Cache</span> 
       <small class="app-vsn" translate="no">(soundboard v1.7.0)</small>
 
     </h1>
@@ -84,7 +84,7 @@ soundboard
 
 
     <section id="moduledoc">
-<p>Handles presence tracking for the Soundboard app.</p>
+<p>Boundary for invalidating sound playback metadata after sound mutations.</p>
     </section>
 
 </div>
@@ -103,39 +103,7 @@ soundboard
 
     <div class="summary-row">
       <div class="summary-signature">
-        <a href="#get_presence_count/0" data-no-tooltip="" translate="no">get_presence_count()</a>
-
-      </div>
-
-    </div>
-
-    <div class="summary-row">
-      <div class="summary-signature">
-        <a href="#get_user_color/1" data-no-tooltip="" translate="no">get_user_color(username)</a>
-
-      </div>
-
-    </div>
-
-    <div class="summary-row">
-      <div class="summary-signature">
-        <a href="#handle_presence_diff/2" data-no-tooltip="" translate="no">handle_presence_diff(map, current_count)</a>
-
-      </div>
-
-    </div>
-
-    <div class="summary-row">
-      <div class="summary-signature">
-        <a href="#init/0" data-no-tooltip="" translate="no">init()</a>
-
-      </div>
-
-    </div>
-
-    <div class="summary-row">
-      <div class="summary-signature">
-        <a href="#track_presence/2" data-no-tooltip="" translate="no">track_presence(socket, user)</a>
+        <a href="#invalidate/1" data-no-tooltip="" translate="no">invalidate(sound_name)</a>
 
       </div>
 
@@ -155,92 +123,14 @@ soundboard
     </h1>
 
     <div class="functions-list">
-<section class="detail" id="get_presence_count/0">
+<section class="detail" id="invalidate/1">
 
   <div class="detail-header">
-    <a href="#get_presence_count/0" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
+    <a href="#invalidate/1" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
       <i class="ri-link-m" aria-hidden="true"></i>
     </a>
     <div class="heading-with-actions">
-      <h1 class="signature" translate="no">get_presence_count()</h1>
-
-
-    </div>
-  </div>
-
-  <section class="docstring">
-
-
-  </section>
-</section>
-<section class="detail" id="get_user_color/1">
-
-  <div class="detail-header">
-    <a href="#get_user_color/1" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
-      <i class="ri-link-m" aria-hidden="true"></i>
-    </a>
-    <div class="heading-with-actions">
-      <h1 class="signature" translate="no">get_user_color(username)</h1>
-
-
-    </div>
-  </div>
-
-  <section class="docstring">
-
-      <div class="specs">
-
-          <pre translate="no"><span class="attribute">@spec</span> get_user_color(<a href="https://hexdocs.pm/elixir/String.html#t:t/0">String.t</a>()) :: <a href="https://hexdocs.pm/elixir/String.html#t:t/0">String.t</a>()</pre>
-
-      </div>
-
-
-  </section>
-</section>
-<section class="detail" id="handle_presence_diff/2">
-
-  <div class="detail-header">
-    <a href="#handle_presence_diff/2" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
-      <i class="ri-link-m" aria-hidden="true"></i>
-    </a>
-    <div class="heading-with-actions">
-      <h1 class="signature" translate="no">handle_presence_diff(map, current_count)</h1>
-
-
-    </div>
-  </div>
-
-  <section class="docstring">
-
-
-  </section>
-</section>
-<section class="detail" id="init/0">
-
-  <div class="detail-header">
-    <a href="#init/0" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
-      <i class="ri-link-m" aria-hidden="true"></i>
-    </a>
-    <div class="heading-with-actions">
-      <h1 class="signature" translate="no">init()</h1>
-
-
-    </div>
-  </div>
-
-  <section class="docstring">
-
-
-  </section>
-</section>
-<section class="detail" id="track_presence/2">
-
-  <div class="detail-header">
-    <a href="#track_presence/2" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
-      <i class="ri-link-m" aria-hidden="true"></i>
-    </a>
-    <div class="heading-with-actions">
-      <h1 class="signature" translate="no">track_presence(socket, user)</h1>
+      <h1 class="signature" translate="no">invalidate(sound_name)</h1>
 
 
     </div>

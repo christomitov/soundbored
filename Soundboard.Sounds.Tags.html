@@ -8,7 +8,7 @@
     <meta name="project" content="soundboard v1.7.0">
 
 
-    <title>SoundboardWeb.Router — soundboard v1.7.0</title>
+    <title>Soundboard.Sounds.Tags — soundboard v1.7.0</title>
 
     <link rel="stylesheet" href="dist/html-elixir-RLZO5U2C.css" />
 
@@ -75,13 +75,17 @@ soundboard
 <div id="top-content">
   <div class="heading-with-actions top-heading">
     <h1>
-      <span translate="no">SoundboardWeb.Router</span> 
+      <span translate="no">Soundboard.Sounds.Tags</span> 
       <small class="app-vsn" translate="no">(soundboard v1.7.0)</small>
 
     </h1>
 
   </div>
 
+
+    <section id="moduledoc">
+<p>Domain helpers for searching, resolving, and persisting sound tags.</p>
+    </section>
 
 </div>
 
@@ -99,7 +103,7 @@ soundboard
 
     <div class="summary-row">
       <div class="summary-signature">
-        <a href="#api/2" data-no-tooltip="" translate="no">api(conn, _)</a>
+        <a href="#all_for_sounds/1" data-no-tooltip="" translate="no">all_for_sounds(sounds)</a>
 
       </div>
 
@@ -107,7 +111,7 @@ soundboard
 
     <div class="summary-row">
       <div class="summary-signature">
-        <a href="#auth/2" data-no-tooltip="" translate="no">auth(conn, _)</a>
+        <a href="#count_sounds_with_tag/2" data-no-tooltip="" translate="no">count_sounds_with_tag(sounds, tag)</a>
 
       </div>
 
@@ -115,7 +119,7 @@ soundboard
 
     <div class="summary-row">
       <div class="summary-signature">
-        <a href="#auth_browser/2" data-no-tooltip="" translate="no">auth_browser(conn, _)</a>
+        <a href="#find_or_create/1" data-no-tooltip="" translate="no">find_or_create(name)</a>
 
       </div>
 
@@ -123,7 +127,7 @@ soundboard
 
     <div class="summary-row">
       <div class="summary-signature">
-        <a href="#browser/2" data-no-tooltip="" translate="no">browser(conn, _)</a>
+        <a href="#list_for_sound/1" data-no-tooltip="" translate="no">list_for_sound(filename)</a>
 
       </div>
 
@@ -131,17 +135,7 @@ soundboard
 
     <div class="summary-row">
       <div class="summary-signature">
-        <a href="#call/2" data-no-tooltip="" translate="no">call(conn, opts)</a>
-
-      </div>
-
-        <div class="summary-synopsis"><p>Callback invoked by Plug on every request.</p></div>
-
-    </div>
-
-    <div class="summary-row">
-      <div class="summary-signature">
-        <a href="#ensure_authenticated_user/2" data-no-tooltip="" translate="no">ensure_authenticated_user(conn, opts)</a>
+        <a href="#resolve/1" data-no-tooltip="" translate="no">resolve(tag)</a>
 
       </div>
 
@@ -149,7 +143,7 @@ soundboard
 
     <div class="summary-row">
       <div class="summary-signature">
-        <a href="#fetch_current_user/2" data-no-tooltip="" translate="no">fetch_current_user(conn, _)</a>
+        <a href="#resolve_many/1" data-no-tooltip="" translate="no">resolve_many(tags)</a>
 
       </div>
 
@@ -157,28 +151,7 @@ soundboard
 
     <div class="summary-row">
       <div class="summary-signature">
-        <a href="#formatted_routes/1" data-no-tooltip="" translate="no">formatted_routes(_)</a>
-
-      </div>
-
-        <div class="summary-synopsis"><p>Callback implementation for <a><code class="inline">Phoenix.VerifiedRoutes.formatted_routes/1</code></a>.</p></div>
-
-    </div>
-
-    <div class="summary-row">
-      <div class="summary-signature">
-        <a href="#init/1" data-no-tooltip="" translate="no">init(opts)</a>
-
-      </div>
-
-        <div class="summary-synopsis"><p>Callback required by Plug that initializes the router
-for serving web requests.</p></div>
-
-    </div>
-
-    <div class="summary-row">
-      <div class="summary-signature">
-        <a href="#require_basic_auth/2" data-no-tooltip="" translate="no">require_basic_auth(conn, _)</a>
+        <a href="#search/1" data-no-tooltip="" translate="no">search(query)</a>
 
       </div>
 
@@ -186,11 +159,17 @@ for serving web requests.</p></div>
 
     <div class="summary-row">
       <div class="summary-signature">
-        <a href="#verified_route?/2" data-no-tooltip="" translate="no">verified_route?(_, split_path)</a>
+        <a href="#tag_selected?/2" data-no-tooltip="" translate="no">tag_selected?(tag, selected_tags)</a>
 
       </div>
 
-        <div class="summary-synopsis"><p>Callback implementation for <a><code class="inline">Phoenix.VerifiedRoutes.verified_route?/2</code></a>.</p></div>
+    </div>
+
+    <div class="summary-row">
+      <div class="summary-signature">
+        <a href="#update_sound_tags/2" data-no-tooltip="" translate="no">update_sound_tags(sound, tags)</a>
+
+      </div>
 
     </div>
 
@@ -208,14 +187,14 @@ for serving web requests.</p></div>
     </h1>
 
     <div class="functions-list">
-<section class="detail" id="api/2">
+<section class="detail" id="all_for_sounds/1">
 
   <div class="detail-header">
-    <a href="#api/2" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
+    <a href="#all_for_sounds/1" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
       <i class="ri-link-m" aria-hidden="true"></i>
     </a>
     <div class="heading-with-actions">
-      <h1 class="signature" translate="no">api(conn, _)</h1>
+      <h1 class="signature" translate="no">all_for_sounds(sounds)</h1>
 
 
     </div>
@@ -226,14 +205,14 @@ for serving web requests.</p></div>
 
   </section>
 </section>
-<section class="detail" id="auth/2">
+<section class="detail" id="count_sounds_with_tag/2">
 
   <div class="detail-header">
-    <a href="#auth/2" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
+    <a href="#count_sounds_with_tag/2" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
       <i class="ri-link-m" aria-hidden="true"></i>
     </a>
     <div class="heading-with-actions">
-      <h1 class="signature" translate="no">auth(conn, _)</h1>
+      <h1 class="signature" translate="no">count_sounds_with_tag(sounds, tag)</h1>
 
 
     </div>
@@ -244,14 +223,14 @@ for serving web requests.</p></div>
 
   </section>
 </section>
-<section class="detail" id="auth_browser/2">
+<section class="detail" id="find_or_create/1">
 
   <div class="detail-header">
-    <a href="#auth_browser/2" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
+    <a href="#find_or_create/1" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
       <i class="ri-link-m" aria-hidden="true"></i>
     </a>
     <div class="heading-with-actions">
-      <h1 class="signature" translate="no">auth_browser(conn, _)</h1>
+      <h1 class="signature" translate="no">find_or_create(name)</h1>
 
 
     </div>
@@ -262,14 +241,14 @@ for serving web requests.</p></div>
 
   </section>
 </section>
-<section class="detail" id="browser/2">
+<section class="detail" id="list_for_sound/1">
 
   <div class="detail-header">
-    <a href="#browser/2" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
+    <a href="#list_for_sound/1" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
       <i class="ri-link-m" aria-hidden="true"></i>
     </a>
     <div class="heading-with-actions">
-      <h1 class="signature" translate="no">browser(conn, _)</h1>
+      <h1 class="signature" translate="no">list_for_sound(filename)</h1>
 
 
     </div>
@@ -280,32 +259,14 @@ for serving web requests.</p></div>
 
   </section>
 </section>
-<section class="detail" id="call/2">
+<section class="detail" id="resolve/1">
 
   <div class="detail-header">
-    <a href="#call/2" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
+    <a href="#resolve/1" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
       <i class="ri-link-m" aria-hidden="true"></i>
     </a>
     <div class="heading-with-actions">
-      <h1 class="signature" translate="no">call(conn, opts)</h1>
-
-
-    </div>
-  </div>
-
-  <section class="docstring">
-
-<p>Callback invoked by Plug on every request.</p>
-  </section>
-</section>
-<section class="detail" id="ensure_authenticated_user/2">
-
-  <div class="detail-header">
-    <a href="#ensure_authenticated_user/2" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
-      <i class="ri-link-m" aria-hidden="true"></i>
-    </a>
-    <div class="heading-with-actions">
-      <h1 class="signature" translate="no">ensure_authenticated_user(conn, opts)</h1>
+      <h1 class="signature" translate="no">resolve(tag)</h1>
 
 
     </div>
@@ -316,14 +277,14 @@ for serving web requests.</p></div>
 
   </section>
 </section>
-<section class="detail" id="fetch_current_user/2">
+<section class="detail" id="resolve_many/1">
 
   <div class="detail-header">
-    <a href="#fetch_current_user/2" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
+    <a href="#resolve_many/1" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
       <i class="ri-link-m" aria-hidden="true"></i>
     </a>
     <div class="heading-with-actions">
-      <h1 class="signature" translate="no">fetch_current_user(conn, _)</h1>
+      <h1 class="signature" translate="no">resolve_many(tags)</h1>
 
 
     </div>
@@ -334,51 +295,14 @@ for serving web requests.</p></div>
 
   </section>
 </section>
-<section class="detail" id="formatted_routes/1">
+<section class="detail" id="search/1">
 
   <div class="detail-header">
-    <a href="#formatted_routes/1" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
+    <a href="#search/1" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
       <i class="ri-link-m" aria-hidden="true"></i>
     </a>
     <div class="heading-with-actions">
-      <h1 class="signature" translate="no">formatted_routes(_)</h1>
-
-
-    </div>
-  </div>
-
-  <section class="docstring">
-
-<p>Callback implementation for <a href="https://hexdocs.pm/phoenix/1.8.1/Phoenix.VerifiedRoutes.html#c:formatted_routes/1"><code class="inline">Phoenix.VerifiedRoutes.formatted_routes/1</code></a>.</p>
-  </section>
-</section>
-<section class="detail" id="init/1">
-
-  <div class="detail-header">
-    <a href="#init/1" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
-      <i class="ri-link-m" aria-hidden="true"></i>
-    </a>
-    <div class="heading-with-actions">
-      <h1 class="signature" translate="no">init(opts)</h1>
-
-
-    </div>
-  </div>
-
-  <section class="docstring">
-
-<p>Callback required by Plug that initializes the router
-for serving web requests.</p>
-  </section>
-</section>
-<section class="detail" id="require_basic_auth/2">
-
-  <div class="detail-header">
-    <a href="#require_basic_auth/2" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
-      <i class="ri-link-m" aria-hidden="true"></i>
-    </a>
-    <div class="heading-with-actions">
-      <h1 class="signature" translate="no">require_basic_auth(conn, _)</h1>
+      <h1 class="signature" translate="no">search(query)</h1>
 
 
     </div>
@@ -389,14 +313,14 @@ for serving web requests.</p>
 
   </section>
 </section>
-<section class="detail" id="verified_route?/2">
+<section class="detail" id="tag_selected?/2">
 
   <div class="detail-header">
-    <a href="#verified_route?/2" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
+    <a href="#tag_selected?/2" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
       <i class="ri-link-m" aria-hidden="true"></i>
     </a>
     <div class="heading-with-actions">
-      <h1 class="signature" translate="no">verified_route?(_, split_path)</h1>
+      <h1 class="signature" translate="no">tag_selected?(tag, selected_tags)</h1>
 
 
     </div>
@@ -404,7 +328,25 @@ for serving web requests.</p>
 
   <section class="docstring">
 
-<p>Callback implementation for <a href="https://hexdocs.pm/phoenix/1.8.1/Phoenix.VerifiedRoutes.html#c:verified_route?/2"><code class="inline">Phoenix.VerifiedRoutes.verified_route?/2</code></a>.</p>
+
+  </section>
+</section>
+<section class="detail" id="update_sound_tags/2">
+
+  <div class="detail-header">
+    <a href="#update_sound_tags/2" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
+      <i class="ri-link-m" aria-hidden="true"></i>
+    </a>
+    <div class="heading-with-actions">
+      <h1 class="signature" translate="no">update_sound_tags(sound, tags)</h1>
+
+
+    </div>
+  </div>
+
+  <section class="docstring">
+
+
   </section>
 </section>
 
