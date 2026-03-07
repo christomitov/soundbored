@@ -13,10 +13,10 @@ Soundboard.PublicURL.html
 Soundboard.Repo.html
 Soundboard.Sound.html
 Soundboard.SoundTag.html
-Soundboard.Sounds.Cache.html
 Soundboard.Sounds.Management.html
 Soundboard.Sounds.Tags.html
 Soundboard.Sounds.Uploads.html
+Soundboard.Sounds.html
 Soundboard.Stats.Play.html
 Soundboard.Stats.html
 Soundboard.Tag.html
@@ -41,9 +41,8 @@ SoundboardWeb.ErrorJSON.html
 SoundboardWeb.FavoritesLive.html
 SoundboardWeb.Gettext.html
 SoundboardWeb.Layouts.html
-SoundboardWeb.Live.FileFilter.html
-SoundboardWeb.Live.PresenceLive.html
-SoundboardWeb.Live.TagHandler.html
+SoundboardWeb.Live.Support.LiveTags.html
+SoundboardWeb.Live.Support.PresenceLive.html
 SoundboardWeb.Plugs.APIAuth.html
 SoundboardWeb.Plugs.BasicAuth.html
 SoundboardWeb.Presence.html
@@ -51,6 +50,7 @@ SoundboardWeb.PresenceHandler.html
 SoundboardWeb.Router.html
 SoundboardWeb.SettingsLive.html
 SoundboardWeb.SoundHelpers.html
+SoundboardWeb.Soundboard.SoundFilter.html
 SoundboardWeb.SoundboardLive.html
 SoundboardWeb.StatsLive.html
 SoundboardWeb.Telemetry.html
@@ -64,7 +64,7 @@ dist/lato-latin-700-normal-2XVSBPG4.woff2
 dist/lato-latin-ext-400-normal-N27NCBWW.woff2
 dist/lato-latin-ext-700-normal-Q2L5DVMW.woff2
 dist/remixicon-QPNJX265.woff2
-dist/search_data-51B5064C.js
-dist/sidebar_items-FBF7D7FC.js
+dist/search_data-6CF3B06A.js
+dist/sidebar_items-C5B01E1B.js
 index.html
 search.html

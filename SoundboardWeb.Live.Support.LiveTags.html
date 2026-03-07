@@ -8,11 +8,11 @@
     <meta name="project" content="soundboard v1.7.0">
 
 
-    <title>SoundboardWeb.Live.TagHandler — soundboard v1.7.0</title>
+    <title>SoundboardWeb.Live.Support.LiveTags — soundboard v1.7.0</title>
 
     <link rel="stylesheet" href="dist/html-elixir-RLZO5U2C.css" />
 
-    <script defer src="dist/sidebar_items-FBF7D7FC.js"></script>
+    <script defer src="dist/sidebar_items-C5B01E1B.js"></script>
     <script defer src="docs_config.js"></script>
     <script defer src="dist/html-Y223O6DN.js"></script>
 
@@ -75,7 +75,7 @@ soundboard
 <div id="top-content">
   <div class="heading-with-actions top-heading">
     <h1>
-      <span translate="no">SoundboardWeb.Live.TagHandler</span> 
+      <span translate="no">SoundboardWeb.Live.Support.LiveTags</span> 
       <small class="app-vsn" translate="no">(soundboard v1.7.0)</small>
 
     </h1>
@@ -84,7 +84,7 @@ soundboard
 
 
     <section id="moduledoc">
-<p>Handles UI-oriented tag interactions for sounds and uploads.</p>
+<p>LiveView-facing tag queries and mutations for the soundboard.</p>
     </section>
 
 </div>
@@ -103,7 +103,7 @@ soundboard
 
     <div class="summary-row">
       <div class="summary-signature">
-        <a href="#add_tag/3" data-no-tooltip="" translate="no">add_tag(socket, tag_name, current_tags)</a>
+        <a href="#add_tag/3" data-no-tooltip="" translate="no">add_tag(tag_name, current_tags, apply_tag_fun)</a>
 
       </div>
 
@@ -112,6 +112,14 @@ soundboard
     <div class="summary-row">
       <div class="summary-signature">
         <a href="#all_tags/1" data-no-tooltip="" translate="no">all_tags(sounds)</a>
+
+      </div>
+
+    </div>
+
+    <div class="summary-row">
+      <div class="summary-signature">
+        <a href="#broadcast_update/0" data-no-tooltip="" translate="no">broadcast_update()</a>
 
       </div>
 
@@ -143,15 +151,7 @@ soundboard
 
     <div class="summary-row">
       <div class="summary-signature">
-        <a href="#remove_tag/2" data-no-tooltip="" translate="no">remove_tag(socket, tag_name)</a>
-
-      </div>
-
-    </div>
-
-    <div class="summary-row">
-      <div class="summary-signature">
-        <a href="#search_tags/1" data-no-tooltip="" translate="no">search_tags(query)</a>
+        <a href="#search/1" data-no-tooltip="" translate="no">search(query)</a>
 
       </div>
 
@@ -194,7 +194,7 @@ soundboard
       <i class="ri-link-m" aria-hidden="true"></i>
     </a>
     <div class="heading-with-actions">
-      <h1 class="signature" translate="no">add_tag(socket, tag_name, current_tags)</h1>
+      <h1 class="signature" translate="no">add_tag(tag_name, current_tags, apply_tag_fun)</h1>
 
 
     </div>
@@ -213,6 +213,24 @@ soundboard
     </a>
     <div class="heading-with-actions">
       <h1 class="signature" translate="no">all_tags(sounds)</h1>
+
+
+    </div>
+  </div>
+
+  <section class="docstring">
+
+
+  </section>
+</section>
+<section class="detail" id="broadcast_update/0">
+
+  <div class="detail-header">
+    <a href="#broadcast_update/0" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
+      <i class="ri-link-m" aria-hidden="true"></i>
+    </a>
+    <div class="heading-with-actions">
+      <h1 class="signature" translate="no">broadcast_update()</h1>
 
 
     </div>
@@ -277,32 +295,14 @@ soundboard
 
   </section>
 </section>
-<section class="detail" id="remove_tag/2">
+<section class="detail" id="search/1">
 
   <div class="detail-header">
-    <a href="#remove_tag/2" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
+    <a href="#search/1" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
       <i class="ri-link-m" aria-hidden="true"></i>
     </a>
     <div class="heading-with-actions">
-      <h1 class="signature" translate="no">remove_tag(socket, tag_name)</h1>
-
-
-    </div>
-  </div>
-
-  <section class="docstring">
-
-
-  </section>
-</section>
-<section class="detail" id="search_tags/1">
-
-  <div class="detail-header">
-    <a href="#search_tags/1" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
-      <i class="ri-link-m" aria-hidden="true"></i>
-    </a>
-    <div class="heading-with-actions">
-      <h1 class="signature" translate="no">search_tags(query)</h1>
+      <h1 class="signature" translate="no">search(query)</h1>
 
 
     </div>

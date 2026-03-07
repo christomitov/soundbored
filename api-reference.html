@@ -12,7 +12,7 @@
 
     <link rel="stylesheet" href="dist/html-elixir-RLZO5U2C.css" />
 
-    <script defer src="dist/sidebar_items-FBF7D7FC.js"></script>
+    <script defer src="dist/sidebar_items-C5B01E1B.js"></script>
     <script defer src="docs_config.js"></script>
     <script defer src="dist/html-Y223O6DN.js"></script>
 
@@ -133,7 +133,7 @@ and business logic.</p></div>
 
   </div>
 
-    <div class="summary-synopsis"><p>Handles the audio playback.</p></div>
+    <div class="summary-synopsis"><p>Handles audio playback coordination.</p></div>
 
 </div>
 <div class="summary-row">
@@ -203,7 +203,7 @@ and business logic.</p></div>
 
   </div>
 
-    <div class="summary-synopsis"><p>The Sound module.</p></div>
+    <div class="summary-synopsis"><p>Sound schema.</p></div>
 
 </div>
 <div class="summary-row">
@@ -217,11 +217,11 @@ and business logic.</p></div>
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="Soundboard.Sounds.Cache.html" translate="no">Soundboard.Sounds.Cache</a>
+    <a href="Soundboard.Sounds.html" translate="no">Soundboard.Sounds</a>
 
   </div>
 
-    <div class="summary-synopsis"><p>Boundary for invalidating sound playback metadata after sound mutations.</p></div>
+    <div class="summary-synopsis"><p>Sound domain context.</p></div>
 
 </div>
 <div class="summary-row">
@@ -248,7 +248,7 @@ and business logic.</p></div>
 
   </div>
 
-    <div class="summary-synopsis"><p>Shared sound upload/create pipeline used by both LiveView and API flows.</p></div>
+    <div class="summary-synopsis"><p>Canonical sound upload/create API.</p></div>
 
 </div>
 <div class="summary-row">
@@ -462,27 +462,18 @@ as controllers, components, channels, and so on.</p></div>
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="SoundboardWeb.Live.FileFilter.html" translate="no">SoundboardWeb.Live.FileFilter</a>
+    <a href="SoundboardWeb.Live.Support.LiveTags.html" translate="no">SoundboardWeb.Live.Support.LiveTags</a>
 
   </div>
 
-    <div class="summary-synopsis"><p>Filters the files based on the selected tags and search query.</p></div>
+    <div class="summary-synopsis"><p>LiveView-facing tag queries and mutations for the soundboard.</p></div>
 
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="SoundboardWeb.Live.PresenceLive.html" translate="no">SoundboardWeb.Live.PresenceLive</a>
+    <a href="SoundboardWeb.Live.Support.PresenceLive.html" translate="no">SoundboardWeb.Live.Support.PresenceLive</a>
 
   </div>
-
-</div>
-<div class="summary-row">
-  <div class="summary-signature">
-    <a href="SoundboardWeb.Live.TagHandler.html" translate="no">SoundboardWeb.Live.TagHandler</a>
-
-  </div>
-
-    <div class="summary-synopsis"><p>Handles UI-oriented tag interactions for sounds and uploads.</p></div>
 
 </div>
 <div class="summary-row">
@@ -542,6 +533,15 @@ as controllers, components, channels, and so on.</p></div>
   </div>
 
     <div class="summary-synopsis"><p>Shared helpers for formatting sound metadata for UI rendering.</p></div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="SoundboardWeb.Soundboard.SoundFilter.html" translate="no">SoundboardWeb.Soundboard.SoundFilter</a>
+
+  </div>
+
+    <div class="summary-synopsis"><p>Filters sounds based on the selected tags and search query.</p></div>
 
 </div>
 <div class="summary-row">

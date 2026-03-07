@@ -12,7 +12,7 @@
 
     <link rel="stylesheet" href="dist/html-elixir-RLZO5U2C.css" />
 
-    <script defer src="dist/sidebar_items-FBF7D7FC.js"></script>
+    <script defer src="dist/sidebar_items-C5B01E1B.js"></script>
     <script defer src="docs_config.js"></script>
     <script defer src="dist/html-Y223O6DN.js"></script>
 
@@ -84,7 +84,7 @@ soundboard
 
 
     <section id="moduledoc">
-<p>The Sound module.</p>
+<p>Sound schema.</p>
     </section>
 
 </div>
@@ -96,6 +96,20 @@ soundboard
       </a>
       <span class="text">Summary</span>
     </h1>
+<div class="summary-types summary">
+  <h2>
+    <a href="#types">Types</a>
+  </h2>
+
+    <div class="summary-row">
+      <div class="summary-signature">
+        <a href="#t:t/0" data-no-tooltip="" translate="no">t()</a>
+
+      </div>
+
+    </div>
+
+</div>
 <div class="summary-functions summary">
   <h2>
     <a href="#functions">Functions</a>
@@ -119,134 +133,6 @@ soundboard
 
     <div class="summary-row">
       <div class="summary-signature">
-        <a href="#fetch_filename_extension/1" data-no-tooltip="" translate="no">fetch_filename_extension(sound_id)</a>
-
-      </div>
-
-    </div>
-
-    <div class="summary-row">
-      <div class="summary-signature">
-        <a href="#fetch_sound_id/1" data-no-tooltip="" translate="no">fetch_sound_id(filename)</a>
-
-      </div>
-
-    </div>
-
-    <div class="summary-row">
-      <div class="summary-signature">
-        <a href="#filename_conflicts_across_extensions?/2" data-no-tooltip="" translate="no">filename_conflicts_across_extensions?(base_name, extensions)</a>
-
-      </div>
-
-    </div>
-
-    <div class="summary-row">
-      <div class="summary-signature">
-        <a href="#filename_taken?/1" data-no-tooltip="" translate="no">filename_taken?(filename)</a>
-
-      </div>
-
-    </div>
-
-    <div class="summary-row">
-      <div class="summary-signature">
-        <a href="#filename_taken_excluding?/2" data-no-tooltip="" translate="no">filename_taken_excluding?(filename, sound_id)</a>
-
-      </div>
-
-    </div>
-
-    <div class="summary-row">
-      <div class="summary-signature">
-        <a href="#get_recent_uploads/1" data-no-tooltip="" translate="no">get_recent_uploads(opts \\ [])</a>
-
-      </div>
-
-    </div>
-
-    <div class="summary-row">
-      <div class="summary-signature">
-        <a href="#get_sound!/1" data-no-tooltip="" translate="no">get_sound!(id)</a>
-
-      </div>
-
-    </div>
-
-    <div class="summary-row">
-      <div class="summary-signature">
-        <a href="#get_user_join_sound/1" data-no-tooltip="" translate="no">get_user_join_sound(user_id)</a>
-
-      </div>
-
-    </div>
-
-    <div class="summary-row">
-      <div class="summary-signature">
-        <a href="#get_user_join_sound_by_discord_id/1" data-no-tooltip="" translate="no">get_user_join_sound_by_discord_id(discord_id)</a>
-
-      </div>
-
-    </div>
-
-    <div class="summary-row">
-      <div class="summary-signature">
-        <a href="#get_user_leave_sound/1" data-no-tooltip="" translate="no">get_user_leave_sound(user_id)</a>
-
-      </div>
-
-    </div>
-
-    <div class="summary-row">
-      <div class="summary-signature">
-        <a href="#get_user_leave_sound_by_discord_id/1" data-no-tooltip="" translate="no">get_user_leave_sound_by_discord_id(discord_id)</a>
-
-      </div>
-
-    </div>
-
-    <div class="summary-row">
-      <div class="summary-signature">
-        <a href="#get_user_sounds_by_discord_id/1" data-no-tooltip="" translate="no">get_user_sounds_by_discord_id(discord_id)</a>
-
-      </div>
-
-    </div>
-
-    <div class="summary-row">
-      <div class="summary-signature">
-        <a href="#ids_by_filename/1" data-no-tooltip="" translate="no">ids_by_filename(filenames)</a>
-
-      </div>
-
-    </div>
-
-    <div class="summary-row">
-      <div class="summary-signature">
-        <a href="#list_detailed/0" data-no-tooltip="" translate="no">list_detailed()</a>
-
-      </div>
-
-    </div>
-
-    <div class="summary-row">
-      <div class="summary-signature">
-        <a href="#list_files/0" data-no-tooltip="" translate="no">list_files()</a>
-
-      </div>
-
-    </div>
-
-    <div class="summary-row">
-      <div class="summary-signature">
-        <a href="#update_sound/2" data-no-tooltip="" translate="no">update_sound(sound, attrs)</a>
-
-      </div>
-
-    </div>
-
-    <div class="summary-row">
-      <div class="summary-signature">
         <a href="#with_tags/1" data-no-tooltip="" translate="no">with_tags(query \\ __MODULE__)</a>
 
       </div>
@@ -257,6 +143,57 @@ soundboard
 
   </section>
 
+
+  <section id="types" class="details-list">
+    <h1 class="section-heading">
+      <a class="hover-link" href="#types">
+        <i class="ri-link-m" aria-hidden="true"></i>
+      </a>
+      <span class="text">Types</span>
+    </h1>
+
+    <div class="types-list">
+<section class="detail" id="t:t/0">
+
+  <div class="detail-header">
+    <a href="#t:t/0" class="detail-link" data-no-tooltip="" aria-label="Link to this type">
+      <i class="ri-link-m" aria-hidden="true"></i>
+    </a>
+    <div class="heading-with-actions">
+      <h1 class="signature" translate="no">t()</h1>
+
+
+    </div>
+  </div>
+
+  <section class="docstring">
+
+      <div class="specs">
+
+          <pre translate="no"><span class="attribute">@type</span> t() :: %Soundboard.Sound{
+  __meta__: <a href="https://hexdocs.pm/elixir/typespecs.html#built-in-types">term</a>(),
+  description: <a href="https://hexdocs.pm/elixir/typespecs.html#built-in-types">term</a>(),
+  filename: <a href="https://hexdocs.pm/elixir/typespecs.html#built-in-types">term</a>(),
+  id: <a href="https://hexdocs.pm/elixir/typespecs.html#built-in-types">term</a>(),
+  inserted_at: <a href="https://hexdocs.pm/elixir/typespecs.html#built-in-types">term</a>(),
+  source_type: <a href="https://hexdocs.pm/elixir/typespecs.html#built-in-types">term</a>(),
+  tags: <a href="https://hexdocs.pm/elixir/typespecs.html#built-in-types">term</a>(),
+  updated_at: <a href="https://hexdocs.pm/elixir/typespecs.html#built-in-types">term</a>(),
+  url: <a href="https://hexdocs.pm/elixir/typespecs.html#built-in-types">term</a>(),
+  user: <a href="https://hexdocs.pm/elixir/typespecs.html#built-in-types">term</a>(),
+  user_id: <a href="https://hexdocs.pm/elixir/typespecs.html#built-in-types">term</a>(),
+  user_sound_settings: <a href="https://hexdocs.pm/elixir/typespecs.html#built-in-types">term</a>(),
+  volume: <a href="https://hexdocs.pm/elixir/typespecs.html#built-in-types">term</a>()
+}</pre>
+
+      </div>
+
+
+  </section>
+</section>
+
+    </div>
+  </section>
 
   <section id="functions" class="details-list">
     <h1 class="section-heading">
@@ -284,6 +221,12 @@ soundboard
 
   <section class="docstring">
 
+      <div class="specs">
+
+          <pre translate="no"><span class="attribute">@spec</span> by_tag(<a href="https://hexdocs.pm/ecto/3.13.3/Ecto.Queryable.html#t:t/0">Ecto.Queryable.t</a>(), <a href="https://hexdocs.pm/elixir/String.html#t:t/0">String.t</a>()) :: <a href="https://hexdocs.pm/ecto/3.13.3/Ecto.Query.html#t:t/0">Ecto.Query.t</a>()</pre>
+
+      </div>
+
 
   </section>
 </section>
@@ -302,295 +245,11 @@ soundboard
 
   <section class="docstring">
 
+      <div class="specs">
 
-  </section>
-</section>
-<section class="detail" id="fetch_filename_extension/1">
+          <pre translate="no"><span class="attribute">@spec</span> changeset(<a href="#t:t/0">t</a>(), <a href="https://hexdocs.pm/elixir/typespecs.html#basic-types">map</a>()) :: <a href="https://hexdocs.pm/ecto/3.13.3/Ecto.Changeset.html#t:t/0">Ecto.Changeset.t</a>()</pre>
 
-  <div class="detail-header">
-    <a href="#fetch_filename_extension/1" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
-      <i class="ri-link-m" aria-hidden="true"></i>
-    </a>
-    <div class="heading-with-actions">
-      <h1 class="signature" translate="no">fetch_filename_extension(sound_id)</h1>
-
-
-    </div>
-  </div>
-
-  <section class="docstring">
-
-
-  </section>
-</section>
-<section class="detail" id="fetch_sound_id/1">
-
-  <div class="detail-header">
-    <a href="#fetch_sound_id/1" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
-      <i class="ri-link-m" aria-hidden="true"></i>
-    </a>
-    <div class="heading-with-actions">
-      <h1 class="signature" translate="no">fetch_sound_id(filename)</h1>
-
-
-    </div>
-  </div>
-
-  <section class="docstring">
-
-
-  </section>
-</section>
-<section class="detail" id="filename_conflicts_across_extensions?/2">
-
-  <div class="detail-header">
-    <a href="#filename_conflicts_across_extensions?/2" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
-      <i class="ri-link-m" aria-hidden="true"></i>
-    </a>
-    <div class="heading-with-actions">
-      <h1 class="signature" translate="no">filename_conflicts_across_extensions?(base_name, extensions)</h1>
-
-
-    </div>
-  </div>
-
-  <section class="docstring">
-
-
-  </section>
-</section>
-<section class="detail" id="filename_taken?/1">
-
-  <div class="detail-header">
-    <a href="#filename_taken?/1" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
-      <i class="ri-link-m" aria-hidden="true"></i>
-    </a>
-    <div class="heading-with-actions">
-      <h1 class="signature" translate="no">filename_taken?(filename)</h1>
-
-
-    </div>
-  </div>
-
-  <section class="docstring">
-
-
-  </section>
-</section>
-<section class="detail" id="filename_taken_excluding?/2">
-
-  <div class="detail-header">
-    <a href="#filename_taken_excluding?/2" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
-      <i class="ri-link-m" aria-hidden="true"></i>
-    </a>
-    <div class="heading-with-actions">
-      <h1 class="signature" translate="no">filename_taken_excluding?(filename, sound_id)</h1>
-
-
-    </div>
-  </div>
-
-  <section class="docstring">
-
-
-  </section>
-</section>
-<section class="detail" id="get_recent_uploads/1">
-
-    <span id="get_recent_uploads/0"></span>
-
-  <div class="detail-header">
-    <a href="#get_recent_uploads/1" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
-      <i class="ri-link-m" aria-hidden="true"></i>
-    </a>
-    <div class="heading-with-actions">
-      <h1 class="signature" translate="no">get_recent_uploads(opts \\ [])</h1>
-
-
-    </div>
-  </div>
-
-  <section class="docstring">
-
-
-  </section>
-</section>
-<section class="detail" id="get_sound!/1">
-
-  <div class="detail-header">
-    <a href="#get_sound!/1" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
-      <i class="ri-link-m" aria-hidden="true"></i>
-    </a>
-    <div class="heading-with-actions">
-      <h1 class="signature" translate="no">get_sound!(id)</h1>
-
-
-    </div>
-  </div>
-
-  <section class="docstring">
-
-
-  </section>
-</section>
-<section class="detail" id="get_user_join_sound/1">
-
-  <div class="detail-header">
-    <a href="#get_user_join_sound/1" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
-      <i class="ri-link-m" aria-hidden="true"></i>
-    </a>
-    <div class="heading-with-actions">
-      <h1 class="signature" translate="no">get_user_join_sound(user_id)</h1>
-
-
-    </div>
-  </div>
-
-  <section class="docstring">
-
-
-  </section>
-</section>
-<section class="detail" id="get_user_join_sound_by_discord_id/1">
-
-  <div class="detail-header">
-    <a href="#get_user_join_sound_by_discord_id/1" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
-      <i class="ri-link-m" aria-hidden="true"></i>
-    </a>
-    <div class="heading-with-actions">
-      <h1 class="signature" translate="no">get_user_join_sound_by_discord_id(discord_id)</h1>
-
-
-    </div>
-  </div>
-
-  <section class="docstring">
-
-
-  </section>
-</section>
-<section class="detail" id="get_user_leave_sound/1">
-
-  <div class="detail-header">
-    <a href="#get_user_leave_sound/1" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
-      <i class="ri-link-m" aria-hidden="true"></i>
-    </a>
-    <div class="heading-with-actions">
-      <h1 class="signature" translate="no">get_user_leave_sound(user_id)</h1>
-
-
-    </div>
-  </div>
-
-  <section class="docstring">
-
-
-  </section>
-</section>
-<section class="detail" id="get_user_leave_sound_by_discord_id/1">
-
-  <div class="detail-header">
-    <a href="#get_user_leave_sound_by_discord_id/1" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
-      <i class="ri-link-m" aria-hidden="true"></i>
-    </a>
-    <div class="heading-with-actions">
-      <h1 class="signature" translate="no">get_user_leave_sound_by_discord_id(discord_id)</h1>
-
-
-    </div>
-  </div>
-
-  <section class="docstring">
-
-
-  </section>
-</section>
-<section class="detail" id="get_user_sounds_by_discord_id/1">
-
-  <div class="detail-header">
-    <a href="#get_user_sounds_by_discord_id/1" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
-      <i class="ri-link-m" aria-hidden="true"></i>
-    </a>
-    <div class="heading-with-actions">
-      <h1 class="signature" translate="no">get_user_sounds_by_discord_id(discord_id)</h1>
-
-
-    </div>
-  </div>
-
-  <section class="docstring">
-
-
-  </section>
-</section>
-<section class="detail" id="ids_by_filename/1">
-
-  <div class="detail-header">
-    <a href="#ids_by_filename/1" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
-      <i class="ri-link-m" aria-hidden="true"></i>
-    </a>
-    <div class="heading-with-actions">
-      <h1 class="signature" translate="no">ids_by_filename(filenames)</h1>
-
-
-    </div>
-  </div>
-
-  <section class="docstring">
-
-
-  </section>
-</section>
-<section class="detail" id="list_detailed/0">
-
-  <div class="detail-header">
-    <a href="#list_detailed/0" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
-      <i class="ri-link-m" aria-hidden="true"></i>
-    </a>
-    <div class="heading-with-actions">
-      <h1 class="signature" translate="no">list_detailed()</h1>
-
-
-    </div>
-  </div>
-
-  <section class="docstring">
-
-
-  </section>
-</section>
-<section class="detail" id="list_files/0">
-
-  <div class="detail-header">
-    <a href="#list_files/0" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
-      <i class="ri-link-m" aria-hidden="true"></i>
-    </a>
-    <div class="heading-with-actions">
-      <h1 class="signature" translate="no">list_files()</h1>
-
-
-    </div>
-  </div>
-
-  <section class="docstring">
-
-
-  </section>
-</section>
-<section class="detail" id="update_sound/2">
-
-  <div class="detail-header">
-    <a href="#update_sound/2" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
-      <i class="ri-link-m" aria-hidden="true"></i>
-    </a>
-    <div class="heading-with-actions">
-      <h1 class="signature" translate="no">update_sound(sound, attrs)</h1>
-
-
-    </div>
-  </div>
-
-  <section class="docstring">
+      </div>
 
 
   </section>
@@ -611,6 +270,12 @@ soundboard
   </div>
 
   <section class="docstring">
+
+      <div class="specs">
+
+          <pre translate="no"><span class="attribute">@spec</span> with_tags(<a href="https://hexdocs.pm/ecto/3.13.3/Ecto.Queryable.html#t:t/0">Ecto.Queryable.t</a>()) :: <a href="https://hexdocs.pm/ecto/3.13.3/Ecto.Query.html#t:t/0">Ecto.Query.t</a>()</pre>
+
+      </div>
 
 
   </section>
