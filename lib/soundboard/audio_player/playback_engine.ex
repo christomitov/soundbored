@@ -30,7 +30,7 @@ defmodule Soundboard.AudioPlayer.PlaybackEngine do
   defp maybe_settle_before_play(_), do: :ok
 
   defp submit_play_request(guild_id, sound_name, path_or_url, volume, actor) do
-    if is_nil(System.find_executable("ffmpeg")) do
+    if is_nil(ffmpeg_executable()) do
       Logger.error("ffmpeg not found in PATH. Cannot play #{sound_name}")
       broadcast_error("ffmpeg is not installed on this host")
       :error
@@ -388,6 +388,14 @@ defmodule Soundboard.AudioPlayer.PlaybackEngine do
 
   defp unwrap_sequence({:ok, sequence}), do: sequence
   defp unwrap_sequence({:error, _reason}), do: nil
+
+  defp ffmpeg_executable do
+    case Application.get_env(:soundboard, :ffmpeg_executable, :system) do
+      :system -> System.find_executable("ffmpeg")
+      false -> nil
+      path when is_binary(path) -> path
+    end
+  end
 
   defp clamp_volume(value) when is_number(value) do
     value

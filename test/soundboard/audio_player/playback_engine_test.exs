@@ -8,13 +8,21 @@ defmodule Soundboard.AudioPlayer.PlaybackEngineTest do
 
   setup do
     previous_probe = Application.get_env(:soundboard, :voice_rtp_probe)
+    previous_ffmpeg = Application.get_env(:soundboard, :ffmpeg_executable, :system)
+
     Application.put_env(:soundboard, :voice_rtp_probe, false)
+    Application.put_env(:soundboard, :ffmpeg_executable, "/usr/bin/ffmpeg")
 
     on_exit(fn ->
       if is_nil(previous_probe) do
         Application.delete_env(:soundboard, :voice_rtp_probe)
       else
         Application.put_env(:soundboard, :voice_rtp_probe, previous_probe)
+      end
+
+      case previous_ffmpeg do
+        :system -> Application.delete_env(:soundboard, :ffmpeg_executable)
+        value -> Application.put_env(:soundboard, :ffmpeg_executable, value)
       end
     end)
 
@@ -176,6 +184,37 @@ defmodule Soundboard.AudioPlayer.PlaybackEngineTest do
       assert_receive :played_after_refresh
       assert_receive :broadcast_played
       refute_received :tracked_play
+    end
+  end
+
+  test "returns an error when ffmpeg is unavailable" do
+    test_pid = self()
+    Application.put_env(:soundboard, :ffmpeg_executable, false)
+
+    with_mocks([
+      {Soundboard.Discord.Voice, [],
+       [
+         channel_id: fn "guild-1" -> "channel-9" end,
+         ready?: fn "guild-1" -> true end
+       ]},
+      {Soundboard.PubSubTopics, [],
+       [
+         broadcast_error: fn "ffmpeg is not installed on this host" ->
+           send(test_pid, :broadcast_error)
+         end
+       ]}
+    ]) do
+      assert :error =
+               PlaybackEngine.play(
+                 "guild-1",
+                 "channel-9",
+                 "missing-ffmpeg.mp3",
+                 "/tmp/missing-ffmpeg.mp3",
+                 1.0,
+                 "System"
+               )
+
+      assert_receive :broadcast_error
     end
   end
 
