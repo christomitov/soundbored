@@ -40,7 +40,6 @@ if config_env() == :dev do
   eda_dave = env!("EDA_DAVE", :boolean, true)
   voice_rtp_probe = env!("VOICE_RTP_PROBE", :boolean, false)
   voice_rtp_probe_timeout_ms = env!("VOICE_RTP_PROBE_TIMEOUT_MS", :integer, 6_000)
-  browser_basic_auth_required = env!("BASIC_AUTH_REQUIRED", :boolean, false)
 
   secret_key_base =
     case env!("SECRET_KEY_BASE", :string!, nil) do
@@ -83,8 +82,7 @@ if config_env() == :dev do
     discord_token: discord_token,
     voice_rtp_probe: voice_rtp_probe,
     voice_rtp_probe_timeout_ms: voice_rtp_probe_timeout_ms,
-    ffmpeg_available: ffmpeg_available,
-    browser_basic_auth_required: browser_basic_auth_required
+    ffmpeg_available: ffmpeg_available
 
   config :eda,
     token: discord_token,
@@ -180,7 +178,6 @@ if config_env() == :prod and is_nil(env!("SKIP_RUNTIME_CONFIG", :string, nil)) d
   voice_rtp_probe = env!("VOICE_RTP_PROBE", :boolean, false)
   voice_rtp_probe_timeout_ms = env!("VOICE_RTP_PROBE_TIMEOUT_MS", :integer, 6_000)
   eda_dave = env!("EDA_DAVE", :boolean, true)
-  browser_basic_auth_required = env!("BASIC_AUTH_REQUIRED", :boolean, true)
 
   ffmpeg_available = not is_nil(System.find_executable("ffmpeg"))
 
@@ -194,8 +191,7 @@ if config_env() == :prod and is_nil(env!("SKIP_RUNTIME_CONFIG", :string, nil)) d
     discord_token: discord_token,
     voice_rtp_probe: voice_rtp_probe,
     voice_rtp_probe_timeout_ms: voice_rtp_probe_timeout_ms,
-    ffmpeg_available: ffmpeg_available,
-    browser_basic_auth_required: browser_basic_auth_required
+    ffmpeg_available: ffmpeg_available
 
   config :eda,
     token: discord_token,

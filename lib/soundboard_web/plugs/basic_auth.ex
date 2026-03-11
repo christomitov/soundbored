@@ -1,6 +1,11 @@
 defmodule SoundboardWeb.Plugs.BasicAuth do
   @moduledoc """
   Basic authentication plug.
+
+  When both `BASIC_AUTH_USERNAME` and `BASIC_AUTH_PASSWORD` environment variables
+  are set to non-blank values, every browser request must supply matching Basic
+  credentials. When either variable is missing or blank, basic auth is disabled
+  and all requests pass through.
   """
   import Plug.Conn
   require Logger
@@ -11,22 +16,11 @@ defmodule SoundboardWeb.Plugs.BasicAuth do
     username = credential("BASIC_AUTH_USERNAME")
     password = credential("BASIC_AUTH_PASSWORD")
 
-    case {username, password, auth_required?()} do
-      {nil, nil, false} ->
-        Logger.warning(
-          "Browser basic auth credentials not configured; bypassing auth because :browser_basic_auth_required is false"
-        )
-
+    case {username, password} do
+      {nil, nil} ->
         conn
 
-      {nil, nil, true} ->
-        Logger.error(
-          "Browser basic auth credentials not configured while :browser_basic_auth_required is true; failing closed"
-        )
-
-        unauthorized(conn)
-
-      {username, password, _required} when is_binary(username) and is_binary(password) ->
+      {username, password} when is_binary(username) and is_binary(password) ->
         authenticate(conn, username, password)
 
       _ ->
@@ -47,10 +41,6 @@ defmodule SoundboardWeb.Plugs.BasicAuth do
           value
         end
     end
-  end
-
-  defp auth_required? do
-    Application.get_env(:soundboard, :browser_basic_auth_required, false)
   end
 
   defp authenticate(conn, username, password) do
