@@ -84,7 +84,10 @@ soundboard
 
 
     <section id="moduledoc">
-<p>Basic authentication plug.</p>
+<p>Basic authentication plug.</p><p>When both <code class="inline">BASIC_AUTH_USERNAME</code> and <code class="inline">BASIC_AUTH_PASSWORD</code> environment variables
+are set to non-blank values, every browser request must supply matching Basic
+credentials. When either variable is missing or blank, basic auth is disabled
+and all requests pass through.</p>
     </section>
 
 </div>
