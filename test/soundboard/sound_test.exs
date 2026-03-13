@@ -271,10 +271,8 @@ defmodule Soundboard.SoundTest do
     end
 
     test "can unset join/leave sounds independently", %{user: user} do
-      # Create a sound
       {:ok, sound} = insert_sound(user)
 
-      # Set both join and leave
       {:ok, setting} =
         UserSoundSetting.changeset(
           %UserSoundSetting{},
@@ -332,18 +330,15 @@ defmodule Soundboard.SoundTest do
 
       results = Sounds.get_recent_uploads()
 
-      # Should return 10 most recent
       assert length(results) >= 10
 
-      # Verify the structure of results
       {filename, username, timestamp} = hd(results)
       assert is_binary(filename)
       assert is_binary(username)
       assert %NaiveDateTime{} = timestamp
 
-      # At least one should belong to our test user
       user_results = Enum.filter(results, fn {_, uname, _} -> uname == user.username end)
-      assert length(user_results) > 0
+      assert user_results != []
     end
 
     test "returns recent uploads with custom limit", %{user: user} do

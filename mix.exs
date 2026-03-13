@@ -94,8 +94,10 @@ defmodule Soundboard.MixProject do
       {:mock, "~> 0.3.9", only: :test},
       {:dotenvy, "~> 1.0.0", runtime: false},
       {:excoveralls, "~> 0.18.5", only: :test},
-      {:credo, "~> 1.7.12", only: [:dev, :test], runtime: false},
-      {:ex_doc, "~> 0.34", only: :dev, runtime: false}
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
+      {:ex_doc, "~> 0.34", only: :dev, runtime: false},
+      {:ex_dna, "~> 1.1", only: [:dev, :test], runtime: false},
+      {:ex_slop, "~> 0.2", only: [:dev, :test], runtime: false}
     ]
   end
 
@@ -116,7 +118,8 @@ defmodule Soundboard.MixProject do
         "deps.unlock --unused",
         "format",
         "credo --strict",
-        "cmd env MIX_ENV=test mix test"
+        "cmd env MIX_ENV=test mix test",
+        "ex_dna"
       ],
       "assets.setup": ["tailwind.install --if-missing", "esbuild.install --if-missing"],
       "assets.build": ["tailwind soundboard", "esbuild soundboard"],

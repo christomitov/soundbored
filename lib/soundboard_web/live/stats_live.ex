@@ -5,7 +5,8 @@ defmodule SoundboardWeb.StatsLive do
   import Phoenix.Component
   import SoundboardWeb.SoundHelpers
   alias Soundboard.{Accounts, Favorites, PubSubTopics, Sounds, Stats}
-  alias SoundboardWeb.Live.Support.SoundPlayback
+  alias SoundboardWeb.Live.Support.{FlashHelpers, SoundPlayback}
+  import FlashHelpers, only: [clear_flash_after_timeout: 1]
   require Logger
 
   @recent_limit 5
@@ -94,7 +95,6 @@ defmodule SoundboardWeb.StatsLive do
   end
 
   defp get_week_range(date \\ Date.utc_today()) do
-    # Get the most recent Monday (beginning of week)
     days_since_monday = Date.day_of_week(date, :monday)
     start_date = Date.add(date, -days_since_monday + 1)
     end_date = Date.add(start_date, 6)
@@ -490,11 +490,6 @@ defmodule SoundboardWeb.StatsLive do
       nil -> false
       sound_id -> Enum.member?(favorites, sound_id)
     end
-  end
-
-  defp clear_flash_after_timeout(socket) do
-    Process.send_after(self(), :clear_flash, 3000)
-    socket
   end
 
   defp get_user_avatar(username, presences, avatars_by_username) do

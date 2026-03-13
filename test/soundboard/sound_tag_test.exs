@@ -31,11 +31,9 @@ defmodule Soundboard.SoundTagTest do
       # First insert succeeds
       {:ok, _} = Repo.insert(SoundTag.changeset(%SoundTag{}, attrs))
 
-      # Second insert fails
       changeset = SoundTag.changeset(%SoundTag{}, attrs)
       {:error, changeset} = Repo.insert(changeset)
 
-      # Check the error on the composite unique index
       assert {"has already been taken", _} = changeset.errors[:sound_id]
     end
 

@@ -71,11 +71,9 @@ defmodule SoundboardWeb.PresenceHandler do
         # If all colors are used, pick a random one
         Enum.random(@colors)
       else
-        # Pick a random available color
         Enum.random(available_colors)
       end
 
-    # Store the color assignment
     :persistent_term.put(@colors_key, Map.put(colors, username, color))
 
     color

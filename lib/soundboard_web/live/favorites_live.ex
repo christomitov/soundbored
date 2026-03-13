@@ -2,7 +2,8 @@ defmodule SoundboardWeb.FavoritesLive do
   use SoundboardWeb, :live_view
   use SoundboardWeb.Live.Support.PresenceLive
   alias Soundboard.{Favorites, PubSubTopics}
-  alias SoundboardWeb.Live.Support.SoundPlayback
+  alias SoundboardWeb.Live.Support.{FlashHelpers, SoundPlayback}
+  import FlashHelpers, only: [flash_sound_played: 2, clear_flash_after_timeout: 1]
   require Logger
 
   @impl true
@@ -48,11 +49,8 @@ defmodule SoundboardWeb.FavoritesLive do
   end
 
   @impl true
-  def handle_info({:sound_played, %{filename: filename, played_by: username}}, socket) do
-    {:noreply,
-     socket
-     |> put_flash(:info, "#{username} played #{filename}")
-     |> clear_flash_after_timeout()}
+  def handle_info({:sound_played, %{filename: _, played_by: _} = event}, socket) do
+    {:noreply, flash_sound_played(socket, event)}
   end
 
   @impl true
@@ -103,10 +101,5 @@ defmodule SoundboardWeb.FavoritesLive do
       favorites: favorites,
       sounds_with_tags: Favorites.list_favorite_sounds_with_tags(user.id)
     )
-  end
-
-  defp clear_flash_after_timeout(socket) do
-    Process.send_after(self(), :clear_flash, 3000)
-    socket
   end
 end

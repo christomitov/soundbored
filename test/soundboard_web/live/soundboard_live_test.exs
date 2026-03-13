@@ -1,18 +1,14 @@
 defmodule SoundboardWeb.SoundboardLiveTest do
-  @moduledoc """
-  This module contains tests for the SoundboardLive view.
-  """
+  @moduledoc false
   use SoundboardWeb.ConnCase
   import Phoenix.LiveViewTest
   alias Soundboard.{Accounts.User, Repo, Sound, Tag}
   import Mock
 
   setup %{conn: conn} do
-    # Clean up before tests
     Repo.delete_all(Sound)
     Repo.delete_all(User)
 
-    # Create a test user
     {:ok, user} =
       %User{}
       |> User.changeset(%{
@@ -22,7 +18,6 @@ defmodule SoundboardWeb.SoundboardLiveTest do
       })
       |> Repo.insert()
 
-    # Create a test sound
     {:ok, sound} =
       %Sound{}
       |> Sound.changeset(%{
@@ -32,7 +27,6 @@ defmodule SoundboardWeb.SoundboardLiveTest do
       })
       |> Repo.insert()
 
-    # Set up the connection with a user session
     conn = conn |> init_test_session(%{user_id: user.id})
 
     {:ok, conn: conn, user: user, sound: sound}

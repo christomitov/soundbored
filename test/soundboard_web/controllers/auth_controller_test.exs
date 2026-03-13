@@ -96,7 +96,6 @@ defmodule SoundboardWeb.AuthControllerTest do
         |> assign(:ueberauth_auth, auth_data)
         |> get(~p"/auth/discord/callback")
 
-      # Verify the count hasn't changed after the callback
       final_count = Repo.aggregate(User, :count)
 
       assert redirected_to(conn) == "/"

@@ -11,12 +11,10 @@ defmodule SoundboardWeb.StatsLiveTest do
   import Mock
 
   setup %{conn: conn} do
-    # Clean the database before each test
     Repo.delete_all(Play)
     Repo.delete_all(Sound)
     Repo.delete_all(User)
 
-    # Create a test user
     {:ok, user} =
       %User{}
       |> User.changeset(%{
@@ -26,7 +24,6 @@ defmodule SoundboardWeb.StatsLiveTest do
       })
       |> Repo.insert()
 
-    # Create test sound with unique name
     {:ok, sound} =
       %Sound{}
       |> Sound.changeset(%{
@@ -36,13 +33,9 @@ defmodule SoundboardWeb.StatsLiveTest do
       })
       |> Repo.insert()
 
-    # Add some stats with the unique sound name
     {:ok, _play} = Stats.track_play(sound.filename, user.id)
-
-    # Add a favorite
     Favorites.toggle_favorite(user.id, sound.id)
 
-    # Set up authenticated conn
     authed_conn =
       conn
       |> Map.replace!(:secret_key_base, SoundboardWeb.Endpoint.config(:secret_key_base))

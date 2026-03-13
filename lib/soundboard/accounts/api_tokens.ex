@@ -5,8 +5,8 @@ defmodule Soundboard.Accounts.ApiTokens do
   require Logger
 
   import Ecto.Query
-  alias Soundboard.Repo
   alias Soundboard.Accounts.{ApiToken, User}
+  alias Soundboard.Repo
 
   @type verify_error :: :invalid | :token_update_failed
   @type verify_result :: {:ok, User.t(), ApiToken.t()} | {:error, verify_error}

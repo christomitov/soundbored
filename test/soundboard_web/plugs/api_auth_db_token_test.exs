@@ -3,8 +3,8 @@ defmodule SoundboardWeb.APIAuthDBTokenTest do
   import Phoenix.ConnTest
   import Mock
 
-  alias Soundboard.{Repo, Sound}
   alias Soundboard.Accounts.{ApiTokens, User}
+  alias Soundboard.{Repo, Sound}
 
   setup %{conn: conn} do
     {:ok, user} =

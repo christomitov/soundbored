@@ -7,8 +7,8 @@ defmodule SoundboardWeb.SoundboardLive do
   import UploadModal
   import SoundboardWeb.Components.Soundboard.TagComponents, only: [tag_filter_button: 1]
   alias Soundboard.{Favorites, PubSubTopics, Sounds}
-  alias SoundboardWeb.Live.Support.SoundPlayback
   alias SoundboardWeb.Live.SoundboardLive.{EditFlow, UploadFlow}
+  alias SoundboardWeb.Live.Support.{FlashHelpers, SoundPlayback}
   alias SoundboardWeb.Soundboard.SoundFilter
   import SoundboardWeb.Live.Support.LiveTags, only: [all_tags: 1, tag_selected?: 2]
 
@@ -314,11 +314,8 @@ defmodule SoundboardWeb.SoundboardLive do
   end
 
   @impl true
-  def handle_info({:sound_played, %{filename: filename, played_by: username}}, socket) do
-    {:noreply,
-     socket
-     |> put_flash(:info, "#{username} played #{filename}")
-     |> clear_flash_after_timeout()}
+  def handle_info({:sound_played, %{filename: _, played_by: _} = event}, socket) do
+    {:noreply, FlashHelpers.flash_sound_played(socket, event)}
   end
 
   @impl true
@@ -348,11 +345,6 @@ defmodule SoundboardWeb.SoundboardLive do
 
   defp load_sound_files(socket) do
     assign(socket, :uploaded_files, Sounds.list_detailed())
-  end
-
-  defp clear_flash_after_timeout(socket) do
-    Process.send_after(self(), :clear_flash, 3000)
-    socket
   end
 
   defp get_random_sound([]), do: nil

@@ -4,9 +4,9 @@ defmodule Soundboard.Sounds.UploadsTest do
   import Soundboard.DataCase, only: [errors_on: 1]
 
   alias Soundboard.Accounts.User
+  alias Soundboard.{Repo, Sound, UserSoundSetting}
   alias Soundboard.Sounds.Uploads
   alias Soundboard.Sounds.Uploads.CreateRequest
-  alias Soundboard.{Repo, Sound, UserSoundSetting}
 
   setup do
     {:ok, user} =

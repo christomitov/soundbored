@@ -93,7 +93,6 @@ defmodule Soundboard.StatsTest do
     end
 
     test "reset_weekly_stats deletes old plays", %{user: user, sound: sound} do
-      # Create an old play with truncated timestamp
       old_date =
         NaiveDateTime.utc_now()
         |> NaiveDateTime.add(-8, :day)
@@ -108,7 +107,6 @@ defmodule Soundboard.StatsTest do
 
       Repo.insert!(play)
 
-      # Create a recent play
       Stats.track_play(sound.filename, user.id)
 
       initial_count = length(Repo.all(Play))

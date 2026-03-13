@@ -4,8 +4,8 @@ defmodule Soundboard.Sounds.ManagementTest do
   import Mock
 
   alias Soundboard.Accounts.User
-  alias Soundboard.Sounds.Management
   alias Soundboard.{Repo, Sound, UserSoundSetting}
+  alias Soundboard.Sounds.Management
 
   setup do
     {:ok, user} =

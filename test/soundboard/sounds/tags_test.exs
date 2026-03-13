@@ -2,8 +2,8 @@ defmodule Soundboard.Sounds.TagsTest do
   use Soundboard.DataCase
 
   alias Soundboard.Accounts.User
-  alias Soundboard.Sounds.Tags
   alias Soundboard.{Repo, Sound, Tag}
+  alias Soundboard.Sounds.Tags
 
   setup do
     {:ok, user} =

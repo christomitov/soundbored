@@ -3,8 +3,8 @@ defmodule Soundboard.Accounts.ApiTokensTest do
 
   import Mock
 
-  alias Soundboard.Repo
   alias Soundboard.Accounts.{ApiToken, ApiTokens, User}
+  alias Soundboard.Repo
 
   setup do
     {:ok, user} =
