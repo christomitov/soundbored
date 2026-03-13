@@ -3,6 +3,7 @@ defmodule SoundboardWeb.AuthController do
 
   plug Ueberauth
 
+  alias Soundboard.Discord.{OAuthAuthorization, RolePermissions}
   alias Soundboard.Accounts.User
   alias Soundboard.Repo
 
@@ -19,21 +20,26 @@ defmodule SoundboardWeb.AuthController do
   end
 
   def callback(%{assigns: %{ueberauth_auth: auth}} = conn, _params) do
-    user_params = %{
-      discord_id: auth.uid,
-      username: auth.info.nickname || auth.info.name,
-      avatar: auth.info.image
-    }
+    case OAuthAuthorization.authorize(auth, return_roles: true) do
+      {:ok, :authorized, user_roles} ->
+        user_params = user_params(auth, user_roles)
 
-    case find_or_create_user(user_params) do
-      {:ok, user} ->
-        conn
-        |> put_session(:user_id, user.id)
-        |> redirect(to: "/")
+        case find_or_create_user(user_params) do
+          {:ok, user} ->
+            conn
+            |> put_session(:user_id, user.id)
+            |> redirect(to: "/")
 
-      {:error, _reason} ->
+          {:error, _reason} ->
+            conn
+            |> put_flash(:error, "Error signing in")
+            |> redirect(to: "/")
+        end
+
+      {:error, reason} ->
         conn
-        |> put_flash(:error, "Error signing in")
+        |> clear_session()
+        |> put_flash(:error, OAuthAuthorization.error_message(reason))
         |> redirect(to: "/")
     end
   end
@@ -52,8 +58,19 @@ defmodule SoundboardWeb.AuthController do
         |> Repo.insert()
 
       user ->
-        {:ok, user}
+        user
+        |> User.changeset(params)
+        |> Repo.update()
     end
+  end
+
+  defp user_params(%{} = auth, user_roles) do
+    %{
+      discord_id: auth.uid,
+      username: auth.info.nickname || auth.info.name,
+      avatar: auth.info.image,
+      discord_roles: RolePermissions.serialize_user_roles(user_roles)
+    }
   end
 
   def logout(conn, _params) do

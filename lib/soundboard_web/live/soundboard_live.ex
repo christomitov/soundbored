@@ -7,6 +7,7 @@ defmodule SoundboardWeb.SoundboardLive do
   import UploadModal
   import SoundboardWeb.Components.Soundboard.TagComponents, only: [tag_filter_button: 1]
   alias Soundboard.{Favorites, PubSubTopics, Sounds}
+  alias Soundboard.Discord.RolePermissions
   alias SoundboardWeb.Live.SoundboardLive.{EditFlow, UploadFlow}
   alias SoundboardWeb.Live.Support.{FlashHelpers, SoundPlayback}
   alias SoundboardWeb.Soundboard.SoundFilter
@@ -121,7 +122,13 @@ defmodule SoundboardWeb.SoundboardLive do
 
   @impl true
   def handle_event("save_upload", params, socket) do
-    UploadFlow.save(socket, params, &Phoenix.LiveView.consume_uploaded_entries/3)
+    case authorize_upload(socket) do
+      :ok ->
+        UploadFlow.save(socket, params, &Phoenix.LiveView.consume_uploaded_entries/3)
+
+      {:error, message} ->
+        {:noreply, put_flash(socket, :error, message)}
+    end
   end
 
   @impl true
@@ -131,7 +138,13 @@ defmodule SoundboardWeb.SoundboardLive do
 
   @impl true
   def handle_event("show_upload_modal", _params, socket) do
-    UploadFlow.show_modal(socket)
+    case authorize_upload(socket) do
+      :ok ->
+        UploadFlow.show_modal(socket)
+
+      {:error, message} ->
+        {:noreply, put_flash(socket, :error, message)}
+    end
   end
 
   @impl true
@@ -355,5 +368,18 @@ defmodule SoundboardWeb.SoundboardLive do
 
   defp handle_progress(:audio, _entry, socket) do
     {:noreply, socket}
+  end
+
+  defp authorize_upload(socket) do
+    case socket.assigns[:current_user] do
+      %Soundboard.Accounts.User{} = user ->
+        case RolePermissions.authorize_upload(user) do
+          :ok -> :ok
+          {:error, reason} -> {:error, RolePermissions.permission_message(reason)}
+        end
+
+      _ ->
+        {:error, "You must be logged in to upload sounds"}
+    end
   end
 end

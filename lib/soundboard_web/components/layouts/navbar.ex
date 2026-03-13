@@ -37,7 +37,7 @@ defmodule SoundboardWeb.Components.Layouts.Navbar do
               <.nav_link navigate="/stats" active={current_page?(@current_path, "/stats")}>
                 Stats
               </.nav_link>
-              <%= if @current_user do %>
+              <%= if @current_user && Soundboard.Discord.RolePermissions.settings_panel_access?(@current_user) do %>
                 <.nav_link
                   navigate="/settings"
                   active={current_page?(@current_path, "/settings")}
@@ -133,7 +133,7 @@ defmodule SoundboardWeb.Components.Layouts.Navbar do
           <.mobile_nav_link navigate="/stats" active={current_page?(@current_path, "/stats")}>
             Stats
           </.mobile_nav_link>
-          <%= if @current_user do %>
+          <%= if @current_user && Soundboard.Discord.RolePermissions.settings_panel_access?(@current_user) do %>
             <.mobile_nav_link
               navigate="/settings"
               active={current_page?(@current_path, "/settings")}

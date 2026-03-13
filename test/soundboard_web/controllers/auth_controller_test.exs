@@ -1,6 +1,7 @@
 defmodule SoundboardWeb.AuthControllerTest do
   use SoundboardWeb.ConnCase
   alias Soundboard.{Accounts.User, Repo}
+  import Mock
   import ExUnit.CaptureLog
 
   setup %{conn: conn} do
@@ -19,9 +20,19 @@ defmodule SoundboardWeb.AuthControllerTest do
       client_id: "test_client_id",
       client_secret: "test_client_secret"
     )
+    previous_required_guild_id = Application.get_env(:soundboard, :oauth_required_guild_id)
+    previous_allowed_role_ids = Application.get_env(:soundboard, :oauth_allowed_role_ids)
+    previous_member_client = Application.get_env(:soundboard, :discord_member_client)
+
+    Application.put_env(:soundboard, :oauth_required_guild_id, "")
+    Application.put_env(:soundboard, :oauth_allowed_role_ids, [])
+    Application.put_env(:soundboard, :discord_member_client, Soundboard.Discord.MemberClient)
 
     on_exit(fn ->
       Application.delete_env(:ueberauth, Ueberauth.Strategy.Discord.OAuth)
+      restore_value(:soundboard, :oauth_required_guild_id, previous_required_guild_id)
+      restore_value(:soundboard, :oauth_allowed_role_ids, previous_allowed_role_ids)
+      restore_value(:soundboard, :discord_member_client, previous_member_client)
     end)
 
     {:ok, conn: conn}
@@ -123,6 +134,61 @@ defmodule SoundboardWeb.AuthControllerTest do
       end)
     end
 
+    test "callback/2 denies users missing required guild membership", %{conn: conn} do
+      Application.put_env(:soundboard, :oauth_required_guild_id, "guild-123")
+      Application.put_env(:soundboard, :oauth_allowed_role_ids, ["role-a", "role-b"])
+
+      auth_data = %{
+        uid: "12345",
+        credentials: %{token: "oauth-token"},
+        info: %{
+          nickname: "TestUser",
+          image: "test_avatar.jpg"
+        }
+      }
+
+      with_mock Soundboard.Discord.MemberClient,
+                [get_member_roles: fn "guild-123", "12345", "oauth-token" -> {:error, :not_in_guild} end] do
+        conn =
+          conn
+          |> assign(:ueberauth_auth, auth_data)
+          |> get(~p"/auth/discord/callback")
+
+        assert redirected_to(conn) == "/"
+        assert Phoenix.Flash.get(conn.assigns.flash, :error) ==
+                 "Access denied: not a member of the required Discord server."
+        refute get_session(conn, :user_id)
+        refute Repo.get_by(User, discord_id: "12345")
+      end
+    end
+
+    test "callback/2 denies users missing required roles", %{conn: conn} do
+      Application.put_env(:soundboard, :oauth_required_guild_id, "guild-123")
+      Application.put_env(:soundboard, :oauth_allowed_role_ids, ["role-admin"])
+
+      auth_data = %{
+        uid: "12345",
+        credentials: %{token: "oauth-token"},
+        info: %{
+          nickname: "TestUser",
+          image: "test_avatar.jpg"
+        }
+      }
+
+      with_mock Soundboard.Discord.MemberClient,
+                [get_member_roles: fn "guild-123", "12345", "oauth-token" -> {:ok, ["role-user"]} end] do
+        conn =
+          conn
+          |> assign(:ueberauth_auth, auth_data)
+          |> get(~p"/auth/discord/callback")
+
+        assert redirected_to(conn) == "/"
+        assert Phoenix.Flash.get(conn.assigns.flash, :error) ==
+                 "Access denied: you do not have a required role."
+        refute get_session(conn, :user_id)
+      end
+    end
+
     test "logout/2 clears session and redirects", %{conn: conn} do
       conn =
         conn
@@ -160,4 +226,7 @@ defmodule SoundboardWeb.AuthControllerTest do
 
     user
   end
+
+  defp restore_value(app, key, nil), do: Application.delete_env(app, key)
+  defp restore_value(app, key, value), do: Application.put_env(app, key, value)
 end

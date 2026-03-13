@@ -1,7 +1,9 @@
 defmodule SoundboardWeb.SettingsLive do
   use SoundboardWeb, :live_view
   use SoundboardWeb.Live.Support.PresenceLive
+
   alias Soundboard.Accounts.ApiTokens
+  alias Soundboard.Discord.RolePermissions
   alias Soundboard.PublicURL
 
   @impl true
@@ -14,8 +16,9 @@ defmodule SoundboardWeb.SettingsLive do
       |> assign(:tokens, [])
       |> assign(:new_token, nil)
       |> assign(:base_url, PublicURL.current())
+      |> assign(:role_settings, [])
 
-    {:ok, load_tokens(socket)}
+    {:ok, load_tokens(load_role_settings(socket))}
   end
 
   @impl true
@@ -34,7 +37,8 @@ defmodule SoundboardWeb.SettingsLive do
         {:noreply,
          socket
          |> assign(:new_token, raw)
-         |> load_tokens()}
+         |> load_tokens()
+         |> load_role_settings()}
 
       {:error, _changeset} ->
         {:noreply, put_flash(socket, :error, "Failed to create token")}
@@ -44,10 +48,48 @@ defmodule SoundboardWeb.SettingsLive do
   @impl true
   def handle_event("revoke_token", %{"id" => id}, %{assigns: %{current_user: user}} = socket) do
     case ApiTokens.revoke_token(user, id) do
-      {:ok, _} -> {:noreply, socket |> load_tokens() |> put_flash(:info, "Token revoked")}
+      {:ok, _} -> {:noreply, socket |> load_tokens() |> load_role_settings() |> put_flash(:info, "Token revoked")}
       {:error, :forbidden} -> {:noreply, put_flash(socket, :error, "Not allowed")}
       {:error, :not_found} -> {:noreply, put_flash(socket, :error, "Token not found")}
       {:error, _} -> {:noreply, put_flash(socket, :error, "Failed to revoke token")}
+    end
+  end
+
+  @impl true
+  def handle_event(
+        "save_role_setting",
+        params,
+        socket
+      ) do
+    case RolePermissions.save_role_setting(params) do
+      {:ok, _setting} ->
+        {:noreply, socket |> load_role_settings() |> put_flash(:info, "Role permissions saved")}
+
+      {:error, :invalid_payload} ->
+        {:noreply, put_flash(socket, :error, "Role settings are unavailable or invalid input")}
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        {:noreply, put_flash(socket, :error, format_changeset_errors(changeset))}
+
+      {:error, :not_found} ->
+        {:noreply, put_flash(socket, :error, "Role permission not found")}
+
+      {:error, _} ->
+        {:noreply, put_flash(socket, :error, "Unable to save role permissions")}
+    end
+  end
+
+  @impl true
+  def handle_event("delete_role_setting", %{"role_id" => role_id}, socket) do
+    case RolePermissions.delete_role_setting(role_id) do
+      {:ok, _setting} ->
+        {:noreply, socket |> load_role_settings() |> put_flash(:info, "Role permissions removed")}
+
+      {:error, :not_found} ->
+        {:noreply, put_flash(socket, :error, "Role permission not found")}
+
+      {:error, _} ->
+        {:noreply, put_flash(socket, :error, "Unable to remove role permissions")}
     end
   end
 
@@ -66,6 +108,11 @@ defmodule SoundboardWeb.SettingsLive do
     socket
     |> assign(:tokens, tokens)
     |> assign(:example_token, example)
+  end
+
+  defp load_role_settings(socket) do
+    socket
+    |> assign(:role_settings, RolePermissions.list_role_settings())
   end
 
   @impl true
@@ -149,7 +196,7 @@ defmodule SoundboardWeb.SettingsLive do
                       {format_dt(token.inserted_at)}
                     </td>
                     <td class="px-4 py-2 text-gray-500 dark:text-gray-400 whitespace-nowrap">
-                      {format_dt(token.last_used_at) || "—"}
+                      {format_dt(token.last_used_at) || "-"}
                     </td>
                     <td class="px-4 py-2 text-right align-top">
                       <button
@@ -188,7 +235,7 @@ defmodule SoundboardWeb.SettingsLive do
                 >
                   Copy
                 </button>
-                <pre class="mt-1 p-2 pr-16 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded text-xs overflow-x-auto whitespace-nowrap min-h-[56px]"><code class="text-gray-800 dark:text-gray-100 font-mono">curl -H \"Authorization: Bearer {(@example_token || "<TOKEN>")}\" {@base_url}/api/sounds</code></pre>
+                <pre class="mt-1 p-2 pr-16 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded text-xs overflow-x-auto whitespace-nowrap min-h-[56px]"><code class="text-gray-800 dark:text-gray-100 font-mono">curl -H \"Authorization: Bearer {(@example_token || "<TOKEN>")}\" #{@base_url}/api/sounds</code></pre>
               </div>
             </div>
             <div class="text-xs text-gray-600 dark:text-gray-400">
@@ -224,7 +271,7 @@ defmodule SoundboardWeb.SettingsLive do
     -F "tags[]=alert" \
     -F "volume=90" \
     -F "is_join_sound=true" \
-    {@base_url}/api/sounds</code></pre>
+    #{@base_url}/api/sounds</code></pre>
               </div>
             </div>
             <div>
@@ -245,7 +292,7 @@ defmodule SoundboardWeb.SettingsLive do
     -H "Authorization: Bearer {(@example_token || "<TOKEN>")}" \
     -H "Content-Type: application/json" \
     -d '&#123;"source_type":"url","name":"wow","url":"https://example.com/wow.mp3","tags":["meme","reaction"],"volume":90,"is_leave_sound":true&#125;' \
-    {@base_url}/api/sounds</code></pre>
+    #{@base_url}/api/sounds</code></pre>
               </div>
             </div>
             <div>
@@ -283,8 +330,135 @@ defmodule SoundboardWeb.SettingsLive do
           </div>
         </div>
       </section>
+
+      <section aria-labelledby="role-permissions-heading" class="space-y-4">
+        <header class="space-y-2">
+          <h2 id="role-permissions-heading" class="text-xl font-semibold text-gray-800 dark:text-gray-100">
+            Discord role permissions
+          </h2>
+          <p class="text-sm text-gray-600 dark:text-gray-400">
+            Configure playback upload settings by Discord role for the configured guild.
+          </p>
+        </header>
+
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-5 space-y-4">
+          <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-100">Add or update role settings</h3>
+          <form phx-submit="save_role_setting" class="grid gap-3 sm:grid-cols-5 items-end">
+            <div class="sm:col-span-2">
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Role ID</label>
+              <input
+                name="role_id"
+                type="text"
+                required
+                placeholder="e.g., 123456789012345678"
+                class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-700 shadow-sm dark:bg-gray-900 dark:text-gray-100 focus:border-blue-500 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Cooldown (ms)</label>
+              <input
+                name="cooldown_ms"
+                type="number"
+                min="0"
+                step="100"
+                value="0"
+                class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-700 shadow-sm dark:bg-gray-900 dark:text-gray-100 focus:border-blue-500 focus:ring-blue-500"
+              />
+            </div>
+            <div class="flex items-end gap-4 sm:col-span-2">
+              <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                <input name="can_upload" value="true" type="checkbox" checked />
+                <span>Can upload</span>
+              </label>
+              <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                <input name="can_play" value="true" type="checkbox" checked />
+                <span>Can play</span>
+              </label>
+            </div>
+            <div class="sm:col-span-5">
+              <button
+                type="submit"
+                class="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-md font-medium hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900"
+              >
+                Save role settings
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+          <%= if Enum.empty?(@role_settings) do %>
+            <div class="p-5 text-sm text-gray-500 dark:text-gray-400">
+              No role-specific settings yet.
+            </div>
+          <% else %>
+            <div class="overflow-x-auto">
+              <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
+                <thead class="bg-gray-50 dark:bg-gray-900">
+                  <tr>
+                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role ID</th>
+                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cooldown (ms)</th>
+                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Can upload</th>
+                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Can play</th>
+                    <th class="px-4 py-2"></th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                  <%= for setting <- @role_settings do %>
+                    <tr class="text-sm">
+                      <td class="px-4 py-2 text-gray-900 dark:text-gray-100 whitespace-nowrap font-mono">
+                        {setting.role_id}
+                      </td>
+                      <td class="px-4 py-2 text-gray-900 dark:text-gray-100 whitespace-nowrap">
+                        {setting.cooldown_ms}
+                      </td>
+                      <td class="px-4 py-2 text-gray-900 dark:text-gray-100">
+                        <span class={[bool_class(setting.can_upload), "inline-flex rounded px-2 py-0.5 text-xs"]}>
+                          {bool_text(setting.can_upload)}
+                        </span>
+                      </td>
+                      <td class="px-4 py-2 text-gray-900 dark:text-gray-100">
+                        <span class={[bool_class(setting.can_play), "inline-flex rounded px-2 py-0.5 text-xs"]}>
+                          {bool_text(setting.can_play)}
+                        </span>
+                      </td>
+                      <td class="px-4 py-2 text-right align-top">
+                        <button
+                          phx-click="delete_role_setting"
+                          phx-value-role_id={setting.role_id}
+                          class="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900"
+                        >
+                          Remove
+                        </button>
+                      </td>
+                    </tr>
+                  <% end %>
+                </tbody>
+              </table>
+            </div>
+          <% end %>
+        </div>
+      </section>
     </div>
     """
+  end
+
+  defp bool_class(true), do: "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-200"
+  defp bool_class(false), do: "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-200"
+  defp bool_text(true), do: "Enabled"
+  defp bool_text(false), do: "Disabled"
+
+  defp format_changeset_errors(changeset) do
+    Ecto.Changeset.traverse_errors(changeset, fn {message, opts} ->
+      Regex.replace(~r"%{(\w+)}", message, fn _, key ->
+        opts
+        |> Keyword.get(String.to_existing_atom(key), key)
+        |> to_string()
+      end)
+    end)
+    |> Enum.map_join(" ", fn {field, errors} ->
+      "#{field}: #{Enum.join(errors, ", ")}"
+    end)
   end
 
   defp format_dt(nil), do: nil

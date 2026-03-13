@@ -32,6 +32,10 @@ defmodule SoundboardWeb.Router do
     plug SoundboardWeb.Plugs.APIAuth
   end
 
+  pipeline :settings_access do
+    plug :require_settings_panel_access
+  end
+
   # Discord OAuth routes - must come before protected routes
   scope "/auth", SoundboardWeb do
     pipe_through [:browser]
@@ -48,6 +52,17 @@ defmodule SoundboardWeb.Router do
     live "/", SoundboardLive
     live "/stats", StatsLive
     live "/favorites", FavoritesLive
+  end
+
+  scope "/", SoundboardWeb do
+    pipe_through [
+      :browser,
+      :auth,
+      :ensure_authenticated_user,
+      :require_browser_basic_auth,
+      :settings_access
+    ]
+
     live "/settings", SettingsLive
   end
 
@@ -100,6 +115,17 @@ defmodule SoundboardWeb.Router do
       conn
       |> put_session(:return_to, conn.request_path)
       |> redirect(to: "/auth/discord")
+      |> halt()
+    end
+  end
+
+  def require_settings_panel_access(conn, _opts) do
+    if Soundboard.Discord.RolePermissions.settings_panel_access?(conn.assigns[:current_user]) do
+      conn
+    else
+      conn
+      |> put_flash(:error, "Access denied: you do not have permission to access settings.")
+      |> redirect(to: "/")
       |> halt()
     end
   end

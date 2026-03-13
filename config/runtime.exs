@@ -10,6 +10,40 @@ source!([
   System.get_env()
 ])
 
+oauth_scope = fn
+  nil -> "identify"
+  value when is_binary(value) ->
+    if String.trim(value) == "" do
+      "identify"
+    else
+      "identify guilds.members.read"
+    end
+
+  _ -> "identify"
+end
+
+normalize_guild_id = fn
+  nil -> nil
+  value when is_binary(value) ->
+    case String.trim(value) do
+      "" -> nil
+      trimmed -> trimmed
+    end
+
+  _ -> nil
+end
+
+normalize_role_ids = fn
+  nil -> []
+  value when is_binary(value) ->
+    value
+    |> String.split(",")
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+
+  _ -> []
+end
+
 # config/runtime.exs is executed for all environments, including
 # during releases. It is executed after compilation and before the
 # system starts, so it is typically used to load production configuration
@@ -34,6 +68,9 @@ if config_env() == :dev do
   scheme = env!("SCHEME", :string!, "http")
   port = env!("PORT", :integer, 4000)
   callback_url = "#{scheme}://#{host}/auth/discord/callback"
+  required_guild_id = env!("SOUNDBOARD_REQUIRED_GUILD_ID", :string, nil)
+  allowed_role_ids = env!("SOUNDBOARD_ALLOWED_ROLE_IDS", :string, "")
+  settings_panel_role_ids = env!("SOUNDBOARD_SETTINGS_PANEL_ROLE_IDS", :string, "")
   discord_token = env!("DISCORD_TOKEN", :string!, nil)
   client_id = env!("DISCORD_CLIENT_ID", :string!, nil)
   client_secret = env!("DISCORD_CLIENT_SECRET", :string!, nil)
@@ -68,7 +105,13 @@ if config_env() == :dev do
   config :ueberauth, Ueberauth.Strategy.Discord.OAuth,
     client_id: client_id,
     client_secret: client_secret,
-    redirect_uri: callback_url
+    redirect_uri: callback_url,
+    default_scope: oauth_scope.(required_guild_id)
+
+  config :ueberauth, Ueberauth,
+    providers: [
+      discord: {Ueberauth.Strategy.Discord, [default_scope: oauth_scope.(required_guild_id)]}
+    ]
 
   ffmpeg_available = not is_nil(System.find_executable("ffmpeg"))
 
@@ -80,6 +123,10 @@ if config_env() == :dev do
 
   config :soundboard,
     discord_token: discord_token,
+    oauth_required_guild_id: normalize_guild_id.(required_guild_id),
+    oauth_allowed_role_ids: normalize_role_ids.(allowed_role_ids),
+    settings_panel_role_ids: normalize_role_ids.(settings_panel_role_ids),
+    discord_member_client: Soundboard.Discord.MemberClient,
     voice_rtp_probe: voice_rtp_probe,
     voice_rtp_probe_timeout_ms: voice_rtp_probe_timeout_ms,
     ffmpeg_available: ffmpeg_available
@@ -162,14 +209,21 @@ if config_env() == :prod and is_nil(env!("SKIP_RUNTIME_CONFIG", :string, nil)) d
   # Configure Ueberauth
   config :ueberauth, Ueberauth,
     providers: [
-      discord: {Ueberauth.Strategy.Discord, [default_scope: "identify"]}
+      discord:
+        {Ueberauth.Strategy.Discord,
+         [default_scope: oauth_scope.(env!("SOUNDBOARD_REQUIRED_GUILD_ID", :string, nil))]}
     ]
 
   # Configure Discord OAuth
+  required_guild_id = env!("SOUNDBOARD_REQUIRED_GUILD_ID", :string, nil)
+  allowed_role_ids = env!("SOUNDBOARD_ALLOWED_ROLE_IDS", :string, "")
+  settings_panel_role_ids = env!("SOUNDBOARD_SETTINGS_PANEL_ROLE_IDS", :string, "")
+
   config :ueberauth, Ueberauth.Strategy.Discord.OAuth,
     client_id: env!("DISCORD_CLIENT_ID", :string!),
     client_secret: env!("DISCORD_CLIENT_SECRET", :string!),
-    redirect_uri: callback_url
+    redirect_uri: callback_url,
+    default_scope: oauth_scope.(required_guild_id)
 
   # Configure Discord bot token
   discord_token = env!("DISCORD_TOKEN", :string!)
@@ -189,6 +243,10 @@ if config_env() == :prod and is_nil(env!("SKIP_RUNTIME_CONFIG", :string, nil)) d
 
   config :soundboard,
     discord_token: discord_token,
+    oauth_required_guild_id: normalize_guild_id.(required_guild_id),
+    oauth_allowed_role_ids: normalize_role_ids.(allowed_role_ids),
+    settings_panel_role_ids: normalize_role_ids.(settings_panel_role_ids),
+    discord_member_client: Soundboard.Discord.MemberClient,
     voice_rtp_probe: voice_rtp_probe,
     voice_rtp_probe_timeout_ms: voice_rtp_probe_timeout_ms,
     ffmpeg_available: ffmpeg_available

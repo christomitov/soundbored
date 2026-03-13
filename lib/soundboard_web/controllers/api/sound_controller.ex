@@ -1,6 +1,7 @@
 defmodule SoundboardWeb.API.SoundController do
   use SoundboardWeb, :controller
 
+  alias Soundboard.Discord.RolePermissions
   alias Soundboard.{Repo, Sound, Sounds}
 
   def index(conn, _params) do
@@ -15,6 +16,7 @@ defmodule SoundboardWeb.API.SoundController do
 
   def create(conn, params) do
     with {:ok, user} <- require_upload_user(conn),
+         :ok <- RolePermissions.authorize_upload(user),
          {:ok, sound} <- create_sound(user, params) do
       conn
       |> put_status(:created)
@@ -24,6 +26,11 @@ defmodule SoundboardWeb.API.SoundController do
         conn
         |> put_status(:forbidden)
         |> json(%{error: "Uploads require a user API token"})
+
+      {:error, :forbidden} ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%{error: RolePermissions.permission_message(:forbidden)})
 
       {:error, %Ecto.Changeset{} = changeset} ->
         conn
@@ -42,20 +49,40 @@ defmodule SoundboardWeb.API.SoundController do
       sound ->
         case require_play_user(conn) do
           {:ok, user} ->
-            actor = %{display_name: user.username, user_id: user.id}
+            case RolePermissions.authorize_play(user) do
+              :ok ->
+                actor = %{display_name: user.username, user_id: user.id}
 
-            Soundboard.AudioPlayer.play_sound(sound.filename, actor)
+                Soundboard.AudioPlayer.play_sound(sound.filename, actor)
 
-            conn
-            |> put_status(:accepted)
-            |> json(%{
-              data: %{
-                status: "accepted",
-                message: "Playback request accepted for #{sound.filename}",
-                requested_by: actor.display_name,
-                sound: %{id: sound.id, filename: sound.filename}
-              }
-            })
+                conn
+                |> put_status(:accepted)
+                |> json(%{
+                  data: %{
+                    status: "accepted",
+                    message: "Playback request accepted for #{sound.filename}",
+                    requested_by: actor.display_name,
+                    sound: %{id: sound.id, filename: sound.filename}
+                  }
+                })
+
+              {:error, :forbidden} ->
+                conn
+                |> put_status(:forbidden)
+                |> json(%{error: RolePermissions.permission_message(:forbidden)})
+
+              {:error, {:cooldown_active, ms}} ->
+                conn
+                |> put_status(:too_many_requests)
+                |> json(%{
+                  error: "Playback is on cooldown. Try again in #{ms}ms."
+                })
+
+              {:error, _reason} ->
+                conn
+                |> put_status(:forbidden)
+                |> json(%{error: RolePermissions.permission_message(:forbidden)})
+            end
 
           {:error, :forbidden_auth_state} ->
             conn
