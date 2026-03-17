@@ -65,10 +65,17 @@ defmodule Soundboard.AudioPlayer.VoiceSession do
 
   defp perform_maintenance(%{joined?: true} = status, state) do
     Logger.warning(
-      "Voice session unready for guild #{status.guild_id} in channel #{status.channel_id}, attempting refresh"
+      "Voice session unready for guild #{status.guild_id} in channel #{status.channel_id}, forcing leave→rejoin"
     )
 
-    attempt_voice_join(state, status.guild_id, status.channel_id, "refresh")
+    try do
+      Voice.leave_channel(status.guild_id)
+    rescue
+      error -> Logger.warning("Voice leave failed during reset: #{inspect(error)}")
+    end
+
+    Process.sleep(1_000)
+    attempt_voice_join(state, status.guild_id, status.channel_id, "rejoin after stale session")
   end
 
   defp perform_maintenance(status, state) do
