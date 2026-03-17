@@ -34,13 +34,15 @@ defmodule Soundboard.AudioPlayerTest do
       channel_id: fn "guild-1" -> "channel-1" end,
       ready?: fn "guild-1" -> false end,
       playing?: fn "guild-1" -> raise "playback status unavailable" end,
+      leave_channel: fn "guild-1" -> :ok end,
       join_channel: fn "guild-1", "channel-1" ->
         send(test_pid, :join_attempted)
         :ok
       end do
       send(AudioPlayer, :check_voice_connection)
 
-      assert_receive :join_attempted
+      # leave→rejoin includes a 1s sleep between leave and join
+      assert_receive :join_attempted, 2_000
     end
   end
 end
