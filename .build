@@ -40,7 +40,6 @@ SoundboardWeb.ErrorHTML.html
 SoundboardWeb.ErrorJSON.html
 SoundboardWeb.FavoritesLive.html
 SoundboardWeb.Gettext.html
-SoundboardWeb.Layouts.html
 SoundboardWeb.Live.Support.LiveTags.html
 SoundboardWeb.Live.Support.PresenceLive.html
 SoundboardWeb.Plugs.APIAuth.html
@@ -64,7 +63,7 @@ dist/lato-latin-700-normal-2XVSBPG4.woff2
 dist/lato-latin-ext-400-normal-N27NCBWW.woff2
 dist/lato-latin-ext-700-normal-Q2L5DVMW.woff2
 dist/remixicon-QPNJX265.woff2
-dist/search_data-2810FE88.js
-dist/sidebar_items-C5B01E1B.js
+dist/search_data-A97CA2BF.js
+dist/sidebar_items-DDAC37AB.js
 index.html
 search.html
