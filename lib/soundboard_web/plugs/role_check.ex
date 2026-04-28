@@ -1,5 +1,6 @@
 defmodule SoundboardWeb.Plugs.RoleCheck do
   @moduledoc false
+  require Logger
   import Plug.Conn
   import Phoenix.Controller
 
@@ -27,6 +28,8 @@ defmodule SoundboardWeb.Plugs.RoleCheck do
       if RoleChecker.authorized?(discord_id) do
         put_session(conn, :roles_verified_at, System.system_time(:second))
       else
+        Logger.warning("Role check failed for Discord user #{discord_id}, clearing session")
+
         conn
         |> clear_session()
         |> put_flash(:error, "Error signing in")

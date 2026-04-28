@@ -1,5 +1,6 @@
 defmodule Soundboard.Discord.RoleChecker do
   @moduledoc false
+  require Logger
 
   alias EDA.API.Member
 
@@ -43,13 +44,21 @@ defmodule Soundboard.Discord.RoleChecker do
       {:ok, member} ->
         case member do
           %{"roles" => roles} when is_list(roles) ->
-            Enum.any?(roles, &Enum.member?(required_role_ids, &1))
+            authorized = Enum.any?(roles, &Enum.member?(required_role_ids, &1))
+
+            unless authorized do
+              Logger.info("Discord user #{user_id} has no matching required roles")
+            end
+
+            authorized
 
           _ ->
+            Logger.warning("Unexpected member response shape for Discord user #{user_id}")
             false
         end
 
-      {:error, _} ->
+      {:error, reason} ->
+        Logger.error("Member API error for Discord user #{user_id}: #{inspect(reason)}")
         false
     end
   end
