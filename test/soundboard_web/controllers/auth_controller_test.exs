@@ -2,6 +2,8 @@ defmodule SoundboardWeb.AuthControllerTest do
   use SoundboardWeb.ConnCase
   alias Soundboard.{Accounts.User, Repo}
   import ExUnit.CaptureLog
+  import Mock
+  alias EDA.API.Member
 
   setup %{conn: conn} do
     # Clean up users before each test
@@ -144,6 +146,73 @@ defmodule SoundboardWeb.AuthControllerTest do
 
       assert json = json_response(conn, 200)
       assert json == %{"session" => %{"session_id" => 123, "user_id" => user.id}}
+    end
+  end
+
+  describe "role-gated access" do
+    test "callback/2 sets roles_verified_at session key on successful auth", %{conn: conn} do
+      # Feature is disabled in test env (no guild_id/role_ids configured),
+      # so RoleChecker.authorized?/1 returns true without any mocking.
+      auth_data = %{
+        uid: "99999",
+        info: %{
+          nickname: "RoleUser",
+          image: "role_avatar.jpg"
+        }
+      }
+
+      conn =
+        conn
+        |> assign(:ueberauth_auth, auth_data)
+        |> get(~p"/auth/discord/callback")
+
+      assert redirected_to(conn) == "/"
+      assert get_session(conn, :user_id)
+      assert is_integer(get_session(conn, :roles_verified_at))
+    end
+
+    test "callback/2 rejects unauthorized user without creating user record", %{conn: conn} do
+      previous_guild = Application.get_env(:soundboard, :required_guild_id)
+      previous_roles = Application.get_env(:soundboard, :required_role_ids)
+
+      Application.put_env(:soundboard, :required_guild_id, "test_guild")
+      Application.put_env(:soundboard, :required_role_ids, ["required_role"])
+
+      on_exit(fn ->
+        if is_nil(previous_guild),
+          do: Application.delete_env(:soundboard, :required_guild_id),
+          else: Application.put_env(:soundboard, :required_guild_id, previous_guild)
+
+        if is_nil(previous_roles),
+          do: Application.delete_env(:soundboard, :required_role_ids),
+          else: Application.put_env(:soundboard, :required_role_ids, previous_roles)
+      end)
+
+      user_count_before = Repo.aggregate(User, :count)
+
+      auth_data = %{
+        uid: "unauthorized_user",
+        info: %{
+          nickname: "UnauthorizedUser",
+          image: "avatar.jpg"
+        }
+      }
+
+      with_mock Member,
+        get: fn "test_guild", "unauthorized_user" -> {:ok, %{"roles" => ["other_role"]}} end do
+        conn =
+          conn
+          |> assign(:ueberauth_auth, auth_data)
+          |> get(~p"/auth/discord/callback")
+
+        assert redirected_to(conn) == "/"
+
+        assert Phoenix.Flash.get(conn.assigns.flash, :error) ==
+                 "You do not have permission to access this application"
+
+        refute get_session(conn, :user_id)
+        assert Repo.aggregate(User, :count) == user_count_before
+      end
     end
   end
 
