@@ -46,6 +46,24 @@ defmodule SoundboardWeb.Plugs.RoleCheckTest do
     |> assign(:current_user, user)
   end
 
+  test "passes through when no current_user is assigned", %{conn: conn} do
+    Application.put_env(:soundboard, :required_guild_id, "g1")
+    Application.put_env(:soundboard, :required_role_ids, ["r1"])
+
+    with_mock RoleChecker,
+      feature_enabled?: fn -> true end,
+      authorized?: fn _ -> flunk("should not be called") end do
+      result =
+        conn
+        |> init_test_session(%{})
+        |> fetch_session()
+        |> fetch_flash()
+        |> RoleCheck.call(RoleCheck.init([]))
+
+      refute result.halted
+    end
+  end
+
   describe "feature disabled" do
     test "passes through without calling authorized? when feature is disabled", %{
       conn: conn,
@@ -167,8 +185,7 @@ defmodule SoundboardWeb.Plugs.RoleCheckTest do
         assert result.halted
         assert redirected_to(result) == "/"
 
-        assert Phoenix.Flash.get(result.assigns.flash, :error) ==
-                 "Your role access has been revoked"
+        assert Phoenix.Flash.get(result.assigns.flash, :error) == "Error signing in"
 
         refute get_session(result, :user_id)
         assert_called(RoleChecker.authorized?(user.discord_id))

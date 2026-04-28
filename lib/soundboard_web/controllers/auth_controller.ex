@@ -41,7 +41,7 @@ defmodule SoundboardWeb.AuthController do
       end
     else
       conn
-      |> put_flash(:error, "You do not have permission to access this application")
+      |> put_flash(:error, "Error signing in")
       |> redirect(to: "/")
     end
   end

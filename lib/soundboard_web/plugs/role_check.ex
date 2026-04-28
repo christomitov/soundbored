@@ -8,10 +8,10 @@ defmodule SoundboardWeb.Plugs.RoleCheck do
   def init(opts), do: opts
 
   def call(conn, _opts) do
-    if RoleChecker.feature_enabled?() do
-      check_role(conn)
-    else
-      conn
+    cond do
+      is_nil(conn.assigns[:current_user]) -> conn
+      not RoleChecker.feature_enabled?() -> conn
+      true -> check_role(conn)
     end
   end
 
@@ -29,7 +29,7 @@ defmodule SoundboardWeb.Plugs.RoleCheck do
       else
         conn
         |> clear_session()
-        |> put_flash(:error, "Your role access has been revoked")
+        |> put_flash(:error, "Error signing in")
         |> redirect(to: "/")
         |> halt()
       end

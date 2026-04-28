@@ -207,8 +207,7 @@ defmodule SoundboardWeb.AuthControllerTest do
 
         assert redirected_to(conn) == "/"
 
-        assert Phoenix.Flash.get(conn.assigns.flash, :error) ==
-                 "You do not have permission to access this application"
+        assert Phoenix.Flash.get(conn.assigns.flash, :error) == "Error signing in"
 
         refute get_session(conn, :user_id)
         assert Repo.aggregate(User, :count) == user_count_before
