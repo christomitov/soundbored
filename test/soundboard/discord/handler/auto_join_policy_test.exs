@@ -20,34 +20,45 @@ defmodule Soundboard.Discord.Handler.AutoJoinPolicyTest do
     :ok
   end
 
-  test "mode/0 is always enabled in test" do
+  test "mode/0 is :play in test environment regardless of AUTO_JOIN" do
     Application.put_env(:soundboard, :env, :test)
     System.put_env("AUTO_JOIN", "false")
-
-    assert AutoJoinPolicy.mode() == :enabled
+    assert AutoJoinPolicy.mode() == :play
   end
 
-  test "enabled?/0 recognizes truthy AUTO_JOIN values" do
+  test "defaults to :play when AUTO_JOIN is not set" do
+    Application.put_env(:soundboard, :env, :dev)
+    System.delete_env("AUTO_JOIN")
+    assert AutoJoinPolicy.mode() == :play
+  end
+
+  test "AUTO_JOIN=play returns :play" do
+    Application.put_env(:soundboard, :env, :dev)
+    System.put_env("AUTO_JOIN", "play")
+    assert AutoJoinPolicy.mode() == :play
+  end
+
+  test "AUTO_JOIN=presence returns :presence" do
+    Application.put_env(:soundboard, :env, :dev)
+    System.put_env("AUTO_JOIN", "presence")
+    assert AutoJoinPolicy.mode() == :presence
+  end
+
+  test "truthy values map to :presence" do
     Application.put_env(:soundboard, :env, :dev)
 
     for value <- ["true", "TRUE", "  yes ", "1"] do
       System.put_env("AUTO_JOIN", value)
-      assert AutoJoinPolicy.enabled?()
-      assert AutoJoinPolicy.mode() == :enabled
+      assert AutoJoinPolicy.mode() == :presence
     end
   end
 
-  test "enabled?/0 returns false for missing or non-truthy values" do
+  test "falsy and unknown values map to false" do
     Application.put_env(:soundboard, :env, :dev)
 
-    System.delete_env("AUTO_JOIN")
-    refute AutoJoinPolicy.enabled?()
-    assert AutoJoinPolicy.mode() == :disabled
-
-    for value <- ["false", "0", "no", "later"] do
+    for value <- ["false", "0", "no", "never", "unknown"] do
       System.put_env("AUTO_JOIN", value)
-      refute AutoJoinPolicy.enabled?()
-      assert AutoJoinPolicy.mode() == :disabled
+      assert AutoJoinPolicy.mode() == false
     end
   end
 end

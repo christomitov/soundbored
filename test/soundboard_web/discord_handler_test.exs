@@ -37,6 +37,7 @@ defmodule Soundboard.Discord.HandlerTest do
 
       capture_log(fn ->
         with_mocks([
+          {Soundboard.Discord.Handler.AutoJoinPolicy, [], [mode: fn -> :presence end]},
           {Soundboard.Discord.Voice, [],
            [
              join_channel: fn _, _ -> :ok end,
@@ -166,21 +167,14 @@ defmodule Soundboard.Discord.HandlerTest do
              get: fn ^guild_id -> {:ok, guild} end
            ]},
           {Soundboard.Discord.BotIdentity, [], [fetch: fn -> {:ok, %{id: bot_id}} end]},
-          {Soundboard.Discord.Voice, [],
-           [
-             leave_channel: fn ^guild_id ->
-               Agent.update(recorder, &(&1 ++ [:leave_channel]))
-               :ok
-             end
-           ]},
           {Soundboard.AudioPlayer, [],
            [
              play_sound: fn filename, played_by ->
                Agent.update(recorder, &(&1 ++ [{:play_sound, filename, played_by}]))
                :ok
              end,
-             set_voice_channel: fn guild, channel ->
-               Agent.update(recorder, &(&1 ++ [{:set_voice_channel, guild, channel}]))
+             last_user_left: fn guild ->
+               Agent.update(recorder, &(&1 ++ [{:last_user_left, guild}]))
                :ok
              end
            ]}
@@ -196,8 +190,7 @@ defmodule Soundboard.Discord.HandlerTest do
 
           assert Agent.get(recorder, & &1) == [
                    {:play_sound, "leave.mp3", "System"},
-                   :leave_channel,
-                   {:set_voice_channel, nil, nil}
+                   {:last_user_left, guild_id}
                  ]
         end
       end)

@@ -6,7 +6,7 @@ defmodule Soundboard.AudioPlayerTest do
   alias Soundboard.Accounts.User
   alias Soundboard.AudioPlayer
   alias Soundboard.AudioPlayer.State
-  alias Soundboard.Discord.Handler.VoicePresence
+  alias Soundboard.Discord.Handler.{AutoJoinPolicy, VoicePresence}
   alias Soundboard.Discord.Voice
 
   setup do
@@ -50,7 +50,7 @@ defmodule Soundboard.AudioPlayerTest do
   end
 
   describe "idle timeout" do
-    test "schedules idle timeout when voice channel is set" do
+    test "schedules idle timeout when voice channel is set (play mode)" do
       :sys.replace_state(AudioPlayer, fn state ->
         %{state | voice_channel: nil, idle_timeout_ref: nil}
       end)
@@ -62,6 +62,36 @@ defmodule Soundboard.AudioPlayerTest do
       state = :sys.get_state(AudioPlayer)
       assert state.voice_channel == {"guild-1", "ch-1"}
       assert state.idle_timeout_ref != nil
+    end
+
+    test "does not schedule idle timeout in presence mode" do
+      :sys.replace_state(AudioPlayer, fn state ->
+        %{state | voice_channel: nil, idle_timeout_ref: nil}
+      end)
+
+      with_mock AutoJoinPolicy, mode: fn -> :presence end do
+        AudioPlayer.set_voice_channel("guild-1", "ch-1")
+        AudioPlayer.current_voice_channel()
+
+        state = :sys.get_state(AudioPlayer)
+        assert state.voice_channel == {"guild-1", "ch-1"}
+        assert state.idle_timeout_ref == nil
+      end
+    end
+
+    test "does not schedule idle timeout in false mode on join" do
+      :sys.replace_state(AudioPlayer, fn state ->
+        %{state | voice_channel: nil, idle_timeout_ref: nil}
+      end)
+
+      with_mock AutoJoinPolicy, mode: fn -> false end do
+        AudioPlayer.set_voice_channel("guild-1", "ch-1")
+        AudioPlayer.current_voice_channel()
+
+        state = :sys.get_state(AudioPlayer)
+        assert state.voice_channel == {"guild-1", "ch-1"}
+        assert state.idle_timeout_ref == nil
+      end
     end
 
     test "cancels idle timeout when voice channel is cleared" do
@@ -77,7 +107,7 @@ defmodule Soundboard.AudioPlayerTest do
       assert state.idle_timeout_ref == nil
     end
 
-    test "resets idle timeout when a sound is played" do
+    test "resets idle timeout when a sound is played (play mode)" do
       token = make_ref()
 
       :sys.replace_state(AudioPlayer, fn state ->
@@ -104,6 +134,36 @@ defmodule Soundboard.AudioPlayerTest do
         # A new token means the timer was reset
         {_ref, new_token} = state.idle_timeout_ref
         assert new_token != token
+      end
+    end
+
+    test "does not reset idle timeout when a sound is played in presence mode" do
+      token = make_ref()
+
+      :sys.replace_state(AudioPlayer, fn state ->
+        %{
+          state
+          | voice_channel: {"guild-1", "ch-1"},
+            idle_timeout_ref: {make_ref(), token},
+            current_playback: nil,
+            pending_request: nil,
+            interrupting: false,
+            interrupt_watchdog_attempt: 0
+        }
+      end)
+
+      with_mocks([
+        {AutoJoinPolicy, [], [mode: fn -> :presence end]},
+        {Soundboard.AudioPlayer.SoundLibrary, [],
+         [get_sound_path: fn "test.mp3" -> {:ok, {"/path/test.mp3", 1.0}} end]},
+        {Soundboard.AudioPlayer.PlaybackEngine, [], [play: fn _, _, _, _, _, _ -> :ok end]}
+      ]) do
+        AudioPlayer.play_sound("test.mp3", "actor")
+        AudioPlayer.current_voice_channel()
+
+        state = :sys.get_state(AudioPlayer)
+        {_ref, unchanged_token} = state.idle_timeout_ref
+        assert unchanged_token == token
       end
     end
 
@@ -161,6 +221,125 @@ defmodule Soundboard.AudioPlayerTest do
         state = :sys.get_state(AudioPlayer)
         assert state.voice_channel == {"guild-1", "ch-1"}
       end
+    end
+  end
+
+  describe "last_user_left" do
+    test "leaves immediately in play mode" do
+      test_pid = self()
+
+      :sys.replace_state(AudioPlayer, fn state ->
+        %{state | voice_channel: {"guild-1", "ch-1"}, idle_timeout_ref: nil}
+      end)
+
+      with_mock Voice,
+        leave_channel: fn "guild-1" ->
+          send(test_pid, :leave_called)
+          :ok
+        end do
+        AudioPlayer.last_user_left("guild-1")
+        assert_receive :leave_called, 1_000
+
+        AudioPlayer.current_voice_channel()
+        state = :sys.get_state(AudioPlayer)
+        assert state.voice_channel == nil
+        assert state.idle_timeout_ref == nil
+      end
+    end
+
+    test "leaves immediately in presence mode" do
+      test_pid = self()
+
+      :sys.replace_state(AudioPlayer, fn state ->
+        %{state | voice_channel: {"guild-1", "ch-1"}, idle_timeout_ref: nil}
+      end)
+
+      with_mocks([
+        {AutoJoinPolicy, [], [mode: fn -> :presence end]},
+        {Voice, [],
+         [
+           leave_channel: fn "guild-1" ->
+             send(test_pid, :leave_called)
+             :ok
+           end
+         ]}
+      ]) do
+        AudioPlayer.last_user_left("guild-1")
+        assert_receive :leave_called, 1_000
+
+        AudioPlayer.current_voice_channel()
+        state = :sys.get_state(AudioPlayer)
+        assert state.voice_channel == nil
+      end
+    end
+
+    test "starts idle timer in false mode (with timeout configured)" do
+      :sys.replace_state(AudioPlayer, fn state ->
+        %{state | voice_channel: {"guild-1", "ch-1"}, idle_timeout_ref: nil}
+      end)
+
+      with_mocks([
+        {AutoJoinPolicy, [], [mode: fn -> false end]},
+        {Soundboard.Discord.Handler.IdleTimeoutPolicy, [], [timeout_ms: fn -> 60_000 end]},
+        {Voice, [], [leave_channel: fn _ -> :ok end]}
+      ]) do
+        AudioPlayer.last_user_left("guild-1")
+        AudioPlayer.current_voice_channel()
+
+        state = :sys.get_state(AudioPlayer)
+        assert state.voice_channel == {"guild-1", "ch-1"}
+        assert state.idle_timeout_ref != nil
+        refute called(Voice.leave_channel(:_))
+      end
+    end
+
+    test "stays in false mode when timeout is disabled (0)" do
+      :sys.replace_state(AudioPlayer, fn state ->
+        %{state | voice_channel: {"guild-1", "ch-1"}, idle_timeout_ref: nil}
+      end)
+
+      with_mocks([
+        {AutoJoinPolicy, [], [mode: fn -> false end]},
+        {Soundboard.Discord.Handler.IdleTimeoutPolicy, [], [timeout_ms: fn -> nil end]},
+        {Voice, [], [leave_channel: fn _ -> :ok end]}
+      ]) do
+        AudioPlayer.last_user_left("guild-1")
+        AudioPlayer.current_voice_channel()
+
+        state = :sys.get_state(AudioPlayer)
+        assert state.voice_channel == {"guild-1", "ch-1"}
+        assert state.idle_timeout_ref == nil
+        refute called(Voice.leave_channel(:_))
+      end
+    end
+
+    test "ignores last_user_left when bot is not in a channel" do
+      :sys.replace_state(AudioPlayer, fn state ->
+        %{state | voice_channel: nil}
+      end)
+
+      with_mock Voice, leave_channel: fn _ -> :ok end do
+        AudioPlayer.last_user_left("guild-1")
+        AudioPlayer.current_voice_channel()
+
+        refute called(Voice.leave_channel(:_))
+      end
+    end
+  end
+
+  describe "user_joined_channel" do
+    test "cancels idle timer" do
+      token = make_ref()
+
+      :sys.replace_state(AudioPlayer, fn state ->
+        %{state | voice_channel: {"guild-1", "ch-1"}, idle_timeout_ref: {make_ref(), token}}
+      end)
+
+      AudioPlayer.user_joined_channel("guild-1")
+      AudioPlayer.current_voice_channel()
+
+      state = :sys.get_state(AudioPlayer)
+      assert state.idle_timeout_ref == nil
     end
   end
 
@@ -227,6 +406,26 @@ defmodule Soundboard.AudioPlayerTest do
         {Voice, [], [join_channel: fn _, _ -> :ok end]}
       ]) do
         AudioPlayer.play_sound("any.mp3", "System")
+        AudioPlayer.current_voice_channel()
+
+        refute called(VoicePresence.find_user_voice_channel(:_))
+        refute called(Voice.join_channel(:_, :_))
+      end
+    end
+
+    test "skips auto-join in false mode" do
+      user = %User{discord_id: "discord-99", username: "tester", id: 1}
+
+      :sys.replace_state(AudioPlayer, fn state ->
+        %{state | voice_channel: nil, idle_timeout_ref: nil}
+      end)
+
+      with_mocks([
+        {AutoJoinPolicy, [], [mode: fn -> false end]},
+        {VoicePresence, [], [find_user_voice_channel: fn _ -> {:ok, {"guild-1", "ch-1"}} end]},
+        {Voice, [], [join_channel: fn _, _ -> :ok end]}
+      ]) do
+        AudioPlayer.play_sound("any.mp3", user)
         AudioPlayer.current_voice_channel()
 
         refute called(VoicePresence.find_user_voice_channel(:_))

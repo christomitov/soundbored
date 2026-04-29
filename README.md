@@ -69,7 +69,9 @@ All available keys live in `.env.example`. Configure the ones that match your se
 | `SECRET_KEY_BASE_FILE` | optional | Path to file containing signing/encryption secret (e.g. for docker secrets). Preferred for security. |
 | `PHX_HOST` | ✔ | Hostname the app advertises (`localhost` for local runs). |
 | `SCHEME` | ✔ | `http` locally, `https` in production. |
-| `AUTO_JOIN` | optional | Set to `true` to let the bot auto-join voice channels. |
+| `AUTO_JOIN` | optional | Voice join mode. `play` (default) — bot joins when you play a sound. `presence` — bot follows users into channels. `false` — manual `!join` only. |
+| `VOICE_IDLE_TIMEOUT_SECONDS` | optional | Seconds of inactivity before the bot auto-leaves. Defaults to `600` (10 min). Set to `0` to disable. In `play` mode: timer resets per sound, bot also leaves when the last user departs. In `false` mode: timer starts after the last user leaves. In `presence` mode: ignored. |
+| `BIND_IP` | optional | IP address the HTTP server binds to. Defaults to `127.0.0.1`; set to `0.0.0.0` to bind all interfaces (e.g. Docker dev). |
 
 ## Deployment
 
@@ -86,7 +88,13 @@ If you place the container behind your own reverse proxy, set `PHX_HOST` and `SC
 
 After inviting the bot to your server, join a voice channel and type `!join` to have the bot join the voice channel. Type `!leave` to have the bot leave. You can upload sounds to Soundbored and trigger them there and they will play in the voice channel.
 
-The bot is also able to auto-join and auto-leave voice channels. This is controlled by the `AUTO_JOIN` environment variable. Leave it unset (or `false`) to disable, or set it to `true` to have the bot join voice channels with members and auto-leave when the last user leaves.
+The bot manages voice channels automatically in two ways:
+
+The `AUTO_JOIN` variable controls three modes:
+
+- **`play` (default)**: the bot joins automatically when you play a sound from the web UI or API. It leaves when the last user departs or after `VOICE_IDLE_TIMEOUT_SECONDS` seconds of no playback activity (default: 600 s / 10 min).
+- **`presence`**: the bot proactively follows users into voice channels on join events, and leaves immediately when the last user departs. The idle timeout is ignored in this mode.
+- **`false`**: fully manual — use `!join` / `!leave`. If `VOICE_IDLE_TIMEOUT_SECONDS` is set, the bot leaves automatically that many seconds after the last user departs.
 
 ## API
 

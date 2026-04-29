@@ -1,15 +1,20 @@
 defmodule Soundboard.Discord.Handler.IdleTimeoutPolicy do
   @moduledoc false
 
-  @default_minutes 10
+  @default_seconds 600
 
+  @spec timeout_ms() :: pos_integer() | nil
   def timeout_ms do
-    minutes =
-      case System.get_env("VOICE_IDLE_TIMEOUT_MINUTES") do
-        nil -> @default_minutes
-        raw -> raw |> String.trim() |> String.to_integer()
-      end
+    case raw_seconds() do
+      n when n <= 0 -> nil
+      n -> n * 1_000
+    end
+  end
 
-    minutes * 60_000
+  defp raw_seconds do
+    case System.get_env("VOICE_IDLE_TIMEOUT_SECONDS") do
+      nil -> @default_seconds
+      raw -> raw |> String.trim() |> String.to_integer()
+    end
   end
 end
