@@ -31,7 +31,11 @@ defmodule Soundboard.Discord.Handler.VoiceRuntime do
 
   @spec handle_disconnect(map()) :: [runtime_action()]
   def handle_disconnect(payload) do
-    handle_bot_alone_check(payload.guild_id)
+    if bot_user?(payload.user_id) do
+      []
+    else
+      handle_bot_alone_check(payload.guild_id)
+    end
   end
 
   @spec recheck_alone(String.t(), String.t()) :: [runtime_action()]

@@ -8,12 +8,13 @@ defmodule Soundboard.Discord.Handler.VoiceRuntimeTest do
   alias Soundboard.Discord.Handler.{AutoJoinPolicy, VoicePresence, VoiceRuntime}
 
   test "handle_disconnect returns a recheck action instead of scheduling directly" do
-    payload = %{guild_id: "guild-1"}
+    payload = %{guild_id: "guild-1", user_id: "user-1"}
 
     with_mocks([
       {AutoJoinPolicy, [], [mode: fn -> :presence end]},
       {VoicePresence, [],
        [
+         bot_user?: fn "user-1" -> false end,
          current_voice_channel: fn -> {:ok, {"guild-1", "channel-1"}} end,
          users_in_channel: fn "guild-1", "channel-1" -> {:ok, 2} end
        ]}
@@ -94,12 +95,13 @@ defmodule Soundboard.Discord.Handler.VoiceRuntimeTest do
 
   test "handle_disconnect notifies AudioPlayer when bot is alone in play mode" do
     test_pid = self()
-    payload = %{guild_id: "guild-1"}
+    payload = %{guild_id: "guild-1", user_id: "user-1"}
 
     with_mocks([
       {AutoJoinPolicy, [], [mode: fn -> :play end]},
       {VoicePresence, [],
        [
+         bot_user?: fn "user-1" -> false end,
          current_voice_channel: fn -> {:ok, {"guild-1", "channel-1"}} end,
          users_in_channel: fn "guild-1", "channel-1" -> {:ok, 0} end
        ]},
@@ -117,12 +119,13 @@ defmodule Soundboard.Discord.Handler.VoiceRuntimeTest do
 
   test "handle_disconnect notifies AudioPlayer when bot is alone in false mode" do
     test_pid = self()
-    payload = %{guild_id: "guild-1"}
+    payload = %{guild_id: "guild-1", user_id: "user-1"}
 
     with_mocks([
       {AutoJoinPolicy, [], [mode: fn -> false end]},
       {VoicePresence, [],
        [
+         bot_user?: fn "user-1" -> false end,
          current_voice_channel: fn -> {:ok, {"guild-1", "channel-1"}} end,
          users_in_channel: fn "guild-1", "channel-1" -> {:ok, 0} end
        ]},
@@ -175,6 +178,18 @@ defmodule Soundboard.Discord.Handler.VoiceRuntimeTest do
     ]) do
       VoiceRuntime.handle_connect(payload)
       refute called(AudioPlayer.user_joined_channel(:_))
+    end
+  end
+
+  test "handle_disconnect ignores the bot's own voice disconnect" do
+    payload = %{guild_id: "guild-1", user_id: "bot-999"}
+
+    with_mocks([
+      {VoicePresence, [], [bot_user?: fn "bot-999" -> true end]},
+      {AudioPlayer, [], [last_user_left: fn _ -> :ok end]}
+    ]) do
+      assert VoiceRuntime.handle_disconnect(payload) == []
+      refute called(AudioPlayer.last_user_left(:_))
     end
   end
 
