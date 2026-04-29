@@ -5,7 +5,11 @@ defmodule Soundboard.AudioPlayer do
 
   use GenServer
 
+  require Logger
+
+  alias Soundboard.Accounts.User
   alias Soundboard.AudioPlayer.{Notifier, PlaybackQueue, SoundLibrary, VoiceSession}
+  alias Soundboard.Discord.Handler.{IdleTimeoutPolicy, VoicePresence}
   alias Soundboard.Discord.Voice
 
   @interrupt_watchdog_ms 35
@@ -22,7 +26,8 @@ defmodule Soundboard.AudioPlayer do
       :pending_request,
       :interrupting,
       :interrupt_watchdog_ref,
-      :interrupt_watchdog_attempt
+      :interrupt_watchdog_attempt,
+      :idle_timeout_ref
     ]
 
     @type t :: %__MODULE__{
@@ -31,7 +36,8 @@ defmodule Soundboard.AudioPlayer do
             pending_request: map() | nil,
             interrupting: boolean() | nil,
             interrupt_watchdog_ref: reference() | nil,
-            interrupt_watchdog_attempt: non_neg_integer() | nil
+            interrupt_watchdog_attempt: non_neg_integer() | nil,
+            idle_timeout_ref: {reference(), reference()} | nil
           }
   end
 
@@ -80,7 +86,8 @@ defmodule Soundboard.AudioPlayer do
          pending_request: nil,
          interrupting: false,
          interrupt_watchdog_ref: nil,
-         interrupt_watchdog_attempt: 0
+         interrupt_watchdog_attempt: 0,
+         idle_timeout_ref: nil
      }}
   end
 
@@ -91,10 +98,14 @@ defmodule Soundboard.AudioPlayer do
         nil ->
           state
           |> PlaybackQueue.clear_all()
+          |> cancel_idle_timeout()
           |> Map.put(:voice_channel, nil)
 
         voice_channel ->
-          %{state | voice_channel: voice_channel}
+          state
+          |> cancel_idle_timeout()
+          |> Map.put(:voice_channel, voice_channel)
+          |> schedule_idle_timeout()
       end
 
     {:noreply, next_state}
@@ -116,26 +127,48 @@ defmodule Soundboard.AudioPlayer do
     {:noreply, PlaybackQueue.handle_playback_finished(state, guild_id)}
   end
 
-  def handle_cast({:play_sound, _sound_name, _actor}, %{voice_channel: nil} = state) do
-    Notifier.error("Bot is not connected to a voice channel. Use !join in Discord first.")
-    {:noreply, state}
-  end
+  def handle_cast({:play_sound, sound_name, actor}, %{voice_channel: nil} = state) do
+    case try_auto_join(actor) do
+      {:ok, {guild_id, channel_id}} ->
+        new_state =
+          state
+          |> Map.put(:voice_channel, {guild_id, channel_id})
+          |> schedule_idle_timeout()
 
-  def handle_cast({:play_sound, sound_name, actor}, %{voice_channel: voice_channel} = state) do
-    case PlaybackQueue.build_request(voice_channel, sound_name, actor) do
-      {:ok, request} ->
-        {:noreply, PlaybackQueue.enqueue(state, request, @interrupt_watchdog_ms)}
+        do_play_sound(sound_name, actor, new_state)
 
-      {:error, reason} ->
-        Notifier.error(reason)
+      :not_found ->
+        Notifier.error("Bot is not connected to a voice channel. Use !join in Discord first.")
         {:noreply, state}
     end
+  end
+
+  def handle_cast({:play_sound, sound_name, actor}, state) do
+    do_play_sound(sound_name, actor, state)
   end
 
   @impl true
   def handle_call(:get_voice_channel, _from, state) do
     {:reply, state.voice_channel, state}
   end
+
+  @impl true
+  def handle_info(
+        {:idle_timeout, token},
+        %{idle_timeout_ref: {_ref, token}, voice_channel: {guild_id, _}} = state
+      ) do
+    Logger.info("Voice idle timeout in guild #{guild_id}; leaving channel")
+    safely_leave(guild_id)
+
+    new_state =
+      %{state | idle_timeout_ref: nil}
+      |> PlaybackQueue.clear_all()
+      |> Map.put(:voice_channel, nil)
+
+    {:noreply, new_state}
+  end
+
+  def handle_info({:idle_timeout, _stale_token}, state), do: {:noreply, state}
 
   @impl true
   def handle_info(:check_voice_connection, state) do
@@ -171,6 +204,72 @@ defmodule Soundboard.AudioPlayer do
 
   @impl true
   def handle_info(_, state), do: {:noreply, state}
+
+  defp do_play_sound(sound_name, actor, %{voice_channel: voice_channel} = state) do
+    case PlaybackQueue.build_request(voice_channel, sound_name, actor) do
+      {:ok, request} ->
+        {:noreply,
+         state |> reset_idle_timeout() |> PlaybackQueue.enqueue(request, @interrupt_watchdog_ms)}
+
+      {:error, reason} ->
+        Notifier.error(reason)
+        {:noreply, state}
+    end
+  end
+
+  defp try_auto_join(actor) do
+    case actor_discord_id(actor) do
+      nil -> :not_found
+      discord_id -> find_and_join_voice(discord_id)
+    end
+  end
+
+  defp find_and_join_voice(discord_id) do
+    case VoicePresence.find_user_voice_channel(discord_id) do
+      {:ok, {guild_id, channel_id}} ->
+        Logger.info(
+          "Auto-joining channel #{channel_id} in guild #{guild_id} for user #{discord_id}"
+        )
+
+        Voice.join_channel(guild_id, channel_id)
+        {:ok, {guild_id, channel_id}}
+
+      :not_found ->
+        Logger.info("User #{discord_id} not in a voice channel; skipping auto-join")
+        :not_found
+    end
+  rescue
+    error ->
+      Logger.warning("Auto-join failed: #{inspect(error)}")
+      :not_found
+  end
+
+  defp safely_leave(guild_id) do
+    Voice.leave_channel(guild_id)
+  rescue
+    error -> Logger.warning("Voice leave failed during idle timeout: #{inspect(error)}")
+  end
+
+  defp actor_discord_id(%User{discord_id: id}) when is_binary(id) and id != "", do: id
+  defp actor_discord_id(%{discord_id: id}) when is_binary(id) and id != "", do: id
+  defp actor_discord_id(_), do: nil
+
+  defp schedule_idle_timeout(state) do
+    token = make_ref()
+    ref = Process.send_after(self(), {:idle_timeout, token}, IdleTimeoutPolicy.timeout_ms())
+    %{state | idle_timeout_ref: {ref, token}}
+  end
+
+  defp cancel_idle_timeout(%{idle_timeout_ref: nil} = state), do: state
+
+  defp cancel_idle_timeout(%{idle_timeout_ref: {ref, _token}} = state) do
+    Process.cancel_timer(ref)
+    %{state | idle_timeout_ref: nil}
+  end
+
+  defp reset_idle_timeout(state) do
+    state |> cancel_idle_timeout() |> schedule_idle_timeout()
+  end
 
   defp schedule_voice_check do
     Process.send_after(self(), :check_voice_connection, 30_000)
