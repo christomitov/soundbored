@@ -17,7 +17,8 @@ defmodule SoundboardWeb.Live.SoundboardLive.EditFlow do
               tag_suggestions: [],
               show_delete_confirm: false,
               edit_name_error: nil,
-              current_user_id: nil
+              current_user_id: nil,
+              clear_image: false
 
     @type t :: %__MODULE__{
             show_modal: boolean(),
@@ -26,7 +27,8 @@ defmodule SoundboardWeb.Live.SoundboardLive.EditFlow do
             tag_suggestions: list(),
             show_delete_confirm: boolean(),
             edit_name_error: String.t() | nil,
-            current_user_id: integer() | nil
+            current_user_id: integer() | nil,
+            clear_image: boolean()
           }
   end
 
@@ -59,8 +61,12 @@ defmodule SoundboardWeb.Live.SoundboardLive.EditFlow do
     {:noreply,
      socket
      |> update_state(fn state ->
-       %{state | current_sound: sound, show_modal: true, edit_name_error: nil}
+       %{state | current_sound: sound, show_modal: true, edit_name_error: nil, clear_image: false}
      end)}
+  end
+
+  def remove_image(socket) do
+    {:noreply, update_state(socket, &%{&1 | clear_image: true})}
   end
 
   def close_modal(socket), do: put_state(socket, default_state())
@@ -97,6 +103,15 @@ defmodule SoundboardWeb.Live.SoundboardLive.EditFlow do
   def save_sound(socket, params) do
     edit = state(socket)
 
+    {image_filename, socket} = process_image_upload(socket)
+
+    params =
+      cond do
+        image_filename -> Map.put(params, "image_filename", image_filename)
+        edit.clear_image -> Map.put(params, "clear_image", true)
+        true -> params
+      end
+
     case Sounds.update_sound(edit.current_sound, edit.current_user_id, params) do
       {:ok, _updated_sound} ->
         LiveTags.broadcast_update()
@@ -114,6 +129,19 @@ defmodule SoundboardWeb.Live.SoundboardLive.EditFlow do
            :error,
            "Error updating sound: #{error_message(error)}"
          )}
+    end
+  end
+
+  defp process_image_upload(socket) do
+    Phoenix.LiveView.consume_uploaded_entries(socket, :image, fn meta, _entry ->
+      case Soundboard.Sounds.ImageProcessing.process_image(meta.path) do
+        {:ok, filename} -> {:ok, filename}
+        {:error, reason} -> {:error, reason}
+      end
+    end)
+    |> case do
+      [filename] -> {filename, socket}
+      _ -> {nil, socket}
     end
   end
 
@@ -201,7 +229,8 @@ defmodule SoundboardWeb.Live.SoundboardLive.EditFlow do
       tag_suggestions: Map.get(socket.assigns, :tag_suggestions, []),
       show_delete_confirm: Map.get(socket.assigns, :show_delete_confirm, false),
       edit_name_error: Map.get(socket.assigns, :edit_name_error),
-      current_user_id: socket.assigns[:current_user] && socket.assigns.current_user.id
+      current_user_id: socket.assigns[:current_user] && socket.assigns.current_user.id,
+      clear_image: Map.get(socket.assigns, :clear_image, false)
     }
   end
 
@@ -221,5 +250,6 @@ defmodule SoundboardWeb.Live.SoundboardLive.EditFlow do
     |> assign(:tag_suggestions, state.tag_suggestions)
     |> assign(:show_delete_confirm, state.show_delete_confirm)
     |> assign(:edit_name_error, state.edit_name_error)
+    |> assign(:clear_image, state.clear_image)
   end
 end

@@ -34,6 +34,18 @@
       >
         Stop All
       </button>
+      <button
+        phx-click="toggle_images"
+        class={[
+          "w-full sm:w-auto justify-center px-3 py-2 sm:px-4 sm:py-2 rounded-md text-sm sm:text-base font-medium transition-colors border focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900",
+          if(@show_images,
+            do: "bg-blue-600 text-white border-blue-600 hover:bg-blue-700",
+            else: "border-gray-300 text-gray-700 dark:border-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+          )
+        ]}
+      >
+        {if @show_images, do: "Hide Images", else: "Show Images"}
+      </button>
     </div>
   </div>
 
@@ -131,33 +143,74 @@
       </div>
     <% else %>
       <%= for sound <- filter_sounds(@uploaded_files, @search_query, @selected_tags) do %>
-        <div class="relative bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-md transition-all duration-200">
+        <% contrast = text_on_bg(sound.color) %>
+        <div
+          class="relative bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-md transition-all duration-200 overflow-hidden"
+          style={if sound.color, do: "background-color: #{sound.color}"}
+        >
           <%!-- Make the whole card clickable --%>
           <button
             phx-click="play"
             phx-value-name={sound.filename}
             class="absolute inset-0 w-full h-full cursor-pointer z-0
-                   hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg
+                   hover:bg-green-50/20 dark:hover:bg-green-900/20 rounded-lg
                    focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2
                    dark:focus:ring-offset-gray-800"
           >
           </button>
 
-          <%!-- Content container with higher z-index --%>
-          <div class="relative z-10 p-4 flex flex-col min-h-[120px] pointer-events-none">
-            <%!-- Sound title and uploader info --%>
-            <div class="flex-1 min-w-0">
-              <div class="text-gray-800 dark:text-gray-200 font-medium break-all">
-                {display_name(sound.filename)}
+          <%!-- Content container --%>
+          <div class="relative z-10 flex flex-col h-full pointer-events-none">
+            <%!-- Image Section --%>
+            <%= if @show_images && sound.image_filename do %>
+              <%!-- Landscape for grid (sm and up), Square for list (below sm) --%>
+              <div class="hidden sm:block aspect-video w-full overflow-hidden">
+                <img
+                  src={"/uploads/images/#{sound.image_filename}"}
+                  class="w-full h-full object-cover"
+                />
               </div>
-              <%= if sound.user && sound.user.username do %>
-                <div class="text-xs text-gray-500 dark:text-gray-400">
-                  Uploaded by {sound.user.username}
-                </div>
-              <% end %>
-            </div>
+            <% end %>
 
-            <%!-- Bottom Section with Tags and Icons --%>
+            <div class="p-4 flex flex-col flex-1 min-h-[100px]">
+              <div class="flex items-start gap-3">
+                <%= if @show_images && sound.image_filename do %>
+                  <div class="sm:hidden w-16 h-16 flex-shrink-0 rounded overflow-hidden">
+                    <img
+                      src={"/uploads/images/#{sound.image_filename}"}
+                      class="w-full h-full object-cover"
+                    />
+                  </div>
+                <% end %>
+
+                <%!-- Sound title and uploader info --%>
+                <div class="flex-1 min-w-0">
+                  <div class={[
+                    "font-medium break-all",
+                    case contrast do
+                      :dark_text -> "text-gray-900"
+                      :light_text -> "text-white"
+                      :default -> "text-gray-800 dark:text-gray-200"
+                    end
+                  ]}>
+                    {display_name(sound.filename)}
+                  </div>
+                  <%= if sound.user && sound.user.username do %>
+                    <div class={[
+                      "text-xs",
+                      case contrast do
+                      :dark_text -> "text-gray-700"
+                      :light_text -> "text-white/80"
+                      :default -> "text-gray-500 dark:text-gray-400"
+                    end
+                    ]}>
+                      Uploaded by {sound.user.username}
+                    </div>
+                  <% end %>
+                </div>
+              </div>
+
+              <%!-- Bottom Section with Tags and Icons --%>
             <div class="mt-auto pt-2 flex justify-between items-center">
               <%!-- Tags on the left --%>
               <div class="flex flex-wrap gap-1 items-center pointer-events-auto z-20">
@@ -168,11 +221,19 @@
                       phx-value-tag={tag.name}
                       class={[
                         "inline-flex items-center rounded-full px-2 py-1 text-xs font-medium transition-colors",
-                        if(tag_selected?(tag, @selected_tags),
-                          do: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
-                          else:
+                        cond do
+                          tag_selected?(tag, @selected_tags) ->
+                            "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300"
+
+                          contrast == :dark_text ->
+                            "bg-black/10 text-gray-900 hover:bg-black/20"
+
+                          contrast == :light_text ->
+                            "bg-white/20 text-white hover:bg-white/30"
+
+                          true ->
                             "bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-900/50 dark:text-blue-300 dark:hover:bg-blue-900"
-                        )
+                        end
                       ]}
                     >
                       {tag.name}
@@ -190,8 +251,14 @@
                   data-source-type={sound.source_type}
                   data-url={sound.url}
                   data-volume={sound.volume || 1.0}
-                  class="relative flex items-center justify-center w-8 h-8 text-gray-400 hover:text-green-600 
-                         dark:text-gray-500 dark:hover:text-green-400 rounded-md transition-colors"
+                  class={[
+                    "relative flex items-center justify-center w-8 h-8 rounded-md transition-colors",
+                    case contrast do
+                      :dark_text -> "text-gray-900 hover:text-green-700"
+                      :light_text -> "text-white/80 hover:text-green-300"
+                      :default -> "text-gray-400 hover:text-green-600 dark:text-gray-500 dark:hover:text-green-400"
+                    end
+                  ]}
                 >
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
@@ -223,8 +290,14 @@
                   <button
                     phx-click="toggle_favorite"
                     phx-value-sound-id={sound.id}
-                    class="relative flex items-center justify-center w-8 h-8 text-gray-400 hover:text-red-500 
-                           dark:text-gray-500 dark:hover:text-red-500 rounded-md transition-colors"
+                    class={[
+                      "relative flex items-center justify-center w-8 h-8 rounded-md transition-colors",
+                      case contrast do
+                        :dark_text -> "text-gray-900 hover:text-red-600"
+                        :light_text -> "text-white/80 hover:text-red-300"
+                        :default -> "text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-500"
+                      end
+                    ]}
                   >
                     <%= if sound.id in @favorites do %>
                       <.icon name="hero-heart-solid" class="w-4 h-4 text-red-500" />
@@ -236,8 +309,14 @@
                 <button
                   phx-click="edit"
                   phx-value-id={sound.id}
-                  class="relative flex items-center justify-center w-8 h-8 text-gray-400 hover:text-blue-600 
-                         dark:text-gray-500 dark:hover:text-blue-400 rounded-md"
+                  class={[
+                    "relative flex items-center justify-center w-8 h-8 rounded-md",
+                    case contrast do
+                      :dark_text -> "text-gray-900 hover:text-blue-700"
+                      :light_text -> "text-white/80 hover:text-blue-300"
+                      :default -> "text-gray-400 hover:text-blue-600 dark:text-gray-500 dark:hover:text-blue-400"
+                    end
+                  ]}
                 >
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
@@ -258,7 +337,8 @@
             </div>
           </div>
         </div>
-      <% end %>
+      </div>
+    <% end %>
     <% end %>
   </div>
 
@@ -270,6 +350,8 @@
       current_sound={@current_sound}
       tag_input={@tag_input}
       tag_suggestions={@tag_suggestions}
+      uploads={@uploads}
+      clear_image={@clear_image}
     />
     <%= if @show_delete_confirm do %>
       <.delete_modal {assigns} />
