@@ -6,6 +6,8 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
   alias SoundboardWeb.Components.Soundboard.{TagComponents, VolumeControl}
 
   def upload_modal(assigns) do
+    assigns = assign_new(assigns, :upload_color, fn -> "#ffffff" end)
+
     ~H"""
     <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity z-10">
       <div class="fixed inset-0 z-10 overflow-y-auto">
@@ -170,6 +172,41 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
                       tag_input={@upload_tag_input}
                       tag_suggestions={@upload_tag_suggestions}
                       select_event="select_upload_tag"
+                    />
+                  </div>
+                </div>
+                
+    <!-- Appearance: Color and Image -->
+                <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 text-left">
+                      Card Color
+                    </label>
+                    <input
+                      type="color"
+                      name="color"
+                      value={@upload_color}
+                      disabled={!source_ready}
+                      class="mt-1 block w-full h-10 rounded-md border-gray-300 dark:border-gray-600 shadow-sm
+                             focus:border-blue-500 focus:ring-blue-500 sm:text-sm
+                             dark:bg-gray-700 disabled:opacity-50"
+                    />
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 text-left">
+                      Image
+                    </label>
+                    <.live_file_input
+                      upload={@uploads.image}
+                      disabled={!source_ready}
+                      class="mt-1 block w-full text-sm text-gray-500 dark:text-gray-400
+                             file:mr-4 file:py-2 file:px-4
+                             file:rounded-md file:border-0
+                             file:text-sm file:font-semibold
+                             file:bg-blue-50 file:text-blue-700
+                             dark:file:bg-blue-900 dark:file:text-blue-300
+                             hover:file:bg-blue-100 dark:hover:file:bg-blue-800
+                             disabled:opacity-50"
                     />
                   </div>
                 </div>

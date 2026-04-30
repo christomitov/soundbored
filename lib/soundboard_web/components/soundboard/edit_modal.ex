@@ -12,6 +12,8 @@ defmodule SoundboardWeb.Components.Soundboard.EditModal do
   attr :current_sound, :map, required: true
   attr :tag_input, :string, default: ""
   attr :tag_suggestions, :list, default: []
+  attr :uploads, :map, required: true
+  attr :clear_image, :boolean, default: false
 
   def edit_modal(assigns) do
     assigns = assign_new(assigns, :edit_name_error, fn -> nil end)
@@ -156,6 +158,54 @@ defmodule SoundboardWeb.Components.Soundboard.EditModal do
                     tag_suggestions={@tag_suggestions}
                     select_event="select_tag"
                   />
+                </div>
+                
+    <!-- Appearance: Color and Image -->
+                <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 text-left">
+                      Card Color
+                    </label>
+                    <input
+                      type="color"
+                      name="color"
+                      value={@current_sound.color || "#ffffff"}
+                      class="mt-1 block w-full h-10 rounded-md border-gray-300 dark:border-gray-600 shadow-sm
+                             focus:border-blue-500 focus:ring-blue-500 sm:text-sm
+                             dark:bg-gray-700"
+                    />
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 text-left">
+                      Image
+                    </label>
+                    <%= if @current_sound.image_filename && !@clear_image do %>
+                      <div class="mt-1 mb-2 relative rounded overflow-hidden">
+                        <img
+                          src={"/uploads/images/#{@current_sound.image_filename}"}
+                          class="w-full h-32 object-cover"
+                        />
+                        <button
+                          type="button"
+                          phx-click="remove_image"
+                          class="absolute top-1 right-1 flex items-center justify-center w-6 h-6
+                                 rounded-full bg-black/50 hover:bg-black/70 text-white text-sm leading-none"
+                        >
+                          &times;
+                        </button>
+                      </div>
+                    <% end %>
+                    <.live_file_input
+                      upload={@uploads.image}
+                      class="mt-1 block w-full text-sm text-gray-500 dark:text-gray-400
+                             file:mr-4 file:py-2 file:px-4
+                             file:rounded-md file:border-0
+                             file:text-sm file:font-semibold
+                             file:bg-blue-50 file:text-blue-700
+                             dark:file:bg-blue-900 dark:file:text-blue-300
+                             hover:file:bg-blue-100 dark:hover:file:bg-blue-800"
+                    />
+                  </div>
                 </div>
                 
     <!-- Sound Settings -->

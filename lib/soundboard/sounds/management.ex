@@ -26,11 +26,23 @@ defmodule Soundboard.Sounds.Management do
         user_id: db_sound.user_id || user_id,
         volume:
           params["volume"]
-          |> Volume.percent_to_decimal(Volume.decimal_to_percent(db_sound.volume))
+          |> Volume.percent_to_decimal(Volume.decimal_to_percent(db_sound.volume)),
+        color: params["color"],
+        image_filename:
+          cond do
+            params["image_filename"] -> params["image_filename"]
+            params["clear_image"] -> nil
+            true -> db_sound.image_filename
+          end
       }
 
       case Sound.changeset(db_sound, sound_params) |> Repo.update() do
         {:ok, updated_sound} ->
+          if (params["image_filename"] && params["image_filename"] != db_sound.image_filename) ||
+               params["clear_image"] do
+            Soundboard.Sounds.ImageProcessing.delete_image(db_sound.image_filename)
+          end
+
           updated_sound = update_user_settings(db_sound, user_id, updated_sound, params)
           AudioPlayer.invalidate_cache(db_sound.filename)
           AudioPlayer.invalidate_cache(updated_sound.filename)
@@ -49,6 +61,7 @@ defmodule Soundboard.Sounds.Management do
          {:ok, _deleted_sound} <- Repo.delete(db_sound) do
       AudioPlayer.invalidate_cache(db_sound.filename)
       maybe_remove_local_file(db_sound)
+      Soundboard.Sounds.ImageProcessing.delete_image(db_sound.image_filename)
       :ok
     else
       false -> {:error, :forbidden}
