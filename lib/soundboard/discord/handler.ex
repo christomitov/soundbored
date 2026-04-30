@@ -99,7 +99,12 @@ defmodule Soundboard.Discord.Handler do
     if VoiceRuntime.bot_user?(payload.user_id) do
       Logger.debug("Skipping join sound lookup for bot user #{payload.user_id}")
     else
-      SoundEffects.handle_join(payload.user_id, previous_state, payload.channel_id)
+      SoundEffects.handle_join(
+        payload.user_id,
+        previous_state,
+        payload.guild_id,
+        payload.channel_id
+      )
     end
 
     runtime_actions
