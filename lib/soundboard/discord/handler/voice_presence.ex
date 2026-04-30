@@ -56,7 +56,9 @@ defmodule Soundboard.Discord.Handler.VoicePresence do
   end
 
   defp find_in_guild(guild, discord_id) do
-    case Enum.find(guild.voice_states, fn vs -> vs.user_id == discord_id end) do
+    target = to_string(discord_id)
+
+    case Enum.find(guild.voice_states, fn vs -> to_string(vs.user_id) == target end) do
       %{channel_id: channel_id} when not is_nil(channel_id) -> {:ok, {guild.id, channel_id}}
       _ -> nil
     end

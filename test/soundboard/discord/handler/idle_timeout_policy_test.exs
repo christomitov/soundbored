@@ -41,4 +41,9 @@ defmodule Soundboard.Discord.Handler.IdleTimeoutPolicyTest do
     System.put_env("VOICE_IDLE_TIMEOUT_SECONDS", "-1")
     assert IdleTimeoutPolicy.timeout_ms() == nil
   end
+
+  test "falls back to default when value is non-numeric" do
+    System.put_env("VOICE_IDLE_TIMEOUT_SECONDS", "ten")
+    assert IdleTimeoutPolicy.timeout_ms() == 600 * 1_000
+  end
 end
