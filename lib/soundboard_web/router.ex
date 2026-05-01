@@ -14,6 +14,10 @@ defmodule SoundboardWeb.Router do
     plug SoundboardWeb.Plugs.BasicAuth
   end
 
+  pipeline :require_role_check do
+    plug SoundboardWeb.Plugs.RoleCheck
+  end
+
   pipeline :auth do
     plug :fetch_session
     plug :fetch_current_user
@@ -43,7 +47,13 @@ defmodule SoundboardWeb.Router do
 
   # Protected routes
   scope "/", SoundboardWeb do
-    pipe_through [:browser, :auth, :ensure_authenticated_user, :require_browser_basic_auth]
+    pipe_through [
+      :browser,
+      :auth,
+      :ensure_authenticated_user,
+      :require_role_check,
+      :require_browser_basic_auth
+    ]
 
     live "/", SoundboardLive
     live "/stats", StatsLive
@@ -52,7 +62,13 @@ defmodule SoundboardWeb.Router do
   end
 
   scope "/uploads" do
-    pipe_through [:browser, :auth, :ensure_authenticated_user, :require_browser_basic_auth]
+    pipe_through [
+      :browser,
+      :auth,
+      :ensure_authenticated_user,
+      :require_role_check,
+      :require_browser_basic_auth
+    ]
 
     get "/*path", SoundboardWeb.UploadController, :show
   end

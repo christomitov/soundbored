@@ -78,11 +78,23 @@ if config_env() == :dev do
     )
   end
 
+  required_guild_id = env!("DISCORD_REQUIRED_GUILD_ID", :string, nil)
+
+  required_role_ids =
+    "DISCORD_REQUIRED_ROLE_IDS"
+    |> env!(:string, "")
+    |> String.split(",", trim: true)
+
+  role_recheck_interval_seconds = env!("DISCORD_ROLE_RECHECK_INTERVAL_SECONDS", :integer, 900)
+
   config :soundboard,
     discord_token: discord_token,
     voice_rtp_probe: voice_rtp_probe,
     voice_rtp_probe_timeout_ms: voice_rtp_probe_timeout_ms,
-    ffmpeg_available: ffmpeg_available
+    ffmpeg_available: ffmpeg_available,
+    required_guild_id: required_guild_id,
+    required_role_ids: required_role_ids,
+    role_recheck_interval_seconds: role_recheck_interval_seconds
 
   config :eda,
     token: discord_token,
@@ -187,11 +199,23 @@ if config_env() == :prod and is_nil(env!("SKIP_RUNTIME_CONFIG", :string, nil)) d
     )
   end
 
+  required_guild_id = env!("DISCORD_REQUIRED_GUILD_ID", :string, nil)
+
+  required_role_ids =
+    "DISCORD_REQUIRED_ROLE_IDS"
+    |> env!(:string, "")
+    |> String.split(",", trim: true)
+
+  role_recheck_interval_seconds = env!("DISCORD_ROLE_RECHECK_INTERVAL_SECONDS", :integer, 900)
+
   config :soundboard,
     discord_token: discord_token,
     voice_rtp_probe: voice_rtp_probe,
     voice_rtp_probe_timeout_ms: voice_rtp_probe_timeout_ms,
-    ffmpeg_available: ffmpeg_available
+    ffmpeg_available: ffmpeg_available,
+    required_guild_id: required_guild_id,
+    required_role_ids: required_role_ids,
+    role_recheck_interval_seconds: role_recheck_interval_seconds
 
   config :eda,
     token: discord_token,
