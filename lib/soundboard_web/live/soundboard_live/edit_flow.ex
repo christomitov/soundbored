@@ -4,6 +4,7 @@ defmodule SoundboardWeb.Live.SoundboardLive.EditFlow do
   import Phoenix.Component, only: [assign: 3]
 
   alias Soundboard.{Sound, Sounds, Volume}
+  alias Soundboard.Sounds.ImageProcessing
   alias SoundboardWeb.Live.Support.{LiveTags, TagForm}
 
   @tag_form %{input_key: :tag_input, suggestions_key: :tag_suggestions}
@@ -134,10 +135,7 @@ defmodule SoundboardWeb.Live.SoundboardLive.EditFlow do
 
   defp process_image_upload(socket) do
     Phoenix.LiveView.consume_uploaded_entries(socket, :image, fn meta, _entry ->
-      case Soundboard.Sounds.ImageProcessing.process_image(meta.path) do
-        {:ok, filename} -> {:ok, filename}
-        {:error, reason} -> {:error, reason}
-      end
+      ImageProcessing.process_image(meta.path)
     end)
     |> case do
       [filename] -> {filename, socket}

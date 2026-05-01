@@ -9,7 +9,9 @@ defmodule SoundboardWeb.UploadController do
     with {:ok, file_path} <- UploadsPath.safe_joined_path(path),
          true <- File.regular?(file_path),
          true <- String.downcase(Path.extname(file_path)) in @allowed_extensions do
-      send_file(conn, 200, file_path)
+      conn
+      |> put_resp_content_type(MIME.from_path(file_path), nil)
+      |> send_file(200, file_path)
     else
       _ -> send_resp(conn, 404, "File not found")
     end
