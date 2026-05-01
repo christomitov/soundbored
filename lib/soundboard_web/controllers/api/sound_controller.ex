@@ -42,9 +42,7 @@ defmodule SoundboardWeb.API.SoundController do
       sound ->
         case require_play_user(conn) do
           {:ok, user} ->
-            actor = %{display_name: user.username, user_id: user.id}
-
-            Soundboard.AudioPlayer.play_sound(sound.filename, actor)
+            Soundboard.AudioPlayer.play_sound(sound.filename, user)
 
             conn
             |> put_status(:accepted)
@@ -52,7 +50,7 @@ defmodule SoundboardWeb.API.SoundController do
               data: %{
                 status: "accepted",
                 message: "Playback request accepted for #{sound.filename}",
-                requested_by: actor.display_name,
+                requested_by: user.username,
                 sound: %{id: sound.id, filename: sound.filename}
               }
             })

@@ -11,12 +11,7 @@ defmodule Soundboard.Discord.Handler.VoiceRuntime do
 
   def bootstrap do
     Logger.info("Starting DiscordHandler...")
-
-    case AutoJoinPolicy.mode() do
-      :enabled -> start_guild_check_task()
-      :disabled -> :ok
-    end
-
+    if AutoJoinPolicy.mode() == :presence, do: start_guild_check_task()
     :ok
   end
 
@@ -28,16 +23,18 @@ defmodule Soundboard.Discord.Handler.VoiceRuntime do
   @spec handle_connect(map()) :: [runtime_action()]
   def handle_connect(payload) do
     case AutoJoinPolicy.mode() do
-      :enabled -> handle_auto_join_leave(payload)
-      :disabled -> []
+      :presence -> handle_auto_join_leave(payload)
+      false -> handle_user_rejoin_cancel(payload)
+      :play -> []
     end
   end
 
   @spec handle_disconnect(map()) :: [runtime_action()]
   def handle_disconnect(payload) do
-    case AutoJoinPolicy.mode() do
-      :enabled -> handle_bot_alone_check(payload.guild_id)
-      :disabled -> []
+    if bot_user?(payload.user_id) do
+      []
+    else
+      handle_bot_alone_check(payload.guild_id)
     end
   end
 
@@ -90,7 +87,6 @@ defmodule Soundboard.Discord.Handler.VoiceRuntime do
 
   defp process_guilds(guilds) do
     Logger.info("Checking #{length(guilds)} guilds for active voice channels")
-
     Enum.each(guilds, &check_and_join_voice/1)
   end
 
@@ -113,32 +109,32 @@ defmodule Soundboard.Discord.Handler.VoiceRuntime do
     case VoicePresence.users_in_channel(guild_id, channel_id) do
       {:ok, users} ->
         Logger.info("Recheck alone: channel #{channel_id} now has #{users} non-bot users")
-        maybe_leave_if_bot_alone(guild_id, channel_id, users)
+        maybe_act_if_bot_alone(guild_id, channel_id, users)
 
       {:error, reason} ->
         Logger.warning("Recheck skipped because voice state was unavailable: #{inspect(reason)}")
     end
   end
 
-  defp maybe_leave_if_bot_alone(guild_id, channel_id, 0) do
-    Logger.info("Recheck confirms bot is alone; leaving channel #{channel_id}")
-    leave_voice_channel(guild_id)
+  defp maybe_act_if_bot_alone(guild_id, _channel_id, 0) do
+    Logger.info("Recheck confirms bot is alone; leaving channel")
+    bot_alone_action(guild_id)
   end
 
-  defp maybe_leave_if_bot_alone(_guild_id, _channel_id, _users), do: :ok
+  defp maybe_act_if_bot_alone(_guild_id, _channel_id, _users), do: :ok
 
   defp handle_bot_alone_check(_guild_id) do
     case current_voice_channel_status() do
-      {:ok, {guild_id, channel_id}} -> check_and_maybe_leave(guild_id, channel_id)
+      {:ok, {guild_id, channel_id}} -> check_and_maybe_act(guild_id, channel_id)
       _ -> []
     end
   end
 
-  defp check_and_maybe_leave(guild_id, channel_id) do
+  defp check_and_maybe_act(guild_id, channel_id) do
     case VoicePresence.users_in_channel(guild_id, channel_id) do
       {:ok, 0} ->
-        Logger.info("No non-bot users remaining in channel, leaving now")
-        leave_voice_channel(guild_id)
+        Logger.info("No non-bot users remaining in channel, acting on bot alone")
+        bot_alone_action(guild_id)
         []
 
       {:ok, users} ->
@@ -154,12 +150,36 @@ defmodule Soundboard.Discord.Handler.VoiceRuntime do
     end
   end
 
+  defp bot_alone_action(guild_id) do
+    case AutoJoinPolicy.mode() do
+      :presence -> leave_voice_channel(guild_id)
+      _ -> AudioPlayer.last_user_left(guild_id)
+    end
+  end
+
   defp handle_auto_join_leave(payload) do
     if bot_user?(payload.user_id) do
       Logger.debug("Ignoring bot's own voice state update in auto-join logic")
       []
     else
       process_user_voice_update(payload)
+    end
+  end
+
+  defp handle_user_rejoin_cancel(payload) do
+    if bot_user?(payload.user_id) do
+      []
+    else
+      case current_voice_channel_status() do
+        {:ok, {guild_id, channel_id}}
+        when guild_id == payload.guild_id and channel_id == payload.channel_id ->
+          Logger.debug("User rejoined bot's channel (false mode); cancelling idle timer")
+          AudioPlayer.user_joined_channel(guild_id)
+          []
+
+        _ ->
+          []
+      end
     end
   end
 

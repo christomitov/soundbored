@@ -54,7 +54,18 @@ if config_env() == :dev do
         nil
     end
 
-  endpoint_overrides = [url: [host: host, port: port, scheme: scheme]]
+  bind_ip =
+    case env!("BIND_IP", :string!, "127.0.0.1")
+         |> String.to_charlist()
+         |> :inet.parse_address() do
+      {:ok, ip_tuple} -> ip_tuple
+      _ -> {127, 0, 0, 1}
+    end
+
+  endpoint_overrides = [
+    url: [host: host, port: port, scheme: scheme],
+    http: [ip: bind_ip, port: port]
+  ]
 
   endpoint_overrides =
     if is_binary(secret_key_base) do

@@ -269,8 +269,6 @@ defmodule SoundboardWeb.API.SoundControllerTest do
 
   describe "play" do
     test "plays a sound as the authenticated token user", %{conn: conn, sound: sound, user: user} do
-      actor = %{display_name: user.username, user_id: user.id}
-
       with_mock Soundboard.AudioPlayer, play_sound: fn _filename, _actor -> :ok end do
         conn = post(conn, ~p"/api/sounds/#{sound.id}/play")
 
@@ -286,7 +284,7 @@ defmodule SoundboardWeb.API.SoundControllerTest do
         assert requested_by == user.username
         assert sound_id == sound.id
         assert filename == sound.filename
-        assert_called(Soundboard.AudioPlayer.play_sound(sound.filename, actor))
+        assert_called(Soundboard.AudioPlayer.play_sound(sound.filename, user))
       end
     end
 
@@ -295,8 +293,6 @@ defmodule SoundboardWeb.API.SoundControllerTest do
       sound: sound,
       user: user
     } do
-      actor = %{display_name: user.username, user_id: user.id}
-
       with_mock Soundboard.AudioPlayer, play_sound: fn _filename, _actor -> :ok end do
         conn =
           conn
@@ -313,7 +309,7 @@ defmodule SoundboardWeb.API.SoundControllerTest do
         assert requested_by == user.username
         assert sound_id == sound.id
         assert filename == sound.filename
-        assert_called(Soundboard.AudioPlayer.play_sound(sound.filename, actor))
+        assert_called(Soundboard.AudioPlayer.play_sound(sound.filename, user))
       end
     end
 

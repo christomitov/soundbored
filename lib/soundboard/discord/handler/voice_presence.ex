@@ -44,6 +44,26 @@ defmodule Soundboard.Discord.Handler.VoicePresence do
     error -> {:error, {:guild_cache_unavailable, Exception.message(error)}}
   end
 
+  def find_user_voice_channel(discord_id) do
+    case cached_guilds() do
+      {:ok, guilds} ->
+        Enum.find_value(guilds, :not_found, &find_in_guild(&1, discord_id))
+
+      {:error, reason} ->
+        Logger.debug("Guild cache unavailable for user voice channel lookup: #{inspect(reason)}")
+        :not_found
+    end
+  end
+
+  defp find_in_guild(guild, discord_id) do
+    target = to_string(discord_id)
+
+    case Enum.find(guild.voice_states, fn vs -> to_string(vs.user_id) == target end) do
+      %{channel_id: channel_id} when not is_nil(channel_id) -> {:ok, {guild.id, channel_id}}
+      _ -> nil
+    end
+  end
+
   def users_in_channel(guild_id, channel_id) do
     cond do
       not valid_discord_id?(guild_id) ->

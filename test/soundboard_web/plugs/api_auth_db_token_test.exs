@@ -41,8 +41,6 @@ defmodule SoundboardWeb.APIAuthDBTokenTest do
     sound: sound,
     user: user
   } do
-    actor = %{display_name: user.username, user_id: user.id}
-
     # Mock the audio player so we don't actually attempt voice playback
     with_mock Soundboard.AudioPlayer, play_sound: fn _, _ -> :ok end do
       conn = post(conn, ~p"/api/sounds/#{sound.id}/play")
@@ -56,7 +54,7 @@ defmodule SoundboardWeb.APIAuthDBTokenTest do
 
       assert sound_id == sound.id
       assert filename == sound.filename
-      assert_called(Soundboard.AudioPlayer.play_sound(sound.filename, actor))
+      assert_called(Soundboard.AudioPlayer.play_sound(sound.filename, user))
     end
   end
 

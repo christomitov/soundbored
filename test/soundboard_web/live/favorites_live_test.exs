@@ -72,7 +72,7 @@ defmodule SoundboardWeb.FavoritesLiveTest do
       |> element("[phx-click='play'][phx-value-name='#{sound.filename}']")
       |> render_click()
 
-      assert_called(Soundboard.AudioPlayer.play_sound(sound.filename, user.username))
+      assert_called(Soundboard.AudioPlayer.play_sound(sound.filename, user))
     end
   end
 
