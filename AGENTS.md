@@ -30,7 +30,7 @@
 ## Commit & Pull Request Guidelines
 - Commits: imperative mood, concise (e.g., "Fix audio playback path"). Group related changes.
 - PRs: clear description, linked issues, screenshots for UI changes, reproduction steps, and risk/rollback notes.
-- Checks: ensure `mix test`, `mix credo --strict`, and `mix format --check-formatted` pass.
+- Checks: run `mix precommit` before pushing; it covers compile warnings, unused deps, formatting, Credo, tests, and clone detection.
 
 ## Security & Configuration Tips
 - Secrets via `.env` (see `.env.example`): Discord tokens, API token, `PHX_HOST`, `SCHEME`.

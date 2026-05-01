@@ -38,28 +38,30 @@ defmodule Soundboard.Discord.RoleChecker do
 
   defp check_member_roles(user_id) do
     guild_id = Application.get_env(:soundboard, :required_guild_id)
+
+    guild_id
+    |> Member.get(user_id)
+    |> member_authorized?(user_id)
+  end
+
+  defp member_authorized?({:ok, %{"roles" => roles}}, user_id) when is_list(roles) do
     required_role_ids = Application.get_env(:soundboard, :required_role_ids, [])
+    authorized = Enum.any?(roles, &Enum.member?(required_role_ids, &1))
 
-    case Member.get(guild_id, user_id) do
-      {:ok, member} ->
-        case member do
-          %{"roles" => roles} when is_list(roles) ->
-            authorized = Enum.any?(roles, &Enum.member?(required_role_ids, &1))
-
-            unless authorized do
-              Logger.info("Discord user #{user_id} has no matching required roles")
-            end
-
-            authorized
-
-          _ ->
-            Logger.warning("Unexpected member response shape for Discord user #{user_id}")
-            false
-        end
-
-      {:error, reason} ->
-        Logger.error("Member API error for Discord user #{user_id}: #{inspect(reason)}")
-        false
+    unless authorized do
+      Logger.info("Discord user #{user_id} has no matching required roles")
     end
+
+    authorized
+  end
+
+  defp member_authorized?({:ok, _member}, user_id) do
+    Logger.warning("Unexpected member response shape for Discord user #{user_id}")
+    false
+  end
+
+  defp member_authorized?({:error, reason}, user_id) do
+    Logger.error("Member API error for Discord user #{user_id}: #{inspect(reason)}")
+    false
   end
 end
