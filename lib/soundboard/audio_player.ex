@@ -321,6 +321,8 @@ defmodule Soundboard.AudioPlayer do
   end
 
   defp schedule_voice_check do
-    Process.send_after(self(), :check_voice_connection, 30_000)
+    if Application.get_env(:soundboard, __MODULE__, [])[:voice_maintenance_enabled] != false do
+      Process.send_after(self(), :check_voice_connection, 30_000)
+    end
   end
 end

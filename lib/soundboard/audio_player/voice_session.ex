@@ -114,5 +114,7 @@ defmodule Soundboard.AudioPlayer.VoiceSession do
     :ok
   rescue
     error -> {:error, {:voice_join_failed, Exception.message(error)}}
+  catch
+    :exit, reason -> {:error, {:voice_join_failed, reason}}
   end
 end
