@@ -41,7 +41,6 @@ defmodule Soundboard.Sounds.Uploads.Creator do
       image_filename: params.image_filename
     }
 
-
     %Sound{}
     |> Sound.changeset(sound_attrs)
     |> Repo.insert()
