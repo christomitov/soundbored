@@ -166,14 +166,30 @@ defmodule SoundboardWeb.Components.Soundboard.EditModal do
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 text-left">
                       Card Color
                     </label>
-                    <input
-                      type="color"
-                      name="color"
-                      value={@current_sound.color || "#ffffff"}
-                      class="mt-1 block w-full h-10 rounded-md border-gray-300 dark:border-gray-600 shadow-sm
-                             focus:border-blue-500 focus:ring-blue-500 sm:text-sm
-                             dark:bg-gray-700"
-                    />
+                    <div class="mt-1 flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        id="use-color-edit"
+                        class="peer h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-600 cursor-pointer"
+                        name="use_custom_color"
+                        value="true"
+                        checked={!!@current_sound.color}
+                      />
+                      <label
+                        for="use-color-edit"
+                        class="text-sm text-gray-500 dark:text-gray-400 cursor-pointer select-none"
+                      >
+                        Custom
+                      </label>
+                      <input
+                        type="color"
+                        name="color"
+                        value={@current_sound.color || "#ffffff"}
+                        class="h-8 w-12 rounded cursor-pointer transition-opacity
+                               opacity-30 pointer-events-none
+                               peer-checked:opacity-100 peer-checked:pointer-events-auto"
+                      />
+                    </div>
                   </div>
                   <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 text-left">

@@ -284,7 +284,7 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
       default_volume_percent: upload.upload_volume,
       is_join_sound: upload.is_join_sound,
       is_leave_sound: upload.is_leave_sound,
-      color: params["color"],
+      color: if(params["use_custom_color"] == "true", do: params["color"]),
       image_filename: upload.image_filename
     })
   end
