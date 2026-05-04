@@ -44,7 +44,7 @@ defmodule Soundboard.Sounds.Management do
       volume:
         params["volume"]
         |> Volume.percent_to_decimal(Volume.decimal_to_percent(db_sound.volume)),
-      color: params["color"],
+      color: if(params["use_custom_color"] == "true", do: params["color"]),
       image_filename: resolve_image_filename(db_sound, params)
     }
   end
