@@ -33,11 +33,11 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlowTest do
     assert is_list(updated_socket.assigns.uploaded_files)
   end
 
-  test "save correctly unwraps {:ok, filename} from image consume_uploaded_entries" do
+  test "save correctly handles filename string from image consume_uploaded_entries" do
     socket = build_socket(%{show_upload_modal: true})
 
     consume_uploaded_entries_fn = fn
-      _socket, :image, _fun -> [{:ok, "test-uuid.png"}]
+      _socket, :image, _fun -> ["test-uuid.png"]
       _socket, :audio, _fun -> [{:ok, %{id: 123}}]
     end
 

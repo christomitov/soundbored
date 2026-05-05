@@ -138,7 +138,7 @@ defmodule SoundboardWeb.Live.SoundboardLive.EditFlow do
       ImageProcessing.process_image(meta.path)
     end)
     |> case do
-      [{:ok, filename}] -> {filename, socket}
+      [filename] -> {filename, socket}
       _ -> {nil, socket}
     end
   end
