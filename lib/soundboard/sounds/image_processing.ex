@@ -10,7 +10,7 @@ defmodule Soundboard.Sounds.ImageProcessing do
   @images_dir "priv/static/uploads/images"
 
   @doc """
-  Processes an image file: converts to PNG and resizes/crops to 400x300.
+  Processes an image file: converts to PNG and scales to fit within 400x300 (preserving aspect ratio, no upscaling).
   Returns {:ok, new_filename} or {:error, reason}.
   """
   def process_image(temp_path) do

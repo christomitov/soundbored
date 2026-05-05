@@ -32,7 +32,7 @@ Images were also a natural place to harden the upload pipeline: the work require
 
 - Each sound has an optional image, uploaded via a file picker in the upload and edit modals.
 - Accepted formats: JPG, JPEG, PNG, WebP. Max size: 5 MB.
-- Images are converted to PNG and resized/cropped to 400×300 by the server; the original file is never stored.
+- Images are converted to PNG and scaled to fit within 400×300 (preserving aspect ratio, no upscaling) by the server; the original file is never stored.
 - Served from `/uploads/images/<uuid>.png`.
 - Uploading a new image during an edit replaces the previous image (old file deleted).
 - An existing image can be cleared without uploading a replacement via a `×` button overlaid on the preview in the edit modal. The preview disappears immediately; the file input remains so a replacement can be uploaded in the same save.
@@ -66,7 +66,7 @@ All image handling lives in `Soundboard.Sounds.ImageProcessing`. It wraps ffmpeg
 **Processing pipeline:**
 1. Receive the temp file path from `Phoenix.LiveView.consume_uploaded_entries/3`.
 2. Generate a UUID filename (`Ecto.UUID.generate() <> ".png"`) — the original client filename is discarded entirely.
-3. Run: `ffmpeg -i <tmp> -vf "scale=400:300:force_original_aspect_ratio=increase,crop=400:300" -y <dest>.png`
+3. Run: `ffmpeg -i <tmp> -vf "scale='min(iw,400)':'min(ih,300)':force_original_aspect_ratio=decrease" -y <dest>.png`
 4. Write to `priv/static/uploads/images/`.
 5. Return `{:ok, filename}` or `{:error, reason}`.
 
