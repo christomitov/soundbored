@@ -213,6 +213,11 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 text-left">
                       Image
                     </label>
+                    <%= if entry = List.first(@uploads.image.entries) do %>
+                      <div class="mt-1 mb-2 rounded overflow-hidden h-24 flex items-center justify-center bg-gray-100 dark:bg-gray-700">
+                        <.live_img_preview entry={entry} class="max-w-full max-h-full" />
+                      </div>
+                    <% end %>
                     <.live_file_input
                       upload={@uploads.image}
                       class="mt-1 block w-full text-sm text-gray-500 dark:text-gray-400

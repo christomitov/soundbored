@@ -166,11 +166,11 @@
             <%!-- Image Section --%>
             <%= if @show_images do %>
               <%!-- Landscape for grid (sm and up), Square for list (below sm) --%>
-              <div class="hidden sm:block aspect-video w-full overflow-hidden">
+              <div class="hidden sm:flex aspect-video w-full overflow-hidden items-center justify-center">
                 <%= if sound.image_filename do %>
                   <img
                     src={"/uploads/images/#{sound.image_filename}"}
-                    class="w-full h-full object-cover"
+                    class="max-w-full max-h-full"
                   />
                 <% else %>
                   <div class={[
@@ -205,11 +205,11 @@
             <div class="p-4 flex flex-col flex-1 min-h-[100px]">
               <div class="flex items-start gap-3">
                 <%= if @show_images do %>
-                  <div class="sm:hidden w-16 h-16 flex-shrink-0 rounded overflow-hidden">
+                  <div class="sm:hidden w-16 h-16 flex-shrink-0 rounded overflow-hidden flex items-center justify-center">
                     <%= if sound.image_filename do %>
                       <img
                         src={"/uploads/images/#{sound.image_filename}"}
-                        class="w-full h-full object-cover"
+                        class="max-w-full max-h-full"
                       />
                     <% else %>
                       <div class={[
