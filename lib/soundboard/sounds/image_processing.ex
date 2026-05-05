@@ -21,7 +21,7 @@ defmodule Soundboard.Sounds.ImageProcessing do
       "-i",
       temp_path,
       "-vf",
-      "scale=#{@target_width}:#{@target_height}:force_original_aspect_ratio=increase,crop=#{@target_width}:#{@target_height}",
+      "scale='min(iw,#{@target_width})':'min(ih,#{@target_height})':force_original_aspect_ratio=decrease",
       "-y",
       dest_path
     ]

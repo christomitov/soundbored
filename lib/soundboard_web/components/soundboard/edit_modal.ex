@@ -195,21 +195,27 @@ defmodule SoundboardWeb.Components.Soundboard.EditModal do
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 text-left">
                       Image
                     </label>
-                    <%= if @current_sound.image_filename && !@clear_image do %>
-                      <div class="mt-1 mb-2 relative rounded overflow-hidden">
-                        <img
-                          src={"/uploads/images/#{@current_sound.image_filename}"}
-                          class="w-full h-32 object-cover"
-                        />
-                        <button
-                          type="button"
-                          phx-click="remove_image"
-                          class="absolute top-1 right-1 flex items-center justify-center w-6 h-6
-                                 rounded-full bg-black/50 hover:bg-black/70 text-white text-sm leading-none"
-                        >
-                          &times;
-                        </button>
+                    <%= if entry = List.first(@uploads.image.entries) do %>
+                      <div class="mt-1 mb-2 relative rounded overflow-hidden h-32 flex items-center justify-center bg-gray-100 dark:bg-gray-700">
+                        <.live_img_preview entry={entry} class="max-w-full max-h-full" />
                       </div>
+                    <% else %>
+                      <%= if @current_sound.image_filename && !@clear_image do %>
+                        <div class="mt-1 mb-2 relative rounded overflow-hidden h-32 flex items-center justify-center">
+                          <img
+                            src={"/uploads/images/#{@current_sound.image_filename}"}
+                            class="max-w-full max-h-full"
+                          />
+                          <button
+                            type="button"
+                            phx-click="remove_image"
+                            class="absolute top-1 right-1 flex items-center justify-center w-6 h-6
+                                   rounded-full bg-black/50 hover:bg-black/70 text-white text-sm leading-none"
+                          >
+                            &times;
+                          </button>
+                        </div>
+                      <% end %>
                     <% end %>
                     <.live_file_input
                       upload={@uploads.image}

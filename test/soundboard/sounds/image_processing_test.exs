@@ -26,7 +26,7 @@ defmodule Soundboard.Sounds.ImageProcessingTest do
     :ok
   end
 
-  test "process_image/1 converts to PNG and resizes to 400x300" do
+  test "process_image/1 converts to PNG, downscales large images, preserves small images" do
     assert {:ok, filename} = ImageProcessing.process_image(@test_image)
     assert String.ends_with?(filename, ".png")
 
@@ -47,7 +47,7 @@ defmodule Soundboard.Sounds.ImageProcessingTest do
         dest_path
       ])
 
-    assert String.trim(output) == "400,300"
+    assert String.trim(output) == "100,100"
 
     # Cleanup
     ImageProcessing.delete_image(filename)
