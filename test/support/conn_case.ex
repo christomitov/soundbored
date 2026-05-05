@@ -27,31 +27,9 @@ defmodule SoundboardWeb.ConnCase do
     {:ok, conn: Phoenix.ConnTest.build_conn()}
   end
 
-  def file_upload(lv, field, entries) do
-    {entries, _refs} =
-      Enum.reduce(entries, {[], []}, fn entry, {entries, refs} ->
-        ref = entry[:ref] || "phx-#{System.unique_integer()}"
-
-        entry =
-          Map.merge(
-            %{
-              name: "test.mp3",
-              content: "test",
-              size: 9999,
-              type: "audio/mpeg",
-              ref: ref,
-              done?: true
-            },
-            entry
-          )
-
-        {[entry | entries], [ref | refs]}
-      end)
-
-    entries = Enum.reverse(entries)
-
-    for entry <- entries do
-      Phoenix.LiveViewTest.file_input(lv, field, entry, entry.ref)
+  defmacro file_upload(view, upload_name, entries) do
+    quote do
+      file_input(unquote(view), "#upload-form", unquote(upload_name), unquote(entries))
     end
   end
 end
