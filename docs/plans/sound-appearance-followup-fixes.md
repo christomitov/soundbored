@@ -7,7 +7,7 @@ Issues identified during code review of `feature/sound-appearance-enhancements` 
 - In `Soundboard.Sound.changeset/2`, add `validate_format(:color, ~r/^#[0-9a-fA-F]{6}$/)` after the cast.
 - Prevents CSS injection via crafted HTTP requests setting `color` to arbitrary strings (e.g. `red; display: none`).
 
-## 2. Use `safe_joined_path` in `management.ex` rename
+## 2. ✓ Use `safe_joined_path` in `management.ex` rename
 
 - In `lib/soundboard/sounds/management.ex`, replace `UploadsPath.file_path/1` with `UploadsPath.safe_joined_path/1` for `old_path` and `new_path` in the audio file rename logic.
 - The PR hardened `source.ex` but left the edit rename path using the unsafe plain `Path.join`.

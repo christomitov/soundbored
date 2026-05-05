@@ -30,12 +30,12 @@ defmodule Soundboard.Sounds.ImageProcessing do
          {_, 0} <- System.cmd("ffmpeg", args, stderr_to_stdout: true) do
       {:ok, new_filename}
     else
-      {output, status} ->
-        Logger.error("FFmpeg image processing failed with status #{status}: #{output}")
-        {:error, "Failed to process image"}
-
       {:error, reason} ->
         Logger.error("Failed to create images directory: #{inspect(reason)}")
+        {:error, "Failed to process image"}
+
+      {output, status} ->
+        Logger.error("FFmpeg image processing failed with status #{status}: #{output}")
         {:error, "Failed to process image"}
     end
   end
