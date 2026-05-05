@@ -199,7 +199,8 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
         | upload_error: error,
           upload_name: params["name"] || upload.upload_name,
           url: params["url"] || upload.url,
-          source_type: params["source_type"] || upload.source_type
+          source_type: params["source_type"] || upload.source_type,
+          upload_color: params["color"] || upload.upload_color
       }
     end)
   end
