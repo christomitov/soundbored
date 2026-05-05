@@ -2,7 +2,7 @@
 
 Issues identified during code review of `feature/sound-appearance-enhancements` that did not block merge but should be addressed.
 
-## 1. Validate color format in changeset
+## 1. ✓ Validate color format in changeset
 
 - In `Soundboard.Sound.changeset/2`, add `validate_format(:color, ~r/^#[0-9a-fA-F]{6}$/)` after the cast.
 - Prevents CSS injection via crafted HTTP requests setting `color` to arbitrary strings (e.g. `red; display: none`).
