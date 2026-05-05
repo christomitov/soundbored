@@ -12,7 +12,7 @@ Issues identified during code review of `feature/sound-appearance-enhancements` 
 - In `lib/soundboard/sounds/management.ex`, replace `UploadsPath.file_path/1` with `UploadsPath.safe_joined_path/1` for `old_path` and `new_path` in the audio file rename logic.
 - The PR hardened `source.ex` but left the edit rename path using the unsafe plain `Path.join`.
 
-## 3. Fix `consume_uploaded_entries` return unwrap
+## 3. ✓ Fix `consume_uploaded_entries` return unwrap
 
 - In `lib/soundboard_web/live/soundboard_live/upload_flow.ex` and `edit_flow.ex`, change the pattern match after `consume_uploaded_entries` from `[filename]` to `[{:ok, filename}]`.
 - The callback returns `{:ok, filename}`, so the list element is the tuple; the current code binds `filename = {:ok, "uuid.png"}` and stores the tuple in the DB.
