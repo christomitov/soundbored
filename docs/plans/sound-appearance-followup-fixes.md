@@ -17,7 +17,7 @@ Issues identified during code review of `feature/sound-appearance-enhancements` 
 - In `lib/soundboard_web/live/soundboard_live/upload_flow.ex` and `edit_flow.ex`, change the pattern match after `consume_uploaded_entries` from `[filename]` to `[{:ok, filename}]`.
 - The callback returns `{:ok, filename}`, so the list element is the tuple; the current code binds `filename = {:ok, "uuid.png"}` and stores the tuple in the DB.
 
-## 4. Move `maybe_cleanup_old_image` outside the transaction
+## 4. ✓ Move `maybe_cleanup_old_image` outside the transaction
 
 - In `lib/soundboard/sounds/management.ex`, move the `maybe_cleanup_old_image` call to after the `Repo.transaction` block succeeds.
 - Currently it deletes the file inside the transaction; a subsequent `Repo.rollback` leaves the DB referencing a deleted file.
