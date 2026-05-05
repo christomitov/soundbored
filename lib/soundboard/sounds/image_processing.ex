@@ -3,11 +3,12 @@ defmodule Soundboard.Sounds.ImageProcessing do
   Service for processing uploaded images using ffmpeg.
   """
 
+  alias Soundboard.UploadsPath
+
   require Logger
 
   @target_width 400
   @target_height 300
-  @images_dir "priv/static/uploads/images"
 
   @doc """
   Processes an image file: converts to PNG and scales to fit within 400x300 (preserving aspect ratio, no upscaling).
@@ -15,7 +16,7 @@ defmodule Soundboard.Sounds.ImageProcessing do
   """
   def process_image(temp_path) do
     new_filename = "#{Ecto.UUID.generate()}.png"
-    dest_path = Path.join(@images_dir, new_filename)
+    dest_path = Path.join(images_dir(), new_filename)
 
     args = [
       "-i",
@@ -47,7 +48,7 @@ defmodule Soundboard.Sounds.ImageProcessing do
   def delete_image(""), do: :ok
 
   def delete_image(filename) do
-    path = Path.join(@images_dir, filename)
+    path = Path.join(images_dir(), filename)
 
     if File.exists?(path) do
       File.rm(path)
@@ -55,4 +56,6 @@ defmodule Soundboard.Sounds.ImageProcessing do
       :ok
     end
   end
+
+  defp images_dir, do: UploadsPath.joined_path("images")
 end
