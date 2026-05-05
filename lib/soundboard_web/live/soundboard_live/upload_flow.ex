@@ -77,6 +77,8 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
              |> Phoenix.LiveView.put_flash(:info, "Sound added successfully")}
 
           {:error, changeset} ->
+            ImageProcessing.delete_image(image_filename)
+
             {:noreply,
              Phoenix.LiveView.put_flash(socket, :error, Sounds.create_error_message(changeset))}
         end
@@ -92,6 +94,8 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
 
             {:ok, Sounds.create_sound(request)}
           end)
+
+        unless match?([{:ok, _}], results), do: ImageProcessing.delete_image(image_filename)
 
         handle_save_results(socket, results)
     end
