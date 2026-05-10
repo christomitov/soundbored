@@ -2,8 +2,8 @@ defmodule Soundboard.Accounts.ApiToken do
   @moduledoc """
   API access token bound to a user.
 
-  The token hash is used for verification. The plaintext token is also persisted
-  so the Settings UI can display and copy active tokens after creation.
+  The token hash is used for verification. The plaintext token is shown once
+  at creation time and is never persisted.
   """
   use Ecto.Schema
   import Ecto.Changeset
@@ -14,7 +14,6 @@ defmodule Soundboard.Accounts.ApiToken do
           user_id: integer() | nil,
           user: User.t() | Ecto.Association.NotLoaded.t() | nil,
           token_hash: String.t() | nil,
-          token: String.t() | nil,
           label: String.t() | nil,
           revoked_at: NaiveDateTime.t() | nil,
           last_used_at: NaiveDateTime.t() | nil,
@@ -25,7 +24,6 @@ defmodule Soundboard.Accounts.ApiToken do
   schema "api_tokens" do
     belongs_to :user, User
     field :token_hash, :string
-    field :token, :string
     field :label, :string
     field :revoked_at, :naive_datetime
     field :last_used_at, :naive_datetime
@@ -35,7 +33,7 @@ defmodule Soundboard.Accounts.ApiToken do
 
   def changeset(token, attrs) do
     token
-    |> cast(attrs, [:user_id, :token_hash, :token, :label, :revoked_at, :last_used_at])
+    |> cast(attrs, [:user_id, :token_hash, :label, :revoked_at, :last_used_at])
     |> validate_required([:user_id, :token_hash])
     |> unique_constraint(:token_hash)
     |> assoc_constraint(:user)

@@ -35,7 +35,6 @@ defmodule Soundboard.Accounts.ApiTokens do
       |> ApiToken.changeset(%{
         user_id: user_id,
         token_hash: hash,
-        token: raw,
         label: Map.get(attrs, "label") || Map.get(attrs, :label)
       })
 
