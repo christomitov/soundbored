@@ -1,7 +1,7 @@
 import Config
 
 config :soundboard, Soundboard.Repo,
-  database: "database.db",
+  database: "priv/db/soundboard_dev.db",
   adapter: Ecto.Adapters.SQLite3
 
 generate_secret_key_base = fn ->

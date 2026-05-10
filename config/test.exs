@@ -7,7 +7,7 @@ import Config
 # Run `mix help test` for more information.
 config :soundboard, Soundboard.Repo,
   adapter: Ecto.Adapters.SQLite3,
-  database: Path.expand("../soundboard_test.db", Path.dirname(__ENV__.file)),
+  database: Path.expand("../priv/db/soundboard_test.db", Path.dirname(__ENV__.file)),
   pool: Ecto.Adapters.SQL.Sandbox,
   pool_size: 1,
   busy_timeout: 5000,

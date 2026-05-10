@@ -6,6 +6,7 @@ services:
     env_file: .env
     volumes:
       - soundbored_data:/app/priv/static/uploads
+      - soundbored_db:/app/priv/db
     # the below can be added for improved security
       - type: tmpfs
         target: /tmp/mix_pubsub
@@ -21,6 +22,7 @@ services:
 
 volumes:
   soundbored_data:
+  soundbored_db:
 
 secrets:
   soundbored_secret_key_base:

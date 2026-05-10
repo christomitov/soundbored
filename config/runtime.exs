@@ -116,8 +116,7 @@ end
 if config_env() == :prod and is_nil(env!("SKIP_RUNTIME_CONFIG", :string, nil)) do
   port = env!("PORT", :integer, 4000)
 
-  # Replace the database_url section with SQLite configuration
-  database_path = Path.join(:code.priv_dir(:soundboard), "static/uploads/soundboard_prod.db")
+  database_path = "/app/priv/db/soundboard_prod.db"
 
   config :soundboard, Soundboard.Repo,
     database: database_path,

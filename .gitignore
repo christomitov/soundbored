@@ -63,3 +63,7 @@ TODO
 .pi/
 
 .env.local
+
+# SQLite database files
+/priv/db/
+priv/bak

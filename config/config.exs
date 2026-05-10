@@ -72,9 +72,8 @@ import_config "#{config_env()}.exs"
 config :soundboard,
   ecto_repos: [Soundboard.Repo]
 
-# Add this somewhere in the file
 config :soundboard, Soundboard.Repo,
-  database: "priv/static/uploads/database.db",
+  database: "priv/db/soundboard_dev.db",
   pool_size: 5
 
 config :phoenix_live_view,
