@@ -51,7 +51,7 @@
                   <button
                     id={"local-play-#{Path.basename(sound.filename, Path.extname(sound.filename))}"}
                     phx-hook="LocalPlayer"
-                    data-filename={sound.filename}
+                    data-filename={sound.storage_key}
                     data-source-type={sound.source_type}
                     data-url={sound.url}
                     data-volume={sound.volume || 1.0}

@@ -24,27 +24,29 @@ defmodule Soundboard.Sounds.ManagementTest do
     filename = "delete_#{System.unique_integer([:positive])}.mp3"
     sound = insert_local_sound(user, filename)
 
-    local_path = Path.join(uploads_dir(), filename)
-    File.write!(local_path, "audio")
-    on_exit(fn -> File.rm(local_path) end)
-    assert File.exists?(local_path)
+    # File lives at storage_key path, not display filename path
+    storage_path = Path.join(uploads_dir(), sound.storage_key)
+    File.write!(storage_path, "audio")
+    on_exit(fn -> File.rm(storage_path) end)
+    assert File.exists?(storage_path)
 
     with_mock Soundboard.AudioPlayer, invalidate_cache: fn ^filename -> :ok end do
       assert :ok = Management.delete_sound(sound, user.id)
       assert_called(Soundboard.AudioPlayer.invalidate_cache(filename))
     end
 
-    refute File.exists?(local_path)
+    refute File.exists?(storage_path)
     assert Repo.get(Sound, sound.id) == nil
   end
 
-  test "update_sound/3 renames local file and upserts user settings", %{user: user} do
+  test "update_sound/3 updates display name without moving the file", %{user: user} do
     filename = "old_#{System.unique_integer([:positive])}.mp3"
     sound = insert_local_sound(user, filename)
 
-    old_path = Path.join(uploads_dir(), filename)
-    File.write!(old_path, "audio")
-    on_exit(fn -> File.rm(old_path) end)
+    # File lives at storage_key path — rename does not move it
+    storage_path = Path.join(uploads_dir(), sound.storage_key)
+    File.write!(storage_path, "audio")
+    on_exit(fn -> File.rm(storage_path) end)
 
     params = %{
       "filename" => "renamed_#{System.unique_integer([:positive])}",
@@ -64,12 +66,10 @@ defmodule Soundboard.Sounds.ManagementTest do
       assert_called(Soundboard.AudioPlayer.invalidate_cache(filename))
       assert_called(Soundboard.AudioPlayer.invalidate_cache(new_filename))
 
-      new_path = Path.join(uploads_dir(), new_filename)
-      on_exit(fn -> File.rm(new_path) end)
-
+      # Display name updated; storage_key (and file on disk) unchanged
       assert updated_sound.filename == new_filename
-      assert File.exists?(new_path)
-      refute File.exists?(old_path)
+      assert updated_sound.storage_key == sound.storage_key
+      assert File.exists?(storage_path)
 
       setting = Repo.get_by!(UserSoundSetting, user_id: user.id, sound_id: updated_sound.id)
       assert setting.is_join_sound
@@ -83,9 +83,9 @@ defmodule Soundboard.Sounds.ManagementTest do
     filename = "shared_#{System.unique_integer([:positive])}.mp3"
     sound = insert_local_sound(user, filename)
 
-    old_path = Path.join(uploads_dir(), filename)
-    File.write!(old_path, "audio")
-    on_exit(fn -> File.rm(old_path) end)
+    storage_path = Path.join(uploads_dir(), sound.storage_key)
+    File.write!(storage_path, "audio")
+    on_exit(fn -> File.rm(storage_path) end)
 
     {:ok, editor} =
       %User{}
@@ -108,13 +108,11 @@ defmodule Soundboard.Sounds.ManagementTest do
     assert {:ok, updated_sound} = Management.update_sound(sound, editor.id, params)
 
     new_filename = params["filename"] <> ".mp3"
-    new_path = Path.join(uploads_dir(), new_filename)
-    on_exit(fn -> File.rm(new_path) end)
 
     assert updated_sound.filename == new_filename
     assert updated_sound.user_id == user.id
-    assert File.exists?(new_path)
-    refute File.exists?(old_path)
+    assert updated_sound.storage_key == sound.storage_key
+    assert File.exists?(storage_path)
 
     setting = Repo.get_by!(UserSoundSetting, user_id: editor.id, sound_id: updated_sound.id)
     assert setting.is_join_sound

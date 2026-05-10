@@ -18,6 +18,7 @@ defmodule Soundboard.Sounds.Uploads.Source do
       {:ok,
        %{
          filename: filename,
+         storage_key: Ecto.UUID.generate() <> url_file_extension(url),
          source_type: "url",
          url: url,
          copied_file_path: nil
@@ -33,6 +34,7 @@ defmodule Soundboard.Sounds.Uploads.Source do
       {:ok,
        %{
          filename: filename,
+         storage_key: Ecto.UUID.generate() <> ext,
          source_type: "local",
          url: nil,
          copied_file_path: nil
@@ -45,10 +47,12 @@ defmodule Soundboard.Sounds.Uploads.Source do
          {:ok, ext} <- validate_local_extension(upload.filename),
          filename <- params.name <> ext,
          :ok <- validate_destination_filename(filename),
-         {:ok, copied_file_path} <- copy_local_file(upload.path, filename) do
+         storage_key <- Ecto.UUID.generate() <> ext,
+         {:ok, copied_file_path} <- copy_local_file(upload.path, storage_key) do
       {:ok,
        %{
          filename: filename,
+         storage_key: storage_key,
          source_type: "local",
          url: nil,
          copied_file_path: copied_file_path
@@ -121,9 +125,9 @@ defmodule Soundboard.Sounds.Uploads.Source do
     end
   end
 
-  defp copy_local_file(src_path, filename) do
+  defp copy_local_file(src_path, storage_key) do
     uploads_dir = UploadsPath.dir()
-    dest_path = UploadsPath.file_path(filename)
+    dest_path = UploadsPath.file_path(storage_key)
 
     with :ok <- ensure_uploads_dir(uploads_dir),
          :ok <- File.cp(src_path, dest_path) do
@@ -142,9 +146,7 @@ defmodule Soundboard.Sounds.Uploads.Source do
   end
 
   defp validate_destination_filename(filename) do
-    dest_path = UploadsPath.file_path(filename)
-
-    if filename_taken?(filename) or File.exists?(dest_path) do
+    if filename_taken?(filename) do
       {:error, add_error(change(%Sound{}), :filename, "has already been taken")}
     else
       :ok

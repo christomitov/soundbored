@@ -142,7 +142,7 @@ defmodule SoundboardWeb.API.SoundControllerTest do
       sound = Repo.get_by!(Sound, filename: "#{name}.mp3")
       assert_in_delta sound.volume, 1.2, 0.0001
 
-      copied_file = Path.join(uploads_dir(), sound.filename)
+      copied_file = Path.join(uploads_dir(), sound.storage_key)
       assert File.exists?(copied_file)
 
       on_exit(fn -> File.rm(copied_file) end)

@@ -110,7 +110,7 @@ defmodule SoundboardWeb.Components.Soundboard.EditModal do
                 <% preview_kind = if @current_sound.source_type == "url", do: "url", else: "existing" %>
                 <% preview_src =
                   if preview_kind == "existing",
-                    do: "/uploads/#{@current_sound.filename}",
+                    do: "/uploads/#{@current_sound.storage_key}",
                     else: @current_sound.url %>
                 <VolumeControl.volume_control
                   id="edit-volume-control"

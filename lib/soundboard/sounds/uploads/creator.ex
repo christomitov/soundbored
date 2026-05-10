@@ -31,6 +31,7 @@ defmodule Soundboard.Sounds.Uploads.Creator do
   defp insert_sound(params, source, tags) do
     sound_attrs = %{
       filename: source.filename,
+      storage_key: source.storage_key,
       source_type: source.source_type,
       url: source.url,
       user_id: params.user.id,
