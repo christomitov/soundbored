@@ -129,8 +129,8 @@ defmodule Soundboard.Sounds.UploadsTest do
 
     test "copies local file and persists sound", %{user: user} do
       name = "upload_local_#{System.unique_integer([:positive])}"
-      tmp_path = Path.join(System.tmp_dir!(), "#{System.unique_integer([:positive])}-local.wav")
-      File.write!(tmp_path, "audio")
+      tmp_path = Path.join(System.tmp_dir!(), "#{System.unique_integer([:positive])}-local.mp3")
+      File.cp!(Soundboard.TestHelpers.audio_fixture_path(), tmp_path)
 
       on_exit(fn -> File.rm(tmp_path) end)
 
@@ -139,7 +139,7 @@ defmodule Soundboard.Sounds.UploadsTest do
                |> request(%{
                  source_type: "local",
                  name: name,
-                 upload: %{path: tmp_path, filename: "local.wav"}
+                 upload: %{path: tmp_path, filename: "local.mp3"}
                })
                |> Uploads.create()
 
@@ -203,7 +203,7 @@ defmodule Soundboard.Sounds.UploadsTest do
         |> Repo.insert()
 
       tmp_path = Path.join(System.tmp_dir!(), "#{System.unique_integer([:positive])}-dup.mp3")
-      File.write!(tmp_path, "audio")
+      File.cp!(Soundboard.TestHelpers.audio_fixture_path(), tmp_path)
       on_exit(fn -> File.rm(tmp_path) end)
 
       assert {:error, changeset} =
@@ -247,7 +247,11 @@ defmodule Soundboard.Sounds.UploadsTest do
     test "returns error for blank filename in local upload in create mode" do
       assert {:error, changeset} =
                Source.prepare(
-                 %{source_type: "local", upload: %{filename: "", path: "/some/path"}, name: "test"},
+                 %{
+                   source_type: "local",
+                   upload: %{filename: "", path: "/some/path"},
+                   name: "test"
+                 },
                  :create
                )
 
@@ -257,7 +261,11 @@ defmodule Soundboard.Sounds.UploadsTest do
     test "returns error when local upload is not a recognized struct in create mode" do
       assert {:error, changeset} =
                Source.prepare(
-                 %{source_type: "local", upload: %{path: 123, filename: "test.mp3"}, name: "test"},
+                 %{
+                   source_type: "local",
+                   upload: %{path: 123, filename: "test.mp3"},
+                   name: "test"
+                 },
                  :create
                )
 
@@ -277,7 +285,10 @@ defmodule Soundboard.Sounds.UploadsTest do
 
   describe "Source.cleanup_local_file/1" do
     test "returns :ok when file does not exist (error branch)" do
-      assert :ok = Source.cleanup_local_file("/tmp/soundbored_nonexistent_#{System.unique_integer()}.mp3")
+      assert :ok =
+               Source.cleanup_local_file(
+                 "/tmp/soundbored_nonexistent_#{System.unique_integer()}.mp3"
+               )
     end
 
     test "returns :ok for nil input" do

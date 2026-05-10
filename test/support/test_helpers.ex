@@ -56,6 +56,10 @@ defmodule Soundboard.TestHelpers do
     file_path
   end
 
+  def audio_fixture_path do
+    Path.expand("../fixtures/andthen.mp3", __DIR__)
+  end
+
   def create_user(attrs \\ %{}) do
     user_attrs =
       Enum.into(attrs, %{

@@ -84,7 +84,8 @@ config :soundboard, SoundboardWeb.Presence, pubsub_server: Soundboard.PubSub
 # Optional voice startup probe (disabled by default)
 config :soundboard,
   voice_rtp_probe: false,
-  voice_rtp_probe_timeout_ms: 6_000
+  voice_rtp_probe_timeout_ms: 6_000,
+  max_upload_bytes: 10_000_000
 
 # Add this with your other configs
 config :ueberauth, Ueberauth,

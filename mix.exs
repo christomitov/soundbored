@@ -96,6 +96,7 @@ defmodule Soundboard.MixProject do
       {:excoveralls, "~> 0.18.5", only: :test},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:ex_doc, "~> 0.34", only: :dev, runtime: false},
+      {:magic_bytes, "~> 0.2"},
       {:ex_dna, "~> 1.1", only: [:dev, :test], runtime: false},
       {:ex_slop, "~> 0.2", only: [:dev, :test], runtime: false}
     ]

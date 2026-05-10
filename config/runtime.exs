@@ -116,6 +116,10 @@ end
 if config_env() == :prod and is_nil(env!("SKIP_RUNTIME_CONFIG", :string, nil)) do
   port = env!("PORT", :integer, 4000)
 
+  if max_bytes = env!("MAX_UPLOAD_BYTES", :integer, nil) do
+    config :soundboard, max_upload_bytes: max_bytes
+  end
+
   database_path = "/app/priv/db/soundboard_prod.db"
 
   config :soundboard, Soundboard.Repo,
