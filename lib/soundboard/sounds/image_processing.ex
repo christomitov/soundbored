@@ -27,17 +27,24 @@ defmodule Soundboard.Sounds.ImageProcessing do
       dest_path
     ]
 
-    with :ok <- File.mkdir_p(Path.dirname(dest_path)),
-         {_, 0} <- System.cmd("ffmpeg", args, stderr_to_stdout: true) do
-      {:ok, new_filename}
-    else
-      {:error, reason} ->
-        Logger.error("Failed to create images directory: #{inspect(reason)}")
-        {:error, "Failed to process image"}
+    case Soundboard.FFmpeg.executable() do
+      nil ->
+        Logger.error("ffmpeg not found in PATH. Cannot process image.")
+        {:error, "ffmpeg not available"}
 
-      {output, status} ->
-        Logger.error("FFmpeg image processing failed with status #{status}: #{output}")
-        {:error, "Failed to process image"}
+      ffmpeg ->
+        with :ok <- File.mkdir_p(Path.dirname(dest_path)),
+             {_, 0} <- System.cmd(ffmpeg, args, stderr_to_stdout: true) do
+          {:ok, new_filename}
+        else
+          {:error, reason} ->
+            Logger.error("Failed to create images directory: #{inspect(reason)}")
+            {:error, "Failed to process image"}
+
+          {output, status} ->
+            Logger.error("FFmpeg image processing failed with status #{status}: #{output}")
+            {:error, "Failed to process image"}
+        end
     end
   end
 

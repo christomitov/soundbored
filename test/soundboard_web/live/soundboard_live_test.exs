@@ -468,38 +468,41 @@ defmodule SoundboardWeb.SoundboardLiveTest do
     alias Soundboard.Sounds.ImageProcessing
 
     @fixture_image "test/support/fixtures/test_image.png"
+    @mocked_image_filename "mocked_processed.png"
 
     test "image_filename is stored on sound after upload", %{conn: conn, user: _user} do
-      {:ok, view, _html} = live(conn, "/")
+      with_mock ImageProcessing, [:passthrough],
+        process_image: fn _path -> {:ok, @mocked_image_filename} end do
+        {:ok, view, _html} = live(conn, "/")
 
-      view |> element("[phx-click='show_upload_modal']") |> render_click()
+        view |> element("[phx-click='show_upload_modal']") |> render_click()
 
-      view
-      |> element("select[name='source_type']")
-      |> render_change(%{"source_type" => "url"})
+        view
+        |> element("select[name='source_type']")
+        |> render_change(%{"source_type" => "url"})
 
-      image_content = File.read!(@fixture_image)
+        image_content = File.read!(@fixture_image)
 
-      image_input =
-        file_input(view, "#upload-form", :image, [
-          %{name: "test_image.png", content: image_content, type: "image/png"}
-        ])
+        image_input =
+          file_input(view, "#upload-form", :image, [
+            %{name: "test_image.png", content: image_content, type: "image/png"}
+          ])
 
-      render_upload(image_input, "test_image.png")
+        render_upload(image_input, "test_image.png")
 
-      view
-      |> element("#upload-form")
-      |> render_submit(%{
-        "name" => "url_image_test",
-        "url" => "https://example.com/audio.mp3"
-      })
+        view
+        |> element("#upload-form")
+        |> render_submit(%{
+          "name" => "url_image_test",
+          "url" => "https://example.com/audio.mp3"
+        })
 
-      sounds = Repo.all(Sound)
-      uploaded = Enum.find(sounds, &(&1.image_filename != nil))
-      on_exit(fn -> if uploaded, do: ImageProcessing.delete_image(uploaded.image_filename) end)
+        sounds = Repo.all(Sound)
+        uploaded = Enum.find(sounds, &(&1.image_filename != nil))
 
-      assert uploaded != nil, "Expected created sound to have an image_filename set"
-      assert String.ends_with?(uploaded.image_filename, ".png")
+        assert uploaded != nil, "Expected created sound to have an image_filename set"
+        assert uploaded.image_filename == @mocked_image_filename
+      end
     end
   end
 end
