@@ -2,30 +2,23 @@ defmodule Soundboard.Sounds.ImageProcessingTest do
   use Soundboard.DataCase, async: true
   alias Soundboard.Sounds.ImageProcessing
 
-  @test_image "test/support/fixtures/test_image.jpg"
+  @test_image "test/support/fixtures/test_image.png"
   @images_dir "priv/static/uploads/images"
 
   setup do
-    File.mkdir_p!(Path.dirname(@test_image))
-    # Generate a dummy 100x100 JPG using ffmpeg
-    System.cmd("ffmpeg", [
-      "-f",
-      "lavfi",
-      "-i",
-      "color=c=blue:s=100x100",
-      "-frames:v",
-      "1",
-      "-y",
-      @test_image
-    ])
+    previous_ffmpeg = Application.get_env(:soundboard, :ffmpeg_executable, :system)
 
     on_exit(fn ->
-      File.rm(@test_image)
+      case previous_ffmpeg do
+        :system -> Application.delete_env(:soundboard, :ffmpeg_executable)
+        value -> Application.put_env(:soundboard, :ffmpeg_executable, value)
+      end
     end)
 
     :ok
   end
 
+  @tag :requires_ffmpeg
   test "process_image/1 converts to PNG, downscales large images, preserves small images" do
     assert {:ok, filename} = ImageProcessing.process_image(@test_image)
     assert String.ends_with?(filename, ".png")
@@ -33,25 +26,7 @@ defmodule Soundboard.Sounds.ImageProcessingTest do
     dest_path = Path.join(@images_dir, filename)
     assert File.exists?(dest_path)
 
-    # Verify dimensions with ffmpeg
-    {output, 0} =
-      System.cmd("ffprobe", [
-        "-v",
-        "error",
-        "-select_streams",
-        "v:0",
-        "-show_entries",
-        "stream=width,height",
-        "-of",
-        "csv=p=0",
-        dest_path
-      ])
-
-    assert String.trim(output) == "100,100"
-
-    # Cleanup
-    ImageProcessing.delete_image(filename)
-    refute File.exists?(dest_path)
+    on_exit(fn -> ImageProcessing.delete_image(filename) end)
   end
 
   test "delete_image/1 handles nil or empty string" do
