@@ -61,6 +61,7 @@ defmodule SoundboardWeb.Components.Soundboard.EditModalTest do
     %{
       id: 10,
       filename: "laser.mp3",
+      storage_key: "550e8400-e29b-41d4-a716-446655440000.mp3",
       source_type: "local",
       url: nil,
       volume: 1.0,

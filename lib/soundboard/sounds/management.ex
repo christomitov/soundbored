@@ -17,9 +17,7 @@ defmodule Soundboard.Sounds.Management do
         Repo.get!(Sound, sound.id)
         |> Repo.preload(:user_sound_settings)
 
-      old_path = UploadsPath.file_path(db_sound.filename)
       new_filename = params["filename"] <> Path.extname(db_sound.filename)
-      new_path = UploadsPath.file_path(new_filename)
 
       sound_params = %{
         filename: new_filename,
@@ -31,21 +29,15 @@ defmodule Soundboard.Sounds.Management do
           |> Volume.percent_to_decimal(Volume.decimal_to_percent(db_sound.volume))
       }
 
-      updated_sound =
-        case Sound.changeset(db_sound, sound_params) |> Repo.update() do
-          {:ok, updated_sound} ->
-            updated_sound = update_user_settings(db_sound, user_id, updated_sound, params)
-            AudioPlayer.invalidate_cache(db_sound.filename)
-            AudioPlayer.invalidate_cache(updated_sound.filename)
-            updated_sound
+      case Sound.changeset(db_sound, sound_params) |> Repo.update() do
+        {:ok, updated_sound} ->
+          updated_sound = update_user_settings(db_sound, user_id, updated_sound, params)
+          AudioPlayer.invalidate_cache(db_sound.filename)
+          AudioPlayer.invalidate_cache(updated_sound.filename)
+          updated_sound
 
-          {:error, changeset} ->
-            Repo.rollback(changeset)
-        end
-
-      case maybe_rename_local_file(db_sound, old_path, new_path) do
-        :ok -> updated_sound
-        {:error, error} -> Repo.rollback(error)
+        {:error, changeset} ->
+          Repo.rollback(changeset)
       end
     end)
   end
@@ -64,38 +56,12 @@ defmodule Soundboard.Sounds.Management do
     end
   end
 
-  defp maybe_remove_local_file(%{source_type: "local", filename: filename}) do
-    _ = File.rm(UploadsPath.file_path(filename))
+  defp maybe_remove_local_file(%{source_type: "local", storage_key: key}) when is_binary(key) do
+    _ = File.rm(UploadsPath.file_path(key))
     :ok
   end
 
   defp maybe_remove_local_file(_), do: :ok
-
-  defp maybe_rename_local_file(%{source_type: "local"} = sound, old_path, new_path) do
-    cond do
-      sound.filename == Path.basename(new_path) ->
-        :ok
-
-      old_path == new_path ->
-        :ok
-
-      not File.exists?(old_path) ->
-        Logger.error("Source file not found: #{old_path}")
-        {:error, "Source file not found"}
-
-      true ->
-        case File.rename(old_path, new_path) do
-          :ok ->
-            :ok
-
-          {:error, reason} ->
-            Logger.error("File rename failed: #{inspect(reason)}")
-            {:error, "Failed to rename file: #{inspect(reason)}"}
-        end
-    end
-  end
-
-  defp maybe_rename_local_file(_, _, _), do: :ok
 
   defp update_user_settings(sound, user_id, updated_sound, params) do
     user_setting =

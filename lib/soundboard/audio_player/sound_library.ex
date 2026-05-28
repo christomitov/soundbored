@@ -76,8 +76,8 @@ defmodule Soundboard.AudioPlayer.SoundLibrary do
         cache_sound(sound_name, meta)
         {:ok, {meta.input, meta.volume}}
 
-      %{source_type: "local", filename: filename, volume: volume} when is_binary(filename) ->
-        path = resolve_upload_path(filename)
+      %{source_type: "local", storage_key: key, volume: volume} when is_binary(key) ->
+        path = resolve_upload_path(key)
 
         if File.exists?(path) do
           meta = %{source_type: "local", input: path, volume: volume || 1.0}

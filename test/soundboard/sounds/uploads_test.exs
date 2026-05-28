@@ -6,7 +6,7 @@ defmodule Soundboard.Sounds.UploadsTest do
   alias Soundboard.Accounts.User
   alias Soundboard.{Repo, Sound, UserSoundSetting}
   alias Soundboard.Sounds.Uploads
-  alias Soundboard.Sounds.Uploads.CreateRequest
+  alias Soundboard.Sounds.Uploads.{CreateRequest, Source}
 
   setup do
     {:ok, user} =
@@ -129,8 +129,8 @@ defmodule Soundboard.Sounds.UploadsTest do
 
     test "copies local file and persists sound", %{user: user} do
       name = "upload_local_#{System.unique_integer([:positive])}"
-      tmp_path = Path.join(System.tmp_dir!(), "#{System.unique_integer([:positive])}-local.wav")
-      File.write!(tmp_path, "audio")
+      tmp_path = Path.join(System.tmp_dir!(), "#{System.unique_integer([:positive])}-local.mp3")
+      File.cp!(Soundboard.TestHelpers.audio_fixture_path(), tmp_path)
 
       on_exit(fn -> File.rm(tmp_path) end)
 
@@ -139,11 +139,11 @@ defmodule Soundboard.Sounds.UploadsTest do
                |> request(%{
                  source_type: "local",
                  name: name,
-                 upload: %{path: tmp_path, filename: "local.wav"}
+                 upload: %{path: tmp_path, filename: "local.mp3"}
                })
                |> Uploads.create()
 
-      copied_path = Path.join(uploads_dir(), sound.filename)
+      copied_path = Path.join(uploads_dir(), sound.storage_key)
       assert File.exists?(copied_path)
 
       on_exit(fn -> File.rm(copied_path) end)
@@ -203,7 +203,7 @@ defmodule Soundboard.Sounds.UploadsTest do
         |> Repo.insert()
 
       tmp_path = Path.join(System.tmp_dir!(), "#{System.unique_integer([:positive])}-dup.mp3")
-      File.write!(tmp_path, "audio")
+      File.cp!(Soundboard.TestHelpers.audio_fixture_path(), tmp_path)
       on_exit(fn -> File.rm(tmp_path) end)
 
       assert {:error, changeset} =
@@ -216,6 +216,83 @@ defmodule Soundboard.Sounds.UploadsTest do
                |> Uploads.create()
 
       assert "has already been taken" in errors_on(changeset).filename
+    end
+  end
+
+  describe "Source.prepare/2" do
+    test "returns error for invalid source_type" do
+      assert {:error, changeset} =
+               Source.prepare(%{source_type: "youtube", name: "test"}, :validate)
+
+      assert "must be either 'local' or 'url'" in errors_on(changeset).source_type
+    end
+
+    test "returns error when url is nil" do
+      assert {:error, changeset} =
+               Source.prepare(%{source_type: "url", url: nil, name: "test"}, :validate)
+
+      assert "can't be blank" in errors_on(changeset).url
+    end
+
+    test "returns error for blank filename in local upload in validate mode" do
+      assert {:error, changeset} =
+               Source.prepare(
+                 %{source_type: "local", upload: %{filename: "", path: nil}, name: "test"},
+                 :validate
+               )
+
+      assert "Please select a file" in errors_on(changeset).file
+    end
+
+    test "returns error for blank filename in local upload in create mode" do
+      assert {:error, changeset} =
+               Source.prepare(
+                 %{
+                   source_type: "local",
+                   upload: %{filename: "", path: "/some/path"},
+                   name: "test"
+                 },
+                 :create
+               )
+
+      assert "Invalid file upload" in errors_on(changeset).file
+    end
+
+    test "returns error when local upload is not a recognized struct in create mode" do
+      assert {:error, changeset} =
+               Source.prepare(
+                 %{
+                   source_type: "local",
+                   upload: %{path: 123, filename: "test.mp3"},
+                   name: "test"
+                 },
+                 :create
+               )
+
+      assert "Please select a file" in errors_on(changeset).file
+    end
+
+    test "handles url with no path component (nil URI path)" do
+      assert {:ok, source} =
+               Source.prepare(
+                 %{source_type: "url", url: "http://example.com", name: "nopathtest"},
+                 :validate
+               )
+
+      assert source.filename == "nopathtest"
+    end
+  end
+
+  describe "Source.cleanup_local_file/1" do
+    test "returns :ok when file does not exist (error branch)" do
+      assert :ok =
+               Source.cleanup_local_file(
+                 "/tmp/soundbored_nonexistent_#{System.unique_integer()}.mp3"
+               )
+    end
+
+    test "returns :ok for nil input" do
+      assert :ok = Source.cleanup_local_file(nil)
     end
   end
 

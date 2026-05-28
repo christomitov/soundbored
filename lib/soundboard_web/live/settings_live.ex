@@ -56,16 +56,9 @@ defmodule SoundboardWeb.SettingsLive do
   defp load_tokens(%{assigns: %{current_user: user}} = socket) do
     tokens = ApiTokens.list_tokens(user)
 
-    example =
-      socket.assigns[:new_token] ||
-        case tokens do
-          [%{token: tok} | _] when is_binary(tok) -> tok
-          _ -> nil
-        end
-
     socket
     |> assign(:tokens, tokens)
-    |> assign(:example_token, example)
+    |> assign(:example_token, socket.assigns[:new_token])
   end
 
   @impl true
@@ -105,6 +98,31 @@ defmodule SoundboardWeb.SettingsLive do
           </form>
         </div>
 
+        <div class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg px-4 py-3 text-sm text-amber-800 dark:text-amber-300">
+          Token values are shown <strong>once</strong> at creation and cannot be retrieved afterwards.
+          If you did not copy a token, revoke it and create a new one.
+        </div>
+
+        <%= if @new_token do %>
+          <div class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg p-4 space-y-2">
+            <p class="text-sm font-medium text-green-800 dark:text-green-300">
+              New token created — copy it now, it won't be shown again:
+            </p>
+            <div class="relative">
+              <button
+                id="copy-new-token"
+                type="button"
+                phx-hook="CopyButton"
+                data-copy-text={@new_token}
+                class="absolute right-2 top-1/2 -translate-y-1/2 text-xs px-2 py-1 bg-green-200 dark:bg-green-700 text-green-900 dark:text-green-100 rounded"
+              >
+                Copy
+              </button>
+              <pre class="p-2 pr-20 bg-white dark:bg-gray-900 border border-green-300 dark:border-green-700 rounded text-xs overflow-x-auto whitespace-nowrap"><code class="text-gray-800 dark:text-gray-100 font-mono">{@new_token}</code></pre>
+            </div>
+          </div>
+        <% end %>
+
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
           <div class="overflow-x-auto">
             <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
@@ -112,9 +130,6 @@ defmodule SoundboardWeb.SettingsLive do
                 <tr>
                   <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Label
-                  </th>
-                  <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Token
                   </th>
                   <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Created
@@ -130,20 +145,6 @@ defmodule SoundboardWeb.SettingsLive do
                   <tr class="text-sm">
                     <td class="px-4 py-2 text-gray-900 dark:text-gray-100 whitespace-nowrap">
                       {token.label || "(no label)"}
-                    </td>
-                    <td class="px-4 py-2 align-top">
-                      <div class="relative">
-                        <button
-                          id={"copy-token-#{token.id}"}
-                          type="button"
-                          phx-hook="CopyButton"
-                          data-copy-text={token.token}
-                          class="absolute right-2 top-1/2 -translate-y-1/2 text-xs px-2 py-1 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100 rounded"
-                        >
-                          Copy
-                        </button>
-                        <pre class="p-2 pr-20 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded text-xs overflow-x-auto whitespace-nowrap"><code class="text-gray-800 dark:text-gray-100 font-mono">{token.token}</code></pre>
-                      </div>
                     </td>
                     <td class="px-4 py-2 text-gray-500 dark:text-gray-400 whitespace-nowrap">
                       {format_dt(token.inserted_at)}

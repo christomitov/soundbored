@@ -44,7 +44,7 @@ defmodule SoundboardWeb.Endpoint do
   plug Plug.Parsers,
     parsers: [:urlencoded, :multipart, :json],
     pass: ["*/*"],
-    length: 30_000_000,
+    length: Application.compile_env(:soundboard, :max_upload_bytes, 10_000_000),
     json_decoder: Phoenix.json_library()
 
   plug Plug.MethodOverride

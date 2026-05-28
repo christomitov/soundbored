@@ -3,17 +3,15 @@ defmodule SoundboardWeb.UploadController do
 
   alias Soundboard.UploadsPath
 
-  def show(conn, %{"path" => path}) do
-    case UploadsPath.safe_joined_path(path) do
-      {:ok, file_path} ->
-        if File.regular?(file_path) do
-          send_file(conn, 200, file_path)
-        else
-          send_resp(conn, 404, "File not found")
-        end
+  @allowed_extensions ~w(.mp3 .wav .ogg .m4a .flac)
 
-      :error ->
-        send_resp(conn, 404, "File not found")
+  def show(conn, %{"path" => path}) do
+    with {:ok, file_path} <- UploadsPath.safe_joined_path(path),
+         true <- File.regular?(file_path),
+         true <- String.downcase(Path.extname(file_path)) in @allowed_extensions do
+      send_file(conn, 200, file_path)
+    else
+      _ -> send_resp(conn, 404, "File not found")
     end
   end
 end

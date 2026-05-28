@@ -54,11 +54,11 @@ defmodule SoundboardWeb.SoundboardLive do
     |> allow_upload(:audio,
       accept: ~w(audio/mpeg audio/wav audio/ogg audio/x-m4a),
       max_entries: 1,
-      max_file_size: 25_000_000,
+      max_file_size: Application.get_env(:soundboard, :max_upload_bytes, 10_000_000),
       auto_upload: false,
       progress: &handle_progress/3,
       accept_errors: [
-        too_large: "File is too large (max 25MB)",
+        too_large: "File is too large (max #{max_upload_mb()}MB)",
         not_accepted: "Invalid file type. Please upload an MP3, WAV, OGG, or M4A file."
       ]
     )
@@ -355,5 +355,9 @@ defmodule SoundboardWeb.SoundboardLive do
 
   defp handle_progress(:audio, _entry, socket) do
     {:noreply, socket}
+  end
+
+  defp max_upload_mb do
+    div(Application.get_env(:soundboard, :max_upload_bytes, 10_000_000), 1_000_000)
   end
 end

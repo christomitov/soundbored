@@ -385,7 +385,7 @@ defmodule SoundboardWeb.SoundboardLiveTest do
 
       uploads_dir = uploads_dir()
       File.mkdir_p!(uploads_dir)
-      sound_path = Path.join(uploads_dir, sound.filename)
+      sound_path = Path.join(uploads_dir, sound.storage_key)
       File.write!(sound_path, "test content")
 
       view

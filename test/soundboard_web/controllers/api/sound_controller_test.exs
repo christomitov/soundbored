@@ -118,7 +118,7 @@ defmodule SoundboardWeb.API.SoundControllerTest do
     test "creates a local multipart sound and saves the file", %{conn: conn} do
       name = "api_local_#{System.unique_integer([:positive])}"
       tmp_path = temp_upload_path("sample.mp3")
-      File.write!(tmp_path, "audio")
+      File.cp!(Soundboard.TestHelpers.audio_fixture_path(), tmp_path)
 
       on_exit(fn -> File.rm(tmp_path) end)
 
@@ -142,7 +142,7 @@ defmodule SoundboardWeb.API.SoundControllerTest do
       sound = Repo.get_by!(Sound, filename: "#{name}.mp3")
       assert_in_delta sound.volume, 1.2, 0.0001
 
-      copied_file = Path.join(uploads_dir(), sound.filename)
+      copied_file = Path.join(uploads_dir(), sound.storage_key)
       assert File.exists?(copied_file)
 
       on_exit(fn -> File.rm(copied_file) end)
@@ -151,7 +151,7 @@ defmodule SoundboardWeb.API.SoundControllerTest do
     test "infers local source type when multipart file is present", %{conn: conn} do
       name = "api_local_inferred_#{System.unique_integer([:positive])}"
       tmp_path = temp_upload_path("inferred.mp3")
-      File.write!(tmp_path, "audio")
+      File.cp!(Soundboard.TestHelpers.audio_fixture_path(), tmp_path)
 
       on_exit(fn -> File.rm(tmp_path) end)
 

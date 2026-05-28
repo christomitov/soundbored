@@ -72,9 +72,8 @@ import_config "#{config_env()}.exs"
 config :soundboard,
   ecto_repos: [Soundboard.Repo]
 
-# Add this somewhere in the file
 config :soundboard, Soundboard.Repo,
-  database: "priv/static/uploads/database.db",
+  database: "priv/db/soundboard_dev.db",
   pool_size: 5
 
 config :phoenix_live_view,
@@ -85,7 +84,8 @@ config :soundboard, SoundboardWeb.Presence, pubsub_server: Soundboard.PubSub
 # Optional voice startup probe (disabled by default)
 config :soundboard,
   voice_rtp_probe: false,
-  voice_rtp_probe_timeout_ms: 6_000
+  voice_rtp_probe_timeout_ms: 6_000,
+  max_upload_bytes: 10_000_000
 
 # Add this with your other configs
 config :ueberauth, Ueberauth,

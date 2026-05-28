@@ -58,6 +58,6 @@ RUN chmod -R a+rX /app/.mix /app/.hex
 COPY entrypoint.sh /app
 RUN chmod a+x /app/entrypoint.sh
 
-VOLUME ["/app/priv/static/uploads"]
+VOLUME ["/app/priv/static/uploads", "/app/priv/db"]
 EXPOSE 4000
 ENTRYPOINT ["/app/entrypoint.sh"]
