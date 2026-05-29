@@ -14,8 +14,7 @@ defmodule Soundboard.Sounds.Uploads.Source do
   @spec prepare(map(), :validate | :create) :: {:ok, map()} | {:error, Ecto.Changeset.t()}
   def prepare(%{source_type: "url"} = params, _mode) do
     with {:ok, url} <- validate_url(params.url),
-         {:ok, name} <- sanitize_name(params.name),
-         filename <- name <> url_file_extension(url),
+         filename <- params.name <> url_file_extension(url),
          :ok <- validate_destination_filename(filename) do
       {:ok,
        %{
@@ -31,8 +30,7 @@ defmodule Soundboard.Sounds.Uploads.Source do
   def prepare(%{source_type: "local"} = params, :validate) do
     with {:ok, upload} <- validate_local_upload(params.upload, :validate),
          {:ok, ext} <- validate_local_extension(upload.filename),
-         {:ok, name} <- sanitize_name(params.name),
-         filename <- name <> ext,
+         filename <- params.name <> ext,
          :ok <- validate_destination_filename(filename) do
       {:ok,
        %{
@@ -48,8 +46,7 @@ defmodule Soundboard.Sounds.Uploads.Source do
   def prepare(%{source_type: "local"} = params, :create) do
     with {:ok, upload} <- validate_local_upload(params.upload, :create),
          {:ok, ext} <- validate_local_extension(upload.filename),
-         {:ok, name} <- sanitize_name(params.name),
-         filename <- name <> ext,
+         filename <- params.name <> ext,
          :ok <- validate_destination_filename(filename),
          :ok <- validate_magic_bytes(upload.path),
          storage_key <- Ecto.UUID.generate() <> ext,
@@ -156,7 +153,8 @@ defmodule Soundboard.Sounds.Uploads.Source do
          :ok <- File.cp(src_path, dest_path) do
       {:ok, dest_path}
     else
-      {:error, _reason} -> {:error, add_error(change(%Sound{}), :file, "Error saving file")}
+      {:error, _reason} ->
+        {:error, add_error(change(%Sound{}), :file, "Error saving file")}
     end
   end
 
@@ -168,16 +166,10 @@ defmodule Soundboard.Sounds.Uploads.Source do
   end
 
   defp validate_destination_filename(filename) do
-    case UploadsPath.safe_joined_path(filename) do
-      {:ok, dest_path} ->
-        if filename_taken?(filename) or File.exists?(dest_path) do
-          {:error, add_error(change(%Sound{}), :filename, "has already been taken")}
-        else
-          :ok
-        end
-
-      :error ->
-        {:error, add_error(change(%Sound{}), :filename, "Invalid filename")}
+    if filename_taken?(filename) do
+      {:error, add_error(change(%Sound{}), :filename, "has already been taken")}
+    else
+      :ok
     end
   end
 
@@ -202,21 +194,4 @@ defmodule Soundboard.Sounds.Uploads.Source do
   defp url_file_extension(_), do: ""
 
   defp blank?(value), do: value in [nil, ""]
-
-  @max_name_length 200
-
-  @spec sanitize_name(String.t() | nil) :: {:ok, String.t()} | {:error, Ecto.Changeset.t()}
-  defp sanitize_name(name) do
-    cleaned =
-      (name || "")
-      |> String.replace(~r/[\/\\\0]/, "")
-      |> String.trim()
-      |> String.slice(0, @max_name_length)
-
-    if blank?(cleaned) do
-      {:error, add_error(change(%Sound{}), :filename, "can't be blank")}
-    else
-      {:ok, cleaned}
-    end
-  end
 end

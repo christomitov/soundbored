@@ -34,19 +34,6 @@
       >
         Stop All
       </button>
-      <button
-        phx-click="toggle_images"
-        class={[
-          "w-full sm:w-auto justify-center px-3 py-2 sm:px-4 sm:py-2 rounded-md text-sm sm:text-base font-medium transition-colors border focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900",
-          if(@show_images,
-            do: "bg-blue-600 text-white border-blue-600 hover:bg-blue-700",
-            else:
-              "border-gray-300 text-gray-700 dark:border-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
-          )
-        ]}
-      >
-        {if @show_images, do: "Hide Images", else: "Show Images"}
-      </button>
     </div>
   </div>
 
@@ -144,269 +131,129 @@
       </div>
     <% else %>
       <%= for sound <- filter_sounds(@uploaded_files, @search_query, @selected_tags) do %>
-        <% contrast = text_on_bg(sound.color) %>
-        <div
-          id={"sound-#{sound.id}"}
-          class="relative bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-md transition-all duration-200 overflow-hidden"
-          style={if sound.color, do: "background-color: #{sound.color}"}
-        >
+        <div class="relative bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-md transition-all duration-200">
           <%!-- Make the whole card clickable --%>
           <button
             phx-click="play"
             phx-value-name={sound.filename}
             class="absolute inset-0 w-full h-full cursor-pointer z-0
-                   hover:bg-green-50/20 dark:hover:bg-green-900/20 rounded-lg
+                   hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg
                    focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2
                    dark:focus:ring-offset-gray-800"
           >
           </button>
 
-          <%!-- Content container --%>
-          <div class="relative z-10 flex flex-col h-full pointer-events-none">
-            <%!-- Image Section --%>
-            <%= if @show_images do %>
-              <%!-- Landscape for grid (sm and up), Square for list (below sm) --%>
-              <div class="hidden sm:flex aspect-video w-full overflow-hidden items-center justify-center">
-                <%= if sound.image_filename do %>
-                  <img
-                    src={"/uploads/images/#{sound.image_filename}"}
-                    class="max-w-full max-h-full"
-                  />
-                <% else %>
-                  <div class={[
-                    "w-full h-full flex items-center justify-center",
-                    case contrast do
-                      :dark_text -> "bg-black/5"
-                      :light_text -> "bg-white/10"
-                      :default -> "bg-gray-100 dark:bg-gray-700"
-                    end
-                  ]}>
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 24 24"
-                      fill="currentColor"
-                      class={[
-                        "w-10 h-10",
-                        case contrast do
-                          :dark_text -> "text-black/20"
-                          :light_text -> "text-white/30"
-                          :default -> "text-gray-300 dark:text-gray-600"
-                        end
-                      ]}
-                    >
-                      <path d="M13.5 4.06c0-1.336-1.616-2.005-2.56-1.06l-4.5 4.5H4.508c-1.141 0-2.318.664-2.66 1.905A9.76 9.76 0 0 0 1.5 12c0 .898.121 1.768.35 2.595.341 1.24 1.518 1.905 2.659 1.905H6.44l4.5 4.5c.945.945 2.561.276 2.561-1.06V4.06ZM18.584 5.106a.75.75 0 0 1 1.06 0c3.808 3.807 3.808 9.98 0 13.788a.75.75 0 0 1-1.06-1.06 8.25 8.25 0 0 0 0-11.668.75.75 0 0 1 0-1.06Z" />
-                      <path d="M15.932 7.757a.75.75 0 0 1 1.061 0 6 6 0 0 1 0 8.486.75.75 0 0 1-1.06-1.061 4.5 4.5 0 0 0 0-6.364.75.75 0 0 1 0-1.06Z" />
-                    </svg>
-                  </div>
-                <% end %>
+          <%!-- Content container with higher z-index --%>
+          <div class="relative z-10 p-4 flex flex-col min-h-[120px] pointer-events-none">
+            <%!-- Sound title and uploader info --%>
+            <div class="flex-1 min-w-0">
+              <div class="text-gray-800 dark:text-gray-200 font-medium break-all">
+                {display_name(sound.filename)}
               </div>
-            <% end %>
-
-            <div class="p-4 flex flex-col flex-1 min-h-[100px]">
-              <div class="flex items-start gap-3">
-                <%= if @show_images do %>
-                  <div class="sm:hidden w-16 h-16 flex-shrink-0 rounded overflow-hidden flex items-center justify-center">
-                    <%= if sound.image_filename do %>
-                      <img
-                        src={"/uploads/images/#{sound.image_filename}"}
-                        class="max-w-full max-h-full"
-                      />
-                    <% else %>
-                      <div class={[
-                        "w-full h-full flex items-center justify-center",
-                        case contrast do
-                          :dark_text -> "bg-black/5"
-                          :light_text -> "bg-white/10"
-                          :default -> "bg-gray-100 dark:bg-gray-700"
-                        end
-                      ]}>
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          viewBox="0 0 24 24"
-                          fill="currentColor"
-                          class={[
-                            "w-6 h-6",
-                            case contrast do
-                              :dark_text -> "text-black/20"
-                              :light_text -> "text-white/30"
-                              :default -> "text-gray-300 dark:text-gray-600"
-                            end
-                          ]}
-                        >
-                          <path d="M13.5 4.06c0-1.336-1.616-2.005-2.56-1.06l-4.5 4.5H4.508c-1.141 0-2.318.664-2.66 1.905A9.76 9.76 0 0 0 1.5 12c0 .898.121 1.768.35 2.595.341 1.24 1.518 1.905 2.659 1.905H6.44l4.5 4.5c.945.945 2.561.276 2.561-1.06V4.06ZM18.584 5.106a.75.75 0 0 1 1.06 0c3.808 3.807 3.808 9.98 0 13.788a.75.75 0 0 1-1.06-1.06 8.25 8.25 0 0 0 0-11.668.75.75 0 0 1 0-1.06Z" />
-                          <path d="M15.932 7.757a.75.75 0 0 1 1.061 0 6 6 0 0 1 0 8.486.75.75 0 0 1-1.06-1.061 4.5 4.5 0 0 0 0-6.364.75.75 0 0 1 0-1.06Z" />
-                        </svg>
-                      </div>
-                    <% end %>
-                  </div>
-                <% end %>
-
-                <%!-- Sound title and uploader info --%>
-                <div class="flex-1 min-w-0">
-                  <div class={[
-                    "font-medium break-all",
-                    case contrast do
-                      :dark_text -> "text-gray-900"
-                      :light_text -> "text-white"
-                      :default -> "text-gray-800 dark:text-gray-200"
-                    end
-                  ]}>
-                    {display_name(sound.filename)}
-                  </div>
-                  <%= if sound.user && sound.user.username do %>
-                    <div class={[
-                      "text-xs",
-                      case contrast do
-                        :dark_text -> "text-gray-700"
-                        :light_text -> "text-white/80"
-                        :default -> "text-gray-500 dark:text-gray-400"
-                      end
-                    ]}>
-                      Uploaded by {sound.user.username}
-                    </div>
-                  <% end %>
+              <%= if sound.user && sound.user.username do %>
+                <div class="text-xs text-gray-500 dark:text-gray-400">
+                  Uploaded by {sound.user.username}
                 </div>
-              </div>
+              <% end %>
+            </div>
 
-              <%!-- Bottom Section with Tags and Icons --%>
-              <div class="mt-auto pt-2 flex justify-between items-center">
-                <%!-- Tags on the left --%>
-                <div class="flex flex-wrap gap-1 items-center pointer-events-auto z-20">
-                  <%= if sound.tags != [] do %>
-                    <%= for tag <- sound.tags do %>
-                      <button
-                        phx-click="toggle_tag_filter"
-                        phx-value-tag={tag.name}
-                        class={[
-                          "inline-flex items-center rounded-full px-2 py-1 text-xs font-medium transition-colors",
-                          cond do
-                            tag_selected?(tag, @selected_tags) ->
-                              "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300"
-
-                            contrast == :dark_text ->
-                              "bg-black/10 text-gray-900 hover:bg-black/20"
-
-                            contrast == :light_text ->
-                              "bg-white/20 text-white hover:bg-white/30"
-
-                            true ->
-                              "bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-900/50 dark:text-blue-300 dark:hover:bg-blue-900"
-                          end
-                        ]}
-                      >
-                        {tag.name}
-                      </button>
-                    <% end %>
-                  <% end %>
-                </div>
-
-                <%!-- Icons on the right --%>
-                <div class="flex items-center gap-2 ml-2 flex-shrink-0 pointer-events-auto">
-                  <button
-                    id={"local-play-#{Path.basename(sound.filename, Path.extname(sound.filename))}"}
-                    phx-hook="LocalPlayer"
-                    data-filename={sound.storage_key}
-                    data-source-type={sound.source_type}
-                    data-url={sound.url}
-                    data-volume={sound.volume || 1.0}
-                    class={[
-                      "relative flex items-center justify-center w-8 h-8 rounded-md transition-colors",
-                      case contrast do
-                        :dark_text ->
-                          "text-gray-900 hover:text-green-700"
-
-                        :light_text ->
-                          "text-white/80 hover:text-green-300"
-
-                        :default ->
-                          "text-gray-400 hover:text-green-600 dark:text-gray-500 dark:hover:text-green-400"
-                      end
-                    ]}
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 24 24"
-                      fill="currentColor"
-                      class="w-4 h-4 play-icon"
-                    >
-                      <path d="M12 15a3 3 0 100-6 3 3 0 000 6z" />
-                      <path
-                        fill-rule="evenodd"
-                        d="M1.323 11.447C2.811 6.976 7.028 3.75 12.001 3.75c4.97 0 9.185 3.223 10.675 7.69.12.362.12.752 0 1.113-1.487 4.471-5.705 7.697-10.677 7.697-4.97 0-9.186-3.223-10.675-7.69a1.762 1.762 0 010-1.113zM17.25 12a5.25 5.25 0 11-10.5 0 5.25 5.25 0 0110.5 0z"
-                        clip-rule="evenodd"
-                      />
-                    </svg>
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 24 24"
-                      fill="currentColor"
-                      class="w-4 h-4 stop-icon hidden"
-                    >
-                      <path
-                        fill-rule="evenodd"
-                        d="M4.5 7.5a3 3 0 013-3h9a3 3 0 013 3v9a3 3 0 01-3 3h-9a3 3 0 01-3-3v-9z"
-                        clip-rule="evenodd"
-                      />
-                    </svg>
-                  </button>
-                  <%= if @current_user do %>
+            <%!-- Bottom Section with Tags and Icons --%>
+            <div class="mt-auto pt-2 flex justify-between items-center">
+              <%!-- Tags on the left --%>
+              <div class="flex flex-wrap gap-1 items-center pointer-events-auto z-20">
+                <%= if sound.tags != [] do %>
+                  <%= for tag <- sound.tags do %>
                     <button
-                      phx-click="toggle_favorite"
-                      phx-value-sound-id={sound.id}
+                      phx-click="toggle_tag_filter"
+                      phx-value-tag={tag.name}
                       class={[
-                        "relative flex items-center justify-center w-8 h-8 rounded-md transition-colors",
-                        case contrast do
-                          :dark_text ->
-                            "text-gray-900 hover:text-red-600"
-
-                          :light_text ->
-                            "text-white/80 hover:text-red-300"
-
-                          :default ->
-                            "text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-500"
-                        end
+                        "inline-flex items-center rounded-full px-2 py-1 text-xs font-medium transition-colors",
+                        if(tag_selected?(tag, @selected_tags),
+                          do: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
+                          else:
+                            "bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-900/50 dark:text-blue-300 dark:hover:bg-blue-900"
+                        )
                       ]}
                     >
-                      <%= if sound.id in @favorites do %>
-                        <.icon name="hero-heart-solid" class="w-4 h-4 text-red-500" />
-                      <% else %>
-                        <.icon name="hero-heart" class="w-4 h-4" />
-                      <% end %>
+                      {tag.name}
                     </button>
                   <% end %>
-                  <button
-                    phx-click="edit"
-                    phx-value-id={sound.id}
-                    class={[
-                      "relative flex items-center justify-center w-8 h-8 rounded-md",
-                      case contrast do
-                        :dark_text ->
-                          "text-gray-900 hover:text-blue-700"
+                <% end %>
+              </div>
 
-                        :light_text ->
-                          "text-white/80 hover:text-blue-300"
-
-                        :default ->
-                          "text-gray-400 hover:text-blue-600 dark:text-gray-500 dark:hover:text-blue-400"
-                      end
-                    ]}
+              <%!-- Icons on the right --%>
+              <div class="flex items-center gap-2 ml-2 flex-shrink-0 pointer-events-auto">
+                <button
+                  id={"local-play-#{Path.basename(sound.filename, Path.extname(sound.filename))}"}
+                  phx-hook="LocalPlayer"
+                  data-filename={sound.storage_key}
+                  data-source-type={sound.source_type}
+                  data-url={sound.url}
+                  data-volume={sound.volume || 1.0}
+                  class="relative flex items-center justify-center w-8 h-8 text-gray-400 hover:text-green-600 
+                         dark:text-gray-500 dark:hover:text-green-400 rounded-md transition-colors"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                    class="w-4 h-4 play-icon"
                   >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke-width="1.5"
-                      stroke="currentColor"
-                      class="w-4 h-4"
-                    >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10"
-                      />
-                    </svg>
+                    <path d="M12 15a3 3 0 100-6 3 3 0 000 6z" />
+                    <path
+                      fill-rule="evenodd"
+                      d="M1.323 11.447C2.811 6.976 7.028 3.75 12.001 3.75c4.97 0 9.185 3.223 10.675 7.69.12.362.12.752 0 1.113-1.487 4.471-5.705 7.697-10.677 7.697-4.97 0-9.186-3.223-10.675-7.69a1.762 1.762 0 010-1.113zM17.25 12a5.25 5.25 0 11-10.5 0 5.25 5.25 0 0110.5 0z"
+                      clip-rule="evenodd"
+                    />
+                  </svg>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                    class="w-4 h-4 stop-icon hidden"
+                  >
+                    <path
+                      fill-rule="evenodd"
+                      d="M4.5 7.5a3 3 0 013-3h9a3 3 0 013 3v9a3 3 0 01-3 3h-9a3 3 0 01-3-3v-9z"
+                      clip-rule="evenodd"
+                    />
+                  </svg>
+                </button>
+                <%= if @current_user do %>
+                  <button
+                    phx-click="toggle_favorite"
+                    phx-value-sound-id={sound.id}
+                    class="relative flex items-center justify-center w-8 h-8 text-gray-400 hover:text-red-500 
+                           dark:text-gray-500 dark:hover:text-red-500 rounded-md transition-colors"
+                  >
+                    <%= if sound.id in @favorites do %>
+                      <.icon name="hero-heart-solid" class="w-4 h-4 text-red-500" />
+                    <% else %>
+                      <.icon name="hero-heart" class="w-4 h-4" />
+                    <% end %>
                   </button>
-                </div>
+                <% end %>
+                <button
+                  phx-click="edit"
+                  phx-value-id={sound.id}
+                  class="relative flex items-center justify-center w-8 h-8 text-gray-400 hover:text-blue-600 
+                         dark:text-gray-500 dark:hover:text-blue-400 rounded-md"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke-width="1.5"
+                    stroke="currentColor"
+                    class="w-4 h-4"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10"
+                    />
+                  </svg>
+                </button>
               </div>
             </div>
           </div>
@@ -423,8 +270,6 @@
       current_sound={@current_sound}
       tag_input={@tag_input}
       tag_suggestions={@tag_suggestions}
-      uploads={@uploads}
-      clear_image={@clear_image}
     />
     <%= if @show_delete_confirm do %>
       <.delete_modal {assigns} />
@@ -446,7 +291,7 @@
         audio.pause();
         audio.currentTime = 0;
       });
-
+      
       // Reset all play/stop icons
       document.querySelectorAll('.play-icon').forEach(icon => {
         icon.classList.remove('hidden');

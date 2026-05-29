@@ -486,48 +486,6 @@ defmodule Soundboard.SoundTest do
     end
   end
 
-  describe "color validation" do
-    test "accepts valid hex color formats" do
-      for color <- ["#a1B2c3", "#f00", "#ff000000"] do
-        changeset =
-          Sound.changeset(%Sound{}, %{
-            filename: "colorful.mp3",
-            source_type: "local",
-            user_id: 1,
-            color: color
-          })
-
-        refute :color in Keyword.keys(changeset.errors), "expected #{inspect(color)} to be valid"
-      end
-    end
-
-    test "accepts nil color" do
-      changeset =
-        Sound.changeset(%Sound{}, %{
-          filename: "no_color.mp3",
-          source_type: "local",
-          user_id: 1
-        })
-
-      refute :color in Keyword.keys(changeset.errors)
-    end
-
-    test "rejects invalid color formats" do
-      for color <- ["red", "#gggggg", "red; display:none"] do
-        changeset =
-          Sound.changeset(%Sound{}, %{
-            filename: "colorful.mp3",
-            source_type: "local",
-            user_id: 1,
-            color: color
-          })
-
-        assert "must be a hex color (e.g. #f00, #ff0000, #ff0000ff)" in errors_on(changeset).color,
-               "expected #{inspect(color)} to be rejected"
-      end
-    end
-  end
-
   describe "changeset with tags" do
     test "associates tags when provided in attrs", %{user: user, tag: tag} do
       attrs = %{
