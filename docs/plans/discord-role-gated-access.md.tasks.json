@@ -1,0 +1,40 @@
+{
+  "planPath": "docs/plans/discord-role-gated-access.md",
+  "tasks": [
+    {
+      "id": 2,
+      "subject": "Task 1: Add config plumbing for required guild/role env vars",
+      "status": "completed",
+      "description": "**Goal:** New env vars are read by runtime.exs and stored under :soundboard app config keys.\n\n**Files:** config/runtime.exs, .env.example\n\n**Verify:** mix compile --warnings-as-errors\n\n```json:metadata\n{\"files\": [\"config/runtime.exs\", \".env.example\"], \"verifyCommand\": \"mix compile --warnings-as-errors\", \"acceptanceCriteria\": [\"required_guild_id defaults nil\", \"required_role_ids defaults []\", \"role_recheck_interval_seconds defaults 900\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 2: Implement Soundboard.Discord.RoleChecker with TDD",
+      "status": "completed",
+      "blockedBy": [2],
+      "description": "**Goal:** New module wraps EDA.API.Member.get/2 with feature_enabled?/0 and authorized?/1.\n\n**Files:** lib/soundboard/discord/role_checker.ex, test/soundboard/discord/role_checker_test.exs\n\n**Verify:** mix test test/soundboard/discord/role_checker_test.exs\n\n```json:metadata\n{\"files\": [\"lib/soundboard/discord/role_checker.ex\", \"test/soundboard/discord/role_checker_test.exs\"], \"verifyCommand\": \"mix test test/soundboard/discord/role_checker_test.exs\", \"acceptanceCriteria\": [\"feature_enabled? correct\", \"authorized? short-circuits when disabled\", \"matches any required role\", \"false on error\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 3: Add login-time role check to AuthController",
+      "status": "completed",
+      "blockedBy": [3],
+      "description": "**Goal:** OAuth callback verifies role membership before creating local user. Stores :user_id and :roles_verified_at on success.\n\n**Files:** lib/soundboard_web/controllers/auth_controller.ex, test/soundboard_web/controllers/auth_controller_test.exs\n\n**Verify:** mix test test/soundboard_web/controllers/auth_controller_test.exs\n\n```json:metadata\n{\"files\": [\"lib/soundboard_web/controllers/auth_controller.ex\", \"test/soundboard_web/controllers/auth_controller_test.exs\"], \"verifyCommand\": \"mix test test/soundboard_web/controllers/auth_controller_test.exs\", \"acceptanceCriteria\": [\"authorized branch sets both session keys\", \"unauthorized creates no user record\", \"existing tests pass\"]}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 4: Implement SoundboardWeb.Plugs.RoleCheck with TDD",
+      "status": "completed",
+      "blockedBy": [3],
+      "description": "**Goal:** Plug runs after ensure_authenticated_user. Re-verifies via RoleChecker when timestamp is stale/missing. Halts and clears session on failure.\n\n**Files:** lib/soundboard_web/plugs/role_check.ex, test/soundboard_web/plugs/role_check_test.exs\n\n**Verify:** mix test test/soundboard_web/plugs/role_check_test.exs\n\n```json:metadata\n{\"files\": [\"lib/soundboard_web/plugs/role_check.ex\", \"test/soundboard_web/plugs/role_check_test.exs\"], \"verifyCommand\": \"mix test test/soundboard_web/plugs/role_check_test.exs\", \"acceptanceCriteria\": [\"pass through cases skip API\", \"stale/missing triggers re-check\", \"unauthorized halts and clears\"]}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 5: Wire RoleCheck plug into protected pipeline",
+      "status": "completed",
+      "blockedBy": [5],
+      "description": "**Goal:** Both protected scopes invoke the plug. Full precommit passes.\n\n**Files:** lib/soundboard_web/router.ex\n\n**Verify:** mix precommit\n\n```json:metadata\n{\"files\": [\"lib/soundboard_web/router.ex\"], \"verifyCommand\": \"mix precommit\", \"acceptanceCriteria\": [\"pipeline defined\", \"both scopes wired\", \"full precommit passes\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-04-27T17:11:00Z"
+}

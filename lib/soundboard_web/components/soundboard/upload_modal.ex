@@ -6,8 +6,6 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
   alias SoundboardWeb.Components.Soundboard.{TagComponents, VolumeControl}
 
   def upload_modal(assigns) do
-    assigns = assign_new(assigns, :upload_color, fn -> "#ffffff" end)
-
     ~H"""
     <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity z-10">
       <div class="fixed inset-0 z-10 overflow-y-auto">
@@ -172,61 +170,6 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
                       tag_input={@upload_tag_input}
                       tag_suggestions={@upload_tag_suggestions}
                       select_event="select_upload_tag"
-                    />
-                  </div>
-                </div>
-                
-    <!-- Appearance: Color and Image -->
-                <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 text-left">
-                      Card Color
-                    </label>
-                    <div class="mt-1 flex items-center gap-3">
-                      <input
-                        type="checkbox"
-                        id="use-color-upload"
-                        class="peer h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-600 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                        name="use_custom_color"
-                        value="true"
-                        disabled={!source_ready}
-                      />
-                      <label
-                        for="use-color-upload"
-                        class="text-sm text-gray-500 dark:text-gray-400 cursor-pointer select-none"
-                      >
-                        Custom
-                      </label>
-                      <input
-                        type="color"
-                        name="color"
-                        value={@upload_color}
-                        disabled={!source_ready}
-                        class="h-8 w-12 rounded cursor-pointer transition-opacity
-                               opacity-30 pointer-events-none
-                               peer-checked:opacity-100 peer-checked:pointer-events-auto
-                               disabled:opacity-30"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 text-left">
-                      Image
-                    </label>
-                    <%= if entry = List.first(@uploads.image.entries) do %>
-                      <div class="mt-1 mb-2 rounded overflow-hidden h-24 flex items-center justify-center bg-gray-100 dark:bg-gray-700">
-                        <.live_img_preview entry={entry} class="max-w-full max-h-full" />
-                      </div>
-                    <% end %>
-                    <.live_file_input
-                      upload={@uploads.image}
-                      class="mt-1 block w-full text-sm text-gray-500 dark:text-gray-400
-                             file:mr-4 file:py-2 file:px-4
-                             file:rounded-md file:border-0
-                             file:text-sm file:font-semibold
-                             file:bg-blue-50 file:text-blue-700
-                             dark:file:bg-blue-900 dark:file:text-blue-300
-                             hover:file:bg-blue-100 dark:hover:file:bg-blue-800"
                     />
                   </div>
                 </div>
