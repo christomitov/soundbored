@@ -36,7 +36,9 @@ defmodule Soundboard.Sounds.Uploads.Creator do
       url: source.url,
       user_id: params.user.id,
       volume: params.volume,
-      tags: tags
+      tags: tags,
+      color: params.color,
+      image_filename: params.image_filename
     }
 
     %Sound{}

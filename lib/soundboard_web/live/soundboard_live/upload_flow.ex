@@ -4,6 +4,7 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
   import Phoenix.Component, only: [assign: 3]
 
   alias Soundboard.{Sounds, Volume}
+  alias Soundboard.Sounds.ImageProcessing
   alias SoundboardWeb.Live.Support.TagForm
 
   @tag_form %{input_key: :upload_tag_input, suggestions_key: :upload_tag_suggestions}
@@ -22,6 +23,8 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
               is_leave_sound: false,
               upload_error: nil,
               upload_volume: 100,
+              upload_color: "#ffffff",
+              image_filename: nil,
               current_user: nil,
               audio_entries: [],
               current_upload: nil
@@ -38,6 +41,8 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
             is_leave_sound: boolean(),
             upload_error: String.t() | nil,
             upload_volume: number(),
+            upload_color: String.t(),
+            image_filename: String.t() | nil,
             current_user: term(),
             audio_entries: list(),
             current_upload: map() | nil
@@ -53,9 +58,17 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
   def save(socket, params, consume_uploaded_entries_fn) do
     upload = state(socket)
 
+    # Process image if uploaded
+    {image_filename, socket} = process_image_upload(socket, consume_uploaded_entries_fn)
+
     case upload.source_type do
       "url" ->
-        case Sounds.create_sound(build_request(upload, params)) do
+        request =
+          upload
+          |> build_request(params)
+          |> Map.put(:image_filename, image_filename)
+
+        case Sounds.create_sound(request) do
           {:ok, _sound} ->
             {:noreply,
              socket
@@ -64,6 +77,8 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
              |> Phoenix.LiveView.put_flash(:info, "Sound added successfully")}
 
           {:error, changeset} ->
+            ImageProcessing.delete_image(image_filename)
+
             {:noreply,
              Phoenix.LiveView.put_flash(socket, :error, Sounds.create_error_message(changeset))}
         end
@@ -75,11 +90,24 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
               upload
               |> build_request(params)
               |> Sounds.put_request_upload(%{path: meta.path, filename: entry.client_name})
+              |> Map.put(:image_filename, image_filename)
 
             {:ok, Sounds.create_sound(request)}
           end)
 
+        unless match?([{:ok, _}], results), do: ImageProcessing.delete_image(image_filename)
+
         handle_save_results(socket, results)
+    end
+  end
+
+  defp process_image_upload(socket, consume_uploaded_entries_fn) do
+    consume_uploaded_entries_fn.(socket, :image, fn meta, _entry ->
+      ImageProcessing.process_image(meta.path)
+    end)
+    |> case do
+      [filename] -> {filename, socket}
+      _ -> {nil, socket}
     end
   end
 
@@ -171,7 +199,8 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
         | upload_error: error,
           upload_name: params["name"] || upload.upload_name,
           url: params["url"] || upload.url,
-          source_type: params["source_type"] || upload.source_type
+          source_type: params["source_type"] || upload.source_type,
+          upload_color: params["color"] || upload.upload_color
       }
     end)
   end
@@ -259,7 +288,9 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
       volume: params["volume"],
       default_volume_percent: upload.upload_volume,
       is_join_sound: upload.is_join_sound,
-      is_leave_sound: upload.is_leave_sound
+      is_leave_sound: upload.is_leave_sound,
+      color: if(params["use_custom_color"] == "true", do: params["color"]),
+      image_filename: upload.image_filename
     })
   end
 
@@ -313,6 +344,8 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
       is_leave_sound: Map.get(socket.assigns, :is_leave_sound, false),
       upload_error: Map.get(socket.assigns, :upload_error),
       upload_volume: Map.get(socket.assigns, :upload_volume, 100),
+      upload_color: Map.get(socket.assigns, :upload_color, "#ffffff"),
+      image_filename: Map.get(socket.assigns, :image_filename),
       current_user: Map.get(socket.assigns, :current_user),
       audio_entries: audio_entries(socket),
       current_upload: current_upload(socket)
@@ -340,6 +373,8 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
     |> assign(:is_leave_sound, state.is_leave_sound)
     |> assign(:upload_error, state.upload_error)
     |> assign(:upload_volume, state.upload_volume)
+    |> assign(:upload_color, state.upload_color)
+    |> assign(:image_filename, state.image_filename)
   end
 
   defp audio_entries(socket) do

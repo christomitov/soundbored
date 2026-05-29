@@ -14,7 +14,9 @@ defmodule Soundboard.Sounds.Uploads.CreateRequest do
     :volume,
     :is_join_sound,
     :is_leave_sound,
-    :default_volume_percent
+    :default_volume_percent,
+    :color,
+    :image_filename
   ]
 
   @type upload ::
@@ -36,7 +38,9 @@ defmodule Soundboard.Sounds.Uploads.CreateRequest do
           volume: String.t() | number() | nil,
           is_join_sound: boolean() | String.t() | nil,
           is_leave_sound: boolean() | String.t() | nil,
-          default_volume_percent: String.t() | number() | nil
+          default_volume_percent: String.t() | number() | nil,
+          color: String.t() | nil,
+          image_filename: String.t() | nil
         }
 
   @spec new(User.t() | nil, map()) :: t()
@@ -51,7 +55,9 @@ defmodule Soundboard.Sounds.Uploads.CreateRequest do
       volume: get_param(attrs, :volume),
       is_join_sound: get_param(attrs, :is_join_sound),
       is_leave_sound: get_param(attrs, :is_leave_sound),
-      default_volume_percent: get_param(attrs, :default_volume_percent)
+      default_volume_percent: get_param(attrs, :default_volume_percent),
+      color: get_param(attrs, :color),
+      image_filename: get_param(attrs, :image_filename)
     }
   end
 

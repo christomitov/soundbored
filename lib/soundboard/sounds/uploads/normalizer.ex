@@ -23,7 +23,9 @@ defmodule Soundboard.Sounds.Uploads.Normalizer do
           is_join_sound: request.is_join_sound,
           is_leave_sound: request.is_leave_sound,
           default_volume_percent: request.default_volume_percent || 100,
-          upload: request.upload
+          upload: request.upload,
+          color: request.color,
+          image_filename: request.image_filename
         })
 
       _ ->
@@ -41,7 +43,9 @@ defmodule Soundboard.Sounds.Uploads.Normalizer do
          is_join_sound: is_join_sound,
          is_leave_sound: is_leave_sound,
          default_volume_percent: default_volume_percent,
-         upload: upload
+         upload: upload,
+         color: color,
+         image_filename: image_filename
        }) do
     if blank?(name) do
       {:error, add_error(change(%Sound{}), :filename, "can't be blank")}
@@ -57,7 +61,9 @@ defmodule Soundboard.Sounds.Uploads.Normalizer do
            Volume.percent_to_decimal(volume, normalize_default_volume(default_volume_percent)),
          is_join_sound: to_boolean(is_join_sound),
          is_leave_sound: to_boolean(is_leave_sound),
-         upload: upload
+         upload: upload,
+         color: color,
+         image_filename: image_filename
        }}
     end
   end
