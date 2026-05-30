@@ -470,6 +470,41 @@ defmodule SoundboardWeb.SoundboardLiveTest do
     @fixture_image "test/support/fixtures/test_image.png"
     @mocked_image_filename "mocked_processed.png"
 
+    test "shows flash error and aborts save when image processing fails", %{
+      conn: conn,
+      user: _user
+    } do
+      with_mock ImageProcessing, [:passthrough],
+        process_image: fn _path -> {:error, "ffmpeg not available"} end do
+        {:ok, view, _html} = live(conn, "/")
+
+        view |> element("[phx-click='show_upload_modal']") |> render_click()
+
+        view
+        |> element("select[name='source_type']")
+        |> render_change(%{"source_type" => "url"})
+
+        image_content = File.read!(@fixture_image)
+
+        image_input =
+          file_input(view, "#upload-form", :image, [
+            %{name: "test_image.png", content: image_content, type: "image/png"}
+          ])
+
+        render_upload(image_input, "test_image.png")
+
+        view
+        |> element("#upload-form")
+        |> render_submit(%{
+          "name" => "img_fail_test",
+          "url" => "https://example.com/audio.mp3"
+        })
+
+        assert render(view) =~ "Failed to process image"
+        refute Repo.all(Sound) |> Enum.any?(&(&1.filename == "img_fail_test.mp3"))
+      end
+    end
+
     test "image_filename is stored on sound after upload", %{conn: conn, user: _user} do
       with_mock ImageProcessing, [:passthrough],
         process_image: fn _path -> {:ok, @mocked_image_filename} end do

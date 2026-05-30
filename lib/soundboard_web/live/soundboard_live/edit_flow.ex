@@ -104,15 +104,24 @@ defmodule SoundboardWeb.Live.SoundboardLive.EditFlow do
   def save_sound(socket, params) do
     edit = state(socket)
 
-    {image_filename, socket} = process_image_upload(socket)
+    case process_image_upload(socket) do
+      {:ok, image_filename} ->
+        params =
+          cond do
+            image_filename -> Map.put(params, "image_filename", image_filename)
+            edit.clear_image -> Map.put(params, "clear_image", true)
+            true -> params
+          end
 
-    params =
-      cond do
-        image_filename -> Map.put(params, "image_filename", image_filename)
-        edit.clear_image -> Map.put(params, "clear_image", true)
-        true -> params
-      end
+        apply_sound_update(socket, edit, params)
 
+      {:error, reason} ->
+        {:noreply,
+         Phoenix.LiveView.put_flash(socket, :error, "Failed to process image: #{reason}")}
+    end
+  end
+
+  defp apply_sound_update(socket, edit, params) do
     case Sounds.update_sound(edit.current_sound, edit.current_user_id, params) do
       {:ok, _updated_sound} ->
         LiveTags.broadcast_update()
@@ -135,11 +144,12 @@ defmodule SoundboardWeb.Live.SoundboardLive.EditFlow do
 
   defp process_image_upload(socket) do
     Phoenix.LiveView.consume_uploaded_entries(socket, :image, fn meta, _entry ->
-      ImageProcessing.process_image(meta.path)
+      {:ok, ImageProcessing.process_image(meta.path)}
     end)
     |> case do
-      [filename] -> {filename, socket}
-      _ -> {nil, socket}
+      [{:ok, filename}] -> {:ok, filename}
+      [{:error, reason}] -> {:error, reason}
+      _ -> {:ok, nil}
     end
   end
 

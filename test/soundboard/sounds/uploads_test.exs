@@ -180,6 +180,29 @@ defmodule Soundboard.Sounds.UploadsTest do
       assert second_setting.is_join_sound
     end
 
+    test "cleans up processed image when sound creation fails", %{user: user} do
+      images_dir = Path.join(Soundboard.UploadsPath.dir(), "images")
+      image_filename = "processed_#{System.unique_integer([:positive])}.png"
+      image_path = Path.join(images_dir, image_filename)
+      File.mkdir_p!(images_dir)
+      File.write!(image_path, "image_data")
+      on_exit(fn -> File.rm(image_path) end)
+
+      # Pass an invalid color — passes Source.prepare but fails Sound.changeset inside Creator
+      assert {:error, _} =
+               user
+               |> request(%{
+                 source_type: "url",
+                 name: "img_fail_#{System.unique_integer([:positive])}",
+                 url: "https://example.com/sound.mp3",
+                 color: "not-a-valid-color",
+                 image_filename: image_filename
+               })
+               |> Uploads.create()
+
+      refute File.exists?(image_path)
+    end
+
     test "returns error when local file is missing", %{user: user} do
       assert {:error, changeset} =
                user

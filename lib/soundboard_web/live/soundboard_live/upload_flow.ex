@@ -58,15 +58,20 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
   def save(socket, params, consume_uploaded_entries_fn) do
     upload = state(socket)
 
-    # Process image if uploaded
-    {image_filename, socket} = process_image_upload(socket, consume_uploaded_entries_fn)
+    case process_image_upload(socket, consume_uploaded_entries_fn) do
+      {:ok, image_filename} ->
+        do_save(socket, upload, params, image_filename, consume_uploaded_entries_fn)
 
+      {:error, reason} ->
+        {:noreply,
+         Phoenix.LiveView.put_flash(socket, :error, "Failed to process image: #{reason}")}
+    end
+  end
+
+  defp do_save(socket, upload, params, image_filename, consume_uploaded_entries_fn) do
     case upload.source_type do
       "url" ->
-        request =
-          upload
-          |> build_request(params)
-          |> Map.put(:image_filename, image_filename)
+        request = upload |> build_request(params) |> Map.put(:image_filename, image_filename)
 
         case Sounds.create_sound(request) do
           {:ok, _sound} ->
@@ -77,8 +82,6 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
              |> Phoenix.LiveView.put_flash(:info, "Sound added successfully")}
 
           {:error, changeset} ->
-            ImageProcessing.delete_image(image_filename)
-
             {:noreply,
              Phoenix.LiveView.put_flash(socket, :error, Sounds.create_error_message(changeset))}
         end
@@ -95,19 +98,18 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
             {:ok, Sounds.create_sound(request)}
           end)
 
-        unless match?([{:ok, _}], results), do: ImageProcessing.delete_image(image_filename)
-
         handle_save_results(socket, results)
     end
   end
 
   defp process_image_upload(socket, consume_uploaded_entries_fn) do
     consume_uploaded_entries_fn.(socket, :image, fn meta, _entry ->
-      ImageProcessing.process_image(meta.path)
+      {:ok, ImageProcessing.process_image(meta.path)}
     end)
     |> case do
-      [filename] -> {filename, socket}
-      _ -> {nil, socket}
+      [{:ok, filename}] -> {:ok, filename}
+      [{:error, reason}] -> {:error, reason}
+      _ -> {:ok, nil}
     end
   end
 

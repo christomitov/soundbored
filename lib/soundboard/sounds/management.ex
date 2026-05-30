@@ -25,7 +25,8 @@ defmodule Soundboard.Sounds.Management do
         maybe_cleanup_old_image(db_sound, params)
         {:ok, updated_sound}
 
-      error ->
+      {:error, _} = error ->
+        ImageProcessing.delete_image(params["image_filename"])
         error
     end
   end
@@ -73,7 +74,7 @@ defmodule Soundboard.Sounds.Management do
         updated_sound = update_user_settings(db_sound, user_id, updated_sound, params)
         AudioPlayer.invalidate_cache(db_sound.filename)
         AudioPlayer.invalidate_cache(updated_sound.filename)
-        updated_sound
+        {updated_sound, db_sound}
 
       {:error, changeset} ->
         Repo.rollback(changeset)

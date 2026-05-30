@@ -1,5 +1,6 @@
 defmodule Soundboard.Repo.Migrations.AddStorageKeyToSounds do
   use Ecto.Migration
+  require Logger
 
   def up do
     alter table(:sounds) do
@@ -19,7 +20,14 @@ defmodule Soundboard.Repo.Migrations.AddStorageKeyToSounds do
       old_path = Path.join(uploads_dir, filename)
       new_path = Path.join(uploads_dir, storage_key)
 
-      if File.exists?(old_path), do: File.rename!(old_path, new_path)
+      if File.exists?(old_path) do
+        File.rename!(old_path, new_path)
+      else
+        Logger.warning(
+          "AddStorageKey migration: #{old_path} not found, skipping rename. " <>
+            "Sound id=#{id} will have orphaned storage_key until fixed."
+        )
+      end
 
       Soundboard.Repo.query!(
         "UPDATE sounds SET storage_key = ? WHERE id = ?",

@@ -29,6 +29,15 @@ defmodule SoundboardWeb.SoundHelpers do
   def text_on_bg(nil), do: :default
   def text_on_bg(""), do: :default
 
+  def text_on_bg("#" <> hex) when byte_size(hex) == 3 do
+    expanded = String.graphemes(hex) |> Enum.map_join(&(&1 <> &1))
+    text_on_bg("#" <> expanded)
+  end
+
+  def text_on_bg("#" <> hex) when byte_size(hex) == 8 do
+    text_on_bg("#" <> String.slice(hex, 0, 6))
+  end
+
   def text_on_bg("#" <> hex) when byte_size(hex) == 6 do
     r = String.to_integer(String.slice(hex, 0, 2), 16)
     g = String.to_integer(String.slice(hex, 2, 2), 16)

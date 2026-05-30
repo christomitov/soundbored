@@ -57,10 +57,16 @@ defmodule Soundboard.Sounds.ImageProcessing do
   def delete_image(filename) do
     path = Path.join(images_dir(), filename)
 
-    if File.exists?(path) do
-      File.rm(path)
-    else
-      :ok
+    case File.rm(path) do
+      :ok ->
+        :ok
+
+      {:error, :enoent} ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("Failed to delete image #{path}: #{inspect(reason)}")
+        :ok
     end
   end
 

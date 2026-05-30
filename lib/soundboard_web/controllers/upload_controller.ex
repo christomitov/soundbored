@@ -3,7 +3,7 @@ defmodule SoundboardWeb.UploadController do
 
   alias Soundboard.UploadsPath
 
-  @allowed_extensions ~w(.mp3 .wav .ogg .m4a .flac)
+  @allowed_extensions ~w(.mp3 .wav .ogg .m4a .flac .png .jpg .jpeg .webp)
 
   def show(conn, %{"path" => path}) do
     with {:ok, file_path} <- UploadsPath.safe_joined_path(path),
