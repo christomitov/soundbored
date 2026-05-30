@@ -4,8 +4,7 @@ defmodule SoundboardWeb.Live.SoundboardLive.EditFlow do
   import Phoenix.Component, only: [assign: 3]
 
   alias Soundboard.{Sound, Sounds, Volume}
-  alias Soundboard.Sounds.ImageProcessing
-  alias SoundboardWeb.Live.Support.{LiveTags, TagForm}
+  alias SoundboardWeb.Live.Support.{ImageUpload, LiveTags, TagForm}
 
   @tag_form %{input_key: :tag_input, suggestions_key: :tag_suggestions}
 
@@ -104,7 +103,7 @@ defmodule SoundboardWeb.Live.SoundboardLive.EditFlow do
   def save_sound(socket, params) do
     edit = state(socket)
 
-    case process_image_upload(socket) do
+    case ImageUpload.process(socket, &Phoenix.LiveView.consume_uploaded_entries/3) do
       {:ok, image_filename} ->
         params =
           cond do
@@ -139,17 +138,6 @@ defmodule SoundboardWeb.Live.SoundboardLive.EditFlow do
            :error,
            "Error updating sound: #{error_message(error)}"
          )}
-    end
-  end
-
-  defp process_image_upload(socket) do
-    Phoenix.LiveView.consume_uploaded_entries(socket, :image, fn meta, _entry ->
-      {:ok, ImageProcessing.process_image(meta.path)}
-    end)
-    |> case do
-      [{:ok, filename}] -> {:ok, filename}
-      [{:error, reason}] -> {:error, reason}
-      _ -> {:ok, nil}
     end
   end
 

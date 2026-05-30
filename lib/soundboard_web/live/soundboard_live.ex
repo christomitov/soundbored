@@ -6,6 +6,7 @@ defmodule SoundboardWeb.SoundboardLive do
   import DeleteModal
   import UploadModal
   import SoundboardWeb.Components.Soundboard.TagComponents, only: [tag_filter_button: 1]
+  import SoundboardWeb.Components.Soundboard.SoundCard, only: [sound_image: 1]
   alias Soundboard.{Favorites, PubSubTopics, Sounds}
   alias SoundboardWeb.Live.SoundboardLive.{EditFlow, UploadFlow}
   alias SoundboardWeb.Live.Support.{FlashHelpers, SoundPlayback}

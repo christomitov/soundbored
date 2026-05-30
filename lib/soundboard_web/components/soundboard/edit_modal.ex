@@ -4,7 +4,13 @@ defmodule SoundboardWeb.Components.Soundboard.EditModal do
   """
   use Phoenix.Component
   alias Soundboard.Volume
-  alias SoundboardWeb.Components.Soundboard.{TagComponents, VolumeControl}
+
+  alias SoundboardWeb.Components.Soundboard.{
+    ColorPicker,
+    ImagePicker,
+    TagComponents,
+    VolumeControl
+  }
 
   attr :flash, :map, default: %{}
   attr :edit_name_error, :string, default: nil
@@ -162,72 +168,16 @@ defmodule SoundboardWeb.Components.Soundboard.EditModal do
                 
     <!-- Appearance: Color and Image -->
                 <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 text-left">
-                      Card Color
-                    </label>
-                    <div class="mt-1 flex items-center gap-3">
-                      <input
-                        type="checkbox"
-                        id="use-color-edit"
-                        class="peer h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-600 cursor-pointer"
-                        name="use_custom_color"
-                        value="true"
-                        checked={!!@current_sound.color}
-                      />
-                      <label
-                        for="use-color-edit"
-                        class="text-sm text-gray-500 dark:text-gray-400 cursor-pointer select-none"
-                      >
-                        Custom
-                      </label>
-                      <input
-                        type="color"
-                        name="color"
-                        value={@current_sound.color || "#ffffff"}
-                        class="h-8 w-12 rounded cursor-pointer transition-opacity
-                               opacity-30 pointer-events-none
-                               peer-checked:opacity-100 peer-checked:pointer-events-auto"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 text-left">
-                      Image
-                    </label>
-                    <%= if entry = List.first(@uploads.image.entries) do %>
-                      <div class="mt-1 mb-2 relative rounded overflow-hidden h-32 flex items-center justify-center bg-gray-100 dark:bg-gray-700">
-                        <.live_img_preview entry={entry} class="max-w-full max-h-full" />
-                      </div>
-                    <% else %>
-                      <%= if @current_sound.image_filename && !@clear_image do %>
-                        <div class="mt-1 mb-2 relative rounded overflow-hidden h-32 flex items-center justify-center">
-                          <img
-                            src={"/uploads/images/#{@current_sound.image_filename}"}
-                            class="max-w-full max-h-full"
-                          />
-                          <button
-                            type="button"
-                            phx-click="remove_image"
-                            class="absolute top-1 right-1 flex items-center justify-center w-6 h-6
-                                   rounded-full bg-black/50 hover:bg-black/70 text-white text-sm leading-none"
-                          >
-                            &times;
-                          </button>
-                        </div>
-                      <% end %>
-                    <% end %>
-                    <.live_file_input
-                      upload={@uploads.image}
-                      class="mt-1 block w-full text-sm text-gray-500 dark:text-gray-400
-                             file:mr-4 file:py-2 file:px-4
-                             file:rounded-md file:border-0
-                             file:text-sm file:font-semibold
-                             file:bg-blue-50 file:text-blue-700
-                             dark:file:bg-blue-900 dark:file:text-blue-300
-                             hover:file:bg-blue-100 dark:hover:file:bg-blue-800"
-                    />
-                  </div>
+                  <ColorPicker.color_picker
+                    id="use-color-edit"
+                    checked={!!@current_sound.color}
+                    color={@current_sound.color || "#ffffff"}
+                  />
+                  <ImagePicker.image_picker
+                    upload={@uploads.image}
+                    current_image_filename={@current_sound.image_filename}
+                    clear_image={@clear_image}
+                  />
                 </div>
                 
     <!-- Sound Settings -->

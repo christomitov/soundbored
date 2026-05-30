@@ -4,8 +4,7 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
   import Phoenix.Component, only: [assign: 3]
 
   alias Soundboard.{Sounds, Volume}
-  alias Soundboard.Sounds.ImageProcessing
-  alias SoundboardWeb.Live.Support.TagForm
+  alias SoundboardWeb.Live.Support.{ImageUpload, TagForm}
 
   @tag_form %{input_key: :upload_tag_input, suggestions_key: :upload_tag_suggestions}
 
@@ -58,7 +57,7 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
   def save(socket, params, consume_uploaded_entries_fn) do
     upload = state(socket)
 
-    case process_image_upload(socket, consume_uploaded_entries_fn) do
+    case ImageUpload.process(socket, consume_uploaded_entries_fn) do
       {:ok, image_filename} ->
         do_save(socket, upload, params, image_filename, consume_uploaded_entries_fn)
 
@@ -99,17 +98,6 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
           end)
 
         handle_save_results(socket, results)
-    end
-  end
-
-  defp process_image_upload(socket, consume_uploaded_entries_fn) do
-    consume_uploaded_entries_fn.(socket, :image, fn meta, _entry ->
-      {:ok, ImageProcessing.process_image(meta.path)}
-    end)
-    |> case do
-      [{:ok, filename}] -> {:ok, filename}
-      [{:error, reason}] -> {:error, reason}
-      _ -> {:ok, nil}
     end
   end
 
