@@ -24,4 +24,31 @@ defmodule SoundboardWeb.SoundHelpers do
 
   defp ensure_slug(""), do: "sound"
   defp ensure_slug(slug), do: slug
+
+  # Returns :dark_text, :light_text, or :default (nil/invalid color → no override)
+  def text_on_bg(nil), do: :default
+  def text_on_bg(""), do: :default
+
+  def text_on_bg("#" <> hex) when byte_size(hex) == 3 do
+    expanded = String.graphemes(hex) |> Enum.map_join(&(&1 <> &1))
+    text_on_bg("#" <> expanded)
+  end
+
+  def text_on_bg("#" <> hex) when byte_size(hex) == 8 do
+    text_on_bg("#" <> String.slice(hex, 0, 6))
+  end
+
+  def text_on_bg("#" <> hex) when byte_size(hex) == 6 do
+    r = String.to_integer(String.slice(hex, 0, 2), 16)
+    g = String.to_integer(String.slice(hex, 2, 2), 16)
+    b = String.to_integer(String.slice(hex, 4, 2), 16)
+
+    if (r * 299 + g * 587 + b * 114) / 1000 >= 128 do
+      :dark_text
+    else
+      :light_text
+    end
+  end
+
+  def text_on_bg(_), do: :default
 end

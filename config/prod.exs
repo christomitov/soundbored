@@ -14,7 +14,7 @@ config :soundboard, Soundboard.Repo,
 
 # Ensure the uploads directory exists
 config :soundboard,
-  upload_directory: "/app/priv/static/uploads"
+  uploads_dir: "/app/priv/static/uploads"
 
 config :soundboard,
   env: :prod
