@@ -62,10 +62,6 @@ defmodule Soundboard.Sounds.Uploads.Normalizer do
     end
   end
 
-  defp build_normalized_params(_params) do
-    {:error, add_error(change(%Sound{}), :user_id, "can't be blank")}
-  end
-
   defp normalize_default_volume(value), do: Volume.normalize_percent(value, 100)
 
   defp normalize_tags(nil), do: []

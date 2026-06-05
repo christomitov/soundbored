@@ -174,11 +174,9 @@ defmodule Soundboard.Discord.Handler do
     VoiceRuntime.get_current_voice_channel()
   end
 
-  defp apply_runtime_actions(actions) when is_list(actions) do
+  defp apply_runtime_actions(actions) do
     Enum.each(actions, &apply_runtime_action/1)
   end
-
-  defp apply_runtime_actions(_actions), do: :ok
 
   defp apply_runtime_action({:schedule_recheck_alone, guild_id, channel_id, delay_ms}) do
     Process.send_after(self(), {:recheck_alone, guild_id, channel_id}, delay_ms)

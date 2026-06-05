@@ -4,7 +4,6 @@ defmodule SoundboardWeb.FavoritesLive do
   alias Soundboard.{Favorites, PubSubTopics}
   alias SoundboardWeb.Live.Support.{FlashHelpers, SoundPlayback}
   import FlashHelpers, only: [flash_sound_played: 2, clear_flash_after_timeout: 1]
-  require Logger
 
   @impl true
   def mount(_params, session, socket) do

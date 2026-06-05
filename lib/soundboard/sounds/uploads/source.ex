@@ -115,7 +115,7 @@ defmodule Soundboard.Sounds.Uploads.Source do
   defp validate_local_extension(filename) do
     ext = filename |> Path.extname() |> String.downcase()
 
-    if ext in @allowed_extensions do
+    if allowed_extension?(ext) do
       {:ok, ext}
     else
       {:error,
@@ -188,10 +188,10 @@ defmodule Soundboard.Sounds.Uploads.Source do
         path -> String.downcase(Path.extname(path || ""))
       end
 
-    if ext in @allowed_extensions, do: ext, else: ""
+    if allowed_extension?(ext), do: ext, else: ""
   end
 
-  defp url_file_extension(_), do: ""
+  defp allowed_extension?(ext), do: Enum.member?(@allowed_extensions, ext)
 
   defp blank?(value), do: value in [nil, ""]
 end
