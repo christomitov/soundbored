@@ -4,7 +4,13 @@ defmodule SoundboardWeb.Components.Soundboard.EditModal do
   """
   use Phoenix.Component
   alias Soundboard.Volume
-  alias SoundboardWeb.Components.Soundboard.{TagComponents, VolumeControl}
+
+  alias SoundboardWeb.Components.Soundboard.{
+    ColorPicker,
+    ImagePicker,
+    TagComponents,
+    VolumeControl
+  }
 
   attr :flash, :map, default: %{}
   attr :edit_name_error, :string, default: nil
@@ -12,6 +18,8 @@ defmodule SoundboardWeb.Components.Soundboard.EditModal do
   attr :current_sound, :map, required: true
   attr :tag_input, :string, default: ""
   attr :tag_suggestions, :list, default: []
+  attr :uploads, :map, required: true
+  attr :clear_image, :boolean, default: false
 
   def edit_modal(assigns) do
     assigns = assign_new(assigns, :edit_name_error, fn -> nil end)
@@ -155,6 +163,20 @@ defmodule SoundboardWeb.Components.Soundboard.EditModal do
                     tag_input={@tag_input}
                     tag_suggestions={@tag_suggestions}
                     select_event="select_tag"
+                  />
+                </div>
+                
+    <!-- Appearance: Color and Image -->
+                <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <ColorPicker.color_picker
+                    id="use-color-edit"
+                    checked={!!@current_sound.color}
+                    color={@current_sound.color || "#ffffff"}
+                  />
+                  <ImagePicker.image_picker
+                    upload={@uploads.image}
+                    current_image_filename={@current_sound.image_filename}
+                    clear_image={@clear_image}
                   />
                 </div>
                 

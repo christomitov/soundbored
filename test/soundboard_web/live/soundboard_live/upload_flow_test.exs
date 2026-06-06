@@ -21,8 +21,9 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlowTest do
   test "save treats consume_uploaded_entries success results as a successful upload" do
     socket = build_socket(%{show_upload_modal: true})
 
-    consume_uploaded_entries_fn = fn _socket, :audio, _fun ->
-      [{:ok, %{id: 123}}]
+    consume_uploaded_entries_fn = fn
+      _socket, :image, _fun -> []
+      _socket, :audio, _fun -> [{:ok, %{id: 123}}]
     end
 
     assert {:noreply, updated_socket} = UploadFlow.save(socket, %{}, consume_uploaded_entries_fn)
@@ -30,6 +31,20 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlowTest do
     assert updated_socket.assigns.show_upload_modal == false
     assert updated_socket.assigns.flash["info"] == "Sound added successfully"
     assert is_list(updated_socket.assigns.uploaded_files)
+  end
+
+  test "save correctly handles filename string from image consume_uploaded_entries" do
+    socket = build_socket(%{show_upload_modal: true})
+
+    consume_uploaded_entries_fn = fn
+      _socket, :image, _fun -> ["test-uuid.png"]
+      _socket, :audio, _fun -> [{:ok, %{id: 123}}]
+    end
+
+    assert {:noreply, updated_socket} = UploadFlow.save(socket, %{}, consume_uploaded_entries_fn)
+
+    assert updated_socket.assigns.show_upload_modal == false
+    assert updated_socket.assigns.flash["info"] == "Sound added successfully"
   end
 
   test "save shows upload errors returned by consume_uploaded_entries" do
@@ -40,8 +55,9 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlowTest do
       |> Ecto.Changeset.change()
       |> Ecto.Changeset.add_error(:filename, "can't be blank")
 
-    consume_uploaded_entries_fn = fn _socket, :audio, _fun ->
-      [{:error, changeset}]
+    consume_uploaded_entries_fn = fn
+      _socket, :image, _fun -> []
+      _socket, :audio, _fun -> [{:error, changeset}]
     end
 
     assert {:noreply, updated_socket} = UploadFlow.save(socket, %{}, consume_uploaded_entries_fn)

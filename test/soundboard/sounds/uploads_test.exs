@@ -180,6 +180,29 @@ defmodule Soundboard.Sounds.UploadsTest do
       assert second_setting.is_join_sound
     end
 
+    test "cleans up processed image when sound creation fails", %{user: user} do
+      images_dir = Path.join(Soundboard.UploadsPath.dir(), "images")
+      image_filename = "processed_#{System.unique_integer([:positive])}.png"
+      image_path = Path.join(images_dir, image_filename)
+      File.mkdir_p!(images_dir)
+      File.write!(image_path, "image_data")
+      on_exit(fn -> File.rm(image_path) end)
+
+      # Pass an invalid color — passes Source.prepare but fails Sound.changeset inside Creator
+      assert {:error, _} =
+               user
+               |> request(%{
+                 source_type: "url",
+                 name: "img_fail_#{System.unique_integer([:positive])}",
+                 url: "https://example.com/sound.mp3",
+                 color: "not-a-valid-color",
+                 image_filename: image_filename
+               })
+               |> Uploads.create()
+
+      refute File.exists?(image_path)
+    end
+
     test "returns error when local file is missing", %{user: user} do
       assert {:error, changeset} =
                user
@@ -216,6 +239,128 @@ defmodule Soundboard.Sounds.UploadsTest do
                |> Uploads.create()
 
       assert "has already been taken" in errors_on(changeset).filename
+    end
+  end
+
+  describe "name sanitization" do
+    test "strips forward slashes from name", %{user: user} do
+      n = System.unique_integer([:positive])
+
+      assert {:ok, sound} =
+               user
+               |> request(%{
+                 source_type: "url",
+                 name: "../../evil/sound_#{n}",
+                 url: "https://example.com/test.mp3"
+               })
+               |> Uploads.create()
+
+      refute String.contains?(sound.filename, "/")
+    end
+
+    test "strips backslashes from name", %{user: user} do
+      n = System.unique_integer([:positive])
+
+      assert {:ok, sound} =
+               user
+               |> request(%{
+                 source_type: "url",
+                 name: "some\\evil\\#{n}",
+                 url: "https://example.com/test.mp3"
+               })
+               |> Uploads.create()
+
+      refute String.contains?(sound.filename, "\\")
+    end
+
+    test "strips null bytes from name", %{user: user} do
+      n = System.unique_integer([:positive])
+
+      assert {:ok, sound} =
+               user
+               |> request(%{
+                 source_type: "url",
+                 name: "some\0evil\0#{n}",
+                 url: "https://example.com/test.mp3"
+               })
+               |> Uploads.create()
+
+      refute String.contains?(sound.filename, "\0")
+    end
+
+    test "trims leading and trailing whitespace", %{user: user} do
+      n = System.unique_integer([:positive])
+
+      assert {:ok, sound} =
+               user
+               |> request(%{
+                 source_type: "url",
+                 name: "  trimmed #{n}  ",
+                 url: "https://example.com/test.mp3"
+               })
+               |> Uploads.create()
+
+      assert sound.filename == "trimmed #{n}.mp3"
+    end
+
+    test "truncates name to 200 characters", %{user: user} do
+      long_name = String.duplicate("a", 210)
+
+      assert {:ok, sound} =
+               user
+               |> request(%{
+                 source_type: "url",
+                 name: long_name,
+                 url: "https://example.com/test.mp3"
+               })
+               |> Uploads.create()
+
+      assert String.length(Path.rootname(sound.filename)) == 200
+    end
+
+    test "returns error when name is blank after stripping", %{user: user} do
+      assert {:error, changeset} =
+               user
+               |> request(%{
+                 source_type: "url",
+                 name: "///",
+                 url: "https://example.com/test.mp3"
+               })
+               |> Uploads.validate()
+
+      assert "can't be blank" in errors_on(changeset).filename
+    end
+
+    test "returns error for nil name", %{user: user} do
+      assert {:error, changeset} =
+               user
+               |> request(%{
+                 source_type: "url",
+                 name: nil,
+                 url: "https://example.com/test.mp3"
+               })
+               |> Uploads.validate()
+
+      assert "can't be blank" in errors_on(changeset).filename
+    end
+
+    test "strips path separators in local upload name", %{user: user} do
+      n = System.unique_integer([:positive])
+      tmp_path = Path.join(System.tmp_dir!(), "#{n}.wav")
+      File.cp!(Soundboard.TestHelpers.audio_fixture_path(), tmp_path)
+      on_exit(fn -> File.rm(tmp_path) end)
+
+      assert {:ok, sound} =
+               user
+               |> request(%{
+                 source_type: "local",
+                 name: "../escape_#{n}",
+                 upload: %{path: tmp_path, filename: "test.wav"}
+               })
+               |> Uploads.create()
+
+      refute String.contains?(sound.filename, "/")
+      on_exit(fn -> File.rm(Soundboard.UploadsPath.file_path(sound.filename)) end)
     end
   end
 

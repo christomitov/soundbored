@@ -47,7 +47,10 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModalTest do
   defp upload_assigns(overrides \\ %{}) do
     base = %{
       source_type: "url",
-      uploads: %{audio: %{entries: []}},
+      uploads: %{
+        audio: %Phoenix.LiveView.UploadConfig{name: :audio, ref: "phx-test-audio"},
+        image: %Phoenix.LiveView.UploadConfig{name: :image, ref: "phx-test-img"}
+      },
       url: "",
       upload_name: "",
       upload_error: nil,

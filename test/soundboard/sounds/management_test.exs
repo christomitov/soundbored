@@ -135,14 +135,116 @@ defmodule Soundboard.Sounds.ManagementTest do
     assert Repo.get!(Sound, sound.id)
   end
 
-  defp insert_local_sound(user, filename) do
+  test "update_sound/3 deletes old image file when replaced with a new one", %{user: user} do
+    filename = "img_#{System.unique_integer([:positive])}.mp3"
+    old_image = "old_#{System.unique_integer([:positive])}.png"
+    new_image = "new_#{System.unique_integer([:positive])}.png"
+
+    sound = insert_local_sound(user, filename, image_filename: old_image)
+
+    storage_path = Path.join(uploads_dir(), sound.storage_key)
+    images_dir = Path.join(uploads_dir(), "images")
+    old_image_path = Path.join(images_dir, old_image)
+
+    File.mkdir_p!(images_dir)
+    File.write!(storage_path, "audio")
+    File.write!(old_image_path, "old_image_data")
+
+    on_exit(fn ->
+      File.rm(storage_path)
+      File.rm(old_image_path)
+    end)
+
+    params = %{
+      "filename" => "img_renamed_#{System.unique_integer([:positive])}",
+      "source_type" => "local",
+      "url" => nil,
+      "volume" => "80",
+      "is_join_sound" => "false",
+      "is_leave_sound" => "false",
+      "image_filename" => new_image
+    }
+
+    assert {:ok, updated_sound} = Management.update_sound(sound, user.id, params)
+    assert updated_sound.image_filename == new_image
+    refute File.exists?(old_image_path)
+  end
+
+  test "update_sound/3 deletes image file when cleared", %{user: user} do
+    filename = "clear_img_#{System.unique_integer([:positive])}.mp3"
+    old_image = "to_clear_#{System.unique_integer([:positive])}.png"
+
+    sound = insert_local_sound(user, filename, image_filename: old_image)
+
+    storage_path = Path.join(uploads_dir(), sound.storage_key)
+    images_dir = Path.join(uploads_dir(), "images")
+    old_image_path = Path.join(images_dir, old_image)
+
+    File.mkdir_p!(images_dir)
+    File.write!(storage_path, "audio")
+    File.write!(old_image_path, "image_data")
+
+    on_exit(fn ->
+      File.rm(storage_path)
+      File.rm(old_image_path)
+    end)
+
+    params = %{
+      "filename" => "clear_img_renamed_#{System.unique_integer([:positive])}",
+      "source_type" => "local",
+      "url" => nil,
+      "volume" => "80",
+      "is_join_sound" => "false",
+      "is_leave_sound" => "false",
+      "clear_image" => "true"
+    }
+
+    assert {:ok, updated_sound} = Management.update_sound(sound, user.id, params)
+    assert updated_sound.image_filename == nil
+    refute File.exists?(old_image_path)
+  end
+
+  test "update_sound/3 cleans up new image file when DB update fails", %{user: user} do
+    sound1 = insert_local_sound(user, "conflict_a_#{System.unique_integer([:positive])}.mp3")
+    sound2 = insert_local_sound(user, "conflict_b_#{System.unique_integer([:positive])}.mp3")
+
+    storage_path = Path.join(uploads_dir(), sound1.storage_key)
+    File.write!(storage_path, "audio")
+    on_exit(fn -> File.rm(storage_path) end)
+
+    images_dir = Path.join(uploads_dir(), "images")
+    new_image = "new_img_#{System.unique_integer([:positive])}.png"
+    new_image_path = Path.join(images_dir, new_image)
+    File.mkdir_p!(images_dir)
+    File.write!(new_image_path, "image_data")
+    on_exit(fn -> File.rm(new_image_path) end)
+
+    # Rename sound1 to sound2's filename — triggers unique constraint failure
+    conflicting_name = Path.rootname(sound2.filename)
+
+    params = %{
+      "filename" => conflicting_name,
+      "source_type" => "local",
+      "url" => nil,
+      "volume" => "80",
+      "is_join_sound" => "false",
+      "is_leave_sound" => "false",
+      "image_filename" => new_image
+    }
+
+    assert {:error, _} = Management.update_sound(sound1, user.id, params)
+    refute File.exists?(new_image_path)
+  end
+
+  defp insert_local_sound(user, filename, opts \\ []) do
     {:ok, sound} =
       %Sound{}
       |> Sound.changeset(%{
         filename: filename,
         source_type: "local",
         user_id: user.id,
-        volume: 1.0
+        volume: 1.0,
+        image_filename: Keyword.get(opts, :image_filename)
       })
       |> Repo.insert()
 

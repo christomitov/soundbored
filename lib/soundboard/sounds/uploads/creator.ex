@@ -2,7 +2,7 @@ defmodule Soundboard.Sounds.Uploads.Creator do
   @moduledoc false
 
   alias Soundboard.{PubSubTopics, Repo, Sound, Stats, UserSoundSetting}
-  alias Soundboard.Sounds.Tags
+  alias Soundboard.Sounds.{ImageProcessing, Tags}
   alias Soundboard.Sounds.Uploads.Source
 
   @spec create(map(), map()) :: {:ok, Sound.t()} | {:error, term()}
@@ -24,6 +24,7 @@ defmodule Soundboard.Sounds.Uploads.Creator do
 
       {:error, reason} ->
         Source.cleanup_local_file(source.copied_file_path)
+        ImageProcessing.delete_image(params.image_filename)
         {:error, reason}
     end
   end
@@ -36,7 +37,9 @@ defmodule Soundboard.Sounds.Uploads.Creator do
       url: source.url,
       user_id: params.user.id,
       volume: params.volume,
-      tags: tags
+      tags: tags,
+      color: params.color,
+      image_filename: params.image_filename
     }
 
     %Sound{}

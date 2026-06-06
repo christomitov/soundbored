@@ -6,6 +6,7 @@ defmodule SoundboardWeb.SoundboardLive do
   import DeleteModal
   import UploadModal
   import SoundboardWeb.Components.Soundboard.TagComponents, only: [tag_filter_button: 1]
+  import SoundboardWeb.Components.Soundboard.SoundCard, only: [sound_image: 1]
   alias Soundboard.{Favorites, PubSubTopics, Sounds}
   alias SoundboardWeb.Live.SoundboardLive.{EditFlow, UploadFlow}
   alias SoundboardWeb.Live.Support.{FlashHelpers, SoundPlayback}
@@ -49,6 +50,7 @@ defmodule SoundboardWeb.SoundboardLive do
     |> assign(:editing, nil)
     |> assign(:selected_tags, [])
     |> assign(:show_all_tags, false)
+    |> assign(:show_images, true)
     |> UploadFlow.assign_defaults()
     |> EditFlow.assign_defaults()
     |> allow_upload(:audio,
@@ -62,6 +64,21 @@ defmodule SoundboardWeb.SoundboardLive do
         not_accepted: "Invalid file type. Please upload an MP3, WAV, OGG, or M4A file."
       ]
     )
+    |> allow_upload(:image,
+      accept: ~w(.jpg .jpeg .png .webp),
+      max_entries: 1,
+      max_file_size: 5_000_000,
+      auto_upload: false,
+      accept_errors: [
+        too_large: "Image is too large (max 5MB)",
+        not_accepted: "Invalid image type. Please upload a JPG, PNG, or WebP file."
+      ]
+    )
+  end
+
+  @impl true
+  def handle_event("toggle_images", _params, socket) do
+    {:noreply, assign(socket, :show_images, !socket.assigns.show_images)}
   end
 
   @impl true
@@ -187,6 +204,11 @@ defmodule SoundboardWeb.SoundboardLive do
   @impl true
   def handle_event("save_sound", params, socket) do
     EditFlow.save_sound(socket, params)
+  end
+
+  @impl true
+  def handle_event("remove_image", _params, socket) do
+    EditFlow.remove_image(socket)
   end
 
   @impl true

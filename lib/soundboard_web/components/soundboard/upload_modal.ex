@@ -3,9 +3,17 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
   The upload modal component.
   """
   use Phoenix.Component
-  alias SoundboardWeb.Components.Soundboard.{TagComponents, VolumeControl}
+
+  alias SoundboardWeb.Components.Soundboard.{
+    ColorPicker,
+    ImagePicker,
+    TagComponents,
+    VolumeControl
+  }
 
   def upload_modal(assigns) do
+    assigns = assign_new(assigns, :upload_color, fn -> "#ffffff" end)
+
     ~H"""
     <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity z-10">
       <div class="fixed inset-0 z-10 overflow-y-auto">
@@ -172,6 +180,16 @@ defmodule SoundboardWeb.Components.Soundboard.UploadModal do
                       select_event="select_upload_tag"
                     />
                   </div>
+                </div>
+                
+    <!-- Appearance: Color and Image -->
+                <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <ColorPicker.color_picker
+                    id="use-color-upload"
+                    color={@upload_color}
+                    disabled={!source_ready}
+                  />
+                  <ImagePicker.image_picker upload={@uploads.image} />
                 </div>
 
                 <% preview_kind = if @source_type == "local", do: "local-upload", else: "url" %>

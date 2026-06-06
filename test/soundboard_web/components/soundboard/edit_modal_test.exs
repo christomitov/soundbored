@@ -51,7 +51,9 @@ defmodule SoundboardWeb.Components.Soundboard.EditModalTest do
       tag_input: "",
       tag_suggestions: [],
       edit_name_error: nil,
-      flash: %{}
+      flash: %{},
+      uploads: %{image: %Phoenix.LiveView.UploadConfig{name: :image, ref: "phx-test-img"}},
+      clear_image: false
     }
 
     Map.merge(base, overrides)
@@ -65,6 +67,8 @@ defmodule SoundboardWeb.Components.Soundboard.EditModalTest do
       source_type: "local",
       url: nil,
       volume: 1.0,
+      color: nil,
+      image_filename: nil,
       tags: [%{name: "funny"}],
       user_id: 1,
       user_sound_settings: [%{user_id: 1, is_join_sound: true, is_leave_sound: false}]
