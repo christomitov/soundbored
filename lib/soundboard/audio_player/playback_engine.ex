@@ -118,7 +118,6 @@ defmodule Soundboard.AudioPlayer.PlaybackEngine do
   end
 
   defp classify_play_attempt({:error, reason}), do: {:error, reason}
-  defp classify_play_attempt(other), do: {:error, inspect(other)}
 
   defp retry_play_attempt(play_request, attempt, refresh_attempted, retry) do
     Logger.warning("#{retry.log} (attempt #{attempt + 1})")

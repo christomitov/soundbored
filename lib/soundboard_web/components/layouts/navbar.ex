@@ -2,8 +2,7 @@ defmodule SoundboardWeb.Components.Layouts.Navbar do
   @moduledoc """
   The navbar component.
   """
-  use Phoenix.LiveComponent
-  use SoundboardWeb, :html
+  use SoundboardWeb, :live_component
 
   @impl true
   def mount(socket) do

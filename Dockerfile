@@ -1,7 +1,9 @@
 # syntax=docker/dockerfile:1
-FROM elixir:1.19-alpine AS build
+FROM elixir:1.20.0-otp-27-alpine AS build
 
 ARG MIX_ENV=prod
+ARG RUST_VERSION=1.96.0-r0
+ARG CARGO_VERSION=1.96.0-r0
 
 ENV MIX_ENV=$MIX_ENV \
     MIX_HOME=/app/.mix \
@@ -10,22 +12,22 @@ ENV MIX_ENV=$MIX_ENV \
     LC_ALL=C.UTF-8 \
     LC_CTYPE=C.UTF-8
 
-RUN apk add --no-cache \
-    git \
-    make \
-    build-base \
-    rust \
-    cargo
+RUN echo "https://dl-cdn.alpinelinux.org/alpine/edge/main" >> /etc/apk/repositories && \
+    apk add --no-cache \
+      git \
+      make \
+      build-base \
+      rust=${RUST_VERSION} \
+      cargo=${CARGO_VERSION}
 
 WORKDIR /app
 COPY --exclude=entrypoint.sh . .
 
-# Install hex/rebar, get dependencies, and refresh EDA from latest main.
+# Install hex/rebar and fetch locked dependencies.
 RUN mkdir -p /app/.mix /app/.hex && \
     mix local.hex --force && \
     mix local.rebar --force && \
-    mix deps.get && \
-    mix deps.update eda
+    mix deps.get
 
 RUN export SKIP_RUNTIME_CONFIG=1 && \
     mix assets.setup && \
@@ -36,7 +38,7 @@ RUN export SKIP_RUNTIME_CONFIG=1 && \
     mkdir -p /app/_build/${MIX_ENV}/lib/eda/priv/native && \
     cp target/release/libeda_dave.so /app/_build/${MIX_ENV}/lib/eda/priv/native/eda_dave.so
 
-FROM elixir:1.19-alpine
+FROM elixir:1.20.0-otp-27-alpine
 
 ENV MIX_ENV=prod \
     MIX_HOME=/app/.mix \

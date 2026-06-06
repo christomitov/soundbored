@@ -11,7 +11,7 @@ defmodule Soundboard.MixProject do
     [
       app: :soundboard,
       version: "1.7.0",
-      elixir: "~> 1.19",
+      elixir: "~> 1.20",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       listeners: [Phoenix.CodeReloader],
@@ -86,7 +86,7 @@ defmodule Soundboard.MixProject do
       {:gettext, "~> 1.0"},
       {:jason, "~> 1.2"},
       {:bandit, "~> 1.8"},
-      {:eda, "~> 0.1.3"},
+      {:eda, "~> 0.2.0"},
       {:rustler, "~> 0.35", runtime: false},
       {:ecto_sqlite3, "~> 0.22"},
       {:ueberauth, "~> 0.10.5"},
@@ -113,13 +113,13 @@ defmodule Soundboard.MixProject do
       setup: ["deps.get", "ecto.setup", "assets.setup", "assets.build"],
       "ecto.setup": ["ecto.create", "ecto.migrate"],
       "ecto.reset": ["ecto.drop", "ecto.setup"],
-      test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
+      test: ["ecto.create --quiet", "ecto.migrate --quiet", "test --warnings-as-errors"],
       precommit: [
         "compile --warnings-as-errors",
         "deps.unlock --unused",
         "format",
         "credo --strict",
-        "cmd env MIX_ENV=test mix test",
+        "cmd env MIX_ENV=test mix do compile --warnings-as-errors + test --warnings-as-errors",
         "ex_dna"
       ],
       "assets.setup": ["tailwind.install --if-missing", "esbuild.install --if-missing"],
