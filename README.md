@@ -26,7 +26,14 @@ Install the cross-platform CLI with `npm i -g soundbored` for quick automation. 
    ```
 2. Run the published container:
    ```bash
-   docker run -d -p 4000:4000 --env-file ./.env christom/soundbored
+   docker run -d \
+     --name soundbored \
+     --restart unless-stopped \
+     -p 4000:4000 \
+     --env-file ./.env \
+     --mount source=soundbored_uploads,target=/app/priv/static/uploads \
+     --mount source=soundbored_db,target=/app/priv/db \
+     christom/soundbored:latest
    ```
 3. Visit http://localhost:4000, invite the bot, and trigger your first sound.
 
@@ -80,9 +87,39 @@ The application is published to Docker Hub as `christom/soundbored`.
 ### Simple Docker Host
 ```bash
 docker pull christom/soundbored:latest
-docker run -d -p 4000:4000 --env-file ./.env christom/soundbored
+docker run -d \
+  --name soundbored \
+  --restart unless-stopped \
+  -p 4000:4000 \
+  --env-file ./.env \
+  --mount source=soundbored_uploads,target=/app/priv/static/uploads \
+  --mount source=soundbored_db,target=/app/priv/db \
+  christom/soundbored:latest
 ```
-If you place the container behind your own reverse proxy, set `PHX_HOST` and `SCHEME` in `.env` to match the external URL and terminate TLS in your proxy. No additional compose files are required.
+
+Both mounts are required for production deployments:
+
+| Data | Container path |
+| --- | --- |
+| Uploaded audio | `/app/priv/static/uploads` |
+| SQLite database | `/app/priv/db` |
+
+Declaring these paths as volumes in the image does not make replacement containers reuse the same data automatically. Configure both mounts explicitly before the first production deployment and keep them attached during every redeployment.
+
+### Coolify
+
+Add two entries under **Persistent Storage** for the application:
+
+| Storage name | Destination path |
+| --- | --- |
+| `files` | `/app/priv/static/uploads` |
+| `db` | `/app/priv/db` |
+
+The storage names may differ, but both destination paths must be present. Verify that a redeployment retains the same storage sources before removing the previous container.
+
+Existing installations upgrading from a version that stored the database in the uploads directory should read [UPGRADING.md](UPGRADING.md) before redeploying.
+
+If you place the container behind your own reverse proxy, set `PHX_HOST` and `SCHEME` in `.env` to match the external URL and terminate TLS in your proxy.
 
 ## Usage
 
