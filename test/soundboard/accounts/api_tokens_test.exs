@@ -21,7 +21,7 @@ defmodule Soundboard.Accounts.ApiTokensTest do
 
   test "generate, verify, revoke token lifecycle", %{user: user} do
     {:ok, raw, token_rec} = ApiTokens.generate_token(user, %{label: "CI"})
-    assert is_binary(raw) and String.starts_with?(raw, "sb_")
+    assert String.starts_with?(raw, "sb_")
     assert token_rec.user_id == user.id
     assert token_rec.token_hash != nil
 

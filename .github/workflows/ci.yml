@@ -18,7 +18,7 @@ jobs:
       - name: Set up Elixir
         uses: erlef/setup-beam@v1
         with:
-          elixir-version: '1.19.x'
+          elixir-version: '1.20.x'
           otp-version: '27.x'
           
       - name: Restore dependencies cache
@@ -38,6 +38,18 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y sqlite3 libsqlite3-dev
+          
+      - name: Prepare test database
+        run: mix do ecto.create --quiet + ecto.migrate --quiet
+        env:
+          MIX_ENV: test
+          DISCORD_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+
+      - name: Run tests (warnings as errors)
+        run: mix do compile --warnings-as-errors + test --warnings-as-errors
+        env:
+          MIX_ENV: test
+          DISCORD_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
           
       - name: Run tests with coverage
         run: mix coveralls.github
@@ -124,7 +136,7 @@ jobs:
       - name: Set up Elixir
         uses: erlef/setup-beam@v1
         with:
-          elixir-version: '1.19.x'
+          elixir-version: '1.20.x'
           otp-version: '27.x'
 
       - name: Restore dependencies cache

@@ -96,7 +96,11 @@ defmodule Soundboard.AudioPlayerTest do
 
     test "cancels idle timeout when voice channel is cleared" do
       :sys.replace_state(AudioPlayer, fn state ->
-        %{state | voice_channel: {"guild-1", "ch-1"}, idle_timeout_ref: {make_ref(), make_ref()}}
+        %{
+          state
+          | voice_channel: {"guild-1", "ch-1"},
+            idle_timeout_ref: {make_ref(), make_ref()}
+        }
       end)
 
       AudioPlayer.set_voice_channel(nil, nil)

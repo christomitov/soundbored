@@ -7,7 +7,6 @@ defmodule SoundboardWeb.StatsLive do
   alias Soundboard.{Accounts, Favorites, PubSubTopics, Sounds, Stats}
   alias SoundboardWeb.Live.Support.{FlashHelpers, SoundPlayback}
   import FlashHelpers, only: [clear_flash_after_timeout: 1]
-  require Logger
 
   @recent_limit 5
 
