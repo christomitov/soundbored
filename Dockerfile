@@ -2,8 +2,6 @@
 FROM elixir:1.20.0-otp-27-alpine AS build
 
 ARG MIX_ENV=prod
-ARG RUST_VERSION=1.96.0-r0
-ARG CARGO_VERSION=1.96.0-r0
 
 ENV MIX_ENV=$MIX_ENV \
     MIX_HOME=/app/.mix \
@@ -17,8 +15,8 @@ RUN echo "https://dl-cdn.alpinelinux.org/alpine/edge/main" >> /etc/apk/repositor
       git \
       make \
       build-base \
-      rust=${RUST_VERSION} \
-      cargo=${CARGO_VERSION}
+      rust \
+      cargo
 
 WORKDIR /app
 COPY --exclude=entrypoint.sh . .
