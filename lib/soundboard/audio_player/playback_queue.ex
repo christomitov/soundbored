@@ -153,7 +153,7 @@ defmodule Soundboard.AudioPlayer.PlaybackQueue do
 
   defp start_playback(state, request) do
     task =
-      Task.async(fn ->
+      Task.Supervisor.async_nolink(Soundboard.AudioTaskSupervisor, fn ->
         PlaybackEngine.play(
           request.guild_id,
           request.channel_id,

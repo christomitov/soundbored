@@ -5,7 +5,7 @@ defmodule Soundboard.AudioPlayerTest do
 
   alias Soundboard.Accounts.User
   alias Soundboard.AudioPlayer
-  alias Soundboard.AudioPlayer.State
+  alias Soundboard.AudioPlayer.{State, VoiceSession}
   alias Soundboard.Discord.Handler.{AutoJoinPolicy, VoicePresence}
   alias Soundboard.Discord.Voice
 
@@ -17,6 +17,30 @@ defmodule Soundboard.AudioPlayerTest do
     end)
 
     :ok
+  end
+
+  test "forces leave and rejoin when EDA loses its channel after a gateway disconnect" do
+    test_pid = self()
+
+    state = %State{
+      voice_channel: {"guild-1", "channel-1"},
+      current_playback: nil,
+      pending_request: nil,
+      interrupting: false,
+      interrupt_watchdog_ref: nil,
+      interrupt_watchdog_attempt: 0
+    }
+
+    with_mock Voice,
+      channel_id: fn "guild-1" -> nil end,
+      ready?: fn "guild-1" -> false end,
+      playing?: fn "guild-1" -> false end,
+      leave_channel: fn "guild-1" -> send(test_pid, :left_channel) end,
+      join_channel: fn "guild-1", "channel-1" -> send(test_pid, :joined_channel) end do
+      assert VoiceSession.maintain_connection(state) == state
+      assert_received :left_channel
+      assert_received :joined_channel
+    end
   end
 
   test "continues voice maintenance when playback status is unavailable" do
