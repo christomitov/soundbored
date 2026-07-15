@@ -84,8 +84,8 @@ soundboard
 
 
     <section id="moduledoc">
-<p>API access token bound to a user.</p><p>The token hash is used for verification. The plaintext token is also persisted
-so the Settings UI can display and copy active tokens after creation.</p>
+<p>API access token bound to a user.</p><p>The token hash is used for verification. The plaintext token is shown once
+at creation time and is never persisted.</p>
     </section>
 
 </div>
@@ -162,10 +162,9 @@ so the Settings UI can display and copy active tokens after creation.</p>
   label: <a href="https://hexdocs.pm/elixir/String.html#t:t/0">String.t</a>() | nil,
   last_used_at: <a href="https://hexdocs.pm/elixir/NaiveDateTime.html#t:t/0">NaiveDateTime.t</a>() | nil,
   revoked_at: <a href="https://hexdocs.pm/elixir/NaiveDateTime.html#t:t/0">NaiveDateTime.t</a>() | nil,
-  token: <a href="https://hexdocs.pm/elixir/String.html#t:t/0">String.t</a>() | nil,
   token_hash: <a href="https://hexdocs.pm/elixir/String.html#t:t/0">String.t</a>() | nil,
   updated_at: <a href="https://hexdocs.pm/elixir/NaiveDateTime.html#t:t/0">NaiveDateTime.t</a>() | nil,
-  user: <a href="Soundboard.Accounts.User.html#t:t/0">Soundboard.Accounts.User.t</a>() | <a href="https://hexdocs.pm/ecto/3.13.3/Ecto.Association.NotLoaded.html#t:t/0">Ecto.Association.NotLoaded.t</a>() | nil,
+  user: <a href="Soundboard.Accounts.User.html#t:t/0">Soundboard.Accounts.User.t</a>() | <a href="https://hexdocs.pm/ecto/3.13.6/Ecto.Association.NotLoaded.html#t:t/0">Ecto.Association.NotLoaded.t</a>() | nil,
   user_id: <a href="https://hexdocs.pm/elixir/typespecs.html#basic-types">integer</a>() | nil
 }</pre>
 
