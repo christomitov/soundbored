@@ -13,6 +13,7 @@ defmodule Soundboard.Application do
 
     children = [
       Soundboard.Repo,
+      {Task.Supervisor, name: Soundboard.AudioTaskSupervisor},
       {Soundboard.AudioPlayer, []},
       SoundboardWeb.Telemetry,
       {Phoenix.PubSub, name: Soundboard.PubSub},

@@ -68,6 +68,18 @@ defmodule Soundboard.AudioPlayer.VoiceSession do
       "Voice session unready for guild #{status.guild_id} in channel #{status.channel_id}, forcing leave→rejoin"
     )
 
+    reset_voice_session(status, state)
+  end
+
+  defp perform_maintenance(status, state) do
+    Logger.warning(
+      "Voice channel mismatch for guild #{status.guild_id}, forcing leave→rejoin to #{status.channel_id}"
+    )
+
+    reset_voice_session(status, state)
+  end
+
+  defp reset_voice_session(status, state) do
     try do
       Voice.leave_channel(status.guild_id)
     rescue
@@ -76,14 +88,6 @@ defmodule Soundboard.AudioPlayer.VoiceSession do
 
     Process.sleep(1_000)
     attempt_voice_join(state, status.guild_id, status.channel_id, "rejoin after stale session")
-  end
-
-  defp perform_maintenance(status, state) do
-    Logger.warning(
-      "Voice channel mismatch for guild #{status.guild_id}, attempting to rejoin #{status.channel_id}"
-    )
-
-    attempt_voice_join(state, status.guild_id, status.channel_id, "rejoin")
   end
 
   defp attempt_voice_join(state, guild_id, channel_id, action) do

@@ -136,6 +136,50 @@ defmodule Soundboard.AudioPlayer.PlaybackQueueTest do
     end
   end
 
+  test "cancelling an in-flight playback does not terminate its owner" do
+    test_pid = self()
+
+    with_mocks([
+      {Soundboard.Discord.Voice, [],
+       [
+         stop: fn "guild-1" -> :ok end,
+         playing?: fn "guild-1" -> false end
+       ]},
+      {Soundboard.AudioPlayer.PlaybackEngine, [],
+       [
+         play: fn "guild-1", "channel-9", "intro.mp3", "/tmp/intro.mp3", 0.8, "System" ->
+           send(test_pid, :playback_started)
+           Process.sleep(:infinity)
+         end
+       ]}
+    ]) do
+      owner =
+        spawn(fn ->
+          state = PlaybackQueue.enqueue(base_state(), request(), 35)
+          send(test_pid, {:playback_owner_ready, self(), state})
+
+          receive do
+            :cancel ->
+              PlaybackQueue.clear_all(state)
+              send(test_pid, :playback_owner_survived)
+              Process.sleep(:infinity)
+          end
+        end)
+
+      owner_ref = Process.monitor(owner)
+
+      assert_receive :playback_started
+      assert_receive {:playback_owner_ready, ^owner, _state}
+      send(owner, :cancel)
+
+      assert_receive :playback_owner_survived
+      refute_receive {:DOWN, ^owner_ref, :process, ^owner, _reason}
+
+      Process.exit(owner, :kill)
+      assert_receive {:DOWN, ^owner_ref, :process, ^owner, :killed}
+    end
+  end
+
   test "clear_all resets playback, pending, and interrupt state" do
     timer_ref = Process.send_after(self(), :unused_watchdog, 5_000)
 
