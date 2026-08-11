@@ -29,6 +29,7 @@ defmodule Soundboard.Favorites do
     Sound.with_tags()
     |> where([s], s.id in subquery(favorite_ids_query))
     |> order_by([s], asc: fragment("lower(?)", s.filename))
+    |> preload(:user)
     |> Repo.all()
   end
 

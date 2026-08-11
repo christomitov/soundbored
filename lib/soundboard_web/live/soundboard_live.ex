@@ -6,13 +6,19 @@ defmodule SoundboardWeb.SoundboardLive do
   import DeleteModal
   import UploadModal
   import SoundboardWeb.Components.Soundboard.TagComponents, only: [tag_filter_button: 1]
+  import SoundboardWeb.Components.Soundboard.Waveform, only: [waveform: 1]
+  alias Soundboard.Discord.Invite
   alias Soundboard.{Favorites, PubSubTopics, Sounds}
   alias SoundboardWeb.Live.SoundboardLive.{EditFlow, UploadFlow}
-  alias SoundboardWeb.Live.Support.{FlashHelpers, SoundPlayback}
+  alias SoundboardWeb.Live.Support.{NowPlayingHelpers, SoundPlayback}
   alias SoundboardWeb.Soundboard.SoundFilter
   import SoundboardWeb.Live.Support.LiveTags, only: [all_tags: 1, tag_selected?: 2]
 
   import SoundFilter, only: [filter_sounds: 3]
+
+  @pad_keys ~w(1 2 3 4 5 6 7 8 9 0 Q W E R T Y U I O P A S D F G H J K L Z X C V B N M)
+
+  @bot_guild_refresh_ms 5_000
 
   @impl true
   def mount(_params, session, socket) do
@@ -21,6 +27,7 @@ defmodule SoundboardWeb.SoundboardLive do
         PubSubTopics.subscribe_files()
         PubSubTopics.subscribe_playback()
         send(self(), :load_sound_files)
+        send(self(), :refresh_bot_guild_status)
         socket
       else
         socket
@@ -33,6 +40,8 @@ defmodule SoundboardWeb.SoundboardLive do
       |> assign(:current_user, get_user_from_session(session))
       |> assign_initial_state()
       |> assign_favorites(get_user_from_session(session))
+      |> NowPlayingHelpers.assign_defaults()
+      |> assign_bot_invite_state()
 
     if socket.assigns.flash do
       Process.send_after(self(), :clear_flash, 3000)
@@ -62,6 +71,12 @@ defmodule SoundboardWeb.SoundboardLive do
         not_accepted: "Invalid file type. Please upload an MP3, WAV, OGG, or M4A file."
       ]
     )
+  end
+
+  defp assign_bot_invite_state(socket) do
+    socket
+    |> assign(:bot_invite_url, Invite.url())
+    |> assign(:bot_in_guild?, Invite.in_guild?())
   end
 
   @impl true
@@ -240,6 +255,11 @@ defmodule SoundboardWeb.SoundboardLive do
   end
 
   @impl true
+  def handle_event("dismiss_now_playing", _params, socket) do
+    {:noreply, NowPlayingHelpers.clear(socket)}
+  end
+
+  @impl true
   def handle_event("show_delete_confirm", _params, socket) do
     EditFlow.show_delete_confirm(socket)
   end
@@ -315,7 +335,12 @@ defmodule SoundboardWeb.SoundboardLive do
 
   @impl true
   def handle_info({:sound_played, %{filename: _, played_by: _} = event}, socket) do
-    {:noreply, FlashHelpers.flash_sound_played(socket, event)}
+    {:noreply, NowPlayingHelpers.assign_from_event(socket, event)}
+  end
+
+  @impl true
+  def handle_info({:playback_stopped}, socket) do
+    {:noreply, NowPlayingHelpers.clear(socket)}
   end
 
   @impl true
@@ -334,6 +359,17 @@ defmodule SoundboardWeb.SoundboardLive do
      socket
      |> load_sound_files()
      |> assign(:loading_sounds, false)}
+  end
+
+  @impl true
+  def handle_info(:refresh_bot_guild_status, socket) do
+    socket = assign_bot_invite_state(socket)
+
+    unless socket.assigns.bot_in_guild? do
+      Process.send_after(self(), :refresh_bot_guild_status, @bot_guild_refresh_ms)
+    end
+
+    {:noreply, socket}
   end
 
   defp assign_favorites(socket, nil), do: assign(socket, :favorites, [])
@@ -359,5 +395,9 @@ defmodule SoundboardWeb.SoundboardLive do
 
   defp max_upload_mb do
     div(Application.get_env(:soundboard, :max_upload_bytes, 10_000_000), 1_000_000)
+  end
+
+  defp pad_key(index) when is_integer(index) and index >= 0 do
+    Enum.at(@pad_keys, rem(index, length(@pad_keys)))
   end
 end

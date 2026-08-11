@@ -53,8 +53,40 @@ defmodule SoundboardWeb.SettingsLiveTest do
     assert html =~ "Token values are shown"
   end
 
+  test "renders the retro settings dossier and tabs", %{conn: conn} do
+    conn = put_session(conn, :theme, "retro")
+
+    {:ok, view, html} = live(conn, "/settings")
+
+    assert html =~ ~s(data-theme="retro")
+    assert has_element?(view, ".riso-head")
+    assert has_element?(view, ".settings-deck .settings-tabs")
+    assert has_element?(view, ".theme-card[aria-pressed='true']", "Retro Riso")
+
+    view
+    |> element("#settings-tab-api")
+    |> render_click()
+
+    assert has_element?(view, "#settings-panel-api:not([hidden])")
+
+    view
+    |> element("#settings-tab-youtube")
+    |> render_click()
+
+    assert has_element?(view, "#settings-panel-youtube:not([hidden])")
+  end
+
   test "shows upload API documentation", %{conn: conn} do
-    {:ok, _view, html} = live(conn, "/settings")
+    {:ok, view, _html} = live(conn, "/settings")
+
+    view
+    |> element("#settings-tab-api")
+    |> render_click()
+
+    html =
+      view
+      |> element("button[phx-click='toggle_api_docs']")
+      |> render_click()
 
     assert html =~ "POST /api/sounds"
     assert html =~ "Upload local file (multipart/form-data)"

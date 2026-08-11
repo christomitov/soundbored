@@ -2,8 +2,11 @@ defmodule SoundboardWeb.FavoritesLive do
   use SoundboardWeb, :live_view
   use SoundboardWeb.Live.Support.PresenceLive
   alias Soundboard.{Favorites, PubSubTopics}
-  alias SoundboardWeb.Live.Support.{FlashHelpers, SoundPlayback}
-  import FlashHelpers, only: [flash_sound_played: 2, clear_flash_after_timeout: 1]
+  alias SoundboardWeb.Live.Support.{FlashHelpers, NowPlayingHelpers, SoundPlayback}
+  import FlashHelpers, only: [clear_flash_after_timeout: 1]
+  import SoundboardWeb.Components.Soundboard.Waveform, only: [waveform: 1]
+
+  @pad_keys ~w(1 2 3 4 5 6 7 8 9 0 Q W E R T Y U I O P A S D F G H J K L Z X C V B N M)
 
   @impl true
   def mount(_params, session, socket) do
@@ -18,6 +21,7 @@ defmodule SoundboardWeb.FavoritesLive do
       |> assign(:current_path, "/favorites")
       |> assign(:current_user, get_user_from_session(session))
       |> assign(:max_favorites, Favorites.max_favorites())
+      |> NowPlayingHelpers.assign_defaults()
 
     {:ok, assign_favorites_state(socket, socket.assigns[:current_user])}
   end
@@ -25,6 +29,18 @@ defmodule SoundboardWeb.FavoritesLive do
   @impl true
   def handle_event("play", %{"name" => filename}, socket) do
     SoundPlayback.play(socket, filename)
+  end
+
+  @impl true
+  def handle_event("play_random", _params, socket) do
+    case socket.assigns.sounds_with_tags do
+      [] ->
+        {:noreply, socket}
+
+      sounds ->
+        sound = Enum.random(sounds)
+        SoundPlayback.play(socket, sound.filename)
+    end
   end
 
   @impl true
@@ -48,8 +64,13 @@ defmodule SoundboardWeb.FavoritesLive do
   end
 
   @impl true
+  def handle_event("dismiss_now_playing", _params, socket) do
+    {:noreply, NowPlayingHelpers.clear(socket)}
+  end
+
+  @impl true
   def handle_info({:sound_played, %{filename: _, played_by: _} = event}, socket) do
-    {:noreply, flash_sound_played(socket, event)}
+    {:noreply, NowPlayingHelpers.assign_from_event(socket, event)}
   end
 
   @impl true
@@ -61,9 +82,12 @@ defmodule SoundboardWeb.FavoritesLive do
       end
 
     {:noreply,
-     socket
-     |> put_flash(:info, "#{username} played #{filename}")
-     |> clear_flash_after_timeout()}
+     NowPlayingHelpers.assign_from_event(socket, %{filename: filename, played_by: username})}
+  end
+
+  @impl true
+  def handle_info({:playback_stopped}, socket) do
+    {:noreply, NowPlayingHelpers.clear(socket)}
   end
 
   @impl true
@@ -100,5 +124,9 @@ defmodule SoundboardWeb.FavoritesLive do
       favorites: favorites,
       sounds_with_tags: Favorites.list_favorite_sounds_with_tags(user.id)
     )
+  end
+
+  defp pad_key(index) when is_integer(index) and index >= 0 do
+    Enum.at(@pad_keys, rem(index, length(@pad_keys)))
   end
 end

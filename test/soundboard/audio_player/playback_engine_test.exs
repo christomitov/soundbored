@@ -1,5 +1,5 @@
 defmodule Soundboard.AudioPlayer.PlaybackEngineTest do
-  use ExUnit.Case, async: false
+  use Soundboard.DataCase, async: false
 
   import ExUnit.CaptureLog
   import Mock
@@ -45,8 +45,12 @@ defmodule Soundboard.AudioPlayer.PlaybackEngineTest do
            :ok
          end
        ]},
-      {Soundboard.PubSubTopics, [],
-       [broadcast_sound_played: fn "intro.mp3", "System" -> send(test_pid, :broadcast_played) end]},
+      {Soundboard.AudioPlayer.Notifier, [],
+       [
+         sound_played: fn "intro.mp3", "System", _meta ->
+           send(test_pid, :broadcast_played)
+         end
+       ]},
       {Soundboard.Stats, [],
        [track_play: fn _sound_name, _user_id -> send(test_pid, :tracked_play) end]}
     ]) do
@@ -92,8 +96,12 @@ defmodule Soundboard.AudioPlayer.PlaybackEngineTest do
            end
          end
        ]},
-      {Soundboard.PubSubTopics, [],
-       [broadcast_sound_played: fn "retry.mp3", "System" -> send(test_pid, :broadcast_played) end]},
+      {Soundboard.AudioPlayer.Notifier, [],
+       [
+         sound_played: fn "retry.mp3", "System", _meta ->
+           send(test_pid, :broadcast_played)
+         end
+       ]},
       {Soundboard.Stats, [],
        [track_play: fn _sound_name, _user_id -> send(test_pid, :tracked_play) end]}
     ]) do
@@ -160,12 +168,12 @@ defmodule Soundboard.AudioPlayer.PlaybackEngineTest do
            end
          end
        ]},
-      {Soundboard.PubSubTopics, [],
+      {Soundboard.AudioPlayer.Notifier, [],
        [
-         broadcast_sound_played: fn "refresh.mp3", "System" ->
+         sound_played: fn "refresh.mp3", "System", _meta ->
            send(test_pid, :broadcast_played)
          end,
-         broadcast_error: fn message -> flunk("unexpected playback error: #{message}") end
+         error: fn message -> flunk("unexpected playback error: #{message}") end
        ]},
       {Soundboard.Stats, [],
        [track_play: fn _sound_name, _user_id -> send(test_pid, :tracked_play) end]}
@@ -197,9 +205,9 @@ defmodule Soundboard.AudioPlayer.PlaybackEngineTest do
          channel_id: fn "guild-1" -> "channel-9" end,
          ready?: fn "guild-1" -> true end
        ]},
-      {Soundboard.PubSubTopics, [],
+      {Soundboard.AudioPlayer.Notifier, [],
        [
-         broadcast_error: fn "ffmpeg is not installed on this host" ->
+         error: fn "ffmpeg is not installed on this host" ->
            send(test_pid, :broadcast_error)
          end
        ]}
@@ -234,10 +242,10 @@ defmodule Soundboard.AudioPlayer.PlaybackEngineTest do
              ready?: fn "guild-1" -> false end,
              play: fn "guild-1", "/tmp/timeout.mp3", :url, [volume: 1.0] -> :ok end
            ]},
-          {Soundboard.PubSubTopics, [],
+          {Soundboard.AudioPlayer.Notifier, [],
            [
-             broadcast_sound_played: fn _, _ -> :ok end,
-             broadcast_error: fn _ -> :ok end
+             sound_played: fn _, _, _ -> :ok end,
+             error: fn _ -> :ok end
            ]},
           {Soundboard.Stats, [], [track_play: fn _, _ -> :ok end]}
         ]) do

@@ -1,113 +1,435 @@
-<div class="max-w-6xl mx-auto px-4 py-8">
-  <div class="flex justify-between items-center mb-8">
-    <h1 class="text-3xl font-bold text-gray-800 dark:text-gray-100">Favorites</h1>
-    <div class="text-sm text-gray-600 dark:text-gray-400">
-      {length(@favorites)}/{@max_favorites} favorites
-    </div>
-  </div>
-
-  <%= if @current_user do %>
-    <%= if @sounds_with_tags == [] do %>
-      <div class="flex flex-col items-center justify-center py-16">
-        <div class="text-6xl mb-4">😢</div>
-        <h3 class="text-xl font-medium text-gray-900 dark:text-gray-100 mb-2">
-          You currently have no favorites
-        </h3>
-        <p class="text-gray-500 dark:text-gray-400">
-          Click the heart icon on any sound to add it to your favorites
-        </p>
+<%= cond do %>
+  <% Soundboard.Theme.retro?(@theme) -> %>
+    <section class={["riso-head", @now_playing && "is-playing"]}>
+      <div class="riso-eyebrow">
+        <span class="riso-lamp"></span>
+        <span>
+          <%= if @now_playing do %>
+            Now playing from your saved lineup
+          <% else %>
+            {length(@favorites)} of {@max_favorites} favorites saved
+          <% end %>
+        </span>
       </div>
-    <% else %>
-      <div class="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-        <%= for sound <- @sounds_with_tags do %>
-          <div class="relative bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-md transition-all duration-200">
-            <button
-              phx-click="play"
-              phx-value-name={sound.filename}
-              class="absolute inset-0 w-full h-full cursor-pointer z-0
-                     hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg
-                     focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2
-                     dark:focus:ring-offset-gray-800 pointer-events-auto"
-            >
-            </button>
+      <div class="riso-title-wrap">
+        <span class="riso-title riso-title-ghost" aria-hidden="true">
+          {if @now_playing, do: @now_playing.display_name, else: "Favorites"}
+        </span>
+        <h1 class="riso-title">
+          {if @now_playing, do: @now_playing.display_name, else: "Favorites"}
+        </h1>
+      </div>
+      <div class="riso-tagline">
+        <span>
+          <%= if @now_playing do %>
+            {if @now_playing[:live?], do: "Live", else: "Playing"} · by {@now_playing.played_by}
+          <% else %>
+            Your hand-picked sound lineup
+          <% end %>
+        </span>
+        <div
+          id="riso-favorites-progress"
+          class="riso-meter"
+          phx-hook={if @now_playing && !@now_playing[:live?], do: "PlaybackProgress", else: nil}
+          data-duration-ms={if @now_playing, do: @now_playing.duration_ms || "", else: ""}
+          data-started-at={if @now_playing, do: @now_playing.started_at || "", else: ""}
+          aria-label="Playback progress"
+        >
+          <span
+            data-role="progress-bar"
+            class={[
+              "riso-meter-fill",
+              @now_playing && is_nil(@now_playing.duration_ms) && "animate-pulse"
+            ]}
+            style={if @now_playing && @now_playing.duration_ms, do: "width: 0%", else: nil}
+          >
+          </span>
+        </div>
+        <button
+          :if={@sounds_with_tags != []}
+          type="button"
+          phx-click="play_random"
+          class="riso-btn"
+        >
+          Random
+        </button>
+        <button
+          :if={
+            @current_user && @now_playing && @now_playing.sound_id &&
+              @now_playing.media_type == "sound"
+          }
+          type="button"
+          phx-click="toggle_favorite"
+          phx-value-sound-id={@now_playing.sound_id}
+          class="riso-now-favorite"
+          aria-pressed={to_string(@now_playing.sound_id in @favorites)}
+          aria-label={
+            if @now_playing.sound_id in @favorites,
+              do: "Remove from favorites",
+              else: "Add to favorites"
+          }
+          title={
+            if @now_playing.sound_id in @favorites,
+              do: "Remove from favorites",
+              else: "Add to favorites"
+          }
+        >
+          {if @now_playing.sound_id in @favorites, do: "★", else: "☆"}
+        </button>
+        <button type="button" phx-click="stop_sound" class="riso-btn riso-btn-pink">
+          Stop all
+        </button>
+      </div>
+    </section>
 
-            <div class="relative z-10 p-4 flex flex-col min-h-[120px] pointer-events-none">
-              <div class="text-gray-800 dark:text-gray-200 font-medium break-all">
-                {display_name(sound.filename)}
-              </div>
+    <section class="riso-tools riso-page-tools">
+      <span class="riso-page-kicker">Saved sounds · personal collection</span>
+      <span class="riso-page-spacer"></span>
+      <span class="riso-tally">{length(@favorites)} of {@max_favorites} favorites</span>
+      <.link navigate="/" class="riso-btn riso-btn-blue">Browse sounds</.link>
+    </section>
 
-              <div class="mt-auto pt-2 flex justify-between items-center">
-                <div class="flex flex-wrap gap-1 items-center">
-                  <%= if sound.tags != [] do %>
-                    <%= for tag <- sound.tags do %>
-                      <span class="inline-flex items-center rounded-full bg-blue-50 dark:bg-blue-900 px-2 py-1 text-xs font-medium text-blue-600 dark:text-blue-300">
-                        {tag.name}
-                      </span>
-                    <% end %>
+    <section class="riso-lineup" aria-label="Favorite sounds">
+      <%= cond do %>
+        <% is_nil(@current_user) -> %>
+          <p class="riso-none">Log in to load your saved lineup.</p>
+        <% @sounds_with_tags == [] -> %>
+          <div class="riso-none riso-empty-state">
+            <b>☆</b>
+            <span>No favorites yet. Star a sound to add it here.</span>
+            <.link navigate="/" class="riso-btn riso-btn-blue">Browse sounds</.link>
+          </div>
+        <% true -> %>
+          <%= for {sound, index} <- Enum.with_index(@sounds_with_tags) do %>
+            <% playing? =
+              @now_playing &&
+                (@now_playing.sound_id == sound.id || @now_playing.filename == sound.filename) %>
+            <article class={["riso-row", playing? && "is-live"]}>
+              <button
+                type="button"
+                phx-click="play"
+                phx-value-name={sound.filename}
+                class="riso-row-play"
+                aria-label={"Play #{display_name(sound.filename)}"}
+              >
+              </button>
+              <span class="riso-rank">
+                {String.pad_leading(Integer.to_string(index + 1), 2, "0")}
+              </span>
+              <span class="riso-row-middle">
+                <span class="riso-row-title">{display_name(sound.filename)}</span>
+                <span class="riso-row-sub">
+                  <span :if={sound.tags != []} class="riso-row-tag">{hd(sound.tags).name}</span>
+                  <span :if={match?(%{username: username} when is_binary(username), sound.user)}>
+                    Uploaded by {sound.user.username}
+                  </span>
+                </span>
+              </span>
+              <span class="riso-row-actions">
+                <span class="riso-hotkey">{pad_key(index)}</span>
+                <button
+                  id={"retro-fav-local-play-#{sound.id}"}
+                  type="button"
+                  phx-hook="LocalPlayer"
+                  data-filename={sound.storage_key}
+                  data-source-type={sound.source_type}
+                  data-url={sound.url}
+                  data-volume={sound.volume || 1.0}
+                  class="riso-action"
+                  aria-label={"Play #{display_name(sound.filename)} locally"}
+                  title="Play locally"
+                >
+                  <svg viewBox="0 0 24 24" fill="currentColor" class="play-icon">
+                    <path d="M8 5v14l11-7z" />
+                  </svg>
+                  <svg viewBox="0 0 24 24" fill="currentColor" class="stop-icon hidden">
+                    <path d="M6 6h12v12H6z" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  phx-click="toggle_favorite"
+                  phx-value-sound-id={sound.id}
+                  class="riso-favorite"
+                  aria-pressed="true"
+                  aria-label={"Remove #{display_name(sound.filename)} from favorites"}
+                  title="Remove from favorites"
+                >
+                  ★
+                </button>
+              </span>
+            </article>
+          <% end %>
+      <% end %>
+    </section>
+
+    <footer class="riso-footer">
+      <span :if={@current_user} class="riso-footer-user">
+        <img src={@current_user.avatar} alt="" />
+        {@current_user.username}
+      </span>
+      <span class="riso-footer-spacer"></span>
+      <span>Favorite bank</span>
+      <span>Tap a title to play</span>
+    </footer>
+  <% Soundboard.Theme.desk?(@theme) -> %>
+    <section class="controls">
+      <div class="slot" aria-hidden="true">
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.4"
+        >
+          <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
+        </svg>
+        <input
+          type="text"
+          readonly
+          tabindex="-1"
+          value="Favorite bank"
+          aria-label="Favorite bank"
+        />
+      </div>
+      <div class="actions">
+        <button
+          :if={@sounds_with_tags != []}
+          type="button"
+          phx-click="play_random"
+          class="btn"
+        >
+          Random
+        </button>
+        <.link navigate="/" class="btn primary">Browse sounds</.link>
+      </div>
+      <div class="banks">
+        <span class="count">
+          {length(@favorites)} of {@max_favorites} favorites
+        </span>
+      </div>
+    </section>
+
+    <section class="pad-grid">
+      <%= cond do %>
+        <% is_nil(@current_user) -> %>
+          <p class="noresult">Log in to load your favorite bank.</p>
+        <% @sounds_with_tags == [] -> %>
+          <p class="noresult">No favorites yet. Star a pad on Sounds to load this bank.</p>
+          <.link navigate="/" class="empty-pad">
+            <b>★</b>Browse sounds
+          </.link>
+        <% true -> %>
+          <%= for {sound, index} <- Enum.with_index(@sounds_with_tags) do %>
+            <% playing? =
+              @now_playing &&
+                (@now_playing.sound_id == sound.id || @now_playing.filename == sound.filename) %>
+            <div class={["pad", playing? && "live"]}>
+              <button
+                type="button"
+                phx-click="play"
+                phx-value-name={sound.filename}
+                class="absolute inset-0 z-0 cursor-pointer rounded-[5px]"
+                aria-label={"Play #{display_name(sound.filename)}"}
+              >
+              </button>
+              <span class="led"></span>
+              <span class="padtop">
+                <span class="cap">{pad_key(index)}</span>
+                <button
+                  type="button"
+                  phx-click="toggle_favorite"
+                  phx-value-sound-id={sound.id}
+                  class="star"
+                  aria-pressed="true"
+                  aria-label={"Remove #{display_name(sound.filename)} from favorites"}
+                >
+                  ★
+                </button>
+              </span>
+              <.waveform seed={sound.id} />
+              <span class="name">{display_name(sound.filename)}</span>
+              <span class="padfoot">
+                <%= if sound.tags != [] do %>
+                  <span class="tag">{hd(sound.tags).name}</span>
+                <% end %>
+                <span class="meta">
+                  <%= if match?(%{username: username} when is_binary(username), sound.user) do %>
+                    {sound.user.username}
                   <% end %>
-                </div>
-
-                <div class="flex items-center gap-2 ml-2 flex-shrink-0 pointer-events-auto">
-                  <button
-                    id={"local-play-#{Path.basename(sound.filename, Path.extname(sound.filename))}"}
-                    phx-hook="LocalPlayer"
-                    data-filename={sound.storage_key}
-                    data-source-type={sound.source_type}
-                    data-url={sound.url}
-                    data-volume={sound.volume || 1.0}
-                    class="relative flex items-center justify-center w-8 h-8 text-gray-400 hover:text-green-600 
-                           dark:text-gray-500 dark:hover:text-green-400 rounded-md transition-colors"
+                </span>
+              </span>
+              <div class="pad-actions">
+                <button
+                  id={"fav-local-play-#{Path.basename(sound.filename, Path.extname(sound.filename))}"}
+                  type="button"
+                  phx-hook="LocalPlayer"
+                  data-filename={sound.storage_key}
+                  data-source-type={sound.source_type}
+                  data-url={sound.url}
+                  data-volume={sound.volume || 1.0}
+                  title="Play locally"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                    class="w-3.5 h-3.5 play-icon"
                   >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 24 24"
-                      fill="currentColor"
-                      class="w-4 h-4 play-icon"
-                    >
-                      <path d="M12 15a3 3 0 100-6 3 3 0 000 6z" />
-                      <path
-                        fill-rule="evenodd"
-                        d="M1.323 11.447C2.811 6.976 7.028 3.75 12.001 3.75c4.97 0 9.185 3.223 10.675 7.69.12.362.12.752 0 1.113-1.487 4.471-5.705 7.697-10.677 7.697-4.97 0-9.186-3.223-10.675-7.69a1.762 1.762 0 010-1.113zM17.25 12a5.25 5.25 0 11-10.5 0 5.25 5.25 0 0110.5 0z"
-                        clip-rule="evenodd"
-                      />
-                    </svg>
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 24 24"
-                      fill="currentColor"
-                      class="w-4 h-4 stop-icon hidden"
-                    >
-                      <path
-                        fill-rule="evenodd"
-                        d="M4.5 7.5a3 3 0 013-3h9a3 3 0 013 3v9a3 3 0 01-3 3h-9a3 3 0 01-3-3v-9z"
-                        clip-rule="evenodd"
-                      />
-                    </svg>
-                  </button>
-                  <button
-                    phx-click="toggle_favorite"
-                    phx-value-sound-id={sound.id}
-                    class="relative flex items-center justify-center w-8 h-8 text-gray-400 hover:text-red-500 
-                           dark:text-gray-500 dark:hover:text-red-500 rounded-md transition-colors"
+                    <path d="M12 15a3 3 0 100-6 3 3 0 000 6z" />
+                    <path
+                      fill-rule="evenodd"
+                      d="M1.323 11.447C2.811 6.976 7.028 3.75 12.001 3.75c4.97 0 9.185 3.223 10.675 7.69.12.362.12.752 0 1.113-1.487 4.471-5.705 7.697-10.677 7.697-4.97 0-9.186-3.223-10.675-7.69a1.762 1.762 0 010-1.113zM17.25 12a5.25 5.25 0 11-10.5 0 5.25 5.25 0 0110.5 0z"
+                      clip-rule="evenodd"
+                    />
+                  </svg>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                    class="w-3.5 h-3.5 stop-icon hidden"
                   >
-                    <%= if sound.id in @favorites do %>
-                      <.icon name="hero-heart-solid" class="w-4 h-4 text-red-500" />
-                    <% else %>
-                      <.icon name="hero-heart" class="w-4 h-4" />
-                    <% end %>
-                  </button>
-                </div>
+                    <path
+                      fill-rule="evenodd"
+                      d="M4.5 7.5a3 3 0 013-3h9a3 3 0 013 3v9a3 3 0 01-3 3h-9a3 3 0 01-3-3v-9z"
+                      clip-rule="evenodd"
+                    />
+                  </svg>
+                </button>
               </div>
             </div>
+          <% end %>
+      <% end %>
+    </section>
+  <% true -> %>
+    <div class="max-w-6xl mx-auto px-4 py-8">
+      <div class="flex justify-between items-center mb-8">
+        <h1 class="text-3xl font-bold text-gray-800 dark:text-gray-100">Favorites</h1>
+        <div class="text-sm text-gray-600 dark:text-gray-400">
+          {length(@favorites)}/{@max_favorites} favorites
+        </div>
+      </div>
+
+      <%= if @current_user do %>
+        <%= if @sounds_with_tags == [] do %>
+          <div class="flex flex-col items-center justify-center py-16">
+            <div class="text-6xl mb-4">😢</div>
+            <h3 class="text-xl font-medium text-gray-900 dark:text-gray-100 mb-2">
+              You currently have no favorites
+            </h3>
+            <p class="text-gray-500 dark:text-gray-400">
+              Click the heart icon on any sound to add it to your favorites
+            </p>
+          </div>
+        <% else %>
+          <div class="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+            <%= for sound <- @sounds_with_tags do %>
+              <div class="relative bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-md transition-all duration-200">
+                <button
+                  phx-click="play"
+                  phx-value-name={sound.filename}
+                  class="absolute inset-0 w-full h-full cursor-pointer z-0
+                       hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg
+                       focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2
+                       dark:focus:ring-offset-gray-800 pointer-events-auto"
+                >
+                </button>
+
+                <div class="relative z-10 p-4 flex flex-col min-h-[120px] pointer-events-none">
+                  <div class="text-gray-800 dark:text-gray-200 font-medium break-all">
+                    {display_name(sound.filename)}
+                  </div>
+
+                  <div class="mt-auto pt-2 flex justify-between items-center">
+                    <div class="flex flex-wrap gap-1 items-center">
+                      <%= if sound.tags != [] do %>
+                        <%= for tag <- sound.tags do %>
+                          <span class="inline-flex items-center rounded-full bg-blue-50 dark:bg-blue-900 px-2 py-1 text-xs font-medium text-blue-600 dark:text-blue-300">
+                            {tag.name}
+                          </span>
+                        <% end %>
+                      <% end %>
+                    </div>
+
+                    <div class="flex items-center gap-2 ml-2 flex-shrink-0 pointer-events-auto">
+                      <button
+                        id={"local-play-#{Path.basename(sound.filename, Path.extname(sound.filename))}"}
+                        phx-hook="LocalPlayer"
+                        data-filename={sound.storage_key}
+                        data-source-type={sound.source_type}
+                        data-url={sound.url}
+                        data-volume={sound.volume || 1.0}
+                        class="relative flex items-center justify-center w-8 h-8 text-gray-400 hover:text-green-600
+                             dark:text-gray-500 dark:hover:text-green-400 rounded-md transition-colors"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 24 24"
+                          fill="currentColor"
+                          class="w-4 h-4 play-icon"
+                        >
+                          <path d="M12 15a3 3 0 100-6 3 3 0 000 6z" />
+                          <path
+                            fill-rule="evenodd"
+                            d="M1.323 11.447C2.811 6.976 7.028 3.75 12.001 3.75c4.97 0 9.185 3.223 10.675 7.69.12.362.12.752 0 1.113-1.487 4.471-5.705 7.697-10.677 7.697-4.97 0-9.186-3.223-10.675-7.69a1.762 1.762 0 010-1.113zM17.25 12a5.25 5.25 0 11-10.5 0 5.25 5.25 0 0110.5 0z"
+                            clip-rule="evenodd"
+                          />
+                        </svg>
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 24 24"
+                          fill="currentColor"
+                          class="w-4 h-4 stop-icon hidden"
+                        >
+                          <path
+                            fill-rule="evenodd"
+                            d="M4.5 7.5a3 3 0 013-3h9a3 3 0 013 3v9a3 3 0 01-3 3h-9a3 3 0 01-3-3v-9z"
+                            clip-rule="evenodd"
+                          />
+                        </svg>
+                      </button>
+                      <button
+                        phx-click="toggle_favorite"
+                        phx-value-sound-id={sound.id}
+                        class="relative flex items-center justify-center w-8 h-8 text-gray-400 hover:text-red-500
+                             dark:text-gray-500 dark:hover:text-red-500 rounded-md transition-colors"
+                      >
+                        <%= if sound.id in @favorites do %>
+                          <.icon name="hero-heart-solid" class="w-4 h-4 text-red-500" />
+                        <% else %>
+                          <.icon name="hero-heart" class="w-4 h-4" />
+                        <% end %>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            <% end %>
           </div>
         <% end %>
-      </div>
-    <% end %>
-  <% else %>
-    <div class="text-center py-12">
-      <p class="text-gray-600 dark:text-gray-400">
-        Please log in to manage your favorites
-      </p>
+      <% else %>
+        <div class="text-center py-12">
+          <p class="text-gray-600 dark:text-gray-400">
+            Please log in to manage your favorites
+          </p>
+        </div>
+      <% end %>
     </div>
-  <% end %>
-</div>
+<% end %>
+
+<script>
+  window.addEventListener("phx:stop-all-sounds", (_e) => {
+    document.querySelectorAll("audio").forEach((audio) => {
+      audio.pause();
+      audio.currentTime = 0;
+    });
+
+    document.querySelectorAll(".play-icon").forEach((icon) => {
+      icon.classList.remove("hidden");
+    });
+    document.querySelectorAll(".stop-icon").forEach((icon) => {
+      icon.classList.add("hidden");
+    });
+  });
+</script>

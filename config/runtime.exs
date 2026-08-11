@@ -10,6 +10,29 @@ source!([
   System.get_env()
 ])
 
+# PHX_HOST must be a hostname only for Endpoint url[:host]. Allow "host:port"
+# in env for convenience and split it.
+parse_phx_host = fn host_raw ->
+  host_raw = host_raw |> to_string() |> String.trim()
+
+  case Regex.run(~r/^(.+):(\d+)$/, host_raw) do
+    [_, host, port_str] -> {host, String.to_integer(port_str)}
+    _ -> {host_raw, nil}
+  end
+end
+
+public_host = fn host, port, scheme ->
+  default_port? =
+    (scheme == "https" and port in [443, nil]) or
+      (scheme == "http" and port in [80, nil])
+
+  if default_port? or is_nil(port) do
+    host
+  else
+    "#{host}:#{port}"
+  end
+end
+
 # config/runtime.exs is executed for all environments, including
 # during releases. It is executed after compilation and before the
 # system starts, so it is typically used to load production configuration
@@ -30,10 +53,10 @@ if env!("PHX_SERVER", :boolean, false) do
 end
 
 if config_env() == :dev do
-  host = env!("PHX_HOST", :string!, "localhost:4000")
+  {host, host_port} = parse_phx_host.(env!("PHX_HOST", :string!, "localhost"))
   scheme = env!("SCHEME", :string!, "http")
-  port = env!("PORT", :integer, 4000)
-  callback_url = "#{scheme}://#{host}/auth/discord/callback"
+  port = host_port || env!("PORT", :integer, 4000)
+  callback_url = "#{scheme}://#{public_host.(host, port, scheme)}/auth/discord/callback"
   discord_token = env!("DISCORD_TOKEN", :string!, nil)
   client_id = env!("DISCORD_CLIENT_ID", :string!, nil)
   client_secret = env!("DISCORD_CLIENT_SECRET", :string!, nil)
@@ -98,6 +121,15 @@ if config_env() == :dev do
 
   role_recheck_interval_seconds = env!("DISCORD_ROLE_RECHECK_INTERVAL_SECONDS", :integer, 900)
 
+  ytdlp_executable =
+    case env!("YTDLP_PATH", :string, nil) do
+      path when is_binary(path) and path != "" -> path
+      _ -> :system
+    end
+
+  youtube_cookies_path =
+    env!("YOUTUBE_COOKIES_PATH", :string, "priv/youtube/cookies.txt")
+
   config :soundboard,
     discord_token: discord_token,
     voice_rtp_probe: voice_rtp_probe,
@@ -105,7 +137,11 @@ if config_env() == :dev do
     ffmpeg_available: ffmpeg_available,
     required_guild_id: required_guild_id,
     required_role_ids: required_role_ids,
-    role_recheck_interval_seconds: role_recheck_interval_seconds
+    role_recheck_interval_seconds: role_recheck_interval_seconds,
+    ytdlp_executable: ytdlp_executable,
+    ytdlp_managed_path: "priv/bin/yt-dlp",
+    ytdlp_auto_download: true,
+    youtube_cookies_path: youtube_cookies_path
 
   config :eda,
     token: discord_token,
@@ -155,9 +191,12 @@ if config_env() == :prod and is_nil(env!("SKIP_RUNTIME_CONFIG", :string, nil)) d
         end
     end
 
-  host = env!("PHX_HOST", :string!)
+  host_raw = env!("PHX_HOST", :string!)
+  {host, host_port} = parse_phx_host.(host_raw)
   scheme = env!("SCHEME", :string!, "https")
-  callback_url = "#{scheme}://#{host}/auth/discord/callback"
+  # Prefer explicit PORT; fall back to port embedded in PHX_HOST for callbacks only.
+  _ = host_port
+  callback_url = "#{scheme}://#{public_host.(host, host_port, scheme)}/auth/discord/callback"
 
   # Configure endpoint first
   config :soundboard, SoundboardWeb.Endpoint,
@@ -222,6 +261,24 @@ if config_env() == :prod and is_nil(env!("SKIP_RUNTIME_CONFIG", :string, nil)) d
 
   role_recheck_interval_seconds = env!("DISCORD_ROLE_RECHECK_INTERVAL_SECONDS", :integer, 900)
 
+  ytdlp_executable =
+    case env!("YTDLP_PATH", :string, nil) do
+      path when is_binary(path) and path != "" -> path
+      _ -> :system
+    end
+
+  # Writable even when the container rootfs is read-only (db volume).
+  ytdlp_managed_path =
+    case env!("YTDLP_PATH", :string, nil) do
+      path when is_binary(path) and path != "" -> path
+      _ -> "/app/priv/db/bin/yt-dlp"
+    end
+
+  # Keep uploaded cookies on the persistent, writable database volume. The
+  # compiled application directory is read-only in the production container.
+  youtube_cookies_path =
+    env!("YOUTUBE_COOKIES_PATH", :string, "/app/priv/db/youtube/cookies.txt")
+
   config :soundboard,
     discord_token: discord_token,
     voice_rtp_probe: voice_rtp_probe,
@@ -229,7 +286,11 @@ if config_env() == :prod and is_nil(env!("SKIP_RUNTIME_CONFIG", :string, nil)) d
     ffmpeg_available: ffmpeg_available,
     required_guild_id: required_guild_id,
     required_role_ids: required_role_ids,
-    role_recheck_interval_seconds: role_recheck_interval_seconds
+    role_recheck_interval_seconds: role_recheck_interval_seconds,
+    ytdlp_executable: ytdlp_executable,
+    ytdlp_managed_path: ytdlp_managed_path,
+    ytdlp_auto_download: true,
+    youtube_cookies_path: youtube_cookies_path
 
   config :eda,
     token: discord_token,

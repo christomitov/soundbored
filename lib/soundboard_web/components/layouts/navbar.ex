@@ -10,12 +10,112 @@ defmodule SoundboardWeb.Components.Layouts.Navbar do
   end
 
   @impl true
+  def update(assigns, socket) do
+    {:ok,
+     socket
+     |> assign(assigns)
+     |> assign_new(:theme, fn -> "classic" end)}
+  end
+
+  @impl true
   def handle_event("toggle-mobile-menu", _, socket) do
     {:noreply, assign(socket, :show_mobile_menu, !socket.assigns.show_mobile_menu)}
   end
 
   @impl true
   def render(assigns) do
+    cond do
+      Soundboard.Theme.retro?(assigns.theme) -> retro_nav(assigns)
+      Soundboard.Theme.desk?(assigns.theme) -> desk_nav(assigns)
+      true -> classic_nav(assigns)
+    end
+  end
+
+  defp retro_nav(assigns) do
+    ~H"""
+    <header class="riso-rail">
+      <.link navigate="/" class="riso-rail-brand">SoundBored</.link>
+      <span class="riso-rail-edition">Riso edition</span>
+      <nav class="riso-rail-nav" aria-label="Primary">
+        <.retro_tab navigate="/" active={current_page?(@current_path, "/")}>Sounds</.retro_tab>
+        <.retro_tab navigate="/favorites" active={current_page?(@current_path, "/favorites")}>
+          Favorites
+        </.retro_tab>
+        <.retro_tab navigate="/stats" active={current_page?(@current_path, "/stats")}>
+          Stats
+        </.retro_tab>
+        <.retro_tab navigate="/video" active={current_page?(@current_path, "/video")}>
+          Video
+          <span :if={Map.get(assigns, :video_live, false)} class="riso-live-dot" title="Live"></span>
+        </.retro_tab>
+        <.retro_tab
+          :if={@current_user}
+          navigate="/settings"
+          active={current_page?(@current_path, "/settings")}
+        >
+          Settings
+        </.retro_tab>
+      </nav>
+      <div class="riso-rail-presence" aria-label="Users online">
+        <%= for user <- Enum.take(visible_users(@presences), 3) do %>
+          <span title={user.username}>
+            <img src={user.avatar} alt="" />
+            <b>{user.username}</b>
+          </span>
+        <% end %>
+      </div>
+    </header>
+    """
+  end
+
+  defp desk_nav(assigns) do
+    ~H"""
+    <header class="face">
+      <span class="screw tl"></span><span class="screw tr"></span>
+      <span class="screw bl"></span><span class="screw br"></span>
+      <div class="brand-block">
+        <div class="brand">
+          <.link navigate="/">
+            <b>SoundBored</b>
+          </.link>
+          <span class="mono">MK II</span>
+        </div>
+        <div class="presence-row" aria-label="Users online">
+          <%= for user <- visible_users(@presences) do %>
+            <span class="presence-pill" title={user.username}>
+              <img src={user.avatar} alt="" />
+              <span>{user.username}</span>
+            </span>
+          <% end %>
+        </div>
+      </div>
+      <nav class="face-nav" aria-label="Primary">
+        <.desk_tab navigate="/" active={current_page?(@current_path, "/")}>Sounds</.desk_tab>
+        <.desk_tab navigate="/favorites" active={current_page?(@current_path, "/favorites")}>
+          Favorites
+        </.desk_tab>
+        <.desk_tab navigate="/stats" active={current_page?(@current_path, "/stats")}>Stats</.desk_tab>
+        <.desk_tab navigate="/video" active={current_page?(@current_path, "/video")}>
+          Video
+          <%= if Map.get(assigns, :video_live, false) do %>
+            <span class="relative flex h-2 w-2 ml-1" title="Live">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75">
+              </span>
+              <span class="relative inline-flex rounded-full h-2 w-2 bg-red-600"></span>
+            </span>
+          <% end %>
+        </.desk_tab>
+        <%= if @current_user do %>
+          <.desk_tab navigate="/settings" active={current_page?(@current_path, "/settings")}>
+            Settings
+          </.desk_tab>
+        <% end %>
+      </nav>
+    </header>
+    """
+  end
+
+  defp classic_nav(assigns) do
     ~H"""
     <nav class="fixed w-full top-0 left-0 right-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 z-50">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -36,6 +136,18 @@ defmodule SoundboardWeb.Components.Layouts.Navbar do
               <.nav_link navigate="/stats" active={current_page?(@current_path, "/stats")}>
                 Stats
               </.nav_link>
+              <.nav_link navigate="/video" active={current_page?(@current_path, "/video")}>
+                <span class="inline-flex items-center gap-1.5">
+                  Video
+                  <%= if Map.get(assigns, :video_live, false) do %>
+                    <span class="relative flex h-2 w-2" title="Live">
+                      <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75">
+                      </span>
+                      <span class="relative inline-flex rounded-full h-2 w-2 bg-red-600"></span>
+                    </span>
+                  <% end %>
+                </span>
+              </.nav_link>
               <%= if @current_user do %>
                 <.nav_link
                   navigate="/settings"
@@ -49,8 +161,7 @@ defmodule SoundboardWeb.Components.Layouts.Navbar do
 
           <div class="hidden sm:ml-6 sm:flex sm:items-center">
             <div class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-              <%= visible_users(@presences)
-                  |> Enum.map(fn user -> %>
+              <%= for user <- visible_users(@presences) do %>
                 <div class="flex items-center gap-1">
                   <span
                     id={"user-#{user.username}"}
@@ -69,7 +180,7 @@ defmodule SoundboardWeb.Components.Layouts.Navbar do
                     {user.username}
                   </span>
                 </div>
-              <% end) %>
+              <% end %>
             </div>
           </div>
 
@@ -83,7 +194,6 @@ defmodule SoundboardWeb.Components.Layouts.Navbar do
               phx-target={@myself}
             >
               <span class="sr-only">Open main menu</span>
-              <!-- Menu open: "hidden", Menu closed: "block" -->
               <svg
                 class={["h-6 w-6", (!@show_mobile_menu && "block") || "hidden"]}
                 xmlns="http://www.w3.org/2000/svg"
@@ -99,7 +209,6 @@ defmodule SoundboardWeb.Components.Layouts.Navbar do
                   d="M4 6h16M4 12h16M4 18h16"
                 />
               </svg>
-              <!-- Menu open: "block", Menu closed: "hidden" -->
               <svg
                 class={["h-6 w-6", (@show_mobile_menu && "block") || "hidden"]}
                 xmlns="http://www.w3.org/2000/svg"
@@ -119,8 +228,7 @@ defmodule SoundboardWeb.Components.Layouts.Navbar do
           </div>
         </div>
       </div>
-      
-    <!-- Mobile menu -->
+
       <div class={["sm:hidden", (!@show_mobile_menu && "hidden") || "block"]} id="mobile-menu">
         <div class="pt-2 pb-3 space-y-1">
           <.mobile_nav_link navigate="/" active={current_page?(@current_path, "/")}>
@@ -131,6 +239,18 @@ defmodule SoundboardWeb.Components.Layouts.Navbar do
           </.mobile_nav_link>
           <.mobile_nav_link navigate="/stats" active={current_page?(@current_path, "/stats")}>
             Stats
+          </.mobile_nav_link>
+          <.mobile_nav_link navigate="/video" active={current_page?(@current_path, "/video")}>
+            <span class="inline-flex items-center gap-2">
+              Video
+              <%= if Map.get(assigns, :video_live, false) do %>
+                <span class="relative flex h-2 w-2" title="Live">
+                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75">
+                  </span>
+                  <span class="relative inline-flex rounded-full h-2 w-2 bg-red-600"></span>
+                </span>
+              <% end %>
+            </span>
           </.mobile_nav_link>
           <%= if @current_user do %>
             <.mobile_nav_link
@@ -143,8 +263,7 @@ defmodule SoundboardWeb.Components.Layouts.Navbar do
         </div>
         <div class="pt-4 pb-3 border-t border-gray-200 dark:border-gray-700">
           <div class="space-y-2 px-4">
-            <%= visible_users(@presences)
-                |> Enum.map(fn user -> %>
+            <%= for user <- visible_users(@presences) do %>
               <div class="flex items-center gap-2 py-2">
                 <span
                   id={"mobile-user-#{user.username}"}
@@ -163,11 +282,35 @@ defmodule SoundboardWeb.Components.Layouts.Navbar do
                   <span class="truncate">{user.username}</span>
                 </span>
               </div>
-            <% end) %>
+            <% end %>
           </div>
         </div>
       </div>
     </nav>
+    """
+  end
+
+  defp desk_tab(assigns) do
+    ~H"""
+    <.link
+      navigate={@navigate}
+      class="tab"
+      aria-current={if @active, do: "page", else: nil}
+    >
+      {render_slot(@inner_block)}
+    </.link>
+    """
+  end
+
+  defp retro_tab(assigns) do
+    ~H"""
+    <.link
+      navigate={@navigate}
+      class="riso-rail-link"
+      aria-current={if @active, do: "page", else: nil}
+    >
+      {render_slot(@inner_block)}
+    </.link>
     """
   end
 

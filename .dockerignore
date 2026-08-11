@@ -1,8 +1,17 @@
 .dockerignore
 .git*
+.hex/
+.mix/
+_build/
+deps/
 test
 .env*
 *.md
 coveralls.json
 docker-compose.yml
 Dockerfile
+mocks/
+priv/bin/
+priv/youtube/
+priv/video_sessions/
+priv/video_sessions_test/

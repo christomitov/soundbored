@@ -1,0 +1,824 @@
+<%= cond do %>
+  <% Soundboard.Theme.retro?(@theme) -> %>
+    <section class={["riso-head", @now_playing && "is-playing"]}>
+      <div class="riso-eyebrow">
+        <span class="riso-lamp"></span>
+        <span>{if @now_playing, do: "Now playing", else: "Weekly activity report"}</span>
+      </div>
+      <div class="riso-title-wrap">
+        <span class="riso-title riso-title-ghost" aria-hidden="true">
+          {if @now_playing, do: @now_playing.display_name, else: "Stats"}
+        </span>
+        <h1 class="riso-title">
+          {if @now_playing, do: @now_playing.display_name, else: "Stats"}
+        </h1>
+      </div>
+      <div class="riso-tagline">
+        <span>
+          <%= if @now_playing do %>
+            {if @now_playing[:live?], do: "Live", else: "Playing"} · by {@now_playing.played_by}
+          <% else %>
+            Plays, people, and the sounds on repeat
+          <% end %>
+        </span>
+        <div
+          id="riso-stats-progress"
+          class="riso-meter"
+          phx-hook={if @now_playing && !@now_playing[:live?], do: "PlaybackProgress", else: nil}
+          data-duration-ms={if @now_playing, do: @now_playing.duration_ms || "", else: ""}
+          data-started-at={if @now_playing, do: @now_playing.started_at || "", else: ""}
+          aria-label="Playback progress"
+        >
+          <span
+            data-role="progress-bar"
+            class={[
+              "riso-meter-fill",
+              @now_playing && is_nil(@now_playing.duration_ms) && "animate-pulse"
+            ]}
+            style={if @now_playing && @now_playing.duration_ms, do: "width: 0%", else: nil}
+          >
+          </span>
+        </div>
+        <button
+          :if={
+            @current_user && @now_playing && @now_playing.sound_id &&
+              @now_playing.media_type == "sound"
+          }
+          type="button"
+          phx-click="toggle_favorite"
+          phx-value-sound-id={@now_playing.sound_id}
+          class="riso-now-favorite"
+          aria-pressed={to_string(@now_playing.sound_id in @favorites)}
+          aria-label={
+            if @now_playing.sound_id in @favorites,
+              do: "Remove from favorites",
+              else: "Add to favorites"
+          }
+        >
+          {if @now_playing.sound_id in @favorites, do: "★", else: "☆"}
+        </button>
+        <button type="button" phx-click="stop_sound" class="riso-btn riso-btn-pink">
+          Stop all
+        </button>
+      </div>
+    </section>
+
+    <section class="riso-stats-toolbar" aria-label="Stats week">
+      <button type="button" phx-click="previous_week" class="riso-btn" aria-label="Previous week">
+        ← Prev
+      </button>
+      <form phx-change="select_week" phx-submit="select_week" class="riso-week-form">
+        <label for="week-picker-retro">Week of</label>
+        <input
+          type="date"
+          id="week-picker-retro"
+          name="week"
+          value={date_input_value(@selected_week)}
+          max={date_input_value(@current_week)}
+          phx-debounce="blur"
+        />
+      </form>
+      <button
+        type="button"
+        phx-click="next_week"
+        disabled={@selected_week == @current_week}
+        class={["riso-btn", @selected_week == @current_week && "is-disabled"]}
+        aria-label="Next week"
+      >
+        Next →
+      </button>
+      <span class="riso-page-spacer"></span>
+      <strong class="riso-date-range">{format_date_range(@selected_week)}</strong>
+    </section>
+
+    <section class="riso-stats-grid">
+      <article class="riso-stat-panel">
+        <header class="riso-stat-panel-head">
+          <h2>Top Users</h2>
+          <span>Plays</span>
+        </header>
+        <div class="riso-stat-panel-body">
+          <%= if @top_users == [] do %>
+            <p class="riso-stat-empty">No plays this week</p>
+          <% else %>
+            <%= for {{username, count}, index} <- Enum.with_index(@top_users, 1) do %>
+              <div class="riso-stat-row" id={"user-stat-#{username}"}>
+                <span class="riso-stat-rank">{String.pad_leading("#{index}", 2, "0")}</span>
+                <img
+                  :if={get_user_avatar(username, @presences, @avatars_by_username)}
+                  class="riso-stat-avatar"
+                  src={get_user_avatar(username, @presences, @avatars_by_username)}
+                  alt=""
+                />
+                <strong class="riso-stat-name">{username}</strong>
+                <span class="riso-stat-count">{count}</span>
+              </div>
+            <% end %>
+          <% end %>
+        </div>
+      </article>
+
+      <article class="riso-stat-panel">
+        <header class="riso-stat-panel-head">
+          <h2>Top Sounds</h2>
+          <span>Hit pads</span>
+        </header>
+        <div class="riso-stat-panel-body">
+          <%= if @top_sounds == [] do %>
+            <p class="riso-stat-empty">No sounds played this week</p>
+          <% else %>
+            <%= for {{sound_name, count}, index} <- Enum.with_index(@top_sounds, 1) do %>
+              <div
+                class="riso-stat-row is-action"
+                id={"play-top-#{sound_name}"}
+                phx-click="play_sound"
+                phx-value-sound={sound_name}
+              >
+                <span class="riso-stat-rank">{String.pad_leading("#{index}", 2, "0")}</span>
+                <span class="riso-stat-copy">
+                  <strong>{display_name(sound_name)}</strong>
+                  <em>{count} plays</em>
+                </span>
+                <button
+                  type="button"
+                  phx-click="toggle_favorite"
+                  phx-value-sound={sound_name}
+                  phx-stop
+                  id={"favorite-#{sound_name}"}
+                  class="riso-stat-favorite"
+                  aria-pressed={
+                    to_string(favorite?(@favorites, sound_name, @sound_ids_by_filename))
+                  }
+                  aria-label={"Favorite #{display_name(sound_name)}"}
+                >
+                  {if favorite?(@favorites, sound_name, @sound_ids_by_filename),
+                    do: "★",
+                    else: "☆"}
+                </button>
+              </div>
+            <% end %>
+          <% end %>
+        </div>
+      </article>
+
+      <article class="riso-stat-panel">
+        <header class="riso-stat-panel-head">
+          <h2>Top Videos</h2>
+          <span>YouTube</span>
+        </header>
+        <div class="riso-stat-panel-body">
+          <%= if @top_videos == [] do %>
+            <p class="riso-stat-empty">No videos played this week</p>
+          <% else %>
+            <%= for {video, index} <- Enum.with_index(@top_videos, 1) do %>
+              <a
+                class="riso-stat-row is-action"
+                id={"youtube-stat-#{video.youtube_id}"}
+                href={youtube_url(video)}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <span class="riso-stat-rank">{String.pad_leading("#{index}", 2, "0")}</span>
+                <span class="riso-stat-copy">
+                  <strong>{video.title}</strong>
+                  <em>{video.count} plays · {video.youtube_id}</em>
+                </span>
+                <span class="riso-stat-open" aria-hidden="true">↗</span>
+              </a>
+            <% end %>
+          <% end %>
+        </div>
+      </article>
+
+      <article class="riso-stat-panel riso-stat-panel-wide">
+        <header class="riso-stat-panel-head">
+          <h2>Recent Plays</h2>
+          <span>Live tape</span>
+        </header>
+        <div class="riso-stat-panel-body" id="retro_recent_plays" phx-update="stream">
+          <%= for {dom_id, play} <- @streams.recent_plays do %>
+            <div
+              class={["riso-stat-row", sound_play?(play) && "is-action"]}
+              id={dom_id}
+              phx-click={sound_play?(play) && "play_sound"}
+              phx-value-sound={sound_play?(play) && play.filename}
+            >
+              <img
+                class="riso-stat-avatar"
+                src={get_user_avatar(play.username, @presences, @avatars_by_username)}
+                alt=""
+              />
+              <span class="riso-stat-copy">
+                <strong>{activity_title(play)}</strong>
+                <em>
+                  {play.username} · {format_timestamp(play.timestamp)}
+                  <%= if youtube_play?(play) do %>
+                    · YouTube
+                  <% end %>
+                </em>
+              </span>
+              <a
+                :if={youtube_play?(play)}
+                href={youtube_url(play)}
+                target="_blank"
+                rel="noopener noreferrer"
+                class="riso-btn riso-stat-link"
+              >
+                Open ↗
+              </a>
+              <button
+                :if={sound_play?(play)}
+                type="button"
+                phx-click="toggle_favorite"
+                phx-value-sound={play.filename}
+                phx-stop
+                class="riso-stat-favorite"
+                aria-pressed={
+                  to_string(favorite?(@favorites, play.filename, @sound_ids_by_filename))
+                }
+                aria-label={"Favorite #{display_name(play.filename)}"}
+              >
+                {if favorite?(@favorites, play.filename, @sound_ids_by_filename),
+                  do: "★",
+                  else: "☆"}
+              </button>
+            </div>
+          <% end %>
+        </div>
+      </article>
+
+      <article class="riso-stat-panel">
+        <header class="riso-stat-panel-head">
+          <h2>Recently Uploaded</h2>
+          <span>Intake</span>
+        </header>
+        <div class="riso-stat-panel-body">
+          <%= if @recent_uploads == [] do %>
+            <p class="riso-stat-empty">No recent uploads</p>
+          <% else %>
+            <%= for {sound_name, username, timestamp} <- @recent_uploads do %>
+              <div
+                class="riso-stat-row is-action"
+                id={"play-upload-#{sound_name}"}
+                phx-click="play_sound"
+                phx-value-sound={sound_name}
+              >
+                <img
+                  class="riso-stat-avatar"
+                  src={get_user_avatar(username, @presences, @avatars_by_username)}
+                  alt=""
+                />
+                <span class="riso-stat-copy">
+                  <strong>{display_name(sound_name)}</strong>
+                  <em>{username} · {format_timestamp(timestamp)}</em>
+                </span>
+                <button
+                  type="button"
+                  phx-click="toggle_favorite"
+                  phx-value-sound={sound_name}
+                  phx-stop
+                  class="riso-stat-favorite"
+                  aria-pressed={
+                    to_string(favorite?(@favorites, sound_name, @sound_ids_by_filename))
+                  }
+                  aria-label={"Favorite #{display_name(sound_name)}"}
+                >
+                  {if favorite?(@favorites, sound_name, @sound_ids_by_filename),
+                    do: "★",
+                    else: "☆"}
+                </button>
+              </div>
+            <% end %>
+          <% end %>
+        </div>
+      </article>
+    </section>
+
+    <footer class="riso-footer">
+      <span :if={@current_user} class="riso-footer-user">
+        <img src={@current_user.avatar} alt="" />
+        {@current_user.username}
+      </span>
+      <span class="riso-footer-spacer"></span>
+      <span>Weekly charts</span>
+      <span>Updated live</span>
+    </footer>
+  <% Soundboard.Theme.desk?(@theme) -> %>
+    <section class="controls">
+      <div class="slot" aria-hidden="true">
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.4"
+        >
+          <path d="M4 19V5M10 19V9M16 19V3M22 19V11" />
+        </svg>
+        <input
+          type="text"
+          readonly
+          tabindex="-1"
+          value="Weekly meters"
+          aria-label="Weekly meters"
+        />
+      </div>
+      <div class="actions">
+        <button type="button" phx-click="previous_week" class="btn" aria-label="Previous week">
+          ← Prev
+        </button>
+        <form phx-change="select_week" phx-submit="select_week" class="week-form">
+          <label for="week-picker" class="sr-only">Week of</label>
+          <input
+            type="date"
+            id="week-picker"
+            name="week"
+            value={date_input_value(@selected_week)}
+            max={date_input_value(@current_week)}
+            phx-debounce="blur"
+            class="week-input"
+          />
+        </form>
+        <button
+          type="button"
+          phx-click="next_week"
+          disabled={@selected_week == @current_week}
+          class={["btn", @selected_week == @current_week && "is-disabled"]}
+          aria-label="Next week"
+        >
+          Next →
+        </button>
+      </div>
+      <div class="banks">
+        <span class="count">{format_date_range(@selected_week)}</span>
+      </div>
+    </section>
+
+    <section class="stats-panels">
+      <article class="panel">
+        <header class="panel-head">
+          <h2>Top Users</h2>
+          <span class="panel-meta">plays</span>
+        </header>
+        <div class="panel-body">
+          <%= if @top_users == [] do %>
+            <p class="panel-empty">No plays this week</p>
+          <% else %>
+            <%= for {{username, count}, index} <- Enum.with_index(@top_users, 1) do %>
+              <div class="stat-row" id={"user-stat-#{username}"}>
+                <span class="stat-rank">{String.pad_leading("#{index}", 2, "0")}</span>
+                <span class="presence-pill">
+                  <img
+                    :if={get_user_avatar(username, @presences, @avatars_by_username)}
+                    src={get_user_avatar(username, @presences, @avatars_by_username)}
+                    alt=""
+                  />
+                  <span>{username}</span>
+                </span>
+                <span class="stat-value">{count}</span>
+              </div>
+            <% end %>
+          <% end %>
+        </div>
+      </article>
+
+      <article class="panel">
+        <header class="panel-head">
+          <h2>Top Sounds</h2>
+          <span class="panel-meta">hit pads</span>
+        </header>
+        <div class="panel-body">
+          <%= if @top_sounds == [] do %>
+            <p class="panel-empty">No sounds played this week</p>
+          <% else %>
+            <%= for {{sound_name, count}, index} <- Enum.with_index(@top_sounds, 1) do %>
+              <div
+                class="stat-row is-action"
+                id={"play-top-#{sound_name}"}
+                phx-click="play_sound"
+                phx-value-sound={sound_name}
+              >
+                <span class="stat-rank">{String.pad_leading("#{index}", 2, "0")}</span>
+                <div class="stat-copy">
+                  <strong>{display_name(sound_name)}</strong>
+                  <em>{count} plays</em>
+                </div>
+                <button
+                  type="button"
+                  phx-click="toggle_favorite"
+                  phx-value-sound={sound_name}
+                  phx-stop
+                  id={"favorite-#{sound_name}"}
+                  class="stat-fav"
+                  aria-pressed={
+                    to_string(favorite?(@favorites, sound_name, @sound_ids_by_filename))
+                  }
+                  aria-label={"Favorite #{display_name(sound_name)}"}
+                >
+                  {if favorite?(@favorites, sound_name, @sound_ids_by_filename),
+                    do: "★",
+                    else: "☆"}
+                </button>
+              </div>
+            <% end %>
+          <% end %>
+        </div>
+      </article>
+
+      <article class="panel">
+        <header class="panel-head">
+          <h2>Top Videos</h2>
+          <span class="panel-meta">YouTube</span>
+        </header>
+        <div class="panel-body">
+          <%= if @top_videos == [] do %>
+            <p class="panel-empty">No videos played this week</p>
+          <% else %>
+            <%= for {video, index} <- Enum.with_index(@top_videos, 1) do %>
+              <a
+                class="stat-row is-action"
+                id={"youtube-stat-#{video.youtube_id}"}
+                href={youtube_url(video)}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <span class="stat-rank">{String.pad_leading("#{index}", 2, "0")}</span>
+                <div class="stat-copy">
+                  <strong>{video.title}</strong>
+                  <em>{video.count} plays · {video.youtube_id}</em>
+                </div>
+                <span class="stat-value" aria-hidden="true">↗</span>
+              </a>
+            <% end %>
+          <% end %>
+        </div>
+      </article>
+
+      <article class="panel">
+        <header class="panel-head">
+          <h2>Recent Plays</h2>
+          <span class="panel-meta">live tape</span>
+        </header>
+        <div class="panel-body" id="recent_plays" phx-update="stream">
+          <%= for {dom_id, play} <- @streams.recent_plays do %>
+            <div
+              class={["stat-row", sound_play?(play) && "is-action"]}
+              id={dom_id}
+              phx-click={sound_play?(play) && "play_sound"}
+              phx-value-sound={sound_play?(play) && play.filename}
+            >
+              <img
+                class="stat-avatar"
+                src={get_user_avatar(play.username, @presences, @avatars_by_username)}
+                alt=""
+              />
+              <div class="stat-copy">
+                <strong>{activity_title(play)}</strong>
+                <em>
+                  {play.username} · {format_timestamp(play.timestamp)}
+                  <%= if youtube_play?(play) do %>
+                    · YouTube
+                  <% end %>
+                </em>
+              </div>
+              <a
+                :if={youtube_play?(play)}
+                href={youtube_url(play)}
+                target="_blank"
+                rel="noopener noreferrer"
+                class="btn stat-open"
+              >
+                Open ↗
+              </a>
+              <button
+                :if={sound_play?(play)}
+                type="button"
+                phx-click="toggle_favorite"
+                phx-value-sound={play.filename}
+                phx-stop
+                class="stat-fav"
+                aria-pressed={
+                  to_string(favorite?(@favorites, play.filename, @sound_ids_by_filename))
+                }
+                aria-label={"Favorite #{display_name(play.filename)}"}
+              >
+                {if favorite?(@favorites, play.filename, @sound_ids_by_filename),
+                  do: "★",
+                  else: "☆"}
+              </button>
+            </div>
+          <% end %>
+        </div>
+      </article>
+
+      <article class="panel">
+        <header class="panel-head">
+          <h2>Recently Uploaded</h2>
+          <span class="panel-meta">intake</span>
+        </header>
+        <div class="panel-body">
+          <%= if @recent_uploads == [] do %>
+            <p class="panel-empty">No recent uploads</p>
+          <% else %>
+            <%= for {sound_name, username, timestamp} <- @recent_uploads do %>
+              <div
+                class="stat-row is-action"
+                id={"play-upload-#{sound_name}"}
+                phx-click="play_sound"
+                phx-value-sound={sound_name}
+              >
+                <img
+                  class="stat-avatar"
+                  src={get_user_avatar(username, @presences, @avatars_by_username)}
+                  alt=""
+                />
+                <div class="stat-copy">
+                  <strong>{display_name(sound_name)}</strong>
+                  <em>{username} · {format_timestamp(timestamp)}</em>
+                </div>
+                <button
+                  type="button"
+                  phx-click="toggle_favorite"
+                  phx-value-sound={sound_name}
+                  phx-stop
+                  class="stat-fav"
+                  aria-pressed={
+                    to_string(favorite?(@favorites, sound_name, @sound_ids_by_filename))
+                  }
+                  aria-label={"Favorite #{display_name(sound_name)}"}
+                >
+                  {if favorite?(@favorites, sound_name, @sound_ids_by_filename),
+                    do: "★",
+                    else: "☆"}
+                </button>
+              </div>
+            <% end %>
+          <% end %>
+        </div>
+      </article>
+    </section>
+  <% true -> %>
+    <div id="stats" class="max-w-6xl mx-auto px-4 py-8">
+      <div class="flex justify-between items-center mb-8">
+        <h1 class="text-3xl font-bold text-gray-800 dark:text-gray-100">Stats</h1>
+        <div class="flex items-center gap-4">
+          <button
+            phx-click="previous_week"
+            class="text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
+          >
+            <.icon name="hero-chevron-left-solid" class="h-5 w-5" />
+          </button>
+          <div class="flex flex-col items-start gap-1">
+            <form
+              phx-change="select_week"
+              phx-submit="select_week"
+              class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400"
+            >
+              <label for="week-picker-classic" class="whitespace-nowrap">
+                Week of
+              </label>
+              <input
+                type="date"
+                id="week-picker-classic"
+                name="week"
+                value={date_input_value(@selected_week)}
+                max={date_input_value(@current_week)}
+                phx-debounce="blur"
+                class="border border-gray-300 dark:border-gray-600 rounded-md px-2 py-1 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </form>
+            <span class="text-xs text-gray-500 dark:text-gray-400">
+              {format_date_range(@selected_week)}
+            </span>
+          </div>
+          <button
+            phx-click="next_week"
+            disabled={@selected_week == @current_week}
+            class={[
+              "text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200",
+              @selected_week == @current_week && "opacity-50 cursor-not-allowed"
+            ]}
+          >
+            <.icon name="hero-chevron-right-solid" class="h-5 w-5" />
+          </button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+          <h2 class="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-4">Top Users</h2>
+          <div class="space-y-2">
+            <%= for {username, count} <- @top_users do %>
+              <div class="flex justify-between items-center" id={"user-stat-#{username}"}>
+                <span class={[
+                  "px-2 py-1 rounded-full text-sm flex items-center gap-1",
+                  get_user_color_from_presence(username, @presences)
+                ]}>
+                  <img
+                    :if={get_user_avatar(username, @presences, @avatars_by_username)}
+                    src={get_user_avatar(username, @presences, @avatars_by_username)}
+                    class="w-4 h-4 rounded-full"
+                    alt={"#{username}'s avatar"}
+                  />
+                  {username}
+                </span>
+                <span class="text-gray-600 dark:text-gray-400">{count} plays</span>
+              </div>
+            <% end %>
+          </div>
+        </div>
+
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+          <h2 class="text-xl font-semibold text-gray-800 dark:text-gray-200 mb-4">Top Sounds</h2>
+          <div class="space-y-3">
+            <%= for {sound_name, count} <- @top_sounds do %>
+              <div
+                class="flex items-center justify-between p-2 px-6 rounded-lg bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer group"
+                id={"play-top-#{sound_name}"}
+                phx-click="play_sound"
+                phx-value-sound={sound_name}
+              >
+                <div class="flex items-center gap-3 min-w-0">
+                  <div class="min-w-0">
+                    <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                      {display_name(sound_name)}
+                    </p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">
+                      {count} plays
+                    </p>
+                  </div>
+                </div>
+                <div class="flex items-center gap-2">
+                  <button
+                    phx-click="toggle_favorite"
+                    phx-value-sound={sound_name}
+                    phx-stop
+                    id={"favorite-#{sound_name}"}
+                    class="text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-500 mr-2"
+                  >
+                    <%= if favorite?(@favorites, sound_name, @sound_ids_by_filename) do %>
+                      <.icon name="hero-heart-solid" class="h-5 w-5 text-red-500" />
+                    <% else %>
+                      <.icon name="hero-heart" class="h-5 w-5" />
+                    <% end %>
+                  </button>
+                </div>
+              </div>
+            <% end %>
+          </div>
+        </div>
+
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+          <h2 class="text-xl font-semibold text-gray-800 dark:text-gray-200 mb-4">Top Videos</h2>
+          <div class="space-y-3">
+            <%= if @top_videos == [] do %>
+              <p class="text-sm text-gray-500 dark:text-gray-400">No videos played this week</p>
+            <% else %>
+              <%= for video <- @top_videos do %>
+                <a
+                  id={"youtube-stat-#{video.youtube_id}"}
+                  href={youtube_url(video)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="flex items-center justify-between gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 group"
+                >
+                  <div class="min-w-0">
+                    <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                      {video.title}
+                    </p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">
+                      {video.count} plays · {video.youtube_id}
+                    </p>
+                  </div>
+                  <span class="text-sm text-red-600 dark:text-red-400 whitespace-nowrap">
+                    YouTube ↗
+                  </span>
+                </a>
+              <% end %>
+            <% end %>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+          <h2 class="text-xl font-semibold text-gray-800 dark:text-gray-200 mb-4">
+            Recent Plays
+          </h2>
+          <div class="space-y-3" id="recent_plays" phx-update="stream">
+            <%= for {dom_id, play} <- @streams.recent_plays do %>
+              <div
+                class={[
+                  "flex items-center justify-between p-2 rounded-lg bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 group",
+                  sound_play?(play) && "cursor-pointer"
+                ]}
+                id={dom_id}
+                phx-click={sound_play?(play) && "play_sound"}
+                phx-value-sound={sound_play?(play) && play.filename}
+              >
+                <div class="flex items-center gap-3 min-w-0">
+                  <div class="flex-shrink-0">
+                    <img
+                      src={get_user_avatar(play.username, @presences, @avatars_by_username)}
+                      class="w-8 h-8 rounded-full"
+                      alt={play.username}
+                    />
+                  </div>
+                  <div class="min-w-0">
+                    <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                      {activity_title(play)}
+                    </p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">
+                      {play.username}
+                      <%= if youtube_play?(play) do %>
+                        · YouTube
+                      <% end %>
+                    </p>
+                  </div>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                    {format_timestamp(play.timestamp)}
+                  </span>
+                  <a
+                    :if={youtube_play?(play)}
+                    href={youtube_url(play)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="px-2 py-1 text-xs rounded bg-red-600 text-white hover:bg-red-700 whitespace-nowrap"
+                  >
+                    YouTube ↗
+                  </a>
+                  <button
+                    :if={sound_play?(play)}
+                    phx-click="toggle_favorite"
+                    phx-value-sound={play.filename}
+                    phx-stop
+                    class="text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-500 mr-2"
+                  >
+                    <%= if favorite?(@favorites, play.filename, @sound_ids_by_filename) do %>
+                      <.icon name="hero-heart-solid" class="h-5 w-5 text-red-500" />
+                    <% else %>
+                      <.icon name="hero-heart" class="h-5 w-5" />
+                    <% end %>
+                  </button>
+                </div>
+              </div>
+            <% end %>
+          </div>
+        </div>
+
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+          <h2 class="text-xl font-semibold text-gray-800 dark:text-gray-200 mb-4">
+            Recently Uploaded
+          </h2>
+          <div class="space-y-3">
+            <%= for {sound_name, username, timestamp} <- @recent_uploads do %>
+              <div
+                class="flex items-center justify-between p-2 px-6 rounded-lg bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer group"
+                id={"play-upload-#{sound_name}"}
+                phx-click="play_sound"
+                phx-value-sound={sound_name}
+              >
+                <div class="flex items-center gap-3 min-w-0">
+                  <div class="flex-shrink-0">
+                    <img
+                      src={get_user_avatar(username, @presences, @avatars_by_username)}
+                      class="w-8 h-8 rounded-full"
+                      alt={username}
+                    />
+                  </div>
+                  <div class="min-w-0">
+                    <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                      {display_name(sound_name)}
+                    </p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">
+                      {username}
+                    </p>
+                  </div>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                    {format_timestamp(timestamp)}
+                  </span>
+                  <button
+                    phx-click="toggle_favorite"
+                    phx-value-sound={sound_name}
+                    phx-stop
+                    class="text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-500 mr-2"
+                  >
+                    <%= if favorite?(@favorites, sound_name, @sound_ids_by_filename) do %>
+                      <.icon name="hero-heart-solid" class="h-5 w-5 text-red-500" />
+                    <% else %>
+                      <.icon name="hero-heart" class="h-5 w-5" />
+                    <% end %>
+                  </button>
+                </div>
+              </div>
+            <% end %>
+          </div>
+        </div>
+      </div>
+    </div>
+<% end %>

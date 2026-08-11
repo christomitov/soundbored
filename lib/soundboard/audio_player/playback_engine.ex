@@ -4,7 +4,15 @@ defmodule Soundboard.AudioPlayer.PlaybackEngine do
   require Logger
 
   alias Soundboard.Accounts.User
-  alias Soundboard.{AudioPlayer, AudioPlayer.Notifier, AudioPlayer.SoundLibrary, Discord.Voice}
+  alias Soundboard.Audio.Duration
+
+  alias Soundboard.{
+    AudioPlayer,
+    AudioPlayer.Notifier,
+    AudioPlayer.SoundLibrary,
+    Discord.Voice,
+    Sounds
+  }
 
   @system_users ["System"]
   @rtp_probe_poll_ms 20
@@ -30,7 +38,7 @@ defmodule Soundboard.AudioPlayer.PlaybackEngine do
   defp maybe_settle_before_play(_), do: :ok
 
   defp submit_play_request(guild_id, sound_name, path_or_url, volume, actor) do
-    if is_nil(ffmpeg_executable()) do
+    if is_nil(Soundboard.SystemCmd.configured_executable(:ffmpeg_executable, "ffmpeg")) do
       Logger.error("ffmpeg not found in PATH. Cannot play #{sound_name}")
       broadcast_error("ffmpeg is not installed on this host")
       :error
@@ -56,7 +64,7 @@ defmodule Soundboard.AudioPlayer.PlaybackEngine do
       :ok ->
         maybe_probe_first_rtp(play_request.guild_id, play_request.sound_name, attempt + 1)
         track_play_if_needed(play_request.sound_name, play_request.actor)
-        broadcast_success(play_request.sound_name, play_request.actor)
+        broadcast_success(play_request)
         :ok
 
       {:retry, retry} ->
@@ -377,8 +385,17 @@ defmodule Soundboard.AudioPlayer.PlaybackEngine do
     end
   end
 
-  defp broadcast_success(sound_name, actor) do
-    Notifier.sound_played(sound_name, actor_display_name(actor) || "Unknown")
+  defp broadcast_success(%{sound_name: sound_name, actor: actor, play_input: play_input}) do
+    sound_id =
+      case Sounds.fetch_sound_id(sound_name) do
+        {:ok, id} -> id
+        :error -> nil
+      end
+
+    Notifier.sound_played(sound_name, actor_display_name(actor) || "Unknown", %{
+      sound_id: sound_id,
+      duration_ms: Duration.probe_ms(play_input)
+    })
   end
 
   defp broadcast_error(message) do
@@ -387,14 +404,6 @@ defmodule Soundboard.AudioPlayer.PlaybackEngine do
 
   defp unwrap_sequence({:ok, sequence}), do: sequence
   defp unwrap_sequence({:error, _reason}), do: nil
-
-  defp ffmpeg_executable do
-    case Application.get_env(:soundboard, :ffmpeg_executable, :system) do
-      :system -> System.find_executable("ffmpeg")
-      false -> nil
-      path when is_binary(path) -> path
-    end
-  end
 
   defp clamp_volume(value) when is_number(value) do
     value

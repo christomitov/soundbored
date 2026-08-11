@@ -41,6 +41,98 @@ defmodule SoundboardWeb.SoundboardLiveTest do
       assert html =~ "SoundBored"
     end
 
+    test "renders the retro lineup theme", %{conn: conn, sound: sound} do
+      conn = put_session(conn, :theme, "retro")
+
+      {:ok, view, html} = live(conn, "/")
+
+      assert html =~ ~s(data-theme="retro")
+      assert has_element?(view, ".riso-sheet")
+      assert has_element?(view, "#retro-search")
+      assert has_element?(view, ".riso-row [phx-value-name='#{sound.filename}']")
+      assert html =~ "Riso edition"
+    end
+
+    test "retro now-playing favorite is limited to sounds", %{conn: conn, sound: sound} do
+      conn = put_session(conn, :theme, "retro")
+      {:ok, view, _html} = live(conn, "/")
+
+      send(view.pid, {
+        :sound_played,
+        %{
+          filename: sound.filename,
+          played_by: "testuser",
+          sound_id: sound.id,
+          media_type: "sound",
+          duration_ms: 1_000,
+          started_at: System.system_time(:millisecond)
+        }
+      })
+
+      assert has_element?(
+               view,
+               ".riso-now-favorite[phx-value-sound-id='#{sound.id}'][aria-pressed='false']"
+             )
+
+      send(view.pid, {
+        :sound_played,
+        %{
+          filename: "YouTube test video",
+          played_by: "testuser",
+          media_type: "youtube",
+          duration_ms: 1_000,
+          started_at: System.system_time(:millisecond)
+        }
+      })
+
+      refute has_element?(view, ".riso-now-favorite")
+    end
+
+    test "shows invite to server when bot is not in a guild", %{conn: conn} do
+      previous = Application.get_env(:ueberauth, Ueberauth.Strategy.Discord.OAuth)
+
+      Application.put_env(:ueberauth, Ueberauth.Strategy.Discord.OAuth,
+        client_id: "123456789012345678"
+      )
+
+      on_exit(fn ->
+        if previous do
+          Application.put_env(:ueberauth, Ueberauth.Strategy.Discord.OAuth, previous)
+        else
+          Application.delete_env(:ueberauth, Ueberauth.Strategy.Discord.OAuth)
+        end
+      end)
+
+      with_mock Soundboard.Discord.GuildCache, all: fn -> [] end do
+        {:ok, _view, html} = live(conn, "/")
+
+        assert html =~ "Invite to Server"
+        assert html =~ "client_id=123456789012345678"
+      end
+    end
+
+    test "hides invite to server when bot is already in a guild", %{conn: conn} do
+      previous = Application.get_env(:ueberauth, Ueberauth.Strategy.Discord.OAuth)
+
+      Application.put_env(:ueberauth, Ueberauth.Strategy.Discord.OAuth,
+        client_id: "123456789012345678"
+      )
+
+      on_exit(fn ->
+        if previous do
+          Application.put_env(:ueberauth, Ueberauth.Strategy.Discord.OAuth, previous)
+        else
+          Application.delete_env(:ueberauth, Ueberauth.Strategy.Discord.OAuth)
+        end
+      end)
+
+      with_mock Soundboard.Discord.GuildCache, all: fn -> [%{id: "1", name: "Guild"}] end do
+        {:ok, _view, html} = live(conn, "/")
+
+        refute html =~ "Invite to Server"
+      end
+    end
+
     test "can search sounds", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/")
 
@@ -107,7 +199,7 @@ defmodule SoundboardWeb.SoundboardLiveTest do
       {:ok, view, _html} = live(conn, "/")
 
       view
-      |> element("div.hidden.sm\\:flex button[phx-value-tag='funny']")
+      |> element(".banks button[phx-value-tag='funny']")
       |> render_click()
 
       with_mock Soundboard.AudioPlayer, play_sound: fn _, _ -> :ok end do
@@ -127,7 +219,7 @@ defmodule SoundboardWeb.SoundboardLiveTest do
 
       # Click the Add Sound button and verify modal appears
       view
-      |> element("[phx-click='show_upload_modal']")
+      |> element("button.btn.primary[phx-click='show_upload_modal']")
       |> render_click()
 
       # The modal should be visible now, verify its presence using form ID and content
@@ -310,7 +402,7 @@ defmodule SoundboardWeb.SoundboardLiveTest do
       {:ok, view, _html} = live(conn, "/")
 
       view
-      |> element("[phx-click='show_upload_modal']")
+      |> element("button.btn.primary[phx-click='show_upload_modal']")
       |> render_click()
 
       view
@@ -331,7 +423,7 @@ defmodule SoundboardWeb.SoundboardLiveTest do
       {:ok, view, _html} = live(conn, "/")
 
       view
-      |> element("[phx-click='show_upload_modal']")
+      |> element("button.btn.primary[phx-click='show_upload_modal']")
       |> render_click()
 
       view
@@ -359,7 +451,7 @@ defmodule SoundboardWeb.SoundboardLiveTest do
       {:ok, view, _html} = live(conn, "/")
 
       view
-      |> element("[phx-click='show_upload_modal']")
+      |> element("button.btn.primary[phx-click='show_upload_modal']")
       |> render_click()
 
       view

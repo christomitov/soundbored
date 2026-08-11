@@ -1,19 +1,39 @@
 defmodule SoundboardWeb.SettingsLive do
   use SoundboardWeb, :live_view
   use SoundboardWeb.Live.Support.PresenceLive
+  import Phoenix.Controller, only: [get_csrf_token: 0]
   alias Soundboard.Accounts.ApiTokens
-  alias Soundboard.PublicURL
+  alias Soundboard.{Favorites, PublicURL, PubSubTopics}
+  alias Soundboard.YouTube.Cookies
+  alias SoundboardWeb.Live.Support.NowPlayingHelpers
 
   @impl true
   def mount(_params, session, socket) do
+    if connected?(socket) do
+      PubSubTopics.subscribe_playback()
+    end
+
+    user = get_user_from_session(session)
+
     socket =
       socket
       |> mount_presence(session)
       |> assign(:current_path, "/settings")
-      |> assign(:current_user, get_user_from_session(session))
+      |> assign(:current_user, user)
+      |> assign(:settings_tab, "appearance")
+      |> assign(:api_docs_open, false)
       |> assign(:tokens, [])
       |> assign(:new_token, nil)
       |> assign(:base_url, PublicURL.current())
+      |> assign(:favorites, favorites_for(user))
+      |> assign(:cookie_status, Cookies.status())
+      |> assign(:cookie_paste, "")
+      |> allow_upload(:youtube_cookies,
+        accept: ~w(.txt text/plain),
+        max_entries: 1,
+        max_file_size: 1_000_000
+      )
+      |> NowPlayingHelpers.assign_defaults()
 
     {:ok, load_tokens(socket)}
   end
@@ -21,6 +41,15 @@ defmodule SoundboardWeb.SettingsLive do
   @impl true
   def handle_params(_params, uri, socket) do
     {:noreply, assign(socket, :base_url, PublicURL.from_uri_or_current(uri))}
+  end
+
+  @impl true
+  def handle_event("select_settings_tab", %{"tab" => tab}, socket) do
+    {:noreply, assign(socket, :settings_tab, normalize_tab(tab))}
+  end
+
+  def handle_event("toggle_api_docs", _params, socket) do
+    {:noreply, assign(socket, :api_docs_open, !socket.assigns.api_docs_open)}
   end
 
   @impl true
@@ -33,6 +62,7 @@ defmodule SoundboardWeb.SettingsLive do
       {:ok, raw, _token} ->
         {:noreply,
          socket
+         |> assign(:settings_tab, "api")
          |> assign(:new_token, raw)
          |> load_tokens()}
 
@@ -51,6 +81,104 @@ defmodule SoundboardWeb.SettingsLive do
     end
   end
 
+  @impl true
+  def handle_event("toggle_favorite", %{"sound-id" => sound_id}, socket) do
+    case socket.assigns.current_user do
+      nil ->
+        {:noreply, put_flash(socket, :error, "You must be logged in to favorite sounds")}
+
+      user ->
+        case Favorites.toggle_favorite(user.id, sound_id) do
+          {:ok, _} ->
+            {:noreply, assign(socket, :favorites, favorites_for(user))}
+
+          {:error, reason} ->
+            {:noreply, put_flash(socket, :error, Favorites.error_message(reason))}
+        end
+    end
+  end
+
+  @impl true
+  def handle_event("dismiss_now_playing", _params, socket) do
+    {:noreply, NowPlayingHelpers.clear(socket)}
+  end
+
+  def handle_event("update_cookie_paste", %{"cookies" => cookies}, socket) do
+    {:noreply, assign(socket, :cookie_paste, cookies)}
+  end
+
+  def handle_event("save_cookies_paste", %{"cookies" => cookies}, socket) do
+    case Cookies.save(cookies) do
+      {:ok, status} ->
+        {:noreply,
+         socket
+         |> assign(:cookie_status, status)
+         |> assign(:cookie_paste, "")
+         |> put_flash(:info, "YouTube cookies saved and validated")}
+
+      {:error, reason} ->
+        {:noreply, put_flash(socket, :error, reason)}
+    end
+  end
+
+  def handle_event("save_cookies_upload", _params, socket) do
+    results =
+      consume_uploaded_entries(socket, :youtube_cookies, fn %{path: path}, _entry ->
+        save_uploaded_cookies(path)
+      end)
+
+    case results do
+      [{:saved, status} | _] ->
+        {:noreply,
+         socket
+         |> assign(:cookie_status, status)
+         |> put_flash(:info, "YouTube cookies uploaded and validated")}
+
+      [{:error, reason} | _] ->
+        {:noreply, put_flash(socket, :error, reason)}
+
+      _ ->
+        {:noreply, put_flash(socket, :error, "Please choose a cookies.txt file to upload")}
+    end
+  end
+
+  def handle_event("clear_cookies", _params, socket) do
+    Cookies.clear()
+
+    {:noreply,
+     socket
+     |> assign(:cookie_status, Cookies.status())
+     |> put_flash(:info, "YouTube cookies cleared")}
+  end
+
+  def handle_event("validate_cookies_upload", _params, socket), do: {:noreply, socket}
+
+  defp save_uploaded_cookies(path) do
+    case File.read(path) do
+      {:ok, contents} -> normalize_cookie_save(Cookies.save(contents))
+      {:error, reason} -> {:ok, {:error, "Failed to read upload: #{inspect(reason)}"}}
+    end
+  end
+
+  defp normalize_cookie_save({:ok, status}), do: {:ok, {:saved, status}}
+  defp normalize_cookie_save({:error, reason}), do: {:ok, {:error, reason}}
+
+  @impl true
+  def handle_info({:sound_played, event}, socket) when is_map(event) do
+    {:noreply, NowPlayingHelpers.assign_from_event(socket, event)}
+  end
+
+  @impl true
+  def handle_info({:playback_stopped}, socket) do
+    {:noreply, NowPlayingHelpers.clear(socket)}
+  end
+
+  @impl true
+  def handle_info({:error, _message}, socket), do: {:noreply, socket}
+
+  defp favorites_for(nil), do: []
+  defp favorites_for(user), do: Favorites.list_favorites(user.id)
+
   defp load_tokens(%{assigns: %{current_user: nil}} = socket), do: socket
 
   defp load_tokens(%{assigns: %{current_user: user}} = socket) do
@@ -61,232 +189,8 @@ defmodule SoundboardWeb.SettingsLive do
     |> assign(:example_token, socket.assigns[:new_token])
   end
 
-  @impl true
-  def render(assigns) do
-    ~H"""
-    <div class="max-w-6xl mx-auto px-4 py-6 space-y-6">
-      <h1 class="text-2xl font-bold text-gray-800 dark:text-gray-100">Settings</h1>
-
-      <section aria-labelledby="api-tokens-heading" class="space-y-6">
-        <header class="space-y-2">
-          <h2 id="api-tokens-heading" class="text-xl font-semibold text-gray-800 dark:text-gray-100">
-            API Tokens
-          </h2>
-          <p class="text-sm text-gray-600 dark:text-gray-400">
-            Create a personal token to play sounds remotely. Requests authenticated with a token
-            are attributed to your account and update your stats.
-          </p>
-        </header>
-
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-5 space-y-4">
-          <form phx-submit="create_token" class="flex flex-col gap-3 sm:flex-row sm:items-end">
-            <div class="flex-1">
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Label</label>
-              <input
-                name="label"
-                type="text"
-                placeholder="e.g., CI Bot"
-                class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-700 shadow-sm dark:bg-gray-900 dark:text-gray-100 focus:border-blue-500 focus:ring-blue-500"
-              />
-            </div>
-            <button
-              type="submit"
-              class="w-full sm:w-auto justify-center px-4 py-2 bg-blue-600 text-white rounded-md font-medium hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900 flex items-center"
-            >
-              Create
-            </button>
-          </form>
-        </div>
-
-        <div class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg px-4 py-3 text-sm text-amber-800 dark:text-amber-300">
-          Token values are shown <strong>once</strong> at creation and cannot be retrieved afterwards.
-          If you did not copy a token, revoke it and create a new one.
-        </div>
-
-        <%= if @new_token do %>
-          <div class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg p-4 space-y-2">
-            <p class="text-sm font-medium text-green-800 dark:text-green-300">
-              New token created — copy it now, it won't be shown again:
-            </p>
-            <div class="relative">
-              <button
-                id="copy-new-token"
-                type="button"
-                phx-hook="CopyButton"
-                data-copy-text={@new_token}
-                class="absolute right-2 top-1/2 -translate-y-1/2 text-xs px-2 py-1 bg-green-200 dark:bg-green-700 text-green-900 dark:text-green-100 rounded"
-              >
-                Copy
-              </button>
-              <pre class="p-2 pr-20 bg-white dark:bg-gray-900 border border-green-300 dark:border-green-700 rounded text-xs overflow-x-auto whitespace-nowrap"><code class="text-gray-800 dark:text-gray-100 font-mono">{@new_token}</code></pre>
-            </div>
-          </div>
-        <% end %>
-
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-          <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
-              <thead class="bg-gray-50 dark:bg-gray-900">
-                <tr>
-                  <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Label
-                  </th>
-                  <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Created
-                  </th>
-                  <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Last Used
-                  </th>
-                  <th class="px-4 py-2"></th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
-                <%= for token <- @tokens do %>
-                  <tr class="text-sm">
-                    <td class="px-4 py-2 text-gray-900 dark:text-gray-100 whitespace-nowrap">
-                      {token.label || "(no label)"}
-                    </td>
-                    <td class="px-4 py-2 text-gray-500 dark:text-gray-400 whitespace-nowrap">
-                      {format_dt(token.inserted_at)}
-                    </td>
-                    <td class="px-4 py-2 text-gray-500 dark:text-gray-400 whitespace-nowrap">
-                      {format_dt(token.last_used_at) || "—"}
-                    </td>
-                    <td class="px-4 py-2 text-right align-top">
-                      <button
-                        phx-click="revoke_token"
-                        phx-value-id={token.id}
-                        class="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900"
-                      >
-                        Revoke
-                      </button>
-                    </td>
-                  </tr>
-                <% end %>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-5 space-y-4">
-          <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-100">How to call the API</h3>
-          <p class="text-sm text-gray-700 dark:text-gray-300">
-            Include your token in the Authorization header:
-            <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-100 font-mono">
-              Authorization: Bearer {@example_token || "<token>"}
-            </code>
-          </p>
-          <div class="space-y-4">
-            <div>
-              <div class="text-sm font-medium text-gray-700 dark:text-gray-300">List sounds</div>
-              <div class="relative">
-                <button
-                  id="copy-list-sounds"
-                  type="button"
-                  phx-hook="CopyButton"
-                  data-copy-text={"curl -H \"Authorization: Bearer #{(@example_token || "<TOKEN>")}\" #{@base_url}/api/sounds"}
-                  class="absolute right-2 top-2 text-xs px-2 py-1 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100 rounded"
-                >
-                  Copy
-                </button>
-                <pre class="mt-1 p-2 pr-16 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded text-xs overflow-x-auto whitespace-nowrap min-h-[56px]"><code class="text-gray-800 dark:text-gray-100 font-mono">curl -H \"Authorization: Bearer {(@example_token || "<TOKEN>")}\" {@base_url}/api/sounds</code></pre>
-              </div>
-            </div>
-            <div class="text-xs text-gray-600 dark:text-gray-400">
-              Upload endpoint: <code class="font-mono">POST /api/sounds</code>. Required fields:
-              <code class="font-mono">name</code>
-              plus either <code class="font-mono">file</code>
-              (local multipart)
-              or <code class="font-mono">url</code>
-              (<code class="font-mono">source_type=url</code>). Optional: <code class="font-mono">tags</code>,
-              <code class="font-mono">volume</code>
-              (0-150), <code class="font-mono">is_join_sound</code>, <code class="font-mono">is_leave_sound</code>.
-            </div>
-            <div>
-              <div class="text-sm font-medium text-gray-700 dark:text-gray-300">
-                Upload local file (multipart/form-data)
-              </div>
-              <div class="relative">
-                <button
-                  id="copy-upload-local"
-                  type="button"
-                  phx-hook="CopyButton"
-                  data-copy-text={"curl -X POST -H \"Authorization: Bearer #{(@example_token || "<TOKEN>")}\" -F \"source_type=local\" -F \"name=<NAME>\" -F \"file=@/path/to/sound.mp3\" -F \"tags[]=meme\" -F \"tags[]=alert\" -F \"volume=90\" -F \"is_join_sound=true\" #{@base_url}/api/sounds"}
-                  class="absolute right-2 top-2 text-xs px-2 py-1 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100 rounded"
-                >
-                  Copy
-                </button>
-                <pre class="mt-1 p-2 pr-16 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded text-xs overflow-x-auto min-h-[120px]"><code class="text-gray-800 dark:text-gray-100 font-mono">curl -X POST \
-    -H "Authorization: Bearer {(@example_token || "<TOKEN>")}" \
-    -F "source_type=local" \
-    -F "name=&lt;NAME&gt;" \
-    -F "file=@/path/to/sound.mp3" \
-    -F "tags[]=meme" \
-    -F "tags[]=alert" \
-    -F "volume=90" \
-    -F "is_join_sound=true" \
-    {@base_url}/api/sounds</code></pre>
-              </div>
-            </div>
-            <div>
-              <div class="text-sm font-medium text-gray-700 dark:text-gray-300">
-                Upload from URL (JSON)
-              </div>
-              <div class="relative">
-                <button
-                  id="copy-upload-url"
-                  type="button"
-                  phx-hook="CopyButton"
-                  data-copy-text={"curl -X POST -H \"Authorization: Bearer #{(@example_token || "<TOKEN>")}\" -H \"Content-Type: application/json\" -d '{\"source_type\":\"url\",\"name\":\"wow\",\"url\":\"https://example.com/wow.mp3\",\"tags\":[\"meme\",\"reaction\"],\"volume\":90,\"is_leave_sound\":true}' #{@base_url}/api/sounds"}
-                  class="absolute right-2 top-2 text-xs px-2 py-1 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100 rounded"
-                >
-                  Copy
-                </button>
-                <pre class="mt-1 p-2 pr-16 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded text-xs overflow-x-auto min-h-[110px]"><code class="text-gray-800 dark:text-gray-100 font-mono">curl -X POST \
-    -H "Authorization: Bearer {(@example_token || "<TOKEN>")}" \
-    -H "Content-Type: application/json" \
-    -d '&#123;"source_type":"url","name":"wow","url":"https://example.com/wow.mp3","tags":["meme","reaction"],"volume":90,"is_leave_sound":true&#125;' \
-    {@base_url}/api/sounds</code></pre>
-              </div>
-            </div>
-            <div>
-              <div class="text-sm font-medium text-gray-700 dark:text-gray-300">
-                Play a sound by ID
-              </div>
-              <div class="relative">
-                <button
-                  id="copy-play-sound"
-                  type="button"
-                  phx-hook="CopyButton"
-                  data-copy-text={"curl -X POST -H \"Authorization: Bearer #{(@example_token || "<TOKEN>")}\" #{@base_url}/api/sounds/<SOUND_ID>/play"}
-                  class="absolute right-2 top-2 text-xs px-2 py-1 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100 rounded"
-                >
-                  Copy
-                </button>
-                <pre class="mt-1 p-2 pr-16 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded text-xs overflow-x-auto whitespace-nowrap min-h-[56px]"><code class="text-gray-800 dark:text-gray-100 font-mono">curl -X POST -H \"Authorization: Bearer {(@example_token || "<TOKEN>")}\" {@base_url}/api/sounds/&lt;SOUND_ID&gt;/play</code></pre>
-              </div>
-            </div>
-            <div>
-              <div class="text-sm font-medium text-gray-700 dark:text-gray-300">Stop all sounds</div>
-              <div class="relative">
-                <button
-                  id="copy-stop-sounds"
-                  type="button"
-                  phx-hook="CopyButton"
-                  data-copy-text={"curl -X POST -H \"Authorization: Bearer #{(@example_token || "<TOKEN>")}\" #{@base_url}/api/sounds/stop"}
-                  class="absolute right-2 top-2 text-xs px-2 py-1 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100 rounded"
-                >
-                  Copy
-                </button>
-                <pre class="mt-1 p-2 pr-16 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded text-xs overflow-x-auto whitespace-nowrap min-h-[56px]"><code class="text-gray-800 dark:text-gray-100 font-mono">curl -X POST -H \"Authorization: Bearer {(@example_token || "<TOKEN>")}\" {@base_url}/api/sounds/stop</code></pre>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-    </div>
-    """
-  end
+  defp normalize_tab(tab) when tab in ["appearance", "api", "youtube"], do: tab
+  defp normalize_tab(_), do: "appearance"
 
   defp format_dt(nil), do: nil
   defp format_dt(%NaiveDateTime{} = dt), do: Calendar.strftime(dt, "%Y-%m-%d %H:%M")

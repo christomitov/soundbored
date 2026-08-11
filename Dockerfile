@@ -49,8 +49,12 @@ ENV MIX_ENV=prod \
 RUN apk add --no-cache \
     ffmpeg \
     git \
-    libstdc++
-
+    libstdc++ \
+    ca-certificates \
+    curl \
+    inotify-tools \
+    python3 \
+    nodejs
 WORKDIR /app
 COPY --from=build /app .
 RUN chmod -R a+rX /app/.mix /app/.hex

@@ -9,6 +9,10 @@
 # The directory Mix downloads your dependencies sources to.
 /deps/
 
+# Project-local Mix/Hex homes used by containerized development.
+/.hex/
+/.mix/
+
 # Where 3rd-party dependencies like ExDoc output generated docs.
 /doc/
 
@@ -47,6 +51,10 @@ npm-debug.log
 /assets/node_modules/
 
 /priv/static/uploads/
+/priv/youtube/
+/priv/bin/
+/priv/video_sessions/
+/priv/video_sessions_test/
 
 .env
 
@@ -61,6 +69,9 @@ TODO
 
 .desloppify/
 .pi/
+
+# Local design prototypes; production UI lives under lib/ and assets/.
+/mocks/
 
 .env.local
 

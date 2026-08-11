@@ -1,0 +1,883 @@
+<%= if Soundboard.Theme.desk?(@theme) or Soundboard.Theme.retro?(@theme) do %>
+  <%= if Soundboard.Theme.retro?(@theme) do %>
+    <section class={["riso-head", @now_playing && "is-playing"]}>
+      <div class="riso-eyebrow">
+        <span class="riso-lamp"></span>
+        <span>{if @now_playing, do: "Now playing", else: "Personal control dossier"}</span>
+      </div>
+      <div class="riso-title-wrap">
+        <span class="riso-title riso-title-ghost" aria-hidden="true">
+          {if @now_playing, do: @now_playing.display_name, else: "Settings"}
+        </span>
+        <h1 class="riso-title">
+          {if @now_playing, do: @now_playing.display_name, else: "Settings"}
+        </h1>
+      </div>
+      <div class="riso-tagline">
+        <span>
+          <%= if @now_playing do %>
+            {if @now_playing[:live?], do: "Live", else: "Playing"} · by {@now_playing.played_by}
+          <% else %>
+            Appearance, access, and playback credentials
+          <% end %>
+        </span>
+        <div
+          id="riso-settings-progress"
+          class="riso-meter"
+          phx-hook={if @now_playing && !@now_playing[:live?], do: "PlaybackProgress", else: nil}
+          data-duration-ms={if @now_playing, do: @now_playing.duration_ms || "", else: ""}
+          data-started-at={if @now_playing, do: @now_playing.started_at || "", else: ""}
+          aria-label="Playback progress"
+        >
+          <span
+            data-role="progress-bar"
+            class={[
+              "riso-meter-fill",
+              @now_playing && is_nil(@now_playing.duration_ms) && "animate-pulse"
+            ]}
+            style={if @now_playing && @now_playing.duration_ms, do: "width: 0%", else: nil}
+          >
+          </span>
+        </div>
+        <button
+          :if={
+            @current_user && @now_playing && @now_playing.sound_id &&
+              @now_playing.media_type == "sound"
+          }
+          type="button"
+          phx-click="toggle_favorite"
+          phx-value-sound-id={@now_playing.sound_id}
+          class="riso-now-favorite"
+          aria-pressed={to_string(@now_playing.sound_id in @favorites)}
+          aria-label={
+            if @now_playing.sound_id in @favorites,
+              do: "Remove from favorites",
+              else: "Add to favorites"
+          }
+        >
+          {if @now_playing.sound_id in @favorites, do: "★", else: "☆"}
+        </button>
+        <button type="button" phx-click="stop_sound" class="riso-btn riso-btn-pink">
+          Stop all
+        </button>
+      </div>
+    </section>
+  <% end %>
+  <section class="controls">
+    <div class="slot" aria-hidden="true">
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2.4"
+      >
+        <circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9c.3.6.9 1 1.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z" />
+      </svg>
+      <input type="text" readonly tabindex="-1" value="Settings bay" aria-label="Settings bay" />
+    </div>
+    <div class="banks">
+      <span class="count">
+        <%= case @settings_tab do %>
+          <% "api" -> %>
+            API tokens
+          <% "youtube" -> %>
+            YouTube cookies
+          <% _ -> %>
+            Appearance
+        <% end %>
+      </span>
+    </div>
+  </section>
+
+  <section class="settings-deck">
+    <nav class="settings-tabs" role="tablist" aria-label="Settings sections">
+      <button
+        type="button"
+        role="tab"
+        id="settings-tab-appearance"
+        phx-click="select_settings_tab"
+        phx-value-tab="appearance"
+        aria-selected={to_string(@settings_tab == "appearance")}
+        aria-controls="settings-panel-appearance"
+        class={["settings-tab", @settings_tab == "appearance" && "is-active"]}
+      >
+        Appearance
+      </button>
+      <button
+        type="button"
+        role="tab"
+        id="settings-tab-api"
+        phx-click="select_settings_tab"
+        phx-value-tab="api"
+        aria-selected={to_string(@settings_tab == "api")}
+        aria-controls="settings-panel-api"
+        class={["settings-tab", @settings_tab == "api" && "is-active"]}
+      >
+        API Tokens
+      </button>
+      <button
+        type="button"
+        role="tab"
+        id="settings-tab-youtube"
+        phx-click="select_settings_tab"
+        phx-value-tab="youtube"
+        aria-selected={to_string(@settings_tab == "youtube")}
+        aria-controls="settings-panel-youtube"
+        class={["settings-tab", @settings_tab == "youtube" && "is-active"]}
+      >
+        YouTube Cookies
+      </button>
+    </nav>
+
+    <article
+      class={["panel", @settings_tab != "appearance" && "is-hidden"]}
+      role="tabpanel"
+      id="settings-panel-appearance"
+      aria-labelledby="settings-tab-appearance"
+      hidden={@settings_tab != "appearance"}
+    >
+      <header class="panel-head">
+        <h2 id="appearance-heading">Appearance</h2>
+        <span class="panel-meta">faceplate</span>
+      </header>
+      <div class="panel-body settings-body">
+        <p class="settings-copy">
+          Choose a theme. Desk MK II is the hardware layout, Retro Riso is the new print-inspired lineup, and Classic keeps the original look.
+        </p>
+        <div class="theme-grid">
+          <%= for option <- Soundboard.Theme.all() do %>
+            <form action={~p"/theme"} method="post">
+              <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+              <input type="hidden" name="theme" value={option.id} />
+              <input type="hidden" name="return_to" value="/settings" />
+              <button
+                type="submit"
+                class={["theme-card", @theme == option.id && "is-active"]}
+                aria-pressed={to_string(@theme == option.id)}
+              >
+                <span class="theme-card-top">
+                  <strong>{option.label}</strong>
+                  <%= if @theme == option.id do %>
+                    <em>Active</em>
+                  <% end %>
+                </span>
+                <span class="theme-card-desc">{option.description}</span>
+              </button>
+            </form>
+          <% end %>
+        </div>
+      </div>
+    </article>
+
+    <article
+      class={["panel", @settings_tab != "api" && "is-hidden"]}
+      role="tabpanel"
+      id="settings-panel-api"
+      aria-labelledby="settings-tab-api"
+      hidden={@settings_tab != "api"}
+    >
+      <header class="panel-head">
+        <h2 id="api-tokens-heading">API Tokens</h2>
+        <span class="panel-meta">remote play</span>
+      </header>
+      <div class="panel-body settings-body">
+        <p class="settings-copy">
+          Create a personal token to play sounds remotely. Requests authenticated with a token
+          are attributed to your account and update your stats.
+        </p>
+
+        <form phx-submit="create_token" class="settings-inline-form">
+          <label class="slot settings-grow">
+            <span class="sr-only">Label</span>
+            <input name="label" type="text" placeholder="Label · e.g. CI Bot" />
+          </label>
+          <button type="submit" class="btn primary">Create</button>
+        </form>
+
+        <div class="settings-note">
+          Token values are shown <strong>once</strong>
+          at creation and cannot be retrieved afterwards.
+          If you did not copy a token, revoke it and create a new one.
+        </div>
+
+        <%= if @new_token do %>
+          <div class="settings-secret">
+            <p>New token created — copy it now, it won't be shown again:</p>
+            <div class="code-frame">
+              <button
+                id="copy-new-token"
+                type="button"
+                phx-hook="CopyButton"
+                data-copy-text={@new_token}
+                class="code-copy"
+              >
+                Copy
+              </button>
+              <pre><code>{@new_token}</code></pre>
+            </div>
+          </div>
+        <% end %>
+
+        <div class="settings-table-wrap">
+          <table class="settings-table">
+            <thead>
+              <tr>
+                <th>Label</th>
+                <th>Created</th>
+                <th>Last Used</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <%= for token <- @tokens do %>
+                <tr>
+                  <td>{token.label || "(no label)"}</td>
+                  <td>{format_dt(token.inserted_at)}</td>
+                  <td>{format_dt(token.last_used_at) || "—"}</td>
+                  <td class="settings-table-action">
+                    <button
+                      type="button"
+                      phx-click="revoke_token"
+                      phx-value-id={token.id}
+                      class="btn"
+                    >
+                      Revoke
+                    </button>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+
+        <div class={["settings-disclosure", @api_docs_open && "is-open"]}>
+          <button
+            type="button"
+            class="settings-disclosure-toggle"
+            phx-click="toggle_api_docs"
+            aria-expanded={to_string(@api_docs_open)}
+            aria-controls="settings-api-docs"
+          >
+            <span>How to call the API</span>
+            <span class="settings-disclosure-chevron" aria-hidden="true"></span>
+          </button>
+
+          <%= if @api_docs_open do %>
+            <div id="settings-api-docs" class="settings-api-docs">
+              <p class="settings-copy">
+                Include your token in the Authorization header:
+                <code>Authorization: Bearer {@example_token || "<token>"}</code>
+              </p>
+
+              <div class="api-example">
+                <div class="api-example-label">List sounds</div>
+                <div class="code-frame">
+                  <button
+                    id="copy-list-sounds"
+                    type="button"
+                    phx-hook="CopyButton"
+                    data-copy-text={"curl -H \"Authorization: Bearer #{(@example_token || "<TOKEN>")}\" #{@base_url}/api/sounds"}
+                    class="code-copy"
+                  >
+                    Copy
+                  </button>
+                  <pre><code>curl -H "Authorization: Bearer {(@example_token || "<TOKEN>")}" {@base_url}/api/sounds</code></pre>
+                </div>
+              </div>
+
+              <p class="settings-copy subtle">
+                Upload endpoint: <code>POST /api/sounds</code>. Required fields: <code>name</code>
+                plus either <code>file</code>
+                (local multipart)
+                or <code>url</code>
+                (<code>source_type=url</code>). Optional: <code>tags</code>, <code>volume</code>
+                (0-150), <code>is_join_sound</code>, <code>is_leave_sound</code>.
+              </p>
+
+              <div class="api-example">
+                <div class="api-example-label">Upload local file (multipart/form-data)</div>
+                <div class="code-frame">
+                  <button
+                    id="copy-upload-local"
+                    type="button"
+                    phx-hook="CopyButton"
+                    data-copy-text={"curl -X POST -H \"Authorization: Bearer #{(@example_token || "<TOKEN>")}\" -F \"source_type=local\" -F \"name=<NAME>\" -F \"file=@/path/to/sound.mp3\" -F \"tags[]=meme\" -F \"tags[]=alert\" -F \"volume=90\" -F \"is_join_sound=true\" #{@base_url}/api/sounds"}
+                    class="code-copy"
+                  >
+                    Copy
+                  </button>
+                  <pre><code>curl -X POST \
+  -H "Authorization: Bearer {(@example_token || "<TOKEN>")}" \
+  -F "source_type=local" \
+  -F "name=&lt;NAME&gt;" \
+  -F "file=@/path/to/sound.mp3" \
+  -F "tags[]=meme" \
+  -F "tags[]=alert" \
+  -F "volume=90" \
+  -F "is_join_sound=true" \
+  {@base_url}/api/sounds</code></pre>
+                </div>
+              </div>
+
+              <div class="api-example">
+                <div class="api-example-label">Upload from URL (JSON)</div>
+                <div class="code-frame">
+                  <button
+                    id="copy-upload-url"
+                    type="button"
+                    phx-hook="CopyButton"
+                    data-copy-text={"curl -X POST -H \"Authorization: Bearer #{(@example_token || "<TOKEN>")}\" -H \"Content-Type: application/json\" -d '{\"source_type\":\"url\",\"name\":\"wow\",\"url\":\"https://example.com/wow.mp3\",\"tags\":[\"meme\",\"reaction\"],\"volume\":90,\"is_leave_sound\":true}' #{@base_url}/api/sounds"}
+                    class="code-copy"
+                  >
+                    Copy
+                  </button>
+                  <pre><code>curl -X POST \
+  -H "Authorization: Bearer {(@example_token || "<TOKEN>")}" \
+  -H "Content-Type: application/json" \
+  -d '&#123;"source_type":"url","name":"wow","url":"https://example.com/wow.mp3","tags":["meme","reaction"],"volume":90,"is_leave_sound":true&#125;' \
+  {@base_url}/api/sounds</code></pre>
+                </div>
+              </div>
+
+              <div class="api-example">
+                <div class="api-example-label">Play a sound by ID</div>
+                <div class="code-frame">
+                  <button
+                    id="copy-play-sound"
+                    type="button"
+                    phx-hook="CopyButton"
+                    data-copy-text={"curl -X POST -H \"Authorization: Bearer #{(@example_token || "<TOKEN>")}\" #{@base_url}/api/sounds/<SOUND_ID>/play"}
+                    class="code-copy"
+                  >
+                    Copy
+                  </button>
+                  <pre><code>curl -X POST -H "Authorization: Bearer {(@example_token || "<TOKEN>")}" {@base_url}/api/sounds/&lt;SOUND_ID&gt;/play</code></pre>
+                </div>
+              </div>
+
+              <div class="api-example">
+                <div class="api-example-label">Stop all sounds</div>
+                <div class="code-frame">
+                  <button
+                    id="copy-stop-sounds"
+                    type="button"
+                    phx-hook="CopyButton"
+                    data-copy-text={"curl -X POST -H \"Authorization: Bearer #{(@example_token || "<TOKEN>")}\" #{@base_url}/api/sounds/stop"}
+                    class="code-copy"
+                  >
+                    Copy
+                  </button>
+                  <pre><code>curl -X POST -H "Authorization: Bearer {(@example_token || "<TOKEN>")}" {@base_url}/api/sounds/stop</code></pre>
+                </div>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </article>
+
+    <article
+      class={["panel", @settings_tab != "youtube" && "is-hidden"]}
+      role="tabpanel"
+      id="settings-panel-youtube"
+      aria-labelledby="settings-tab-youtube"
+      hidden={@settings_tab != "youtube"}
+    >
+      <header class="panel-head">
+        <h2 id="youtube-cookies-heading">YouTube Cookies</h2>
+        <span class="panel-meta">cookies.txt</span>
+      </header>
+      <div class="panel-body settings-body">
+        <p class="settings-copy">
+          Optional Netscape <code>cookies.txt</code>
+          for age-restricted or members-only videos. Without cookies, only public videos work.
+          Export cookies from a logged-in private browser window (e.g. “Get cookies.txt LOCALLY”),
+          close that window immediately, then paste or upload them here.
+          Cookies are validated with yt-dlp before they are saved.
+        </p>
+
+        <div class="settings-status">
+          <%= if @cookie_status.present? do %>
+            <span class="status-ok">Cookies on file</span>
+            <%= if @cookie_status.validated_at do %>
+              <span class="status-meta">— validated {@cookie_status.validated_at}</span>
+            <% end %>
+          <% else %>
+            <span class="status-warn">No cookies saved — public videos only</span>
+          <% end %>
+        </div>
+
+        <%= if @cookie_status.present? do %>
+          <button type="button" phx-click="clear_cookies" class="btn">Clear Cookies</button>
+        <% end %>
+
+        <form phx-submit="save_cookies_paste" class="settings-stack-form">
+          <label class="settings-label">
+            {if @cookie_status.present?, do: "Replace cookies.txt", else: "Paste cookies.txt"}
+          </label>
+          <textarea
+            name="cookies"
+            rows="6"
+            phx-change="update_cookie_paste"
+            placeholder="# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tTRUE\t0\tNAME\tvalue"
+            class="settings-textarea"
+          >{@cookie_paste}</textarea>
+          <button type="submit" class="btn primary">Validate &amp; Save Paste</button>
+        </form>
+
+        <form
+          phx-submit="save_cookies_upload"
+          phx-change="validate_cookies_upload"
+          class="settings-stack-form"
+        >
+          <label class="settings-label">Or upload cookies.txt</label>
+          <.live_file_input upload={@uploads.youtube_cookies} class="settings-file" />
+          <button type="submit" class="btn primary">Validate &amp; Save Upload</button>
+        </form>
+      </div>
+    </article>
+  </section>
+<% else %>
+  <div class="max-w-6xl mx-auto px-4 py-6 space-y-6">
+    <div class="space-y-3">
+      <h1 class="text-2xl font-bold text-gray-800 dark:text-gray-100">Settings</h1>
+      <nav
+        class="flex flex-wrap gap-2 border-b border-gray-200 dark:border-gray-700 pb-3"
+        role="tablist"
+        aria-label="Settings sections"
+      >
+        <button
+          type="button"
+          role="tab"
+          phx-click="select_settings_tab"
+          phx-value-tab="appearance"
+          aria-selected={to_string(@settings_tab == "appearance")}
+          class={[
+            "px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
+            if(@settings_tab == "appearance",
+              do: "bg-blue-600 text-white",
+              else: "text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
+            )
+          ]}
+        >
+          Appearance
+        </button>
+        <button
+          type="button"
+          role="tab"
+          phx-click="select_settings_tab"
+          phx-value-tab="api"
+          aria-selected={to_string(@settings_tab == "api")}
+          class={[
+            "px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
+            if(@settings_tab == "api",
+              do: "bg-blue-600 text-white",
+              else: "text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
+            )
+          ]}
+        >
+          API Tokens
+        </button>
+        <button
+          type="button"
+          role="tab"
+          phx-click="select_settings_tab"
+          phx-value-tab="youtube"
+          aria-selected={to_string(@settings_tab == "youtube")}
+          class={[
+            "px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
+            if(@settings_tab == "youtube",
+              do: "bg-blue-600 text-white",
+              else: "text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
+            )
+          ]}
+        >
+          YouTube Cookies
+        </button>
+      </nav>
+    </div>
+
+    <section
+      aria-labelledby="appearance-heading"
+      class={["space-y-4", @settings_tab != "appearance" && "hidden"]}
+      hidden={@settings_tab != "appearance"}
+    >
+      <header class="space-y-2">
+        <h2 id="appearance-heading" class="text-xl font-semibold text-gray-800 dark:text-gray-100">
+          Appearance
+        </h2>
+        <p class="text-sm text-gray-600 dark:text-gray-400">
+          Choose a theme. Desk MK II is the hardware layout, Retro Riso is the new print-inspired lineup, and Classic keeps the original look.
+        </p>
+      </header>
+
+      <div class="grid gap-3 sm:grid-cols-2">
+        <%= for option <- Soundboard.Theme.all() do %>
+          <form action={~p"/theme"} method="post" class="contents">
+            <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+            <input type="hidden" name="theme" value={option.id} />
+            <input type="hidden" name="return_to" value="/settings" />
+            <button
+              type="submit"
+              class={[
+                "text-left rounded-lg border p-4 transition-colors",
+                if(@theme == option.id,
+                  do: "border-blue-500 bg-blue-50 dark:bg-blue-900/30 ring-2 ring-blue-500/40",
+                  else:
+                    "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-gray-300 dark:hover:border-gray-600"
+                )
+              ]}
+            >
+              <div class="flex items-center justify-between gap-2">
+                <span class="font-semibold text-gray-900 dark:text-gray-100">{option.label}</span>
+                <%= if @theme == option.id do %>
+                  <span class="text-xs uppercase tracking-wide text-blue-600 dark:text-blue-300">
+                    Active
+                  </span>
+                <% end %>
+              </div>
+              <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">{option.description}</p>
+            </button>
+          </form>
+        <% end %>
+      </div>
+    </section>
+
+    <section
+      aria-labelledby="api-tokens-heading"
+      class={["space-y-6", @settings_tab != "api" && "hidden"]}
+      hidden={@settings_tab != "api"}
+    >
+      <header class="space-y-2">
+        <h2 id="api-tokens-heading" class="text-xl font-semibold text-gray-800 dark:text-gray-100">
+          API Tokens
+        </h2>
+        <p class="text-sm text-gray-600 dark:text-gray-400">
+          Create a personal token to play sounds remotely. Requests authenticated with a token
+          are attributed to your account and update your stats.
+        </p>
+      </header>
+
+      <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-5 space-y-4">
+        <form phx-submit="create_token" class="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <div class="flex-1">
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Label
+            </label>
+            <input
+              name="label"
+              type="text"
+              placeholder="e.g., CI Bot"
+              class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-700 shadow-sm dark:bg-gray-900 dark:text-gray-100 focus:border-blue-500 focus:ring-blue-500"
+            />
+          </div>
+          <button
+            type="submit"
+            class="w-full sm:w-auto justify-center px-4 py-2 bg-blue-600 text-white rounded-md font-medium hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900 flex items-center"
+          >
+            Create
+          </button>
+        </form>
+      </div>
+
+      <div class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg px-4 py-3 text-sm text-amber-800 dark:text-amber-300">
+        Token values are shown <strong>once</strong>
+        at creation and cannot be retrieved afterwards.
+        If you did not copy a token, revoke it and create a new one.
+      </div>
+
+      <%= if @new_token do %>
+        <div class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg p-4 space-y-2">
+          <p class="text-sm font-medium text-green-800 dark:text-green-300">
+            New token created — copy it now, it won't be shown again:
+          </p>
+          <div class="relative">
+            <button
+              id="copy-new-token"
+              type="button"
+              phx-hook="CopyButton"
+              data-copy-text={@new_token}
+              class="absolute right-2 top-1/2 -translate-y-1/2 text-xs px-2 py-1 bg-green-200 dark:bg-green-700 text-green-900 dark:text-green-100 rounded"
+            >
+              Copy
+            </button>
+            <pre class="p-2 pr-20 bg-white dark:bg-gray-900 border border-green-300 dark:border-green-700 rounded text-xs overflow-x-auto whitespace-nowrap"><code class="text-gray-800 dark:text-gray-100 font-mono">{@new_token}</code></pre>
+          </div>
+        </div>
+      <% end %>
+
+      <div class="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
+            <thead class="bg-gray-50 dark:bg-gray-900">
+              <tr>
+                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Label
+                </th>
+                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Created
+                </th>
+                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Last Used
+                </th>
+                <th class="px-4 py-2"></th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+              <%= for token <- @tokens do %>
+                <tr class="text-sm">
+                  <td class="px-4 py-2 text-gray-900 dark:text-gray-100 whitespace-nowrap">
+                    {token.label || "(no label)"}
+                  </td>
+                  <td class="px-4 py-2 text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                    {format_dt(token.inserted_at)}
+                  </td>
+                  <td class="px-4 py-2 text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                    {format_dt(token.last_used_at) || "—"}
+                  </td>
+                  <td class="px-4 py-2 text-right align-top">
+                    <button
+                      phx-click="revoke_token"
+                      phx-value-id={token.id}
+                      class="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900"
+                    >
+                      Revoke
+                    </button>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+        <button
+          type="button"
+          phx-click="toggle_api_docs"
+          aria-expanded={to_string(@api_docs_open)}
+          aria-controls="classic-settings-api-docs"
+          class="w-full flex items-center justify-between gap-3 px-5 py-4 text-left hover:bg-gray-50 dark:hover:bg-gray-900/60 transition-colors"
+        >
+          <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-100">
+            How to call the API
+          </h3>
+          <span class="text-gray-500 dark:text-gray-400 text-sm">
+            {if @api_docs_open, do: "Hide", else: "Show"}
+          </span>
+        </button>
+
+        <%= if @api_docs_open do %>
+          <div
+            id="classic-settings-api-docs"
+            class="border-t border-gray-200 dark:border-gray-700 p-5 space-y-4"
+          >
+            <p class="text-sm text-gray-700 dark:text-gray-300">
+              Include your token in the Authorization header:
+              <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-100 font-mono">
+                Authorization: Bearer {@example_token || "<token>"}
+              </code>
+            </p>
+            <div class="space-y-4">
+              <div>
+                <div class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  List sounds
+                </div>
+                <div class="relative">
+                  <button
+                    id="copy-list-sounds"
+                    type="button"
+                    phx-hook="CopyButton"
+                    data-copy-text={"curl -H \"Authorization: Bearer #{(@example_token || "<TOKEN>")}\" #{@base_url}/api/sounds"}
+                    class="absolute right-2 top-2 text-xs px-2 py-1 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100 rounded"
+                  >
+                    Copy
+                  </button>
+                  <pre class="mt-1 p-2 pr-16 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded text-xs overflow-x-auto whitespace-nowrap min-h-[56px]"><code class="text-gray-800 dark:text-gray-100 font-mono">curl -H \"Authorization: Bearer {(@example_token || "<TOKEN>")}\" {@base_url}/api/sounds</code></pre>
+                </div>
+              </div>
+              <div class="text-xs text-gray-600 dark:text-gray-400">
+                Upload endpoint: <code class="font-mono">POST /api/sounds</code>. Required fields:
+                <code class="font-mono">name</code>
+                plus either <code class="font-mono">file</code>
+                (local multipart)
+                or <code class="font-mono">url</code>
+                (<code class="font-mono">source_type=url</code>). Optional: <code class="font-mono">tags</code>,
+                <code class="font-mono">volume</code>
+                (0-150), <code class="font-mono">is_join_sound</code>, <code class="font-mono">is_leave_sound</code>.
+              </div>
+              <div>
+                <div class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Upload local file (multipart/form-data)
+                </div>
+                <div class="relative">
+                  <button
+                    id="copy-upload-local"
+                    type="button"
+                    phx-hook="CopyButton"
+                    data-copy-text={"curl -X POST -H \"Authorization: Bearer #{(@example_token || "<TOKEN>")}\" -F \"source_type=local\" -F \"name=<NAME>\" -F \"file=@/path/to/sound.mp3\" -F \"tags[]=meme\" -F \"tags[]=alert\" -F \"volume=90\" -F \"is_join_sound=true\" #{@base_url}/api/sounds"}
+                    class="absolute right-2 top-2 text-xs px-2 py-1 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100 rounded"
+                  >
+                    Copy
+                  </button>
+                  <pre class="mt-1 p-2 pr-16 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded text-xs overflow-x-auto min-h-[120px]"><code class="text-gray-800 dark:text-gray-100 font-mono">curl -X POST \
+    -H "Authorization: Bearer {(@example_token || "<TOKEN>")}" \
+    -F "source_type=local" \
+    -F "name=&lt;NAME&gt;" \
+    -F "file=@/path/to/sound.mp3" \
+    -F "tags[]=meme" \
+    -F "tags[]=alert" \
+    -F "volume=90" \
+    -F "is_join_sound=true" \
+    {@base_url}/api/sounds</code></pre>
+                </div>
+              </div>
+              <div>
+                <div class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Upload from URL (JSON)
+                </div>
+                <div class="relative">
+                  <button
+                    id="copy-upload-url"
+                    type="button"
+                    phx-hook="CopyButton"
+                    data-copy-text={"curl -X POST -H \"Authorization: Bearer #{(@example_token || "<TOKEN>")}\" -H \"Content-Type: application/json\" -d '{\"source_type\":\"url\",\"name\":\"wow\",\"url\":\"https://example.com/wow.mp3\",\"tags\":[\"meme\",\"reaction\"],\"volume\":90,\"is_leave_sound\":true}' #{@base_url}/api/sounds"}
+                    class="absolute right-2 top-2 text-xs px-2 py-1 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100 rounded"
+                  >
+                    Copy
+                  </button>
+                  <pre class="mt-1 p-2 pr-16 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded text-xs overflow-x-auto min-h-[110px]"><code class="text-gray-800 dark:text-gray-100 font-mono">curl -X POST \
+    -H "Authorization: Bearer {(@example_token || "<TOKEN>")}" \
+    -H "Content-Type: application/json" \
+    -d '&#123;"source_type":"url","name":"wow","url":"https://example.com/wow.mp3","tags":["meme","reaction"],"volume":90,"is_leave_sound":true&#125;' \
+    {@base_url}/api/sounds</code></pre>
+                </div>
+              </div>
+              <div>
+                <div class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Play a sound by ID
+                </div>
+                <div class="relative">
+                  <button
+                    id="copy-play-sound"
+                    type="button"
+                    phx-hook="CopyButton"
+                    data-copy-text={"curl -X POST -H \"Authorization: Bearer #{(@example_token || "<TOKEN>")}\" #{@base_url}/api/sounds/<SOUND_ID>/play"}
+                    class="absolute right-2 top-2 text-xs px-2 py-1 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100 rounded"
+                  >
+                    Copy
+                  </button>
+                  <pre class="mt-1 p-2 pr-16 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded text-xs overflow-x-auto whitespace-nowrap min-h-[56px]"><code class="text-gray-800 dark:text-gray-100 font-mono">curl -X POST -H \"Authorization: Bearer {(@example_token || "<TOKEN>")}\" {@base_url}/api/sounds/&lt;SOUND_ID&gt;/play</code></pre>
+                </div>
+              </div>
+              <div>
+                <div class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Stop all sounds
+                </div>
+                <div class="relative">
+                  <button
+                    id="copy-stop-sounds"
+                    type="button"
+                    phx-hook="CopyButton"
+                    data-copy-text={"curl -X POST -H \"Authorization: Bearer #{(@example_token || "<TOKEN>")}\" #{@base_url}/api/sounds/stop"}
+                    class="absolute right-2 top-2 text-xs px-2 py-1 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100 rounded"
+                  >
+                    Copy
+                  </button>
+                  <pre class="mt-1 p-2 pr-16 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded text-xs overflow-x-auto whitespace-nowrap min-h-[56px]"><code class="text-gray-800 dark:text-gray-100 font-mono">curl -X POST -H \"Authorization: Bearer {(@example_token || "<TOKEN>")}\" {@base_url}/api/sounds/stop</code></pre>
+                </div>
+              </div>
+            </div>
+          </div>
+        <% end %>
+      </div>
+    </section>
+
+    <section
+      aria-labelledby="youtube-cookies-heading"
+      class={["space-y-6", @settings_tab != "youtube" && "hidden"]}
+      hidden={@settings_tab != "youtube"}
+    >
+      <header class="space-y-2">
+        <h2
+          id="youtube-cookies-heading"
+          class="text-xl font-semibold text-gray-800 dark:text-gray-100"
+        >
+          YouTube Cookies
+        </h2>
+        <p class="text-sm text-gray-600 dark:text-gray-400">
+          Optional Netscape <code class="font-mono">cookies.txt</code>
+          for age-restricted or members-only videos. Without cookies, only public videos work.
+          Export cookies from a logged-in private browser window (e.g. “Get cookies.txt LOCALLY”),
+          close that window immediately, then paste or upload them here.
+          Cookies are validated with yt-dlp before they are saved.
+        </p>
+      </header>
+
+      <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-5 space-y-4">
+        <div class="text-sm text-gray-700 dark:text-gray-300">
+          <%= if @cookie_status.present? do %>
+            <span class="text-green-700 dark:text-green-400 font-medium">Cookies on file</span>
+            <%= if @cookie_status.validated_at do %>
+              <span class="text-gray-500 dark:text-gray-400">
+                — validated {@cookie_status.validated_at}
+              </span>
+            <% end %>
+          <% else %>
+            <span class="text-amber-700 dark:text-amber-400 font-medium">
+              No cookies saved — public videos only
+            </span>
+          <% end %>
+        </div>
+
+        <%= if @cookie_status.present? do %>
+          <button
+            type="button"
+            phx-click="clear_cookies"
+            class="px-4 py-2 bg-red-600 text-white rounded-md font-medium hover:bg-red-700 transition-colors"
+          >
+            Clear Cookies
+          </button>
+        <% end %>
+
+        <form phx-submit="save_cookies_paste" class="space-y-3">
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+            {if @cookie_status.present?, do: "Replace cookies.txt", else: "Paste cookies.txt"}
+          </label>
+          <textarea
+            name="cookies"
+            rows="6"
+            phx-change="update_cookie_paste"
+            placeholder="# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tTRUE\t0\tNAME\tvalue"
+            class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-700 shadow-sm dark:bg-gray-900 dark:text-gray-100 font-mono text-xs focus:border-blue-500 focus:ring-blue-500"
+          >{@cookie_paste}</textarea>
+          <button
+            type="submit"
+            class="px-4 py-2 bg-blue-600 text-white rounded-md font-medium hover:bg-blue-700 transition-colors"
+          >
+            Validate &amp; Save Paste
+          </button>
+        </form>
+
+        <form
+          phx-submit="save_cookies_upload"
+          phx-change="validate_cookies_upload"
+          class="space-y-3"
+        >
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+            Or upload cookies.txt
+          </label>
+          <.live_file_input upload={@uploads.youtube_cookies} class="block w-full text-sm" />
+          <button
+            type="submit"
+            class="px-4 py-2 bg-blue-600 text-white rounded-md font-medium hover:bg-blue-700 transition-colors"
+          >
+            Validate &amp; Save Upload
+          </button>
+        </form>
+      </div>
+    </section>
+  </div>
+<% end %>

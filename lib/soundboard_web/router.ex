@@ -5,6 +5,7 @@ defmodule SoundboardWeb.Router do
     plug :accepts, ["html"]
     plug :fetch_session
     plug :fetch_live_flash
+    plug SoundboardWeb.Plugs.Theme
     plug :put_root_layout, html: {SoundboardWeb.Layouts, :root}
     plug :protect_from_forgery
     plug :put_secure_browser_headers
@@ -55,10 +56,20 @@ defmodule SoundboardWeb.Router do
       :require_browser_basic_auth
     ]
 
-    live "/", SoundboardLive
-    live "/stats", StatsLive
-    live "/favorites", FavoritesLive
-    live "/settings", SettingsLive
+    live_session :authenticated,
+      on_mount: [
+        SoundboardWeb.Live.Hooks.Theme,
+        SoundboardWeb.Live.Hooks.PlaybackControls,
+        SoundboardWeb.Live.Hooks.VideoStatus
+      ] do
+      live "/", SoundboardLive
+      live "/stats", StatsLive
+      live "/favorites", FavoritesLive
+      live "/video", VideoLive
+      live "/settings", SettingsLive
+    end
+
+    post "/theme", ThemeController, :update
   end
 
   scope "/uploads" do
@@ -71,6 +82,18 @@ defmodule SoundboardWeb.Router do
     ]
 
     get "/*path", SoundboardWeb.UploadController, :show
+  end
+
+  scope "/video/sessions" do
+    pipe_through [
+      :browser,
+      :auth,
+      :ensure_authenticated_user,
+      :require_role_check,
+      :require_browser_basic_auth
+    ]
+
+    get "/:session_id/*path", SoundboardWeb.VideoSessionController, :show
   end
 
   if Mix.env() == :test do

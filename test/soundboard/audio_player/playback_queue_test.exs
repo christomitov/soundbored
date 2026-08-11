@@ -83,6 +83,25 @@ defmodule Soundboard.AudioPlayer.PlaybackQueueTest do
     end
   end
 
+  test "external video interrupt waits for its playback boundary and keeps the latest sound" do
+    state = PlaybackQueue.await_external_interrupt(base_state(), request(), 100)
+
+    assert state.current_playback == nil
+    assert state.pending_request.sound_name == "intro.mp3"
+    assert state.interrupting == true
+    assert state.interrupt_watchdog_attempt == 1
+    assert is_reference(state.interrupt_watchdog_ref)
+
+    latest = request(%{sound_name: "latest.mp3", path_or_url: "/tmp/latest.mp3"})
+    state = PlaybackQueue.enqueue(state, latest, 35)
+
+    assert state.current_playback == nil
+    assert state.pending_request.sound_name == "latest.mp3"
+    assert state.interrupting == true
+
+    PlaybackQueue.clear_all(state)
+  end
+
   test "enqueue interrupts current playback and schedules watchdog when audio is still playing" do
     test_pid = self()
 

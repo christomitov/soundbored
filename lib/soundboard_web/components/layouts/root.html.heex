@@ -1,10 +1,26 @@
 <!DOCTYPE html>
-<html lang="en" class="[scrollbar-gutter:stable]">
+<html
+  lang="en"
+  class={[
+    "[scrollbar-gutter:stable]",
+    assigns[:theme] == "classic" && "dark"
+  ]}
+  data-theme={assigns[:theme] || "desk"}
+>
   <head>
     <meta charset="utf-8" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black" />
-    <meta name="theme-color" content="#1f2937" />
+    <meta
+      name="theme-color"
+      content={
+        case assigns[:theme] do
+          "desk" -> "#B9B5A9"
+          "retro" -> "#EDEBE1"
+          _ -> "#1f2937"
+        end
+      }
+    />
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"
@@ -18,11 +34,27 @@
     <.live_title suffix="">
       {assigns[:page_title] || "Soundboard"}
     </.live_title>
+    <%= if assigns[:theme] in ["desk", "retro"] do %>
+      <link rel="preconnect" href="https://fonts.googleapis.com" />
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <% end %>
+    <%= if assigns[:theme] == "desk" do %>
+      <link
+        href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=Space+Mono:wght@400;700&display=swap"
+        rel="stylesheet"
+      />
+    <% end %>
+    <%= if assigns[:theme] == "retro" do %>
+      <link
+        href="https://fonts.googleapis.com/css2?family=Anton&family=Familjen+Grotesk:wght@400;500;600;700&display=swap"
+        rel="stylesheet"
+      />
+    <% end %>
     <link phx-track-static rel="stylesheet" href={~p"/assets/app.css"} />
     <script defer phx-track-static type="text/javascript" src={~p"/assets/app.js"}>
     </script>
   </head>
-  <body class="antialiased bg-gray-900">
+  <body class={["antialiased", assigns[:theme] == "classic" && "bg-gray-900"]}>
     {@inner_content}
   </body>
 </html>

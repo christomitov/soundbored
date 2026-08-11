@@ -102,6 +102,7 @@ defmodule SoundboardWeb.CoreComponents do
   attr :flash, :map, default: %{}, doc: "the map of flash messages to display"
   attr :title, :string, default: nil
   attr :kind, :atom, values: [:info, :error], doc: "used for styling and flash lookup"
+  attr :theme, :string, default: "classic"
   attr :rest, :global, doc: "the arbitrary HTML attributes to add to the flash container"
 
   slot :inner_block, doc: "the optional inner block that renders the flash message"
@@ -115,20 +116,17 @@ defmodule SoundboardWeb.CoreComponents do
       id={@id}
       phx-click={JS.push("lv:clear-flash", value: %{key: @kind}) |> hide("##{@id}")}
       role="alert"
-      class={[
-        "fixed top-2 right-2 mr-2 w-80 sm:w-96 z-50 rounded-lg p-3 ring-1",
-        @kind == :info && "bg-emerald-50 text-emerald-800 ring-emerald-500 fill-cyan-900",
-        @kind == :error && "bg-rose-50 text-rose-900 shadow-md ring-rose-500 fill-rose-900"
-      ]}
+      data-theme-toast={@theme}
+      class={flash_classes(@theme, @kind)}
       {@rest}
     >
-      <p :if={@title} class="flex items-center gap-1.5 text-sm font-semibold leading-6">
+      <p :if={@title} class={flash_title_classes(@theme)}>
         <.icon :if={@kind == :info} name="hero-information-circle-mini" class="h-4 w-4" />
         <.icon :if={@kind == :error} name="hero-exclamation-circle-mini" class="h-4 w-4" />
         {@title}
       </p>
-      <p class="mt-2 text-sm leading-5">{msg}</p>
-      <button type="button" class="group absolute top-1 right-1 p-2" aria-label={gettext("close")}>
+      <p class={flash_body_classes(@theme)}>{msg}</p>
+      <button type="button" class={flash_close_classes(@theme)} aria-label={gettext("close")}>
         <.icon name="hero-x-mark-solid" class="h-5 w-5 opacity-40 group-hover:opacity-70" />
       </button>
     </div>
@@ -144,16 +142,18 @@ defmodule SoundboardWeb.CoreComponents do
   """
   attr :flash, :map, required: true, doc: "the map of flash messages"
   attr :id, :string, default: "flash-group", doc: "the optional id of flash container"
+  attr :theme, :string, default: "classic"
 
   def flash_group(assigns) do
     ~H"""
-    <div id={@id}>
-      <.flash kind={:info} title={gettext("Success!")} flash={@flash} />
-      <.flash kind={:error} title={gettext("Error!")} flash={@flash} />
+    <div id={@id} class="flash-group" data-theme-toast={@theme}>
+      <.flash kind={:info} title={gettext("Success!")} flash={@flash} theme={@theme} />
+      <.flash kind={:error} title={gettext("Error!")} flash={@flash} theme={@theme} />
       <.flash
         id="client-error"
         kind={:error}
         title={gettext("We can't find the internet")}
+        theme={@theme}
         phx-disconnected={show(".phx-client-error #client-error")}
         phx-connected={hide("#client-error")}
         hidden
@@ -166,6 +166,7 @@ defmodule SoundboardWeb.CoreComponents do
         id="server-error"
         kind={:error}
         title={gettext("Something went wrong!")}
+        theme={@theme}
         phx-disconnected={show(".phx-server-error #server-error")}
         phx-connected={hide("#server-error")}
         hidden
@@ -176,6 +177,55 @@ defmodule SoundboardWeb.CoreComponents do
     </div>
     """
   end
+
+  defp flash_classes("desk", :info) do
+    "desk-toast desk-toast-info relative w-full p-3"
+  end
+
+  defp flash_classes("desk", :error) do
+    "desk-toast desk-toast-error relative w-full p-3"
+  end
+
+  defp flash_classes("retro", :info) do
+    "riso-toast riso-toast-info relative w-full p-3"
+  end
+
+  defp flash_classes("retro", :error) do
+    "riso-toast riso-toast-error relative w-full p-3"
+  end
+
+  defp flash_classes(_theme, :info) do
+    "relative w-full rounded-lg p-3 ring-1 shadow-md bg-gray-800 text-gray-100 ring-emerald-500/70"
+  end
+
+  defp flash_classes(_theme, :error) do
+    "relative w-full rounded-lg p-3 ring-1 shadow-md bg-gray-800 text-rose-100 ring-rose-500/70"
+  end
+
+  defp flash_title_classes("desk"),
+    do:
+      "flex items-center gap-1.5 text-[10.5px] font-semibold leading-6 tracking-[0.14em] uppercase"
+
+  defp flash_title_classes("retro"),
+    do: "flex items-center gap-1.5 text-[10.5px] font-bold leading-6 tracking-[0.16em] uppercase"
+
+  defp flash_title_classes(_),
+    do: "flex items-center gap-1.5 text-sm font-semibold leading-6"
+
+  defp flash_body_classes("desk"),
+    do: "mt-2 text-xs leading-5 tracking-[0.04em]"
+
+  defp flash_body_classes("retro"),
+    do: "mt-1 text-xs font-semibold leading-5 tracking-[0.04em]"
+
+  defp flash_body_classes(_),
+    do: "mt-2 text-sm leading-5"
+
+  defp flash_close_classes("desk"),
+    do: "group absolute top-1 right-1 p-2 text-[var(--ink)]"
+
+  defp flash_close_classes(_),
+    do: "group absolute top-1 right-1 p-2"
 
   @doc """
   Renders a simple form.

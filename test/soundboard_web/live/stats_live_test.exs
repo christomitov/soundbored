@@ -52,11 +52,41 @@ defmodule SoundboardWeb.StatsLiveTest do
     assert html =~ SoundHelpers.display_name(sound.filename)
   end
 
+  test "renders the retro weekly report", %{conn: conn, user: user, sound: sound} do
+    conn = put_session(conn, :theme, "retro")
+
+    {:ok, view, html} = live(conn, "/stats")
+
+    assert html =~ ~s(data-theme="retro")
+    assert has_element?(view, ".riso-stats-grid .riso-stat-panel")
+    assert has_element?(view, "#week-picker-retro")
+    assert has_element?(view, "#user-stat-#{user.username}")
+
+    assert has_element?(
+             view,
+             ".riso-stat-row[phx-click='play_sound'][phx-value-sound='#{sound.filename}']"
+           )
+  end
+
   test "handles sound_played message", %{conn: conn, sound: sound} do
     {:ok, view, _html} = live(conn, "/stats")
 
-    send(view.pid, {:sound_played, %{filename: sound.filename, played_by: "testuser"}})
-    assert render(view) =~ "testuser played #{SoundHelpers.display_name(sound.filename)}"
+    send(
+      view.pid,
+      {:sound_played,
+       %{
+         filename: sound.filename,
+         played_by: "testuser",
+         sound_id: sound.id,
+         duration_ms: 1500,
+         started_at: System.system_time(:millisecond)
+       }}
+    )
+
+    html = render(view)
+    assert html =~ ~s(id="desk-transport")
+    refute html =~ ~s(class="tlabel")
+    assert html =~ SoundHelpers.display_name(sound.filename)
   end
 
   test "handles stats_updated message", %{conn: conn, sound: sound} do
@@ -64,6 +94,24 @@ defmodule SoundboardWeb.StatsLiveTest do
 
     send(view.pid, {:stats_updated})
     assert render(view) =~ SoundHelpers.display_name(sound.filename)
+  end
+
+  test "renders YouTube history, links, and top video stats", %{conn: conn, user: user} do
+    video = %{
+      youtube_id: "wIzJcg9eWM4",
+      title: "Public YouTube Test Video",
+      url: "https://www.youtube.com/watch?v=wIzJcg9eWM4"
+    }
+
+    assert {:ok, _play} = Stats.track_youtube_play(video, user.id)
+
+    {:ok, _view, html} = live(conn, "/stats")
+
+    assert html =~ "Top Videos"
+    assert html =~ video.title
+    assert html =~ video.youtube_id
+    assert html =~ ~s(href="#{video.url}")
+    assert html =~ "YouTube"
   end
 
   test "renders renamed sounds from historical plays", %{conn: conn, sound: sound} do

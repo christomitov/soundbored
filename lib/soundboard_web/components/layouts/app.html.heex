@@ -1,16 +1,77 @@
-<header class="h-16">
-  <.live_component
-    module={SoundboardWeb.Components.Layouts.Navbar}
-    id="navbar"
-    current_user={@current_user}
-    current_path={@current_path}
-    presences={@presences}
-  />
-</header>
+<%= cond do %>
+  <% Soundboard.Theme.retro?(@theme) -> %>
+    <div class="riso-sheet">
+      <span class="riso-crop riso-crop-a" aria-hidden="true"></span>
+      <span class="riso-crop riso-crop-b" aria-hidden="true"></span>
+      <span class="riso-crop riso-crop-c" aria-hidden="true"></span>
+      <span class="riso-crop riso-crop-d" aria-hidden="true"></span>
 
-<main class="">
-  <div>
-    <.flash_group flash={@flash} />
-    {@inner_content}
-  </div>
-</main>
+      <.live_component
+        module={SoundboardWeb.Components.Layouts.Navbar}
+        id="navbar"
+        theme={@theme}
+        current_user={@current_user}
+        current_path={@current_path}
+        presences={@presences}
+        video_live={Map.get(assigns, :video_live, false)}
+      />
+
+      <div class="riso-flash-stack">
+        <.flash_group flash={@flash} theme={@theme} />
+      </div>
+
+      {@inner_content}
+    </div>
+  <% Soundboard.Theme.desk?(@theme) -> %>
+    <div class="unit">
+      <.live_component
+        module={SoundboardWeb.Components.Layouts.Navbar}
+        id="navbar"
+        theme={@theme}
+        current_user={@current_user}
+        current_path={@current_path}
+        presences={@presences}
+        video_live={Map.get(assigns, :video_live, false)}
+      />
+
+      <div class="desk-flash-stack">
+        <.flash_group flash={@flash} theme={@theme} />
+      </div>
+
+      {@inner_content}
+    </div>
+
+    <.transport
+      :if={Map.get(assigns, :now_playing)}
+      now_playing={Map.get(assigns, :now_playing)}
+      favorites={Map.get(assigns, :favorites, [])}
+      current_user={@current_user}
+    />
+  <% true -> %>
+    <header class="h-16">
+      <.live_component
+        module={SoundboardWeb.Components.Layouts.Navbar}
+        id="navbar"
+        theme={@theme}
+        current_user={@current_user}
+        current_path={@current_path}
+        presences={@presences}
+        video_live={Map.get(assigns, :video_live, false)}
+      />
+    </header>
+
+    <main class="">
+      <div>
+        <div class="fixed bottom-2 right-2 mr-2 z-50 flex flex-col gap-2 w-80 sm:w-96">
+          <.flash_group flash={@flash} theme={@theme} />
+          <.now_playing_toast
+            now_playing={Map.get(assigns, :now_playing)}
+            favorites={Map.get(assigns, :favorites, [])}
+            current_user={@current_user}
+            theme={@theme}
+          />
+        </div>
+        {@inner_content}
+      </div>
+    </main>
+<% end %>

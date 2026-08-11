@@ -64,6 +64,17 @@ defmodule SoundboardWeb.FavoritesLiveTest do
     assert html =~ SoundHelpers.display_name(sound.filename)
   end
 
+  test "renders favorites with the retro card grid", %{conn: conn, sound: sound} do
+    conn = put_session(conn, :theme, "retro")
+
+    {:ok, view, html} = live(conn, "/favorites")
+
+    assert html =~ ~s(data-theme="retro")
+    assert has_element?(view, ".riso-lineup .riso-row")
+    assert has_element?(view, ".riso-row [phx-value-name='#{sound.filename}']")
+    assert has_element?(view, ".riso-favorite[aria-pressed='true']")
+  end
+
   test "plays a favorite sound", %{conn: conn, user: user, sound: sound} do
     {:ok, view, _html} = live(conn, "/favorites")
 
@@ -85,7 +96,7 @@ defmodule SoundboardWeb.FavoritesLiveTest do
       |> render_click()
 
     assert html =~ "Favorites updated!"
-    assert html =~ "You currently have no favorites"
+    assert html =~ "No favorites yet"
   end
 
   test "files_updated refreshes the favorites list", %{
