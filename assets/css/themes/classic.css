@@ -15,3 +15,10 @@
   --radius-theme: 0.5rem;
   --shadow-theme: 0 8px 24px rgb(0 0 0 / 0.2);
 }
+
+[data-theme="classic"] .theme-toast {
+  @apply border-line bg-surface text-ink shadow-theme;
+}
+
+[data-theme="classic"] .theme-toast-info { @apply border-l-accent; }
+[data-theme="classic"] .theme-toast-error { @apply border-l-red-500; }

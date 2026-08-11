@@ -160,3 +160,26 @@
 [data-theme="retro"] .theme-icon-button {
   @apply rounded-full text-ink/50 hover:text-ink;
 }
+
+[data-theme="retro"] .theme-toast {
+  @apply rounded-none border-2 border-line bg-canvas text-ink;
+  box-shadow: 5px 5px 0 rgb(var(--color-accent));
+  transform: rotate(-0.2deg);
+}
+
+[data-theme="retro"] .theme-toast-error {
+  @apply border-l-2 bg-pop;
+  box-shadow: 5px 5px 0 rgb(var(--color-ink));
+}
+
+[data-theme="retro"] .theme-toast-title {
+  @apply font-display text-lg uppercase leading-none tracking-[0.04em];
+}
+
+[data-theme="retro"] .theme-toast-message {
+  @apply border-t-2 border-line pt-2 font-bold uppercase tracking-[0.08em];
+}
+
+[data-theme="retro"] .theme-toast-close {
+  @apply text-ink hover:text-accent;
+}

@@ -193,6 +193,34 @@
   @apply rounded-sm text-white/35 hover:text-white;
 }
 
+[data-theme="desk"] .theme-toast {
+  --toast-signal: 73 151 88;
+  @apply rounded-theme border border-line font-mono text-ink;
+  background: repeating-linear-gradient(90deg, rgb(255 255 255 / 0.42) 0 1px, transparent 1px 3px), linear-gradient(180deg, rgb(var(--color-surface-raised)), rgb(218 215 207));
+  box-shadow: 0 1px 0 rgb(255 255 255 / 0.9) inset, 0 3px 0 #a9a69d, 0 8px 18px rgb(0 0 0 / 0.22);
+}
+
+[data-theme="desk"] .theme-toast-error { --toast-signal: var(--color-accent); }
+
+[data-theme="desk"] .theme-toast::before {
+  content: "";
+  @apply absolute left-4 top-[21px] h-1.5 w-1.5 rounded-full;
+  background: rgb(var(--toast-signal));
+  box-shadow: 0 0 7px rgb(var(--toast-signal));
+}
+
+[data-theme="desk"] .theme-toast-title {
+  @apply pl-4 text-[10px] uppercase tracking-[0.16em];
+}
+
+[data-theme="desk"] .theme-toast-message {
+  @apply font-theme text-sm;
+}
+
+[data-theme="desk"] .theme-toast-close {
+  @apply text-muted hover:text-ink;
+}
+
 @media (min-width: 1024px) {
   [data-theme="desk"] .theme-sound-list { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
