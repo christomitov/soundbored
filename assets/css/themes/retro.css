@@ -1,0 +1,20 @@
+[data-theme="retro"] {
+  --color-canvas: 244 237 216;
+  --color-surface: 255 249 232;
+  --color-surface-raised: 255 253 244;
+  --color-surface-muted: 230 222 200;
+  --color-ink: 37 32 42;
+  --color-muted: 102 91 105;
+  --color-line: 37 32 42;
+  --color-accent: 33 79 198;
+  --color-accent-contrast: 255 249 232;
+  --font-theme: ui-sans-serif, system-ui, sans-serif;
+  --font-display: Georgia, Cambria, "Times New Roman", serif;
+  --radius-theme: 0.125rem;
+  --shadow-theme: 5px 5px 0 rgb(37 32 42 / 0.92);
+}
+
+[data-theme="retro"] body {
+  background-image: radial-gradient(rgb(37 32 42 / 0.075) 0.7px, transparent 0.7px);
+  background-size: 5px 5px;
+}

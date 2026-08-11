@@ -1,0 +1,16 @@
+:root,
+[data-theme="classic"] {
+  --color-canvas: 17 24 39;
+  --color-surface: 31 41 55;
+  --color-surface-raised: 55 65 81;
+  --color-surface-muted: 55 65 81;
+  --color-ink: 243 244 246;
+  --color-muted: 156 163 175;
+  --color-line: 75 85 99;
+  --color-accent: 37 99 235;
+  --color-accent-contrast: 255 255 255;
+  --font-theme: ui-sans-serif, system-ui, sans-serif;
+  --font-display: ui-sans-serif, system-ui, sans-serif;
+  --radius-theme: 0.5rem;
+  --shadow-theme: 0 8px 24px rgb(0 0 0 / 0.2);
+}
