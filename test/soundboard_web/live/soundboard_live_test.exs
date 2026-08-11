@@ -41,7 +41,7 @@ defmodule SoundboardWeb.SoundboardLiveTest do
       assert html =~ "SoundBored"
     end
 
-    test "renders shared theme hooks and ranked sound rows", %{conn: conn} do
+    test "renders shared theme hooks and ranked sound cards", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/")
 
       assert has_element?(view, ".theme-page")

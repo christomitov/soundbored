@@ -32,12 +32,24 @@
   @apply uppercase not-italic tracking-[0.08em] text-canvas;
 }
 
+[data-theme="retro"] .theme-brand a,
+[data-theme="retro"] .theme-nav-link {
+  @apply transition-transform duration-100;
+}
+
 [data-theme="retro"] .theme-nav-link {
   @apply uppercase tracking-[0.16em] text-canvas/70;
 }
 
 [data-theme="retro"] .theme-nav-link-active {
   @apply border-pop text-canvas;
+}
+
+[data-theme="retro"] .theme-brand a:hover,
+[data-theme="retro"] .theme-nav-link:hover {
+  @apply border-pop text-pop;
+  transform: translate(-1px, -1px);
+  text-shadow: 2px 2px 0 rgb(var(--color-accent));
 }
 
 [data-theme="retro"] .theme-page {
@@ -110,15 +122,15 @@
 }
 
 [data-theme="retro"] .theme-sound-list {
-  @apply grid-cols-1 gap-0;
+  @apply gap-4 p-5;
 }
 
 [data-theme="retro"] .theme-sound-card {
-  @apply flex rounded-none border-0 border-b-2 border-line bg-transparent shadow-none hover:translate-y-0 hover:bg-pop;
+  @apply flex flex-col rounded-none border-2 border-line bg-transparent hover:-translate-y-1 hover:bg-pop;
 }
 
 [data-theme="retro"] .theme-sound-rank {
-  @apply relative z-10 block w-20 flex-none px-5 py-4 font-display text-4xl leading-none text-accent;
+  @apply relative z-10 block w-auto flex-none px-4 pb-0 pt-4 font-display text-4xl leading-none text-accent;
 }
 
 [data-theme="retro"] .theme-sound-card:hover .theme-sound-rank {
@@ -130,7 +142,7 @@
 }
 
 [data-theme="retro"] .theme-sound-content {
-  @apply min-h-0 flex-1 flex-row items-center gap-4 px-5 py-4;
+  @apply min-h-[150px] flex-1 flex-col items-stretch gap-3 px-4 py-4;
 }
 
 [data-theme="retro"] .theme-sound-title {
