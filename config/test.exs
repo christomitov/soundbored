@@ -61,6 +61,13 @@ config :soundboard, env: :test
 
 config :soundboard, Soundboard.AudioPlayer, voice_maintenance_enabled: false
 
+config :soundboard,
+  youtube_cookies_skip_ytdlp_validate: true,
+  youtube_cookies_path: "priv/youtube/test_cookies.txt",
+  video_sessions_dir: "priv/video_sessions_test",
+  ytdlp_auto_download: false,
+  ytdlp_executable: false
+
 config :soundboard, Soundboard.PubSub,
   adapter: Phoenix.PubSub.PG2,
   name: Soundboard.PubSub
