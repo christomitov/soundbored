@@ -17,12 +17,12 @@ defmodule SoundboardWeb.Components.Layouts.Navbar do
   @impl true
   def render(assigns) do
     ~H"""
-    <nav class="fixed inset-x-0 top-0 z-50 w-full border-b border-line bg-surface text-ink shadow-sm retro:shadow-theme">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <nav class="theme-nav fixed inset-x-0 top-0 z-50 w-full border-b border-line bg-surface text-ink shadow-sm">
+      <div class="theme-nav-inner max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex justify-between h-16">
           <div class="flex">
             <div class="flex-shrink-0 flex items-center">
-              <span class="font-display text-xl font-bold text-ink desk:uppercase desk:tracking-[0.16em] retro:italic">
+              <span class="theme-brand font-display text-xl font-bold text-ink desk:uppercase desk:tracking-[0.16em]">
                 <.link navigate="/">SoundBored</.link>
               </span>
             </div>
@@ -176,9 +176,9 @@ defmodule SoundboardWeb.Components.Layouts.Navbar do
     <.link
       navigate={@navigate}
       class={[
-        "inline-flex items-center px-1 pt-1 text-sm font-medium desk:uppercase desk:tracking-[0.1em]",
+        "theme-nav-link inline-flex items-center px-1 pt-1 text-sm font-medium desk:uppercase desk:tracking-[0.1em]",
         if(@active,
-          do: "border-b-2 border-accent text-ink",
+          do: "theme-nav-link-active border-b-2 border-accent text-ink",
           else: "border-b-2 border-transparent text-muted hover:border-line hover:text-ink"
         )
       ]}

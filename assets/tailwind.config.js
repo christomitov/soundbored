@@ -24,6 +24,7 @@ module.exports = {
         line: "rgb(var(--color-line) / <alpha-value>)",
         accent: "rgb(var(--color-accent) / <alpha-value>)",
         "accent-contrast": "rgb(var(--color-accent-contrast) / <alpha-value>)",
+        pop: "rgb(var(--color-pop) / <alpha-value>)",
       },
       fontFamily: {
         theme: ["var(--font-theme)"],
