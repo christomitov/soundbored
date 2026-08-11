@@ -67,7 +67,7 @@ defmodule SoundboardWeb.CoreComponents do
               phx-window-keydown={JS.exec("data-cancel", to: "##{@id}")}
               phx-key="escape"
               phx-click-away={JS.exec("data-cancel", to: "##{@id}")}
-              class="shadow-zinc-700/10 ring-zinc-700/10 relative hidden rounded-2xl bg-white p-14 shadow-lg ring-1 transition"
+              class="relative hidden rounded-theme border border-line bg-surface p-14 text-ink shadow-theme transition"
             >
               <div class="absolute top-6 right-5">
                 <button
@@ -203,7 +203,7 @@ defmodule SoundboardWeb.CoreComponents do
   def simple_form(assigns) do
     ~H"""
     <.form :let={f} for={@for} as={@as} {@rest}>
-      <div class="mt-10 space-y-8 bg-white">
+      <div class="mt-10 space-y-8 bg-surface text-ink">
         {render_slot(@inner_block, f)}
         <div :for={action <- @actions} class="mt-2 flex items-center justify-between gap-6">
           {render_slot(action, f)}
@@ -336,7 +336,7 @@ defmodule SoundboardWeb.CoreComponents do
       <select
         id={@id}
         name={@name}
-        class="mt-2 block w-full rounded-md border border-gray-300 bg-white shadow-sm focus:border-zinc-400 focus:ring-0 sm:text-sm"
+        class="mt-2 block w-full rounded-theme border border-line bg-surface-muted text-ink shadow-sm focus:border-accent focus:ring-0 sm:text-sm"
         multiple={@multiple}
         {@rest}
       >

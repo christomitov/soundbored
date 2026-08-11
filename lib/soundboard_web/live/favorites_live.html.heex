@@ -1,7 +1,9 @@
-<div class="max-w-6xl mx-auto px-4 py-8">
+<div class="mx-auto max-w-6xl px-4 py-8 text-ink">
   <div class="flex justify-between items-center mb-8">
-    <h1 class="text-3xl font-bold text-gray-800 dark:text-gray-100">Favorites</h1>
-    <div class="text-sm text-gray-600 dark:text-gray-400">
+    <h1 class="font-display text-3xl font-bold text-ink desk:uppercase desk:tracking-[0.14em] retro:italic">
+      Favorites
+    </h1>
+    <div class="text-sm text-muted">
       {length(@favorites)}/{@max_favorites} favorites
     </div>
   </div>
@@ -10,17 +12,17 @@
     <%= if @sounds_with_tags == [] do %>
       <div class="flex flex-col items-center justify-center py-16">
         <div class="text-6xl mb-4">😢</div>
-        <h3 class="text-xl font-medium text-gray-900 dark:text-gray-100 mb-2">
+        <h3 class="text-xl font-medium text-ink mb-2">
           You currently have no favorites
         </h3>
-        <p class="text-gray-500 dark:text-gray-400">
+        <p class="text-muted">
           Click the heart icon on any sound to add it to your favorites
         </p>
       </div>
     <% else %>
       <div class="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 gap-4">
         <%= for sound <- @sounds_with_tags do %>
-          <div class="relative bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-md transition-all duration-200">
+          <div class="relative rounded-theme border border-line bg-surface shadow-theme transition-all duration-200 hover:-translate-y-0.5">
             <button
               phx-click="play"
               phx-value-name={sound.filename}
@@ -32,7 +34,7 @@
             </button>
 
             <div class="relative z-10 p-4 flex flex-col min-h-[120px] pointer-events-none">
-              <div class="text-gray-800 dark:text-gray-200 font-medium break-all">
+              <div class="text-ink font-medium break-all">
                 {display_name(sound.filename)}
               </div>
 
@@ -40,7 +42,7 @@
                 <div class="flex flex-wrap gap-1 items-center">
                   <%= if sound.tags != [] do %>
                     <%= for tag <- sound.tags do %>
-                      <span class="inline-flex items-center rounded-full bg-blue-50 dark:bg-blue-900 px-2 py-1 text-xs font-medium text-blue-600 dark:text-blue-300">
+                      <span class="inline-flex items-center rounded-full bg-accent/10 px-2 py-1 text-xs font-medium text-accent">
                         {tag.name}
                       </span>
                     <% end %>
@@ -105,7 +107,7 @@
     <% end %>
   <% else %>
     <div class="text-center py-12">
-      <p class="text-gray-600 dark:text-gray-400">
+      <p class="text-muted">
         Please log in to manage your favorites
       </p>
     </div>

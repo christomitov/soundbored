@@ -1,3 +1,6 @@
+ignore_module_conflict? = Code.compiler_options()[:ignore_module_conflict]
+Code.compiler_options(ignore_module_conflict: true)
+
 for migration_file <- [
       "20250101213201_create_sounds.exs",
       "20250101213717_create_tags.exs",
@@ -12,6 +15,8 @@ for migration_file <- [
     ] do
   Code.require_file(Path.expand("../../../priv/repo/migrations/#{migration_file}", __DIR__))
 end
+
+Code.compiler_options(ignore_module_conflict: ignore_module_conflict?)
 
 defmodule Soundboard.Migrations.DataMigrationsTest do
   use ExUnit.Case, async: false

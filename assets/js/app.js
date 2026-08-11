@@ -22,6 +22,38 @@ import {Socket} from "phoenix"
 import {LiveSocket} from "phoenix_live_view"
 import topbar from "../vendor/topbar"
 
+const THEMES = ["classic", "desk", "retro"]
+const THEME_COLORS = {classic: "#111827", desk: "#c7c3b8", retro: "#f4edd8"}
+
+const currentTheme = () => document.documentElement.dataset.theme || "classic"
+
+const syncThemeControls = () => {
+  const activeTheme = currentTheme()
+  document.querySelectorAll("[data-theme-choice]").forEach((button) => {
+    button.setAttribute("aria-pressed", button.dataset.themeChoice === activeTheme ? "true" : "false")
+  })
+}
+
+const setTheme = (theme, persist = true) => {
+  if (!THEMES.includes(theme)) return
+  document.documentElement.dataset.theme = theme
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", THEME_COLORS[theme])
+  if (persist) localStorage.setItem("soundbored-theme", theme)
+  syncThemeControls()
+}
+
+document.addEventListener("click", (event) => {
+  const choice = event.target.closest("[data-theme-choice]")
+  if (choice) setTheme(choice.dataset.themeChoice)
+})
+
+window.addEventListener("storage", (event) => {
+  if (event.key === "soundbored-theme") setTheme(event.newValue, false)
+})
+
+window.addEventListener("phx:page-loading-stop", syncThemeControls)
+setTheme(currentTheme(), false)
+
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max)

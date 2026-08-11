@@ -64,34 +64,89 @@ defmodule SoundboardWeb.SettingsLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="max-w-6xl mx-auto px-4 py-6 space-y-6">
-      <h1 class="text-2xl font-bold text-gray-800 dark:text-gray-100">Settings</h1>
+    <div class="mx-auto max-w-6xl space-y-8 px-4 py-8">
+      <h1 class="font-display text-3xl font-bold text-ink desk:uppercase desk:tracking-[0.14em] retro:italic">
+        Settings
+      </h1>
+
+      <section aria-labelledby="appearance-heading" class="space-y-4">
+        <header class="space-y-1">
+          <h2 id="appearance-heading" class="font-display text-xl font-semibold text-ink">
+            Appearance
+          </h2>
+          <p class="text-sm text-muted">Choose a theme. Your selection stays in this browser.</p>
+        </header>
+
+        <div class="grid gap-4 sm:grid-cols-3" id="theme-picker">
+          <button
+            type="button"
+            data-theme-choice="classic"
+            aria-pressed="false"
+            class="group rounded-theme border border-line bg-surface p-4 text-left shadow-theme transition hover:-translate-y-0.5 classic:ring-2 classic:ring-accent"
+          >
+            <span class="mb-3 block h-16 rounded bg-gray-900 p-3 shadow-inner">
+              <i class="block h-2 w-2/3 rounded bg-blue-500"></i>
+              <i class="mt-2 block h-5 rounded bg-gray-700"></i>
+            </span>
+            <strong class="block text-ink">Classic</strong>
+            <small class="text-muted">Clean, dark, and familiar</small>
+          </button>
+
+          <button
+            type="button"
+            data-theme-choice="desk"
+            aria-pressed="false"
+            class="group rounded-theme border border-line bg-surface p-4 text-left shadow-theme transition hover:-translate-y-0.5 desk:ring-2 desk:ring-accent"
+          >
+            <span class="mb-3 block h-16 rounded-sm border border-stone-500 bg-stone-300 p-3 shadow-inner">
+              <i class="block h-2 w-2/3 bg-orange-600"></i>
+              <i class="mt-2 block h-5 border border-stone-500 bg-stone-200"></i>
+            </span>
+            <strong class="block text-ink">Studio Desk</strong>
+            <small class="text-muted">Warm hardware and signal orange</small>
+          </button>
+
+          <button
+            type="button"
+            data-theme-choice="retro"
+            aria-pressed="false"
+            class="group rounded-theme border border-line bg-surface p-4 text-left shadow-theme transition hover:-translate-y-0.5 retro:ring-2 retro:ring-accent"
+          >
+            <span class="mb-3 block h-16 border-2 border-slate-900 bg-amber-50 p-3 shadow-[3px_3px_0_#25202a]">
+              <i class="block h-2 w-2/3 bg-blue-700"></i>
+              <i class="mt-2 block h-5 border-2 border-slate-900 bg-red-500"></i>
+            </span>
+            <strong class="block text-ink">Retro Riso</strong>
+            <small class="text-muted">Paper, ink, and punchy print color</small>
+          </button>
+        </div>
+      </section>
 
       <section aria-labelledby="api-tokens-heading" class="space-y-6">
         <header class="space-y-2">
-          <h2 id="api-tokens-heading" class="text-xl font-semibold text-gray-800 dark:text-gray-100">
+          <h2 id="api-tokens-heading" class="font-display text-xl font-semibold text-ink">
             API Tokens
           </h2>
-          <p class="text-sm text-gray-600 dark:text-gray-400">
+          <p class="text-sm text-muted">
             Create a personal token to play sounds remotely. Requests authenticated with a token
             are attributed to your account and update your stats.
           </p>
         </header>
 
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-5 space-y-4">
+        <div class="bg-surface rounded-theme border border-line shadow-theme p-5 space-y-4">
           <form phx-submit="create_token" class="flex flex-col gap-3 sm:flex-row sm:items-end">
             <div class="flex-1">
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Label</label>
+              <label class="block text-sm font-medium text-ink">Label</label>
               <input
                 name="label"
                 type="text"
                 placeholder="e.g., CI Bot"
-                class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-700 shadow-sm dark:bg-gray-900 dark:text-gray-100 focus:border-blue-500 focus:ring-blue-500"
+                class="mt-1 block w-full rounded-theme border-line bg-surface-muted text-ink shadow-sm placeholder:text-muted focus:border-accent focus:ring-accent"
               />
             </div>
             <button
               type="submit"
-              class="w-full sm:w-auto justify-center px-4 py-2 bg-blue-600 text-white rounded-md font-medium hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900 flex items-center"
+              class="w-full sm:w-auto justify-center px-4 py-2 bg-accent text-accent-contrast rounded-md font-medium hover:brightness-110 transition-colors focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 dark:focus:ring-offset-gray-900 flex items-center"
             >
               Create
             </button>
@@ -118,38 +173,38 @@ defmodule SoundboardWeb.SettingsLive do
               >
                 Copy
               </button>
-              <pre class="p-2 pr-20 bg-white dark:bg-gray-900 border border-green-300 dark:border-green-700 rounded text-xs overflow-x-auto whitespace-nowrap"><code class="text-gray-800 dark:text-gray-100 font-mono">{@new_token}</code></pre>
+              <pre class="overflow-x-auto whitespace-nowrap rounded-theme border border-line bg-surface-muted p-2 pr-20 text-xs"><code class="font-mono text-ink">{@new_token}</code></pre>
             </div>
           </div>
         <% end %>
 
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+        <div class="bg-surface rounded-theme border border-line shadow-theme overflow-hidden">
           <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
-              <thead class="bg-gray-50 dark:bg-gray-900">
+            <table class="min-w-full divide-y divide-line text-sm">
+              <thead class="bg-surface-muted">
                 <tr>
-                  <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th class="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-muted">
                     Label
                   </th>
-                  <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th class="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-muted">
                     Created
                   </th>
-                  <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th class="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-muted">
                     Last Used
                   </th>
                   <th class="px-4 py-2"></th>
                 </tr>
               </thead>
-              <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+              <tbody class="divide-y divide-line">
                 <%= for token <- @tokens do %>
                   <tr class="text-sm">
-                    <td class="px-4 py-2 text-gray-900 dark:text-gray-100 whitespace-nowrap">
+                    <td class="px-4 py-2 text-ink whitespace-nowrap">
                       {token.label || "(no label)"}
                     </td>
-                    <td class="px-4 py-2 text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                    <td class="px-4 py-2 text-muted whitespace-nowrap">
                       {format_dt(token.inserted_at)}
                     </td>
-                    <td class="px-4 py-2 text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                    <td class="px-4 py-2 text-muted whitespace-nowrap">
                       {format_dt(token.last_used_at) || "—"}
                     </td>
                     <td class="px-4 py-2 text-right align-top">
@@ -168,31 +223,31 @@ defmodule SoundboardWeb.SettingsLive do
           </div>
         </div>
 
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-5 space-y-4">
-          <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-100">How to call the API</h3>
-          <p class="text-sm text-gray-700 dark:text-gray-300">
+        <div class="bg-surface rounded-theme border border-line shadow-theme p-5 space-y-4">
+          <h3 class="text-lg font-semibold text-ink">How to call the API</h3>
+          <p class="text-sm text-ink">
             Include your token in the Authorization header:
-            <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-100 font-mono">
+            <code class="rounded bg-surface-muted px-1 py-0.5 font-mono text-ink">
               Authorization: Bearer {@example_token || "<token>"}
             </code>
           </p>
           <div class="space-y-4">
             <div>
-              <div class="text-sm font-medium text-gray-700 dark:text-gray-300">List sounds</div>
+              <div class="text-sm font-medium text-ink">List sounds</div>
               <div class="relative">
                 <button
                   id="copy-list-sounds"
                   type="button"
                   phx-hook="CopyButton"
                   data-copy-text={"curl -H \"Authorization: Bearer #{(@example_token || "<TOKEN>")}\" #{@base_url}/api/sounds"}
-                  class="absolute right-2 top-2 text-xs px-2 py-1 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100 rounded"
+                  class="absolute right-2 top-2 text-xs px-2 py-1 bg-surface-muted hover:bg-surface-raised text-ink rounded"
                 >
                   Copy
                 </button>
-                <pre class="mt-1 p-2 pr-16 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded text-xs overflow-x-auto whitespace-nowrap min-h-[56px]"><code class="text-gray-800 dark:text-gray-100 font-mono">curl -H \"Authorization: Bearer {(@example_token || "<TOKEN>")}\" {@base_url}/api/sounds</code></pre>
+                <pre class="mt-1 p-2 pr-16 bg-surface-muted border border-line rounded text-xs overflow-x-auto whitespace-nowrap min-h-[56px]"><code class="text-ink font-mono">curl -H \"Authorization: Bearer {(@example_token || "<TOKEN>")}\" {@base_url}/api/sounds</code></pre>
               </div>
             </div>
-            <div class="text-xs text-gray-600 dark:text-gray-400">
+            <div class="text-xs text-muted">
               Upload endpoint: <code class="font-mono">POST /api/sounds</code>. Required fields:
               <code class="font-mono">name</code>
               plus either <code class="font-mono">file</code>
@@ -203,7 +258,7 @@ defmodule SoundboardWeb.SettingsLive do
               (0-150), <code class="font-mono">is_join_sound</code>, <code class="font-mono">is_leave_sound</code>.
             </div>
             <div>
-              <div class="text-sm font-medium text-gray-700 dark:text-gray-300">
+              <div class="text-sm font-medium text-ink">
                 Upload local file (multipart/form-data)
               </div>
               <div class="relative">
@@ -212,11 +267,11 @@ defmodule SoundboardWeb.SettingsLive do
                   type="button"
                   phx-hook="CopyButton"
                   data-copy-text={"curl -X POST -H \"Authorization: Bearer #{(@example_token || "<TOKEN>")}\" -F \"source_type=local\" -F \"name=<NAME>\" -F \"file=@/path/to/sound.mp3\" -F \"tags[]=meme\" -F \"tags[]=alert\" -F \"volume=90\" -F \"is_join_sound=true\" #{@base_url}/api/sounds"}
-                  class="absolute right-2 top-2 text-xs px-2 py-1 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100 rounded"
+                  class="absolute right-2 top-2 text-xs px-2 py-1 bg-surface-muted hover:bg-surface-raised text-ink rounded"
                 >
                   Copy
                 </button>
-                <pre class="mt-1 p-2 pr-16 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded text-xs overflow-x-auto min-h-[120px]"><code class="text-gray-800 dark:text-gray-100 font-mono">curl -X POST \
+                <pre class="mt-1 p-2 pr-16 bg-surface-muted border border-line rounded text-xs overflow-x-auto min-h-[120px]"><code class="text-ink font-mono">curl -X POST \
     -H "Authorization: Bearer {(@example_token || "<TOKEN>")}" \
     -F "source_type=local" \
     -F "name=&lt;NAME&gt;" \
@@ -229,7 +284,7 @@ defmodule SoundboardWeb.SettingsLive do
               </div>
             </div>
             <div>
-              <div class="text-sm font-medium text-gray-700 dark:text-gray-300">
+              <div class="text-sm font-medium text-ink">
                 Upload from URL (JSON)
               </div>
               <div class="relative">
@@ -238,11 +293,11 @@ defmodule SoundboardWeb.SettingsLive do
                   type="button"
                   phx-hook="CopyButton"
                   data-copy-text={"curl -X POST -H \"Authorization: Bearer #{(@example_token || "<TOKEN>")}\" -H \"Content-Type: application/json\" -d '{\"source_type\":\"url\",\"name\":\"wow\",\"url\":\"https://example.com/wow.mp3\",\"tags\":[\"meme\",\"reaction\"],\"volume\":90,\"is_leave_sound\":true}' #{@base_url}/api/sounds"}
-                  class="absolute right-2 top-2 text-xs px-2 py-1 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100 rounded"
+                  class="absolute right-2 top-2 text-xs px-2 py-1 bg-surface-muted hover:bg-surface-raised text-ink rounded"
                 >
                   Copy
                 </button>
-                <pre class="mt-1 p-2 pr-16 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded text-xs overflow-x-auto min-h-[110px]"><code class="text-gray-800 dark:text-gray-100 font-mono">curl -X POST \
+                <pre class="mt-1 p-2 pr-16 bg-surface-muted border border-line rounded text-xs overflow-x-auto min-h-[110px]"><code class="text-ink font-mono">curl -X POST \
     -H "Authorization: Bearer {(@example_token || "<TOKEN>")}" \
     -H "Content-Type: application/json" \
     -d '&#123;"source_type":"url","name":"wow","url":"https://example.com/wow.mp3","tags":["meme","reaction"],"volume":90,"is_leave_sound":true&#125;' \
@@ -250,7 +305,7 @@ defmodule SoundboardWeb.SettingsLive do
               </div>
             </div>
             <div>
-              <div class="text-sm font-medium text-gray-700 dark:text-gray-300">
+              <div class="text-sm font-medium text-ink">
                 Play a sound by ID
               </div>
               <div class="relative">
@@ -259,26 +314,26 @@ defmodule SoundboardWeb.SettingsLive do
                   type="button"
                   phx-hook="CopyButton"
                   data-copy-text={"curl -X POST -H \"Authorization: Bearer #{(@example_token || "<TOKEN>")}\" #{@base_url}/api/sounds/<SOUND_ID>/play"}
-                  class="absolute right-2 top-2 text-xs px-2 py-1 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100 rounded"
+                  class="absolute right-2 top-2 text-xs px-2 py-1 bg-surface-muted hover:bg-surface-raised text-ink rounded"
                 >
                   Copy
                 </button>
-                <pre class="mt-1 p-2 pr-16 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded text-xs overflow-x-auto whitespace-nowrap min-h-[56px]"><code class="text-gray-800 dark:text-gray-100 font-mono">curl -X POST -H \"Authorization: Bearer {(@example_token || "<TOKEN>")}\" {@base_url}/api/sounds/&lt;SOUND_ID&gt;/play</code></pre>
+                <pre class="mt-1 p-2 pr-16 bg-surface-muted border border-line rounded text-xs overflow-x-auto whitespace-nowrap min-h-[56px]"><code class="text-ink font-mono">curl -X POST -H \"Authorization: Bearer {(@example_token || "<TOKEN>")}\" {@base_url}/api/sounds/&lt;SOUND_ID&gt;/play</code></pre>
               </div>
             </div>
             <div>
-              <div class="text-sm font-medium text-gray-700 dark:text-gray-300">Stop all sounds</div>
+              <div class="text-sm font-medium text-ink">Stop all sounds</div>
               <div class="relative">
                 <button
                   id="copy-stop-sounds"
                   type="button"
                   phx-hook="CopyButton"
                   data-copy-text={"curl -X POST -H \"Authorization: Bearer #{(@example_token || "<TOKEN>")}\" #{@base_url}/api/sounds/stop"}
-                  class="absolute right-2 top-2 text-xs px-2 py-1 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100 rounded"
+                  class="absolute right-2 top-2 text-xs px-2 py-1 bg-surface-muted hover:bg-surface-raised text-ink rounded"
                 >
                   Copy
                 </button>
-                <pre class="mt-1 p-2 pr-16 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded text-xs overflow-x-auto whitespace-nowrap min-h-[56px]"><code class="text-gray-800 dark:text-gray-100 font-mono">curl -X POST -H \"Authorization: Bearer {(@example_token || "<TOKEN>")}\" {@base_url}/api/sounds/stop</code></pre>
+                <pre class="mt-1 p-2 pr-16 bg-surface-muted border border-line rounded text-xs overflow-x-auto whitespace-nowrap min-h-[56px]"><code class="text-ink font-mono">curl -X POST -H \"Authorization: Bearer {(@example_token || "<TOKEN>")}\" {@base_url}/api/sounds/stop</code></pre>
               </div>
             </div>
           </div>

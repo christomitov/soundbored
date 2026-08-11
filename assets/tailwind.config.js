@@ -6,6 +6,7 @@ const fs = require("fs")
 const path = require("path")
 
 module.exports = {
+  darkMode: ["class", '[data-theme="classic"]'],
   content: [
     "./js/**/*.js",
     "../lib/*_web/**/*.*ex"
@@ -14,6 +15,25 @@ module.exports = {
     extend: {
       colors: {
         brand: "#FD4F00",
+        canvas: "rgb(var(--color-canvas) / <alpha-value>)",
+        surface: "rgb(var(--color-surface) / <alpha-value>)",
+        "surface-raised": "rgb(var(--color-surface-raised) / <alpha-value>)",
+        "surface-muted": "rgb(var(--color-surface-muted) / <alpha-value>)",
+        ink: "rgb(var(--color-ink) / <alpha-value>)",
+        muted: "rgb(var(--color-muted) / <alpha-value>)",
+        line: "rgb(var(--color-line) / <alpha-value>)",
+        accent: "rgb(var(--color-accent) / <alpha-value>)",
+        "accent-contrast": "rgb(var(--color-accent-contrast) / <alpha-value>)",
+      },
+      fontFamily: {
+        theme: ["var(--font-theme)"],
+        display: ["var(--font-display)"],
+      },
+      borderRadius: {
+        theme: "var(--radius-theme)",
+      },
+      boxShadow: {
+        theme: "var(--shadow-theme)",
       },
       animation: {
         'fade-in': 'fadeIn 0.3s ease-in',
@@ -41,6 +61,11 @@ module.exports = {
     plugin(({addVariant}) => addVariant("phx-click-loading", [".phx-click-loading&", ".phx-click-loading &"])),
     plugin(({addVariant}) => addVariant("phx-submit-loading", [".phx-submit-loading&", ".phx-submit-loading &"])),
     plugin(({addVariant}) => addVariant("phx-change-loading", [".phx-change-loading&", ".phx-change-loading &"])),
+    plugin(({addVariant}) => {
+      addVariant("classic", '[data-theme="classic"] &')
+      addVariant("desk", '[data-theme="desk"] &')
+      addVariant("retro", '[data-theme="retro"] &')
+    }),
 
     // Embeds Heroicons (https://heroicons.com) into your app.css bundle
     // See your `CoreComponents.icon/1` for more information.

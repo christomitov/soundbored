@@ -11,12 +11,57 @@
 .opacity-100 { opacity: 1; }
 
 :root {
-  background-color: rgb(17 24 39);
+  --color-canvas: 17 24 39;
+  --color-surface: 31 41 55;
+  --color-surface-raised: 55 65 81;
+  --color-surface-muted: 55 65 81;
+  --color-ink: 243 244 246;
+  --color-muted: 156 163 175;
+  --color-line: 75 85 99;
+  --color-accent: 37 99 235;
+  --color-accent-contrast: 255 255 255;
+  --font-theme: ui-sans-serif, system-ui, sans-serif;
+  --font-display: ui-sans-serif, system-ui, sans-serif;
+  --radius-theme: 0.5rem;
+  --shadow-theme: 0 8px 24px rgb(0 0 0 / 0.2);
+  background-color: rgb(var(--color-canvas));
   height: 100%;
 }
 
+[data-theme="desk"] {
+  --color-canvas: 199 195 184;
+  --color-surface: 231 228 218;
+  --color-surface-raised: 245 242 233;
+  --color-surface-muted: 216 212 201;
+  --color-ink: 19 20 22;
+  --color-muted: 84 82 77;
+  --color-line: 164 160 150;
+  --color-accent: 226 75 34;
+  --color-accent-contrast: 255 255 255;
+  --font-theme: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --font-display: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --radius-theme: 0.25rem;
+  --shadow-theme: 0 1px 0 rgb(255 255 255 / 0.9) inset, 0 3px 0 #a9a69d, 0 10px 24px rgb(19 20 22 / 0.14);
+}
+
+[data-theme="retro"] {
+  --color-canvas: 244 237 216;
+  --color-surface: 255 249 232;
+  --color-surface-raised: 255 253 244;
+  --color-surface-muted: 230 222 200;
+  --color-ink: 37 32 42;
+  --color-muted: 102 91 105;
+  --color-line: 37 32 42;
+  --color-accent: 33 79 198;
+  --color-accent-contrast: 255 249 232;
+  --font-theme: ui-sans-serif, system-ui, sans-serif;
+  --font-display: Georgia, Cambria, "Times New Roman", serif;
+  --radius-theme: 0.125rem;
+  --shadow-theme: 5px 5px 0 rgb(37 32 42 / 0.92);
+}
+
 html {
-  @apply bg-gray-900;
+  @apply bg-canvas;
   height: 100%;
   /* Hide scrollbar for Chrome, Safari and Opera */
   ::-webkit-scrollbar {
@@ -28,7 +73,7 @@ html {
 }
 
 body {
-  @apply bg-gray-900;
+  @apply bg-canvas text-ink font-theme transition-colors duration-200;
   min-height: 100%;
   padding-top: env(safe-area-inset-top);
   padding-bottom: env(safe-area-inset-bottom);
@@ -41,6 +86,15 @@ body {
   ::-webkit-scrollbar {
     display: none;
   }
+}
+
+[data-theme="desk"] body {
+  background-image: linear-gradient(rgb(255 255 255 / 0.12), rgb(0 0 0 / 0.035));
+}
+
+[data-theme="retro"] body {
+  background-image: radial-gradient(rgb(37 32 42 / 0.075) 0.7px, transparent 0.7px);
+  background-size: 5px 5px;
 }
 
 .loading-container {
