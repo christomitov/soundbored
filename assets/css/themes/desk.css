@@ -1,20 +1,205 @@
 [data-theme="desk"] {
-  --color-canvas: 199 195 184;
-  --color-surface: 231 228 218;
-  --color-surface-raised: 245 242 233;
-  --color-surface-muted: 216 212 201;
+  --color-canvas: 185 181 169;
+  --color-surface: 207 203 193;
+  --color-surface-raised: 243 241 235;
+  --color-surface-muted: 191 187 177;
   --color-ink: 19 20 22;
-  --color-muted: 84 82 77;
-  --color-line: 164 160 150;
-  --color-accent: 226 75 34;
+  --color-muted: 123 121 112;
+  --color-line: 174 170 160;
+  --color-accent: 240 60 18;
   --color-accent-contrast: 255 255 255;
-  --color-pop: 226 75 34;
-  --font-theme: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  --font-display: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  --radius-theme: 0.25rem;
-  --shadow-theme: 0 1px 0 rgb(255 255 255 / 0.9) inset, 0 3px 0 #a9a69d, 0 10px 24px rgb(19 20 22 / 0.14);
+  --color-pop: 240 60 18;
+  --font-theme: Arial, Helvetica, ui-sans-serif, system-ui, sans-serif;
+  --font-display: Arial, Helvetica, ui-sans-serif, system-ui, sans-serif;
+  --radius-theme: 3px;
+  --shadow-theme: 0 1px 0 rgb(255 255 255 / 0.5) inset, 0 18px 40px -18px rgb(0 0 0 / 0.45), 0 2px 0 rgb(0 0 0 / 0.12);
 }
 
 [data-theme="desk"] body {
-  background-image: linear-gradient(rgb(255 255 255 / 0.12), rgb(0 0 0 / 0.035));
+  @apply pb-28;
+  background-image: linear-gradient(rgb(255 255 255 / 0.1), rgb(0 0 0 / 0.035));
+}
+
+[data-theme="desk"] .theme-nav {
+  @apply border-line bg-surface text-ink shadow-theme;
+  background-image: repeating-linear-gradient(90deg, rgb(255 255 255 / 0.5) 0 1px, rgb(0 0 0 / 0.02) 1px 3px), linear-gradient(180deg, rgb(var(--color-surface-raised)), rgb(231 228 220));
+}
+
+[data-theme="desk"] .theme-nav::before,
+[data-theme="desk"] .theme-nav::after {
+  content: "";
+  @apply absolute top-2 h-[7px] w-[7px] rounded-full;
+  background: radial-gradient(circle at 35% 30%, #fff, #a9a69d);
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.16) inset, 0 1px 0 rgb(255 255 255 / 0.7);
+}
+
+[data-theme="desk"] .theme-nav::before { @apply left-2; }
+[data-theme="desk"] .theme-nav::after { @apply right-2; }
+
+[data-theme="desk"] .theme-nav-inner {
+  @apply max-w-7xl;
+}
+
+[data-theme="desk"] .theme-brand {
+  @apply flex items-baseline gap-2 text-ink;
+  text-shadow: 0 1px 0 rgb(255 255 255 / 0.85);
+}
+
+[data-theme="desk"] .theme-brand-model {
+  @apply inline font-mono text-[9px] font-normal tracking-[0.22em] text-muted;
+}
+
+[data-theme="desk"] .theme-nav-link {
+  @apply my-3 h-10 rounded-theme border border-transparent px-3 pt-0 font-mono text-[11px] uppercase tracking-[0.14em] text-muted;
+}
+
+[data-theme="desk"] .theme-nav-link:hover {
+  @apply border-line bg-surface-raised/70 text-ink;
+}
+
+[data-theme="desk"] .theme-nav-link-active {
+  @apply border-line bg-surface-raised text-ink shadow-inner;
+}
+
+[data-theme="desk"] .theme-nav-link-active::before {
+  content: "";
+  @apply mr-2 inline-block h-[5px] w-[5px] rounded-full bg-accent align-middle shadow-[0_0_6px_rgb(var(--color-accent))];
+}
+
+[data-theme="desk"] .theme-page {
+  @apply my-6 grid max-w-7xl grid-cols-[minmax(220px,1fr)_auto] overflow-hidden rounded-md bg-surface px-0 py-0 shadow-theme;
+}
+
+[data-theme="desk"] .theme-page-heading {
+  @apply hidden;
+}
+
+[data-theme="desk"] .theme-page-header {
+  @apply col-start-2 row-start-1 mb-0 border-b border-line px-5 py-4;
+  background: linear-gradient(180deg, rgb(255 255 255 / 0.28), transparent);
+}
+
+[data-theme="desk"] .theme-actions {
+  @apply h-full w-auto flex-row items-center justify-end gap-2;
+}
+
+[data-theme="desk"] .theme-button {
+  @apply w-auto rounded-theme border border-line px-4 py-3 font-mono text-[11px] font-bold uppercase tracking-[0.12em] text-ink;
+  background: linear-gradient(180deg, rgb(var(--color-surface-raised)), rgb(218 215 207));
+  box-shadow: 0 1px 0 rgb(255 255 255 / 0.9) inset, 0 2px 0 #a9a69d, 0 3px 4px rgb(0 0 0 / 0.16);
+}
+
+[data-theme="desk"] .theme-button:hover {
+  @apply text-ink brightness-105;
+}
+
+[data-theme="desk"] .theme-button:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.25) inset;
+}
+
+[data-theme="desk"] .theme-button-primary {
+  @apply border-black bg-ink text-surface-raised;
+  background: linear-gradient(180deg, #26292b, #1c1e20);
+}
+
+[data-theme="desk"] .theme-button-pop {
+  @apply border-[#8e2409] bg-accent text-white;
+  background: linear-gradient(180deg, #f35a32, #d63410);
+}
+
+[data-theme="desk"] .theme-search-wrap {
+  @apply col-start-1 row-start-1 mb-0 border-b border-line px-5 py-4;
+  background: linear-gradient(180deg, rgb(255 255 255 / 0.28), transparent);
+}
+
+[data-theme="desk"] .theme-search {
+  @apply rounded-theme border-0 bg-surface-muted py-3 pl-9 font-mono text-xs tracking-[0.04em] shadow-inner focus:ring-2 focus:ring-accent;
+}
+
+[data-theme="desk"] .theme-tagbar {
+  @apply col-span-full mb-0 border-b border-line px-5 py-3;
+}
+
+[data-theme="desk"] .theme-tag-filter {
+  @apply rounded-full border border-line bg-surface-raised/40 px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-muted;
+}
+
+[data-theme="desk"] .theme-tag-filter:hover {
+  @apply border-ink/30 text-ink;
+}
+
+[data-theme="desk"] .theme-tag-filter[aria-pressed="true"] {
+  @apply border-[#1c1e20] bg-[#1c1e20] text-surface-raised;
+}
+
+[data-theme="desk"] .theme-count {
+  @apply col-span-full mb-0 justify-end border-b border-line px-5 py-2 font-mono text-[10px] uppercase tracking-[0.12em];
+}
+
+[data-theme="desk"] .theme-sound-list {
+  @apply col-span-full grid-cols-2 gap-3.5 p-5;
+  background: radial-gradient(circle at 1px 1px, rgb(19 20 22 / 0.13) 1px, transparent 0) 0 0 / 9px 9px;
+}
+
+[data-theme="desk"] .theme-sound-card {
+  @apply flex flex-col rounded-[5px] border-0 bg-[#1c1e20] text-[#efede7] hover:translate-y-0;
+  aspect-ratio: 5 / 3;
+  background: linear-gradient(180deg, #2a2d30, #1c1e20);
+  box-shadow: 0 1px 0 rgb(255 255 255 / 0.13) inset, 0 -2px 3px rgb(0 0 0 / 0.4) inset, 0 4px 0 #8f8c84, 0 8px 14px rgb(0 0 0 / 0.3);
+}
+
+[data-theme="desk"] .theme-sound-card:hover {
+  background: linear-gradient(180deg, #33373a, #212426);
+}
+
+[data-theme="desk"] .theme-sound-card:active {
+  transform: translateY(4px);
+  box-shadow: 0 1px 0 rgb(255 255 255 / 0.1) inset, 0 -1px 2px rgb(0 0 0 / 0.5) inset, 0 3px 6px rgb(0 0 0 / 0.3);
+}
+
+[data-theme="desk"] .theme-sound-play:hover {
+  @apply bg-transparent;
+}
+
+[data-theme="desk"] .theme-sound-rank {
+  @apply relative z-10 mx-3 mt-3 block w-fit rounded-sm border border-white/20 px-1.5 py-0.5 font-mono text-[10px] leading-none text-white/55;
+}
+
+[data-theme="desk"] .theme-sound-content {
+  @apply min-h-0 flex-1 gap-2 p-3 pt-1;
+}
+
+[data-theme="desk"] .theme-sound-content::before {
+  content: "";
+  @apply my-auto block h-8 w-full opacity-50;
+  background: repeating-linear-gradient(90deg, #efede7 0 3px, transparent 3px 7px);
+  clip-path: polygon(0 45%, 5% 30%, 10% 55%, 15% 15%, 20% 65%, 25% 35%, 30% 72%, 35% 20%, 40% 60%, 45% 38%, 50% 80%, 55% 22%, 60% 58%, 65% 32%, 70% 68%, 75% 26%, 80% 54%, 85% 40%, 90% 62%, 95% 34%, 100% 48%, 100% 52%, 95% 66%, 90% 38%, 85% 60%, 80% 46%, 75% 74%, 70% 32%, 65% 68%, 60% 42%, 55% 78%, 50% 20%, 45% 62%, 40% 40%, 35% 80%, 30% 28%, 25% 65%, 20% 35%, 15% 85%, 10% 45%, 5% 70%, 0 55%);
+}
+
+[data-theme="desk"] .theme-sound-title {
+  @apply text-[15px] font-bold uppercase leading-tight tracking-[0.02em] text-[#efede7];
+}
+
+[data-theme="desk"] .theme-sound-meta {
+  @apply font-mono text-[9px] uppercase tracking-[0.08em] text-white/50;
+}
+
+[data-theme="desk"] .theme-sound-tag {
+  @apply rounded-sm bg-white/10 font-mono text-[9px] uppercase tracking-[0.1em] text-white/75;
+}
+
+[data-theme="desk"] .theme-icon-button {
+  @apply rounded-sm text-white/35 hover:text-white;
+}
+
+@media (min-width: 1024px) {
+  [data-theme="desk"] .theme-sound-list { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+@media (max-width: 639px) {
+  [data-theme="desk"] .theme-page { @apply grid-cols-1; }
+  [data-theme="desk"] .theme-page-header,
+  [data-theme="desk"] .theme-search-wrap { @apply col-start-1 row-auto; }
+  [data-theme="desk"] .theme-actions { @apply flex-wrap justify-start; }
 }

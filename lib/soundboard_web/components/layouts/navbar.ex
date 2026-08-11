@@ -24,6 +24,7 @@ defmodule SoundboardWeb.Components.Layouts.Navbar do
             <div class="flex-shrink-0 flex items-center">
               <span class="theme-brand font-display text-xl font-bold text-ink desk:uppercase desk:tracking-[0.16em]">
                 <.link navigate="/">SoundBored</.link>
+                <span class="theme-brand-model hidden">MK II</span>
               </span>
             </div>
             <div class="hidden sm:ml-6 sm:flex sm:space-x-8">
