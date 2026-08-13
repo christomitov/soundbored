@@ -15,8 +15,60 @@ defmodule Soundboard.StatsTest do
     test "track_play creates a play record", %{user: user, sound: sound} do
       assert {:ok, play} = Stats.track_play(sound.filename, user.id)
       assert play.played_filename == sound.filename
+      assert play.media_type == "sound"
       assert play.sound_id == sound.id
       assert play.user_id == user.id
+    end
+
+    test "tracks YouTube plays without requiring a sound", %{user: user} do
+      video = %{
+        youtube_id: "statsTst001",
+        title: "Public test video",
+        url: "https://www.youtube.com/watch?v=statsTst001"
+      }
+
+      assert {:ok, play} = Stats.track_youtube_play(video, user.id)
+      assert play.media_type == "youtube"
+      assert play.played_filename == video.title
+      assert play.youtube_id == video.youtube_id
+      assert play.source_url == video.url
+      assert play.sound_id == nil
+    end
+
+    test "returns YouTube history and aggregates top videos by id", %{user: user, sound: sound} do
+      today = Date.utc_today()
+
+      video = %{
+        youtube_id: "wIzJcg9eWM4",
+        title: "Public test video",
+        url: "https://www.youtube.com/watch?v=wIzJcg9eWM4"
+      }
+
+      Stats.track_play(sound.filename, user.id)
+      Stats.track_youtube_play(video, user.id)
+      Stats.track_youtube_play(%{video | url: "https://youtu.be/statsTst001"}, user.id)
+
+      top_video =
+        today
+        |> Stats.get_top_videos(today)
+        |> Enum.find(&(&1.youtube_id == video.youtube_id))
+
+      assert top_video
+      assert top_video.youtube_id == video.youtube_id
+      assert top_video.title == video.title
+      assert top_video.count == 2
+
+      activity =
+        Stats.get_recent_activity(limit: 100)
+        |> Enum.find(&(&1.youtube_id == video.youtube_id))
+
+      assert activity
+      assert activity.media_type == "youtube"
+      assert activity.youtube_id == video.youtube_id
+
+      sound_stats = Stats.get_top_sounds(today, today)
+      assert {sound.filename, 1} in sound_stats
+      refute Enum.any?(sound_stats, fn {title, _count} -> title == video.title end)
     end
 
     test "get_top_sounds preserves the played filename snapshot after a sound is renamed", %{
@@ -58,6 +110,18 @@ defmodule Soundboard.StatsTest do
       changeset = Play.changeset(%Play{}, %{played_filename: "beep.mp3", user_id: 123})
 
       assert %{sound_id: ["can't be blank"]} = errors_on(changeset)
+    end
+
+    test "YouTube play changeset requires video metadata" do
+      changeset =
+        Play.changeset(%Play{}, %{
+          played_filename: "A video",
+          media_type: "youtube",
+          user_id: 123
+        })
+
+      assert %{youtube_id: ["can't be blank"], source_url: ["can't be blank"]} =
+               errors_on(changeset)
     end
 
     test "get_top_users returns users ordered by play count", %{user: user, sound: sound} do

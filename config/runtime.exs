@@ -98,6 +98,15 @@ if config_env() == :dev do
 
   role_recheck_interval_seconds = env!("DISCORD_ROLE_RECHECK_INTERVAL_SECONDS", :integer, 900)
 
+  ytdlp_executable =
+    case env!("YTDLP_PATH", :string, nil) do
+      path when is_binary(path) and path != "" -> path
+      _ -> :system
+    end
+
+  youtube_cookies_path =
+    env!("YOUTUBE_COOKIES_PATH", :string, "priv/youtube/cookies.txt")
+
   config :soundboard,
     discord_token: discord_token,
     voice_rtp_probe: voice_rtp_probe,
@@ -105,7 +114,11 @@ if config_env() == :dev do
     ffmpeg_available: ffmpeg_available,
     required_guild_id: required_guild_id,
     required_role_ids: required_role_ids,
-    role_recheck_interval_seconds: role_recheck_interval_seconds
+    role_recheck_interval_seconds: role_recheck_interval_seconds,
+    ytdlp_executable: ytdlp_executable,
+    ytdlp_managed_path: "priv/bin/yt-dlp",
+    ytdlp_auto_download: true,
+    youtube_cookies_path: youtube_cookies_path
 
   config :eda,
     token: discord_token,
@@ -222,6 +235,21 @@ if config_env() == :prod and is_nil(env!("SKIP_RUNTIME_CONFIG", :string, nil)) d
 
   role_recheck_interval_seconds = env!("DISCORD_ROLE_RECHECK_INTERVAL_SECONDS", :integer, 900)
 
+  ytdlp_executable =
+    case env!("YTDLP_PATH", :string, nil) do
+      path when is_binary(path) and path != "" -> path
+      _ -> :system
+    end
+
+  ytdlp_managed_path =
+    case env!("YTDLP_PATH", :string, nil) do
+      path when is_binary(path) and path != "" -> path
+      _ -> "/app/priv/db/bin/yt-dlp"
+    end
+
+  youtube_cookies_path =
+    env!("YOUTUBE_COOKIES_PATH", :string, "/app/priv/db/youtube/cookies.txt")
+
   config :soundboard,
     discord_token: discord_token,
     voice_rtp_probe: voice_rtp_probe,
@@ -229,7 +257,11 @@ if config_env() == :prod and is_nil(env!("SKIP_RUNTIME_CONFIG", :string, nil)) d
     ffmpeg_available: ffmpeg_available,
     required_guild_id: required_guild_id,
     required_role_ids: required_role_ids,
-    role_recheck_interval_seconds: role_recheck_interval_seconds
+    role_recheck_interval_seconds: role_recheck_interval_seconds,
+    ytdlp_executable: ytdlp_executable,
+    ytdlp_managed_path: ytdlp_managed_path,
+    ytdlp_auto_download: true,
+    youtube_cookies_path: youtube_cookies_path
 
   config :eda,
     token: discord_token,

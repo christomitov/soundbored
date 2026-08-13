@@ -1,0 +1,231 @@
+<div class="max-w-5xl mx-auto px-4 py-6 space-y-6">
+  <div class="flex items-center justify-between gap-4">
+    <div>
+      <h1 class="text-2xl font-bold text-gray-800 dark:text-gray-100">Video</h1>
+      <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">
+        Drop a YouTube link to play audio in Discord and synced video here for everyone.
+        Browser video is muted — listen in Discord voice. While something is playing, new links
+        join the up-next queue.
+      </p>
+    </div>
+    <%= if @video_live do %>
+      <span class="inline-flex items-center gap-2 text-sm font-semibold text-red-600 dark:text-red-400">
+        <span class="relative flex h-3 w-3">
+          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75">
+          </span>
+          <span class="relative inline-flex rounded-full h-3 w-3 bg-red-600"></span>
+        </span>
+        LIVE
+      </span>
+    <% end %>
+  </div>
+
+  <form phx-submit="play_video" class="flex flex-col sm:flex-row gap-3">
+    <input
+      type="url"
+      name="url"
+      value={@url_input}
+      phx-change="update_url"
+      placeholder="https://www.youtube.com/watch?v=…"
+      class="flex-1 rounded-md border-gray-300 dark:border-gray-700 shadow-sm dark:bg-gray-900 dark:text-gray-100 focus:border-blue-500 focus:ring-blue-500"
+      required
+    />
+    <button
+      type="submit"
+      class="px-4 py-2 bg-blue-600 text-white rounded-md font-medium hover:bg-blue-700 transition-colors"
+    >
+      {play_button_label(@video_session)}
+    </button>
+  </form>
+
+  <div class="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+    <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between gap-3">
+      <div class="min-w-0">
+        <div class="text-sm text-gray-500 dark:text-gray-400">
+          {status_label(@video_session)}
+        </div>
+        <%= if @video_session && Map.get(@video_session, :title) do %>
+          <div class="font-medium text-gray-900 dark:text-gray-100 truncate">
+            {Map.get(@video_session, :title)}
+          </div>
+          <div class="text-xs text-gray-500 dark:text-gray-400">
+            Started by {Map.get(@video_session, :host_username)}
+          </div>
+        <% end %>
+        <%= if @video_session && Map.get(@video_session, :error) do %>
+          <div class="text-sm text-red-600 dark:text-red-400 mt-1">
+            {Map.get(@video_session, :error)}
+          </div>
+        <% end %>
+      </div>
+      <div class="flex items-center gap-2 shrink-0">
+        <%= if youtube_watch_url(@video_session) do %>
+          <a
+            href={youtube_watch_url(@video_session)}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="px-3 py-1.5 text-sm rounded bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100 hover:bg-gray-300 dark:hover:bg-gray-600"
+          >
+            Open on YouTube
+          </a>
+        <% end %>
+        <%= if host?(@video_session, @current_user) do %>
+          <%= if Map.get(@video_session, :playing?, false) do %>
+            <button
+              type="button"
+              phx-click="pause_video"
+              class="px-3 py-1.5 text-sm rounded bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100"
+            >
+              Pause
+            </button>
+          <% else %>
+            <button
+              type="button"
+              phx-click="resume_video"
+              class="px-3 py-1.5 text-sm rounded bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100"
+            >
+              Resume
+            </button>
+          <% end %>
+          <button
+            type="button"
+            phx-click="skip_video"
+            class="px-3 py-1.5 text-sm rounded bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100"
+          >
+            Skip
+          </button>
+          <button
+            type="button"
+            phx-click="stop_video"
+            class="px-3 py-1.5 text-sm rounded bg-red-600 text-white hover:bg-red-700"
+          >
+            Stop
+          </button>
+        <% end %>
+      </div>
+    </div>
+
+    <div
+      id="shared-video-player"
+      phx-hook="VideoPlayer"
+      class="bg-black aspect-video relative"
+    >
+      <video id="shared-video-el" class="w-full h-full" playsinline muted></video>
+      <%= if is_nil(@video_session) do %>
+        <div class="absolute inset-0 flex items-center justify-center text-gray-400 text-sm pointer-events-none">
+          Paste a YouTube link above to start watching together
+        </div>
+      <% end %>
+    </div>
+  </div>
+
+  <section class="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+    <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+      <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-100">
+        Up next
+        <span class="text-sm font-normal text-gray-500 dark:text-gray-400">
+          ({length(@video_queue)})
+        </span>
+      </h2>
+      <%= if @video_queue != [] and host?(@video_session, @current_user) do %>
+        <button
+          type="button"
+          phx-click="clear_queue"
+          class="text-sm text-red-600 dark:text-red-400 hover:underline"
+        >
+          Clear queue
+        </button>
+      <% end %>
+    </div>
+
+    <%= if @video_queue == [] do %>
+      <p class="px-4 py-6 text-sm text-gray-500 dark:text-gray-400">
+        Nothing queued. While a video is playing, submit another link to add it here.
+      </p>
+    <% else %>
+      <ol class="divide-y divide-gray-200 dark:divide-gray-700">
+        <%= for {item, index} <- Enum.with_index(@video_queue, 1) do %>
+          <li class="px-4 py-3 flex items-center justify-between gap-3">
+            <div class="min-w-0 flex items-start gap-3">
+              <span class="text-xs font-mono text-gray-400 mt-0.5 w-5 shrink-0">{index}</span>
+              <span
+                :if={queue_metadata_loading?(item)}
+                class="video-queue-skeleton animate-pulse w-20 aspect-video rounded shrink-0"
+                role="status"
+                aria-label="Loading video thumbnail"
+              >
+              </span>
+              <img
+                :if={!queue_metadata_loading?(item) && Map.get(item, :thumbnail_url)}
+                src={Map.get(item, :thumbnail_url)}
+                alt=""
+                class="w-20 aspect-video rounded object-cover bg-black shrink-0"
+              />
+              <div class="min-w-0">
+                <div class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                  <span
+                    :if={queue_metadata_loading?(item)}
+                    class="video-queue-title-skeleton"
+                    role="status"
+                    aria-label="Loading video title"
+                  >
+                    <i></i><i></i>
+                  </span>
+                  <span :if={!queue_metadata_loading?(item)}>
+                    {Map.get(item, :title) || Map.get(item, :url)}
+                  </span>
+                </div>
+                <div class="text-xs text-gray-500 dark:text-gray-400 truncate">
+                  Queued by {Map.get(item, :queued_by_username)}
+                  <%= if Map.get(item, :youtube_id) do %>
+                    · {Map.get(item, :youtube_id)}
+                  <% end %>
+                  · {prefetch_label(item)}
+                </div>
+                <span
+                  :if={queue_preparing?(item)}
+                  class="video-queue-progress"
+                  role="progressbar"
+                  aria-label="Video preparation progress"
+                  aria-valuemin="0"
+                  aria-valuemax="100"
+                  aria-valuenow={queue_progress(item)}
+                >
+                  <span class="video-queue-progress-track">
+                    <i style={"width: #{queue_progress(item)}%"}></i>
+                  </span>
+                  <small>{queue_progress(item)}%</small>
+                </span>
+                <%= if Map.get(item, :error) do %>
+                  <div class="text-xs text-red-600 dark:text-red-400 mt-0.5 truncate">
+                    {Map.get(item, :error)}
+                  </div>
+                <% end %>
+              </div>
+            </div>
+            <%= if host?(@video_session, @current_user) do %>
+              <div class="flex items-center gap-3 shrink-0">
+                <button
+                  type="button"
+                  phx-click="play_queued_video"
+                  phx-value-id={Map.get(item, :id)}
+                  class="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                >
+                  Play now
+                </button>
+                <button
+                  type="button"
+                  phx-click="remove_queue_item"
+                  phx-value-id={Map.get(item, :id)}
+                  class="text-sm text-gray-500 hover:text-red-600 dark:hover:text-red-400"
+                >
+                  Remove
+                </button>
+              </div>
+            <% end %>
+          </li>
+        <% end %>
+      </ol>
+    <% end %>
+  </section>
+</div>

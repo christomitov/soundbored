@@ -3,6 +3,7 @@ defmodule SoundboardWeb.SettingsLive do
   use SoundboardWeb.Live.Support.PresenceLive
   alias Soundboard.Accounts.ApiTokens
   alias Soundboard.PublicURL
+  alias Soundboard.YouTube.Cookies
 
   @impl true
   def mount(_params, session, socket) do
@@ -14,6 +15,13 @@ defmodule SoundboardWeb.SettingsLive do
       |> assign(:tokens, [])
       |> assign(:new_token, nil)
       |> assign(:base_url, PublicURL.current())
+      |> assign(:cookie_status, Cookies.status())
+      |> assign(:cookie_paste, "")
+      |> allow_upload(:youtube_cookies,
+        accept: ~w(.txt text/plain),
+        max_entries: 1,
+        max_file_size: 1_000_000
+      )
 
     {:ok, load_tokens(socket)}
   end
@@ -50,6 +58,66 @@ defmodule SoundboardWeb.SettingsLive do
       {:error, _} -> {:noreply, put_flash(socket, :error, "Failed to revoke token")}
     end
   end
+
+  def handle_event("update_cookie_paste", %{"cookies" => cookies}, socket) do
+    {:noreply, assign(socket, :cookie_paste, cookies)}
+  end
+
+  def handle_event("save_cookies_paste", %{"cookies" => cookies}, socket) do
+    case Cookies.save(cookies) do
+      {:ok, status} ->
+        {:noreply,
+         socket
+         |> assign(:cookie_status, status)
+         |> assign(:cookie_paste, "")
+         |> put_flash(:info, "YouTube cookies saved and validated")}
+
+      {:error, reason} ->
+        {:noreply, put_flash(socket, :error, reason)}
+    end
+  end
+
+  def handle_event("save_cookies_upload", _params, socket) do
+    results =
+      consume_uploaded_entries(socket, :youtube_cookies, fn %{path: path}, _entry ->
+        save_uploaded_cookies(path)
+      end)
+
+    case results do
+      [{:saved, status} | _] ->
+        {:noreply,
+         socket
+         |> assign(:cookie_status, status)
+         |> put_flash(:info, "YouTube cookies uploaded and validated")}
+
+      [{:error, reason} | _] ->
+        {:noreply, put_flash(socket, :error, reason)}
+
+      _ ->
+        {:noreply, put_flash(socket, :error, "Please choose a cookies.txt file to upload")}
+    end
+  end
+
+  def handle_event("clear_cookies", _params, socket) do
+    Cookies.clear()
+
+    {:noreply,
+     socket
+     |> assign(:cookie_status, Cookies.status())
+     |> put_flash(:info, "YouTube cookies cleared")}
+  end
+
+  def handle_event("validate_cookies_upload", _params, socket), do: {:noreply, socket}
+
+  defp save_uploaded_cookies(path) do
+    case File.read(path) do
+      {:ok, contents} -> normalize_cookie_save(Cookies.save(contents))
+      {:error, reason} -> {:ok, {:error, "Failed to read upload: #{inspect(reason)}"}}
+    end
+  end
+
+  defp normalize_cookie_save({:ok, status}), do: {:ok, {:saved, status}}
+  defp normalize_cookie_save({:error, reason}), do: {:ok, {:error, reason}}
 
   defp load_tokens(%{assigns: %{current_user: nil}} = socket), do: socket
 
@@ -282,6 +350,87 @@ defmodule SoundboardWeb.SettingsLive do
               </div>
             </div>
           </div>
+        </div>
+      </section>
+
+      <section aria-labelledby="youtube-cookies-heading" class="space-y-4">
+        <header class="space-y-2">
+          <h2
+            id="youtube-cookies-heading"
+            class="text-xl font-semibold text-gray-800 dark:text-gray-100"
+          >
+            YouTube Cookies
+          </h2>
+          <p class="text-sm text-gray-600 dark:text-gray-400">
+            Optional Netscape <code class="font-mono">cookies.txt</code> for age-restricted or
+            members-only videos. Cookies are validated with yt-dlp before they are saved.
+          </p>
+        </header>
+
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-5 space-y-5">
+          <div class="flex items-center justify-between gap-4 text-sm">
+            <%= if @cookie_status.present? do %>
+              <span class="font-medium text-green-700 dark:text-green-400">
+                Cookies on file
+                <%= if @cookie_status.validated_at do %>
+                  <span class="font-normal text-gray-500 dark:text-gray-400">
+                    — validated {@cookie_status.validated_at}
+                  </span>
+                <% end %>
+              </span>
+              <button
+                type="button"
+                phx-click="clear_cookies"
+                class="text-red-600 dark:text-red-400 hover:underline"
+              >
+                Clear Cookies
+              </button>
+            <% else %>
+              <span class="text-amber-700 dark:text-amber-400">
+                No cookies saved — public videos only
+              </span>
+            <% end %>
+          </div>
+
+          <form phx-submit="save_cookies_paste" class="space-y-3">
+            <label
+              for="youtube-cookie-paste"
+              class="block text-sm font-medium text-gray-700 dark:text-gray-300"
+            >
+              {if @cookie_status.present?, do: "Replace cookies.txt", else: "Paste cookies.txt"}
+            </label>
+            <textarea
+              id="youtube-cookie-paste"
+              name="cookies"
+              rows="7"
+              phx-change="update_cookie_paste"
+              placeholder="# Netscape HTTP Cookie File"
+              class="block w-full rounded-md border-gray-300 dark:border-gray-700 shadow-sm dark:bg-gray-900 dark:text-gray-100 font-mono text-xs"
+            >{@cookie_paste}</textarea>
+            <button
+              type="submit"
+              class="px-4 py-2 bg-blue-600 text-white rounded-md font-medium hover:bg-blue-700"
+            >
+              Save pasted cookies
+            </button>
+          </form>
+
+          <form
+            phx-submit="save_cookies_upload"
+            phx-change="validate_cookies_upload"
+            class="space-y-3 border-t border-gray-200 dark:border-gray-700 pt-5"
+          >
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Or upload cookies.txt
+            </label>
+            <.live_file_input upload={@uploads.youtube_cookies} class="block w-full text-sm" />
+            <button
+              type="submit"
+              class="px-4 py-2 bg-gray-700 text-white rounded-md font-medium hover:bg-gray-800"
+            >
+              Upload cookies
+            </button>
+          </form>
         </div>
       </section>
     </div>

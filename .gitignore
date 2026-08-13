@@ -47,6 +47,10 @@ npm-debug.log
 /assets/node_modules/
 
 /priv/static/uploads/
+/priv/youtube/
+/priv/bin/
+/priv/video_sessions/
+/priv/video_sessions_test/
 
 .env
 
