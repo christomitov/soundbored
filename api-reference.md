@@ -1,0 +1,99 @@
+# soundboard v1.7.0 - API Reference
+
+## Modules
+
+- [Soundboard](Soundboard.md): Soundboard keeps the contexts that define your domain
+and business logic.
+- [Soundboard.Accounts](Soundboard.Accounts.md): Accounts boundary helpers used by web and runtime code.
+
+- [Soundboard.Accounts.ApiToken](Soundboard.Accounts.ApiToken.md): API access token bound to a user.
+- [Soundboard.Accounts.ApiTokens](Soundboard.Accounts.ApiTokens.md): Context for managing API tokens bound to users.
+
+- [Soundboard.Accounts.User](Soundboard.Accounts.User.md): The User module.
+
+- [Soundboard.AudioPlayer](Soundboard.AudioPlayer.md): Handles audio playback coordination.
+
+- [Soundboard.AudioPlayer.State](Soundboard.AudioPlayer.State.md): The state of the audio player.
+
+- [Soundboard.Discord.Handler](Soundboard.Discord.Handler.md): Handles the Discord events.
+
+- [Soundboard.Discord.Handler.State](Soundboard.Discord.Handler.State.md): Handles the state of the Discord handler.
+
+- [Soundboard.Favorites](Soundboard.Favorites.md): The Favorites module.
+
+- [Soundboard.Favorites.Favorite](Soundboard.Favorites.Favorite.md): The Favorite module.
+
+- [Soundboard.PublicURL](Soundboard.PublicURL.md): Shared helper for the application's externally visible base URL.
+- [Soundboard.Repo](Soundboard.Repo.md)
+- [Soundboard.Sound](Soundboard.Sound.md): Sound schema.
+
+- [Soundboard.SoundTag](Soundboard.SoundTag.md): The SoundTag module.
+
+- [Soundboard.Sounds](Soundboard.Sounds.md): Sound domain context.
+
+- [Soundboard.Sounds.Management](Soundboard.Sounds.Management.md): Domain-level sound update/delete operations used by LiveViews.
+- [Soundboard.Sounds.Tags](Soundboard.Sounds.Tags.md): Domain helpers for searching, resolving, and persisting sound tags.
+
+- [Soundboard.Sounds.Uploads](Soundboard.Sounds.Uploads.md): Canonical sound upload/create API.
+
+- [Soundboard.Stats](Soundboard.Stats.md): Handles the stats of the soundboard.
+
+- [Soundboard.Stats.Play](Soundboard.Stats.Play.md): The Play module.
+
+- [Soundboard.Tag](Soundboard.Tag.md): The Tag module.
+
+- [Soundboard.UploadsPath](Soundboard.UploadsPath.md): Central source of truth for uploaded sound storage paths.
+
+- [Soundboard.UserSoundSetting](Soundboard.UserSoundSetting.md): The UserSoundSetting module.
+
+- [Soundboard.Volume](Soundboard.Volume.md): Helpers for working with volume percentages and decimal ratios.
+
+- [SoundboardWeb](SoundboardWeb.md): The entrypoint for defining your web interface, such
+as controllers, components, channels, and so on.
+- [SoundboardWeb.API.SoundController](SoundboardWeb.API.SoundController.md)
+- [SoundboardWeb.AuthController](SoundboardWeb.AuthController.md)
+- [SoundboardWeb.Components.FlashComponent](SoundboardWeb.Components.FlashComponent.md): The flash component.
+
+- [SoundboardWeb.Components.Layouts.Navbar](SoundboardWeb.Components.Layouts.Navbar.md): The navbar component.
+
+- [SoundboardWeb.Components.Soundboard.DeleteModal](SoundboardWeb.Components.Soundboard.DeleteModal.md): The delete modal component.
+
+- [SoundboardWeb.Components.Soundboard.EditModal](SoundboardWeb.Components.Soundboard.EditModal.md): The edit modal component.
+
+- [SoundboardWeb.Components.Soundboard.Helpers](SoundboardWeb.Components.Soundboard.Helpers.md): Helper functions for the soundboard.
+
+- [SoundboardWeb.Components.Soundboard.TagComponents](SoundboardWeb.Components.Soundboard.TagComponents.md): Shared tag UI helpers for the soundboard modals.
+
+- [SoundboardWeb.Components.Soundboard.UploadModal](SoundboardWeb.Components.Soundboard.UploadModal.md): The upload modal component.
+
+- [SoundboardWeb.Components.Soundboard.VolumeControl](SoundboardWeb.Components.Soundboard.VolumeControl.md): Shared volume slider with preview support for upload/edit modals.
+
+- [SoundboardWeb.CoreComponents](SoundboardWeb.CoreComponents.md): Provides core UI components.
+- [SoundboardWeb.Endpoint](SoundboardWeb.Endpoint.md)
+- [SoundboardWeb.ErrorHTML](SoundboardWeb.ErrorHTML.md): Renders fallback HTML error messages.
+
+- [SoundboardWeb.ErrorJSON](SoundboardWeb.ErrorJSON.md): Renders fallback JSON error payloads.
+
+- [SoundboardWeb.FavoritesLive](SoundboardWeb.FavoritesLive.md)
+- [SoundboardWeb.Gettext](SoundboardWeb.Gettext.md): A module providing Internationalization with a gettext-based API.
+- [SoundboardWeb.Live.Support.LiveTags](SoundboardWeb.Live.Support.LiveTags.md): LiveView-facing tag queries and mutations for the soundboard.
+
+- [SoundboardWeb.Live.Support.PresenceLive](SoundboardWeb.Live.Support.PresenceLive.md)
+- [SoundboardWeb.Plugs.APIAuth](SoundboardWeb.Plugs.APIAuth.md): API authentication plug.
+
+- [SoundboardWeb.Plugs.BasicAuth](SoundboardWeb.Plugs.BasicAuth.md): Basic authentication plug.
+- [SoundboardWeb.Presence](SoundboardWeb.Presence.md): The Presence module.
+
+- [SoundboardWeb.PresenceHandler](SoundboardWeb.PresenceHandler.md): Handles presence tracking for the Soundboard app.
+
+- [SoundboardWeb.Router](SoundboardWeb.Router.md)
+- [SoundboardWeb.SettingsLive](SoundboardWeb.SettingsLive.md)
+- [SoundboardWeb.SoundHelpers](SoundboardWeb.SoundHelpers.md): Shared helpers for formatting sound metadata for UI rendering.
+
+- [SoundboardWeb.Soundboard.SoundFilter](SoundboardWeb.Soundboard.SoundFilter.md): Filters sounds based on the selected tags and search query.
+
+- [SoundboardWeb.SoundboardLive](SoundboardWeb.SoundboardLive.md)
+- [SoundboardWeb.StatsLive](SoundboardWeb.StatsLive.md)
+- [SoundboardWeb.Telemetry](SoundboardWeb.Telemetry.md)
+- [SoundboardWeb.UploadController](SoundboardWeb.UploadController.md)
+

@@ -4,17 +4,17 @@
     <meta charset="utf-8">
     <meta http-equiv="x-ua-compatible" content="ie=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="generator" content="ExDoc v0.38.4">
+    <meta name="generator" content="ExDoc v0.40.3">
     <meta name="project" content="soundboard v1.7.0">
 
 
     <title>API Reference — soundboard v1.7.0</title>
 
-    <link rel="stylesheet" href="dist/html-elixir-RLZO5U2C.css" />
+    <link rel="stylesheet" href="dist/html-elixir-NHQLCD6Y.css" />
 
-    <script defer src="dist/sidebar_items-167830B9.js"></script>
+    <script defer src="dist/sidebar_items-8F47D679.js"></script>
     <script defer src="docs_config.js"></script>
-    <script defer src="dist/html-Y223O6DN.js"></script>
+    <script defer src="dist/html-Y2MUTVIN.js"></script>
 
   </head>
   <body>
@@ -41,7 +41,7 @@ soundboard
         </div>
       </div>
     </div>
-    <ul id="sidebar-list-nav" class="sidebar-list-nav" role="tablist" data-extras=""></ul>
+    <ul id="sidebar-list-nav" class="sidebar-list-nav" role="tablist" data-extras="Pages"></ul>
   </div>
 </nav>
 
@@ -54,16 +54,34 @@ soundboard
         <form class="search-bar" action="search.html">
           <label class="search-label">
             <span class="sr-only">Search documentation of soundboard</span>
-            <input name="q" type="text" class="search-input" placeholder="Press / to search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />
+            <div class="search-input-wrapper">
+              <input name="q" type="text" class="search-input" placeholder="Press / to search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />
+              <button type="button" tabindex="-1" class="search-close-button" aria-hidden="true">
+                <i class="ri-close-line ri-lg" title="Cancel search"></i>
+              </button>
+            </div>
           </label>
-          <button type="submit" class="search-button" aria-label="Submit Search" tabindex="-1">
-            <i class="ri-search-2-line ri-lg" aria-hidden="true"></i>
-          </button>
-          <button type="button" tabindex="-1" class="search-close-button" aria-hidden="true">
-            <i class="ri-close-line ri-lg" title="Cancel search"></i>
-          </button>
         </form>
         <div class="autocomplete">
+        </div>
+        <div class="engine-selector" data-multiple="false">
+          <button type="button" class="engine-button" aria-label="Select search engine" aria-haspopup="true" aria-expanded="false">
+            <i class="ri-search-2-line" aria-hidden="true"></i>
+            <span class="engine-name">Default</span>
+            <i class="ri-arrow-down-s-line" aria-hidden="true"></i>
+          </button>
+          <div class="engine-dropdown" hidden role="menu">
+
+              <button type="button"
+                      class="engine-option"
+                      data-engine-url="search.html?q="
+                      role="menuitemradio"
+                      aria-checked="true">
+                <span class="name">Default</span>
+                <span class="help">In-browser search</span>
+              </button>
+
+          </div>
         </div>
         <button class="icon-settings display-settings">
           <i class="ri-settings-3-line"></i>
@@ -75,6 +93,11 @@ soundboard
 <div id="top-content">
   <div class="heading-with-actions top-heading">
     <h1>API Reference <small class="app-vsn">soundboard v#1.7.0</small></h1>
+<a href="api-reference.md" title="Copy Markdown (hold Ctrl/Cmd and click it to open as Markdown)" class="copy-markdown icon-action" rel="help">
+  <i class="ri-markdown-line" aria-hidden="true"></i>
+  <span class="sr-only">Copy Markdown</span>
+</a>
+
 
   </div>
 
@@ -93,7 +116,7 @@ and business logic.</p></div>
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="Soundboard.Accounts.html" translate="no">Soundboard.Accounts</a>
+    <a href="Soundboard.Accounts.html" translate="no">Soundboard.<wbr />Accounts</a>
 
   </div>
 
@@ -102,7 +125,7 @@ and business logic.</p></div>
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="Soundboard.Accounts.ApiToken.html" translate="no">Soundboard.Accounts.ApiToken</a>
+    <a href="Soundboard.Accounts.ApiToken.html" translate="no">Soundboard.<wbr />Accounts.<wbr />ApiToken</a>
 
   </div>
 
@@ -111,7 +134,7 @@ and business logic.</p></div>
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="Soundboard.Accounts.ApiTokens.html" translate="no">Soundboard.Accounts.ApiTokens</a>
+    <a href="Soundboard.Accounts.ApiTokens.html" translate="no">Soundboard.<wbr />Accounts.<wbr />ApiTokens</a>
 
   </div>
 
@@ -120,7 +143,7 @@ and business logic.</p></div>
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="Soundboard.Accounts.User.html" translate="no">Soundboard.Accounts.User</a>
+    <a href="Soundboard.Accounts.User.html" translate="no">Soundboard.<wbr />Accounts.<wbr />User</a>
 
   </div>
 
@@ -129,7 +152,7 @@ and business logic.</p></div>
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="Soundboard.AudioPlayer.html" translate="no">Soundboard.AudioPlayer</a>
+    <a href="Soundboard.AudioPlayer.html" translate="no">Soundboard.<wbr />AudioPlayer</a>
 
   </div>
 
@@ -138,7 +161,7 @@ and business logic.</p></div>
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="Soundboard.AudioPlayer.State.html" translate="no">Soundboard.AudioPlayer.State</a>
+    <a href="Soundboard.AudioPlayer.State.html" translate="no">Soundboard.<wbr />AudioPlayer.<wbr />State</a>
 
   </div>
 
@@ -147,7 +170,7 @@ and business logic.</p></div>
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="Soundboard.Discord.Handler.html" translate="no">Soundboard.Discord.Handler</a>
+    <a href="Soundboard.Discord.Handler.html" translate="no">Soundboard.<wbr />Discord.<wbr />Handler</a>
 
   </div>
 
@@ -156,7 +179,7 @@ and business logic.</p></div>
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="Soundboard.Discord.Handler.State.html" translate="no">Soundboard.Discord.Handler.State</a>
+    <a href="Soundboard.Discord.Handler.State.html" translate="no">Soundboard.<wbr />Discord.<wbr />Handler.<wbr />State</a>
 
   </div>
 
@@ -165,7 +188,7 @@ and business logic.</p></div>
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="Soundboard.Favorites.html" translate="no">Soundboard.Favorites</a>
+    <a href="Soundboard.Favorites.html" translate="no">Soundboard.<wbr />Favorites</a>
 
   </div>
 
@@ -174,7 +197,7 @@ and business logic.</p></div>
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="Soundboard.Favorites.Favorite.html" translate="no">Soundboard.Favorites.Favorite</a>
+    <a href="Soundboard.Favorites.Favorite.html" translate="no">Soundboard.<wbr />Favorites.<wbr />Favorite</a>
 
   </div>
 
@@ -183,7 +206,7 @@ and business logic.</p></div>
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="Soundboard.PublicURL.html" translate="no">Soundboard.PublicURL</a>
+    <a href="Soundboard.PublicURL.html" translate="no">Soundboard.<wbr />PublicURL</a>
 
   </div>
 
@@ -192,14 +215,14 @@ and business logic.</p></div>
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="Soundboard.Repo.html" translate="no">Soundboard.Repo</a>
+    <a href="Soundboard.Repo.html" translate="no">Soundboard.<wbr />Repo</a>
 
   </div>
 
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="Soundboard.Sound.html" translate="no">Soundboard.Sound</a>
+    <a href="Soundboard.Sound.html" translate="no">Soundboard.<wbr />Sound</a>
 
   </div>
 
@@ -208,7 +231,7 @@ and business logic.</p></div>
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="Soundboard.SoundTag.html" translate="no">Soundboard.SoundTag</a>
+    <a href="Soundboard.SoundTag.html" translate="no">Soundboard.<wbr />SoundTag</a>
 
   </div>
 
@@ -217,7 +240,7 @@ and business logic.</p></div>
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="Soundboard.Sounds.html" translate="no">Soundboard.Sounds</a>
+    <a href="Soundboard.Sounds.html" translate="no">Soundboard.<wbr />Sounds</a>
 
   </div>
 
@@ -226,7 +249,7 @@ and business logic.</p></div>
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="Soundboard.Sounds.Management.html" translate="no">Soundboard.Sounds.Management</a>
+    <a href="Soundboard.Sounds.Management.html" translate="no">Soundboard.<wbr />Sounds.<wbr />Management</a>
 
   </div>
 
@@ -235,7 +258,7 @@ and business logic.</p></div>
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="Soundboard.Sounds.Tags.html" translate="no">Soundboard.Sounds.Tags</a>
+    <a href="Soundboard.Sounds.Tags.html" translate="no">Soundboard.<wbr />Sounds.<wbr />Tags</a>
 
   </div>
 
@@ -244,7 +267,7 @@ and business logic.</p></div>
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="Soundboard.Sounds.Uploads.html" translate="no">Soundboard.Sounds.Uploads</a>
+    <a href="Soundboard.Sounds.Uploads.html" translate="no">Soundboard.<wbr />Sounds.<wbr />Uploads</a>
 
   </div>
 
@@ -253,7 +276,7 @@ and business logic.</p></div>
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="Soundboard.Stats.html" translate="no">Soundboard.Stats</a>
+    <a href="Soundboard.Stats.html" translate="no">Soundboard.<wbr />Stats</a>
 
   </div>
 
@@ -262,7 +285,7 @@ and business logic.</p></div>
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="Soundboard.Stats.Play.html" translate="no">Soundboard.Stats.Play</a>
+    <a href="Soundboard.Stats.Play.html" translate="no">Soundboard.<wbr />Stats.<wbr />Play</a>
 
   </div>
 
@@ -271,7 +294,7 @@ and business logic.</p></div>
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="Soundboard.Tag.html" translate="no">Soundboard.Tag</a>
+    <a href="Soundboard.Tag.html" translate="no">Soundboard.<wbr />Tag</a>
 
   </div>
 
@@ -280,7 +303,7 @@ and business logic.</p></div>
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="Soundboard.UploadsPath.html" translate="no">Soundboard.UploadsPath</a>
+    <a href="Soundboard.UploadsPath.html" translate="no">Soundboard.<wbr />UploadsPath</a>
 
   </div>
 
@@ -289,7 +312,7 @@ and business logic.</p></div>
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="Soundboard.UserSoundSetting.html" translate="no">Soundboard.UserSoundSetting</a>
+    <a href="Soundboard.UserSoundSetting.html" translate="no">Soundboard.<wbr />UserSoundSetting</a>
 
   </div>
 
@@ -298,7 +321,7 @@ and business logic.</p></div>
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="Soundboard.Volume.html" translate="no">Soundboard.Volume</a>
+    <a href="Soundboard.Volume.html" translate="no">Soundboard.<wbr />Volume</a>
 
   </div>
 
@@ -317,21 +340,21 @@ as controllers, components, channels, and so on.</p></div>
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="SoundboardWeb.API.SoundController.html" translate="no">SoundboardWeb.API.SoundController</a>
+    <a href="SoundboardWeb.API.SoundController.html" translate="no">SoundboardWeb.<wbr />API.<wbr />SoundController</a>
 
   </div>
 
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="SoundboardWeb.AuthController.html" translate="no">SoundboardWeb.AuthController</a>
+    <a href="SoundboardWeb.AuthController.html" translate="no">SoundboardWeb.<wbr />AuthController</a>
 
   </div>
 
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="SoundboardWeb.Components.FlashComponent.html" translate="no">SoundboardWeb.Components.FlashComponent</a>
+    <a href="SoundboardWeb.Components.FlashComponent.html" translate="no">SoundboardWeb.<wbr />Components.<wbr />FlashComponent</a>
 
   </div>
 
@@ -340,7 +363,7 @@ as controllers, components, channels, and so on.</p></div>
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="SoundboardWeb.Components.Layouts.Navbar.html" translate="no">SoundboardWeb.Components.Layouts.Navbar</a>
+    <a href="SoundboardWeb.Components.Layouts.Navbar.html" translate="no">SoundboardWeb.<wbr />Components.<wbr />Layouts.<wbr />Navbar</a>
 
   </div>
 
@@ -349,7 +372,7 @@ as controllers, components, channels, and so on.</p></div>
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="SoundboardWeb.Components.Soundboard.DeleteModal.html" translate="no">SoundboardWeb.Components.Soundboard.DeleteModal</a>
+    <a href="SoundboardWeb.Components.Soundboard.DeleteModal.html" translate="no">SoundboardWeb.<wbr />Components.<wbr />Soundboard.<wbr />DeleteModal</a>
 
   </div>
 
@@ -358,7 +381,7 @@ as controllers, components, channels, and so on.</p></div>
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="SoundboardWeb.Components.Soundboard.EditModal.html" translate="no">SoundboardWeb.Components.Soundboard.EditModal</a>
+    <a href="SoundboardWeb.Components.Soundboard.EditModal.html" translate="no">SoundboardWeb.<wbr />Components.<wbr />Soundboard.<wbr />EditModal</a>
 
   </div>
 
@@ -367,7 +390,7 @@ as controllers, components, channels, and so on.</p></div>
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="SoundboardWeb.Components.Soundboard.Helpers.html" translate="no">SoundboardWeb.Components.Soundboard.Helpers</a>
+    <a href="SoundboardWeb.Components.Soundboard.Helpers.html" translate="no">SoundboardWeb.<wbr />Components.<wbr />Soundboard.<wbr />Helpers</a>
 
   </div>
 
@@ -376,7 +399,7 @@ as controllers, components, channels, and so on.</p></div>
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="SoundboardWeb.Components.Soundboard.TagComponents.html" translate="no">SoundboardWeb.Components.Soundboard.TagComponents</a>
+    <a href="SoundboardWeb.Components.Soundboard.TagComponents.html" translate="no">SoundboardWeb.<wbr />Components.<wbr />Soundboard.<wbr />TagComponents</a>
 
   </div>
 
@@ -385,7 +408,7 @@ as controllers, components, channels, and so on.</p></div>
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="SoundboardWeb.Components.Soundboard.UploadModal.html" translate="no">SoundboardWeb.Components.Soundboard.UploadModal</a>
+    <a href="SoundboardWeb.Components.Soundboard.UploadModal.html" translate="no">SoundboardWeb.<wbr />Components.<wbr />Soundboard.<wbr />UploadModal</a>
 
   </div>
 
@@ -394,7 +417,7 @@ as controllers, components, channels, and so on.</p></div>
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="SoundboardWeb.Components.Soundboard.VolumeControl.html" translate="no">SoundboardWeb.Components.Soundboard.VolumeControl</a>
+    <a href="SoundboardWeb.Components.Soundboard.VolumeControl.html" translate="no">SoundboardWeb.<wbr />Components.<wbr />Soundboard.<wbr />VolumeControl</a>
 
   </div>
 
@@ -403,7 +426,7 @@ as controllers, components, channels, and so on.</p></div>
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="SoundboardWeb.CoreComponents.html" translate="no">SoundboardWeb.CoreComponents</a>
+    <a href="SoundboardWeb.CoreComponents.html" translate="no">SoundboardWeb.<wbr />CoreComponents</a>
 
   </div>
 
@@ -412,14 +435,14 @@ as controllers, components, channels, and so on.</p></div>
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="SoundboardWeb.Endpoint.html" translate="no">SoundboardWeb.Endpoint</a>
+    <a href="SoundboardWeb.Endpoint.html" translate="no">SoundboardWeb.<wbr />Endpoint</a>
 
   </div>
 
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="SoundboardWeb.ErrorHTML.html" translate="no">SoundboardWeb.ErrorHTML</a>
+    <a href="SoundboardWeb.ErrorHTML.html" translate="no">SoundboardWeb.<wbr />ErrorHTML</a>
 
   </div>
 
@@ -428,7 +451,7 @@ as controllers, components, channels, and so on.</p></div>
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="SoundboardWeb.ErrorJSON.html" translate="no">SoundboardWeb.ErrorJSON</a>
+    <a href="SoundboardWeb.ErrorJSON.html" translate="no">SoundboardWeb.<wbr />ErrorJSON</a>
 
   </div>
 
@@ -437,14 +460,14 @@ as controllers, components, channels, and so on.</p></div>
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="SoundboardWeb.FavoritesLive.html" translate="no">SoundboardWeb.FavoritesLive</a>
+    <a href="SoundboardWeb.FavoritesLive.html" translate="no">SoundboardWeb.<wbr />FavoritesLive</a>
 
   </div>
 
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="SoundboardWeb.Gettext.html" translate="no">SoundboardWeb.Gettext</a>
+    <a href="SoundboardWeb.Gettext.html" translate="no">SoundboardWeb.<wbr />Gettext</a>
 
   </div>
 
@@ -453,7 +476,7 @@ as controllers, components, channels, and so on.</p></div>
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="SoundboardWeb.Live.Support.LiveTags.html" translate="no">SoundboardWeb.Live.Support.LiveTags</a>
+    <a href="SoundboardWeb.Live.Support.LiveTags.html" translate="no">SoundboardWeb.<wbr />Live.<wbr />Support.<wbr />LiveTags</a>
 
   </div>
 
@@ -462,14 +485,14 @@ as controllers, components, channels, and so on.</p></div>
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="SoundboardWeb.Live.Support.PresenceLive.html" translate="no">SoundboardWeb.Live.Support.PresenceLive</a>
+    <a href="SoundboardWeb.Live.Support.PresenceLive.html" translate="no">SoundboardWeb.<wbr />Live.<wbr />Support.<wbr />PresenceLive</a>
 
   </div>
 
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="SoundboardWeb.Plugs.APIAuth.html" translate="no">SoundboardWeb.Plugs.APIAuth</a>
+    <a href="SoundboardWeb.Plugs.APIAuth.html" translate="no">SoundboardWeb.<wbr />Plugs.<wbr />APIAuth</a>
 
   </div>
 
@@ -478,7 +501,7 @@ as controllers, components, channels, and so on.</p></div>
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="SoundboardWeb.Plugs.BasicAuth.html" translate="no">SoundboardWeb.Plugs.BasicAuth</a>
+    <a href="SoundboardWeb.Plugs.BasicAuth.html" translate="no">SoundboardWeb.<wbr />Plugs.<wbr />BasicAuth</a>
 
   </div>
 
@@ -487,7 +510,7 @@ as controllers, components, channels, and so on.</p></div>
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="SoundboardWeb.Presence.html" translate="no">SoundboardWeb.Presence</a>
+    <a href="SoundboardWeb.Presence.html" translate="no">SoundboardWeb.<wbr />Presence</a>
 
   </div>
 
@@ -496,7 +519,7 @@ as controllers, components, channels, and so on.</p></div>
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="SoundboardWeb.PresenceHandler.html" translate="no">SoundboardWeb.PresenceHandler</a>
+    <a href="SoundboardWeb.PresenceHandler.html" translate="no">SoundboardWeb.<wbr />PresenceHandler</a>
 
   </div>
 
@@ -505,21 +528,21 @@ as controllers, components, channels, and so on.</p></div>
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="SoundboardWeb.Router.html" translate="no">SoundboardWeb.Router</a>
+    <a href="SoundboardWeb.Router.html" translate="no">SoundboardWeb.<wbr />Router</a>
 
   </div>
 
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="SoundboardWeb.SettingsLive.html" translate="no">SoundboardWeb.SettingsLive</a>
+    <a href="SoundboardWeb.SettingsLive.html" translate="no">SoundboardWeb.<wbr />SettingsLive</a>
 
   </div>
 
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="SoundboardWeb.SoundHelpers.html" translate="no">SoundboardWeb.SoundHelpers</a>
+    <a href="SoundboardWeb.SoundHelpers.html" translate="no">SoundboardWeb.<wbr />SoundHelpers</a>
 
   </div>
 
@@ -528,7 +551,7 @@ as controllers, components, channels, and so on.</p></div>
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="SoundboardWeb.Soundboard.SoundFilter.html" translate="no">SoundboardWeb.Soundboard.SoundFilter</a>
+    <a href="SoundboardWeb.Soundboard.SoundFilter.html" translate="no">SoundboardWeb.<wbr />Soundboard.<wbr />SoundFilter</a>
 
   </div>
 
@@ -537,28 +560,28 @@ as controllers, components, channels, and so on.</p></div>
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="SoundboardWeb.SoundboardLive.html" translate="no">SoundboardWeb.SoundboardLive</a>
+    <a href="SoundboardWeb.SoundboardLive.html" translate="no">SoundboardWeb.<wbr />SoundboardLive</a>
 
   </div>
 
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="SoundboardWeb.StatsLive.html" translate="no">SoundboardWeb.StatsLive</a>
+    <a href="SoundboardWeb.StatsLive.html" translate="no">SoundboardWeb.<wbr />StatsLive</a>
 
   </div>
 
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="SoundboardWeb.Telemetry.html" translate="no">SoundboardWeb.Telemetry</a>
+    <a href="SoundboardWeb.Telemetry.html" translate="no">SoundboardWeb.<wbr />Telemetry</a>
 
   </div>
 
 </div>
 <div class="summary-row">
   <div class="summary-signature">
-    <a href="SoundboardWeb.UploadController.html" translate="no">SoundboardWeb.UploadController</a>
+    <a href="SoundboardWeb.UploadController.html" translate="no">SoundboardWeb.<wbr />UploadController</a>
 
   </div>
 
@@ -570,27 +593,34 @@ as controllers, components, channels, and so on.</p></div>
 
 </div>
     <footer class="footer">
-      <p>
 
-        <span class="line">
-          <button class="a-main footer-button display-quick-switch" title="Search HexDocs packages">
-            Search HexDocs
-          </button>
+        <p>
 
-            <a href="soundboard.epub" title="ePub version">
-              Download ePub version
-            </a>
+          <span class="line">
+            <button class="a-main footer-button display-quick-switch" title="Go to package docs">
+              Go to package docs
+            </button>
 
-        </span>
-      </p>
+              <a href="llms.txt" target="_blank">
+                View llms.txt
+              </a>
 
-      <p class="built-using">
-        Built using
-        <a href="https://github.com/elixir-lang/ex_doc" title="ExDoc" target="_blank" rel="help noopener" translate="no">ExDoc</a> (v0.38.4) for the
 
-          <a href="https://elixir-lang.org" title="Elixir" target="_blank" translate="no">Elixir programming language</a>
+              <a href="soundboard.epub">
+                Download ePub version
+              </a>
 
-      </p>
+          </span>
+        </p>
+
+        <p class="built-using">
+          Built using
+          <a href="https://github.com/elixir-lang/ex_doc" title="ExDoc" target="_blank" rel="help noopener" translate="no">ExDoc</a> (v0.40.3) for the
+
+            <a href="https://elixir-lang.org" title="Elixir" target="_blank" translate="no">Elixir programming language</a>
+
+        </p>
+
 
     </footer>
   </div>
