@@ -15,7 +15,7 @@ defmodule Soundboard.Sounds.Uploads.Source do
   def prepare(%{source_type: "url"} = params, _mode) do
     with {:ok, url} <- validate_url(params.url),
          filename <- params.name <> url_file_extension(url),
-         :ok <- validate_destination_filename(filename) do
+         :ok <- validate_destination_filename(filename, Map.get(params, :guild_id)) do
       {:ok,
        %{
          filename: filename,
@@ -31,7 +31,7 @@ defmodule Soundboard.Sounds.Uploads.Source do
     with {:ok, upload} <- validate_local_upload(params.upload, :validate),
          {:ok, ext} <- validate_local_extension(upload.filename),
          filename <- params.name <> ext,
-         :ok <- validate_destination_filename(filename) do
+         :ok <- validate_destination_filename(filename, Map.get(params, :guild_id)) do
       {:ok,
        %{
          filename: filename,
@@ -47,7 +47,7 @@ defmodule Soundboard.Sounds.Uploads.Source do
     with {:ok, upload} <- validate_local_upload(params.upload, :create),
          {:ok, ext} <- validate_local_extension(upload.filename),
          filename <- params.name <> ext,
-         :ok <- validate_destination_filename(filename),
+         :ok <- validate_destination_filename(filename, Map.get(params, :guild_id)),
          :ok <- validate_magic_bytes(upload.path),
          storage_key <- Ecto.UUID.generate() <> ext,
          {:ok, copied_file_path} <- copy_local_file(upload.path, storage_key) do
@@ -165,16 +165,19 @@ defmodule Soundboard.Sounds.Uploads.Source do
     end
   end
 
-  defp validate_destination_filename(filename) do
-    if filename_taken?(filename) do
+  defp validate_destination_filename(filename, guild_id) do
+    if filename_taken?(filename, guild_id) do
       {:error, add_error(change(%Sound{}), :filename, "has already been taken")}
     else
       :ok
     end
   end
 
-  defp filename_taken?(filename) do
-    from(s in Sound, where: s.filename == ^filename)
+  defp filename_taken?(filename, guild_id) do
+    from(s in Sound,
+      where:
+        s.filename == ^filename and s.guild_id == ^Soundboard.Tenants.scope_guild_id(guild_id)
+    )
     |> Repo.exists?()
   end
 

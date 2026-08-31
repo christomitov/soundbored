@@ -8,6 +8,8 @@ defmodule Soundboard.Favorites.Favorite do
   alias Soundboard.Accounts.User
   alias Soundboard.Sound
 
+  @type t :: %__MODULE__{}
+
   schema "favorites" do
     belongs_to :user, User
     belongs_to :sound, Sound

@@ -30,9 +30,9 @@ defmodule Soundboard.Sounds.ManagementTest do
     on_exit(fn -> File.rm(storage_path) end)
     assert File.exists?(storage_path)
 
-    with_mock Soundboard.AudioPlayer, invalidate_cache: fn ^filename -> :ok end do
+    with_mock Soundboard.AudioPlayer, invalidate_cache: fn _guild, ^filename -> :ok end do
       assert :ok = Management.delete_sound(sound, user.id)
-      assert_called(Soundboard.AudioPlayer.invalidate_cache(filename))
+      assert_called(Soundboard.AudioPlayer.invalidate_cache(:_, filename))
     end
 
     refute File.exists?(storage_path)
@@ -60,11 +60,11 @@ defmodule Soundboard.Sounds.ManagementTest do
     new_filename = params["filename"] <> ".mp3"
 
     with_mock Soundboard.AudioPlayer,
-      invalidate_cache: fn cache_key when cache_key in [filename, new_filename] -> :ok end do
+      invalidate_cache: fn _guild, cache_key when cache_key in [filename, new_filename] -> :ok end do
       assert {:ok, updated_sound} = Management.update_sound(sound, user.id, params)
 
-      assert_called(Soundboard.AudioPlayer.invalidate_cache(filename))
-      assert_called(Soundboard.AudioPlayer.invalidate_cache(new_filename))
+      assert_called(Soundboard.AudioPlayer.invalidate_cache(:_, filename))
+      assert_called(Soundboard.AudioPlayer.invalidate_cache(:_, new_filename))
 
       # Display name updated; storage_key (and file on disk) unchanged
       assert updated_sound.filename == new_filename

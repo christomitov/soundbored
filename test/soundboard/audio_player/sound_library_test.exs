@@ -114,10 +114,19 @@ defmodule Soundboard.AudioPlayer.SoundLibraryTest do
     assert {:ok, {"https://example.com/invalidate.mp3", 1.0}} =
              SoundLibrary.get_sound_path(sound.filename)
 
-    assert [{_, _}] = :ets.lookup(:sound_meta_cache, sound.filename)
+    assert [{_, _}] =
+             :ets.lookup(
+               :sound_meta_cache,
+               {Soundboard.Tenants.default_guild_id(), sound.filename}
+             )
 
     assert :ok = SoundLibrary.invalidate_cache(sound.filename)
-    assert [] == :ets.lookup(:sound_meta_cache, sound.filename)
+
+    assert [] ==
+             :ets.lookup(
+               :sound_meta_cache,
+               {Soundboard.Tenants.default_guild_id(), sound.filename}
+             )
 
     assert :ok = SoundLibrary.invalidate_cache(nil)
   end

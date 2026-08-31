@@ -1,0 +1,36 @@
+<h1 class="text-2xl font-bold mb-4">Your soundboards</h1>
+
+<p class="mb-6 text-sm opacity-70">
+  Guilds the Soundbored bot is a member of. Switching selects which soundboard
+  you are managing; inviting the bot to a new guild makes it available here.
+</p>
+
+<ul class="space-y-3">
+  <%= for entry <- @bot_guilds do %>
+    <li class="flex items-center justify-between border rounded p-4">
+      <div>
+        <div class="font-semibold">{entry.name || entry.id}</div>
+        <div class="text-sm opacity-60">
+          <%= if entry.guild do %>
+            soundboard: {entry.guild.slug || "(unclaimed)"}
+          <% else %>
+            not provisioned yet
+          <% end %>
+        </div>
+      </div>
+
+      <%= if entry.id == @current_guild_id do %>
+        <span class="text-sm font-medium opacity-60">active</span>
+      <% else %>
+        <.form for={%{}} as={:switch} action={~p"/guilds/switch"} class="inline">
+          <input type="hidden" name="discord_guild_id" value={entry.id} />
+          <button type="submit" class="btn btn-sm">Use this guild</button>
+        </.form>
+      <% end %>
+    </li>
+  <% end %>
+</ul>
+
+<%= if Enum.empty?(@bot_guilds) do %>
+  <p class="opacity-60">The bot is not a member of any guild yet. Invite it to get started.</p>
+<% end %>

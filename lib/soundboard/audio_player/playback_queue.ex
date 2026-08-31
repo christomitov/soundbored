@@ -18,7 +18,7 @@ defmodule Soundboard.AudioPlayer.PlaybackQueue do
   @spec build_request({String.t(), String.t()}, String.t(), term()) ::
           {:ok, play_request()} | {:error, String.t()}
   def build_request({guild_id, channel_id}, sound_name, actor) do
-    case SoundLibrary.get_sound_path(sound_name) do
+    case SoundLibrary.get_sound_path(guild_id, sound_name) do
       {:ok, {path_or_url, volume}} ->
         {:ok,
          %{

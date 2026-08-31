@@ -144,7 +144,7 @@ defmodule Soundboard.SoundTest do
       )
 
       results = Sound.by_tag("test_tag") |> Repo.all()
-      assert length(results) == 1
+      assert Enum.count(results) == 1
       assert hd(results).id == sound.id
     end
 
@@ -330,7 +330,7 @@ defmodule Soundboard.SoundTest do
 
       results = Sounds.get_recent_uploads()
 
-      assert length(results) >= 10
+      assert Enum.count(results) >= 10
 
       {filename, username, timestamp} = hd(results)
       assert is_binary(filename)
@@ -346,7 +346,7 @@ defmodule Soundboard.SoundTest do
       for _ <- 1..5, do: insert_sound(user)
 
       results = Sounds.get_recent_uploads(limit: 3)
-      assert length(results) == 3
+      assert Enum.count(results) == 3
     end
 
     test "returns empty list when no sounds exist" do
@@ -371,7 +371,7 @@ defmodule Soundboard.SoundTest do
       {:ok, updated_sound} = Sounds.update_sound(sound, attrs)
 
       assert updated_sound.description == "Updated description"
-      assert length(updated_sound.tags) == 1
+      assert Enum.count(updated_sound.tags) == 1
       assert hd(updated_sound.tags).id == tag.id
     end
 
@@ -501,7 +501,7 @@ defmodule Soundboard.SoundTest do
       {:ok, sound} = Repo.insert(changeset)
       sound = Repo.preload(sound, :tags)
 
-      assert length(sound.tags) == 1
+      assert Enum.count(sound.tags) == 1
       assert hd(sound.tags).id == tag.id
     end
 

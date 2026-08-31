@@ -21,6 +21,7 @@ defmodule SoundboardWeb.Router do
   pipeline :auth do
     plug :fetch_session
     plug :fetch_current_user
+    plug SoundboardWeb.Plugs.Tenant
   end
 
   pipeline :auth_browser do
@@ -33,7 +34,9 @@ defmodule SoundboardWeb.Router do
 
   pipeline :api do
     plug :accepts, ["json"]
+    plug :fetch_session
     plug SoundboardWeb.Plugs.APIAuth
+    plug SoundboardWeb.Plugs.Tenant
   end
 
   # Discord OAuth routes - must come before protected routes
@@ -59,6 +62,9 @@ defmodule SoundboardWeb.Router do
     live "/stats", StatsLive
     live "/favorites", FavoritesLive
     live "/settings", SettingsLive
+
+    get "/guilds", GuildController, :index
+    post "/guilds/switch", GuildController, :switch
   end
 
   scope "/uploads" do

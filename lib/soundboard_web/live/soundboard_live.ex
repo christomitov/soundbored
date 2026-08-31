@@ -16,15 +16,19 @@ defmodule SoundboardWeb.SoundboardLive do
 
   @impl true
   def mount(_params, session, socket) do
+    guild_id = session["guild_id"] || Soundboard.Tenants.default_guild_id()
+
     socket =
       if connected?(socket) do
         PubSubTopics.subscribe_files()
-        PubSubTopics.subscribe_playback()
+        PubSubTopics.subscribe_playback(guild_id)
         send(self(), :load_sound_files)
         socket
       else
         socket
       end
+
+    socket = assign(socket, :guild_id, guild_id)
 
     socket =
       socket
@@ -302,7 +306,7 @@ defmodule SoundboardWeb.SoundboardLive do
 
     # Stop Discord bot sounds if user is logged in
     if socket.assigns.current_user do
-      Soundboard.AudioPlayer.stop_sound()
+      Soundboard.AudioPlayer.stop_sound(socket.assigns.guild_id)
     end
 
     {:noreply, socket}
@@ -344,7 +348,7 @@ defmodule SoundboardWeb.SoundboardLive do
   end
 
   defp load_sound_files(socket) do
-    assign(socket, :uploaded_files, Sounds.list_detailed())
+    assign(socket, :uploaded_files, Sounds.list_detailed(socket.assigns.guild_id))
   end
 
   defp get_random_sound([]), do: nil

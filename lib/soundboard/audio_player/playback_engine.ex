@@ -32,10 +32,10 @@ defmodule Soundboard.AudioPlayer.PlaybackEngine do
   defp submit_play_request(guild_id, sound_name, path_or_url, volume, actor) do
     if is_nil(ffmpeg_executable()) do
       Logger.error("ffmpeg not found in PATH. Cannot play #{sound_name}")
-      broadcast_error("ffmpeg is not installed on this host")
+      broadcast_error(guild_id, "ffmpeg is not installed on this host")
       :error
     else
-      {play_input, play_type} = SoundLibrary.prepare_play_input(sound_name, path_or_url)
+      {play_input, play_type} = SoundLibrary.prepare_play_input(guild_id, sound_name, path_or_url)
 
       play_request = %{
         guild_id: guild_id,
@@ -55,8 +55,8 @@ defmodule Soundboard.AudioPlayer.PlaybackEngine do
     case voice_play(play_request) |> classify_play_attempt() do
       :ok ->
         maybe_probe_first_rtp(play_request.guild_id, play_request.sound_name, attempt + 1)
-        track_play_if_needed(play_request.sound_name, play_request.actor)
-        broadcast_success(play_request.sound_name, play_request.actor)
+        track_play_if_needed(play_request.guild_id, play_request.sound_name, play_request.actor)
+        broadcast_success(play_request.guild_id, play_request.sound_name, play_request.actor)
         :ok
 
       {:retry, retry} ->
@@ -64,14 +64,18 @@ defmodule Soundboard.AudioPlayer.PlaybackEngine do
 
       {:error, reason} ->
         Logger.error("Voice.play failed: #{inspect(reason)} (attempt #{attempt + 1})")
-        broadcast_error("Failed to play sound: #{reason}")
+        broadcast_error(play_request.guild_id, "Failed to play sound: #{reason}")
         :error
     end
   end
 
-  defp play_with_retries(%{sound_name: sound_name}, attempt, _refresh_attempted) do
+  defp play_with_retries(
+         %{guild_id: guild_id, sound_name: sound_name},
+         attempt,
+         _refresh_attempted
+       ) do
     Logger.error("Exceeded max retries (#{attempt}) for playing #{sound_name}")
-    broadcast_error("Failed to play sound after multiple attempts")
+    broadcast_error(guild_id, "Failed to play sound after multiple attempts")
     :error
   end
 
@@ -148,7 +152,7 @@ defmodule Soundboard.AudioPlayer.PlaybackEngine do
   end
 
   defp maybe_rejoin_current_channel(guild_id, force_refresh) do
-    case AudioPlayer.current_voice_channel() do
+    case AudioPlayer.current_voice_channel(guild_id) do
       {:ok, {^guild_id, channel_id}} ->
         maybe_rejoin_for_channel(guild_id, channel_id, force_refresh)
 
@@ -356,19 +360,19 @@ defmodule Soundboard.AudioPlayer.PlaybackEngine do
     error -> {:error, {:voice_playback_unavailable, Exception.message(error)}}
   end
 
-  defp track_play_if_needed(sound_name, actor) do
+  defp track_play_if_needed(guild_id, sound_name, actor) do
     cond do
       system_user?(actor) ->
         :ok
 
       is_integer(actor_user_id(actor)) ->
-        Soundboard.Stats.track_play(sound_name, actor_user_id(actor))
+        Soundboard.Stats.track_play(sound_name, actor_user_id(actor), guild_id)
 
       is_binary(actor_display_name(actor)) ->
         username = actor_display_name(actor)
 
         case Soundboard.Repo.get_by(User, username: username) do
-          %{id: user_id} -> Soundboard.Stats.track_play(sound_name, user_id)
+          %{id: user_id} -> Soundboard.Stats.track_play(sound_name, user_id, guild_id)
           nil -> Logger.warning("Could not find user_id for #{username}")
         end
 
@@ -377,12 +381,12 @@ defmodule Soundboard.AudioPlayer.PlaybackEngine do
     end
   end
 
-  defp broadcast_success(sound_name, actor) do
-    Notifier.sound_played(sound_name, actor_display_name(actor) || "Unknown")
+  defp broadcast_success(guild_id, sound_name, actor) do
+    Notifier.sound_played(sound_name, actor_display_name(actor) || "Unknown", guild_id)
   end
 
-  defp broadcast_error(message) do
-    Notifier.error(message)
+  defp broadcast_error(guild_id, message) do
+    Notifier.error(message, guild_id)
   end
 
   defp unwrap_sequence({:ok, sequence}), do: sequence

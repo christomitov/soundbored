@@ -14,7 +14,8 @@ defmodule Soundboard.Application do
     children = [
       Soundboard.Repo,
       {Task.Supervisor, name: Soundboard.AudioTaskSupervisor},
-      {Soundboard.AudioPlayer, []},
+      {Registry, keys: :unique, name: Soundboard.AudioPlayer.Registry},
+      {DynamicSupervisor, name: Soundboard.AudioPlayer.Supervisor, strategy: :one_for_one},
       SoundboardWeb.Telemetry,
       {Phoenix.PubSub, name: Soundboard.PubSub},
       SoundboardWeb.Presence,

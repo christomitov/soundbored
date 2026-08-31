@@ -12,11 +12,15 @@ defmodule SoundboardWeb.StatsLive do
 
   @impl true
   def mount(_params, session, socket) do
+    guild_id = session["guild_id"] || Soundboard.Tenants.default_guild_id()
+
     if connected?(socket) do
       :timer.send_interval(60 * 60 * 1000, self(), :check_week_rollover)
-      PubSubTopics.subscribe_playback()
+      PubSubTopics.subscribe_playback(guild_id)
       PubSubTopics.subscribe_stats()
     end
+
+    socket = assign(socket, :guild_id, guild_id)
 
     current_week = get_week_range()
 
@@ -69,9 +73,19 @@ defmodule SoundboardWeb.StatsLive do
 
     recent_plays = recent_plays()
 
-    recent_uploads = Sounds.get_recent_uploads(limit: @recent_limit)
+    recent_uploads =
+      Sounds.get_recent_uploads(limit: @recent_limit, guild_id: socket.assigns[:guild_id])
+
     favorites = get_favorites(socket.assigns.current_user)
-    sound_ids_by_filename = load_sound_ids_by_filename(top_sounds, recent_plays, recent_uploads)
+
+    sound_ids_by_filename =
+      load_sound_ids_by_filename(
+        top_sounds,
+        recent_plays,
+        recent_uploads,
+        socket.assigns[:guild_id]
+      )
+
     avatars_by_username = load_avatars_by_username(top_users, recent_plays, recent_uploads)
 
     socket
@@ -387,7 +401,7 @@ defmodule SoundboardWeb.StatsLive do
     }
   end
 
-  defp load_sound_ids_by_filename(top_sounds, recent_plays, recent_uploads) do
+  defp load_sound_ids_by_filename(top_sounds, recent_plays, recent_uploads, guild_id) do
     filenames =
       top_sounds
       |> Enum.map(fn {filename, _count} -> filename end)
@@ -400,7 +414,7 @@ defmodule SoundboardWeb.StatsLive do
         %{}
 
       _ ->
-        Sounds.ids_by_filename(filenames)
+        Sounds.ids_by_filename(filenames, guild_id)
     end
   end
 

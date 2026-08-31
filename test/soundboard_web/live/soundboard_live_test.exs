@@ -55,7 +55,7 @@ defmodule SoundboardWeb.SoundboardLiveTest do
     test "can play sound", %{conn: conn, sound: sound} do
       {:ok, view, _html} = live(conn, "/")
 
-      with_mock Soundboard.AudioPlayer, play_sound: fn _, _ -> :ok end do
+      with_mock Soundboard.AudioPlayer, play_sound: fn _, _, _ -> :ok end do
         rendered =
           view
           |> element("[phx-click='play'][phx-value-name='#{sound.filename}']")
@@ -80,12 +80,12 @@ defmodule SoundboardWeb.SoundboardLiveTest do
       |> element("form")
       |> render_change(%{"query" => "filtered"})
 
-      with_mock Soundboard.AudioPlayer, play_sound: fn _, _ -> :ok end do
+      with_mock Soundboard.AudioPlayer, play_sound: fn _, _, _ -> :ok end do
         view
         |> element("[phx-click='play_random']")
         |> render_click()
 
-        assert_called(Soundboard.AudioPlayer.play_sound("filtered.mp3", :_))
+        assert_called(Soundboard.AudioPlayer.play_sound("filtered.mp3", :_, :_))
       end
     end
 
@@ -110,12 +110,12 @@ defmodule SoundboardWeb.SoundboardLiveTest do
       |> element("div.hidden.sm\\:flex button[phx-value-tag='funny']")
       |> render_click()
 
-      with_mock Soundboard.AudioPlayer, play_sound: fn _, _ -> :ok end do
+      with_mock Soundboard.AudioPlayer, play_sound: fn _, _, _ -> :ok end do
         view
         |> element("[phx-click='play_random']")
         |> render_click()
 
-        assert_called(Soundboard.AudioPlayer.play_sound("funny.mp3", :_))
+        assert_called(Soundboard.AudioPlayer.play_sound("funny.mp3", :_, :_))
       end
     end
 

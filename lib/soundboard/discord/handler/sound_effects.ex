@@ -25,11 +25,11 @@ defmodule Soundboard.Discord.Handler.SoundEffects do
     end
   end
 
-  def handle_leave(user_id) do
-    case Sounds.get_user_leave_sound_by_discord_id(user_id) do
+  def handle_leave(user_id, guild_id \\ nil) do
+    case Sounds.get_user_leave_sound_by_discord_id(user_id, guild_id) do
       leave_sound when is_binary(leave_sound) ->
         Logger.info("Playing leave sound: #{leave_sound}")
-        AudioPlayer.play_sound(leave_sound, "System")
+        AudioPlayer.play_sound(leave_sound, "System", guild_id)
 
       _ ->
         :noop
@@ -37,7 +37,7 @@ defmodule Soundboard.Discord.Handler.SoundEffects do
   end
 
   defp play_join_sound(user_id, guild_id, channel_id) do
-    join_sound = Sounds.get_user_join_sound_by_discord_id(user_id)
+    join_sound = Sounds.get_user_join_sound_by_discord_id(user_id, guild_id)
 
     Logger.info("Join sound query result for user #{user_id}: #{inspect(join_sound)}")
 
@@ -45,7 +45,7 @@ defmodule Soundboard.Discord.Handler.SoundEffects do
       join_sound when is_binary(join_sound) ->
         Logger.info("Playing join sound immediately: #{join_sound}")
         maybe_join_for_sound(guild_id, channel_id)
-        AudioPlayer.play_sound(join_sound, "System")
+        AudioPlayer.play_sound(join_sound, "System", guild_id)
 
       _ ->
         Logger.info("No join sound found for user #{user_id}")
@@ -54,7 +54,7 @@ defmodule Soundboard.Discord.Handler.SoundEffects do
   end
 
   defp maybe_join_for_sound(guild_id, channel_id) do
-    if AutoJoinPolicy.mode() == :play && VoiceRuntime.get_current_voice_channel() == nil do
+    if AutoJoinPolicy.mode() == :play && VoiceRuntime.get_current_voice_channel(guild_id) == nil do
       Logger.info("Auto-joining #{guild_id}/#{channel_id} to play join sound")
       VoiceRuntime.join_voice_channel(guild_id, channel_id)
     end

@@ -64,11 +64,6 @@ config :mime, :types, %{
   "audio/x-m4a" => ["m4a"]
 }
 
-# Import environment specific config. This must remain at the bottom
-# of this file so it overrides the configuration defined above.
-import_config "#{config_env()}.exs"
-
-# Add this near the top of the file
 config :soundboard,
   ecto_repos: [Soundboard.Repo]
 
@@ -78,6 +73,10 @@ config :soundboard, Soundboard.Repo,
 
 config :phoenix_live_view,
   flash_timeout: 3000
+
+# Import environment specific config. This must remain at the bottom
+# of this file so it overrides the configuration defined above.
+import_config "#{config_env()}.exs"
 
 config :soundboard, SoundboardWeb.Presence, pubsub_server: Soundboard.PubSub
 

@@ -76,7 +76,7 @@ defmodule Soundboard.Discord.Handler do
     if VoiceRuntime.bot_user?(payload.user_id) do
       Logger.debug("Skipping leave sound lookup for bot user #{payload.user_id}")
     else
-      SoundEffects.handle_leave(payload.user_id)
+      SoundEffects.handle_leave(payload.user_id, payload.guild_id)
     end
 
     VoiceRuntime.handle_disconnect(payload)

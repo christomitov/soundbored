@@ -8,11 +8,28 @@ defmodule Soundboard.PubSubTopics do
   @stats_topic "soundboard.stats"
 
   def files_topic, do: @files_topic
-  def playback_topic, do: @playback_topic
   def stats_topic, do: @stats_topic
 
+  @doc """
+  Playback topic for a guild. The default guild keeps the base topic name so
+  existing single-guild subscribers are unaffected; other guilds get
+  `"soundboard.playback:{guild_id}"`.
+  """
+  def playback_topic(guild_id \\ nil) do
+    guild_id = Soundboard.Tenants.scope_guild_id(guild_id)
+
+    if guild_id == Soundboard.Tenants.default_guild_id() do
+      @playback_topic
+    else
+      "#{@playback_topic}:#{guild_id}"
+    end
+  end
+
   def subscribe_files, do: PubSub.subscribe(Soundboard.PubSub, @files_topic)
-  def subscribe_playback, do: PubSub.subscribe(Soundboard.PubSub, @playback_topic)
+
+  def subscribe_playback(guild_id \\ nil),
+    do: PubSub.subscribe(Soundboard.PubSub, playback_topic(guild_id))
+
   def subscribe_stats, do: PubSub.subscribe(Soundboard.PubSub, @stats_topic)
 
   def broadcast_files_updated do
@@ -23,15 +40,15 @@ defmodule Soundboard.PubSubTopics do
     PubSub.broadcast(Soundboard.PubSub, @stats_topic, {:stats_updated})
   end
 
-  def broadcast_sound_played(sound_name, username) do
+  def broadcast_sound_played(sound_name, username, guild_id \\ nil) do
     PubSub.broadcast(
       Soundboard.PubSub,
-      @playback_topic,
+      playback_topic(guild_id),
       {:sound_played, %{filename: sound_name, played_by: username}}
     )
   end
 
-  def broadcast_error(message) do
-    PubSub.broadcast(Soundboard.PubSub, @playback_topic, {:error, message})
+  def broadcast_error(message, guild_id \\ nil) do
+    PubSub.broadcast(Soundboard.PubSub, playback_topic(guild_id), {:error, message})
   end
 end

@@ -27,34 +27,39 @@ defmodule Soundboard.Discord.Handler.VoiceCommands do
         Logger.info("Bot leaving voice channel in guild #{guild_id}")
         run("leave voice channel", fn -> Voice.leave_channel(guild_id) end)
       end,
-      fn -> AudioPlayer.set_voice_channel(nil, nil) end,
+      fn -> AudioPlayer.set_voice_channel(guild_id, nil) end,
       fn error_msg -> Logger.error("Error leaving voice channel: #{error_msg}") end
     )
   end
 
   def connected_to_discord? do
     ready = :persistent_term.get(:soundboard_bot_ready, false)
+    connection_state(ready)
+  end
 
-    if ready do
-      try do
-        case BotIdentity.fetch() do
-          {:ok, _} ->
-            Logger.debug("Discord connection check: Connected and ready")
-            true
+  defp connected_user?(id) do
+    (is_binary(id) and id != "") or (is_integer(id) and id > 0)
+  end
 
-          error ->
-            Logger.debug("Discord connection check failed: #{inspect(error)}")
-            false
-        end
-      rescue
-        error ->
-          Logger.debug("Discord connection check error: #{inspect(error)}")
-          false
-      end
-    else
-      Logger.debug("Discord connection check: Bot not ready (READY event not received)")
-      false
+  defp connection_state(false) do
+    Logger.debug("Discord connection check: Bot not ready (READY event not received)")
+    false
+  end
+
+  defp connection_state(_ready) do
+    case BotIdentity.fetch() do
+      {:ok, %{id: id}} ->
+        Logger.debug("Discord connection check: Connected and ready")
+        connected_user?(id)
+
+      error ->
+        Logger.debug("Discord connection check failed: #{inspect(error)}")
+        false
     end
+  rescue
+    error ->
+      Logger.debug("Discord connection check error: #{inspect(error)}")
+      false
   end
 
   defp execute(true, _skip_message, command_fun, success_fun, error_fun) do

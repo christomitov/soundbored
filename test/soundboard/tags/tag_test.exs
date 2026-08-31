@@ -63,13 +63,13 @@ defmodule Soundboard.Tags.TagTest do
 
     test "finds tags by partial name match" do
       results = Tag.search("test") |> Repo.all()
-      assert length(results) == 2
+      assert Enum.count(results) == 2
       assert Enum.map(results, & &1.name) |> Enum.sort() == ["test", "testing"]
     end
 
     test "search is case insensitive" do
       results = Tag.search("TEST") |> Repo.all()
-      assert length(results) == 2
+      assert Enum.count(results) == 2
       assert Enum.map(results, & &1.name) |> Enum.sort() == ["test", "testing"]
     end
   end

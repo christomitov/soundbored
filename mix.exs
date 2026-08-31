@@ -17,6 +17,11 @@ defmodule Soundboard.MixProject do
       listeners: [Phoenix.CodeReloader],
       aliases: aliases(),
       deps: deps(),
+      dialyzer: [
+        plt_file: {:no_warn, "_build/dev/dialyxir_plt.plt"},
+        plt_add_apps: [:ex_unit],
+        ignore_warnings: "dialyzer.ignore-warnings.exs"
+      ],
       test_coverage: [
         tool: ExCoveralls,
         ignore_modules: [
@@ -69,6 +74,7 @@ defmodule Soundboard.MixProject do
   # Type `mix help deps` for examples and options.
   defp deps do
     [
+      {:vibe_kit, "== 0.1.7"},
       {:phoenix, "~> 1.8.0"},
       {:phoenix_ecto, "~> 4.6.5"},
       {:ecto_sql, "~> 3.10"},
@@ -98,7 +104,9 @@ defmodule Soundboard.MixProject do
       {:ex_doc, "~> 0.34", only: :dev, runtime: false},
       {:magic_bytes, "~> 0.2"},
       {:ex_dna, "~> 1.1", only: [:dev, :test], runtime: false},
-      {:ex_slop, "~> 0.2", only: [:dev, :test], runtime: false}
+      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
+      {:reach, "~> 2.8", only: [:dev, :test], runtime: false},
+      {:ex_slop, "~> 0.4", only: [:dev, :test], runtime: false}
     ]
   end
 
@@ -122,6 +130,15 @@ defmodule Soundboard.MixProject do
         "cmd env MIX_ENV=test mix do compile --warnings-as-errors + test --warnings-as-errors",
         "ex_dna"
       ],
+      ci: [
+        "compile --warnings-as-errors",
+        "format --check-formatted",
+        "test",
+        "credo --strict",
+        "dialyzer",
+        "ex_dna --max-clones 0",
+        "reach.check --arch --smells"
+      ],
       "assets.setup": ["tailwind.install --if-missing", "esbuild.install --if-missing"],
       "assets.build": ["tailwind soundboard", "esbuild soundboard"],
       "assets.deploy": [
@@ -135,6 +152,7 @@ defmodule Soundboard.MixProject do
   def cli do
     [
       preferred_envs: [
+        ci: :test,
         coveralls: :test,
         "coveralls.detail": :test,
         "coveralls.post": :test,

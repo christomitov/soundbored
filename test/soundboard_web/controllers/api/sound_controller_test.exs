@@ -269,7 +269,7 @@ defmodule SoundboardWeb.API.SoundControllerTest do
 
   describe "play" do
     test "plays a sound as the authenticated token user", %{conn: conn, sound: sound, user: user} do
-      with_mock Soundboard.AudioPlayer, play_sound: fn _filename, _actor -> :ok end do
+      with_mock Soundboard.AudioPlayer, play_sound: fn _filename, _actor, _guild -> :ok end do
         conn = post(conn, ~p"/api/sounds/#{sound.id}/play")
 
         assert %{
@@ -284,7 +284,7 @@ defmodule SoundboardWeb.API.SoundControllerTest do
         assert requested_by == user.username
         assert sound_id == sound.id
         assert filename == sound.filename
-        assert_called(Soundboard.AudioPlayer.play_sound(sound.filename, user))
+        assert_called(Soundboard.AudioPlayer.play_sound(sound.filename, user, :_))
       end
     end
 
@@ -293,7 +293,7 @@ defmodule SoundboardWeb.API.SoundControllerTest do
       sound: sound,
       user: user
     } do
-      with_mock Soundboard.AudioPlayer, play_sound: fn _filename, _actor -> :ok end do
+      with_mock Soundboard.AudioPlayer, play_sound: fn _filename, _actor, _guild -> :ok end do
         conn =
           conn
           |> put_req_header("x-username", "TestUser")
@@ -309,12 +309,12 @@ defmodule SoundboardWeb.API.SoundControllerTest do
         assert requested_by == user.username
         assert sound_id == sound.id
         assert filename == sound.filename
-        assert_called(Soundboard.AudioPlayer.play_sound(sound.filename, user))
+        assert_called(Soundboard.AudioPlayer.play_sound(sound.filename, user, :_))
       end
     end
 
     test "returns error when sound not found", %{conn: conn} do
-      with_mock Soundboard.AudioPlayer, play_sound: fn _filename, _username -> :ok end do
+      with_mock Soundboard.AudioPlayer, play_sound: fn _filename, _username, _guild -> :ok end do
         conn = post(conn, ~p"/api/sounds/999999/play")
         assert %{"error" => "Sound not found"} = json_response(conn, 404)
       end
