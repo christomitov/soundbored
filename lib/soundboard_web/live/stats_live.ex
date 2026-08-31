@@ -121,13 +121,15 @@ defmodule SoundboardWeb.StatsLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div id="stats" class="max-w-6xl mx-auto px-4 py-8">
+    <div id="stats" class="mx-auto max-w-6xl px-4 py-8 text-ink">
       <div class="flex justify-between items-center mb-8">
-        <h1 class="text-3xl font-bold text-gray-800 dark:text-gray-100">Stats</h1>
+        <h1 class="font-display text-3xl font-bold text-ink desk:uppercase desk:tracking-[0.14em] retro:italic">
+          Stats
+        </h1>
         <div class="flex items-center gap-4">
           <button
             phx-click="previous_week"
-            class="text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
+            class="text-muted hover:text-ink"
           >
             <.icon name="hero-chevron-left-solid" class="h-5 w-5" />
           </button>
@@ -135,7 +137,7 @@ defmodule SoundboardWeb.StatsLive do
             <form
               phx-change="select_week"
               phx-submit="select_week"
-              class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400"
+              class="flex items-center gap-2 text-sm text-muted"
             >
               <label for="week-picker" class="whitespace-nowrap">
                 Week of
@@ -147,10 +149,10 @@ defmodule SoundboardWeb.StatsLive do
                 value={date_input_value(@selected_week)}
                 max={date_input_value(@current_week)}
                 phx-debounce="blur"
-                class="border border-gray-300 dark:border-gray-600 rounded-md px-2 py-1 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                class="rounded-theme border border-line bg-surface-muted px-2 py-1 text-ink focus:outline-none focus:ring-2 focus:ring-accent"
               />
             </form>
-            <span class="text-xs text-gray-500 dark:text-gray-400">
+            <span class="text-xs text-muted">
               {format_date_range(@selected_week)}
             </span>
           </div>
@@ -158,7 +160,7 @@ defmodule SoundboardWeb.StatsLive do
             phx-click="next_week"
             disabled={@selected_week == @current_week}
             class={[
-              "text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200",
+              "text-muted hover:text-ink",
               @selected_week == @current_week && "opacity-50 cursor-not-allowed"
             ]}
           >
@@ -168,8 +170,8 @@ defmodule SoundboardWeb.StatsLive do
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-          <h2 class="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-4">Top Users</h2>
+        <div class="bg-surface rounded-theme border border-line shadow-theme p-6">
+          <h2 class="text-xl font-semibold text-ink mb-4">Top Users</h2>
           <div class="space-y-2">
             <%= for {username, count} <- @top_users do %>
               <div class="flex justify-between items-center" id={"user-stat-#{username}"}>
@@ -185,28 +187,28 @@ defmodule SoundboardWeb.StatsLive do
                   />
                   {username}
                 </span>
-                <span class="text-gray-600 dark:text-gray-400">{count} plays</span>
+                <span class="text-muted">{count} plays</span>
               </div>
             <% end %>
           </div>
         </div>
 
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
-          <h2 class="text-xl font-semibold text-gray-800 dark:text-gray-200 mb-4">Top Sounds</h2>
+        <div class="bg-surface rounded-theme border border-line shadow-theme p-6">
+          <h2 class="text-xl font-semibold text-ink mb-4">Top Sounds</h2>
           <div class="space-y-3">
             <%= for {sound_name, count} <- @top_sounds do %>
               <div
-                class="flex items-center justify-between p-2 px-6 rounded-lg bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer group"
+                class="flex items-center justify-between p-2 px-6 rounded-lg bg-surface-muted hover:bg-surface-raised cursor-pointer group"
                 id={"play-top-#{sound_name}"}
                 phx-click="play_sound"
                 phx-value-sound={sound_name}
               >
                 <div class="flex items-center gap-3 min-w-0">
                   <div class="min-w-0">
-                    <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                    <p class="text-sm font-medium text-ink truncate">
                       {display_name(sound_name)}
                     </p>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">
+                    <p class="text-xs text-muted">
                       {count} plays
                     </p>
                   </div>
@@ -217,7 +219,7 @@ defmodule SoundboardWeb.StatsLive do
                     phx-value-sound={sound_name}
                     phx-stop
                     id={"favorite-#{sound_name}"}
-                    class="text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-500 mr-2"
+                    class="text-muted hover:text-red-500 mr-2"
                   >
                     <%= if favorite?(@favorites, sound_name, @sound_ids_by_filename) do %>
                       <.icon name="hero-heart-solid" class="h-5 w-5 text-red-500" />
@@ -233,12 +235,12 @@ defmodule SoundboardWeb.StatsLive do
       </div>
 
       <div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-8">
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
-          <h2 class="text-xl font-semibold text-gray-800 dark:text-gray-200 mb-4">Recent Plays</h2>
+        <div class="bg-surface rounded-theme border border-line shadow-theme p-6">
+          <h2 class="text-xl font-semibold text-ink mb-4">Recent Plays</h2>
           <div class="space-y-3" id="recent_plays" phx-update="stream">
             <%= for {dom_id, play} <- @streams.recent_plays do %>
               <div
-                class="flex items-center justify-between p-2 rounded-lg bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer group"
+                class="flex items-center justify-between p-2 rounded-lg bg-surface-muted hover:bg-surface-raised cursor-pointer group"
                 id={dom_id}
                 phx-click="play_sound"
                 phx-value-sound={play.filename}
@@ -252,23 +254,23 @@ defmodule SoundboardWeb.StatsLive do
                     />
                   </div>
                   <div class="min-w-0">
-                    <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                    <p class="text-sm font-medium text-ink truncate">
                       {display_name(play.filename)}
                     </p>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">
+                    <p class="text-xs text-muted">
                       {play.username}
                     </p>
                   </div>
                 </div>
                 <div class="flex items-center gap-2">
-                  <span class="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                  <span class="text-xs text-muted whitespace-nowrap">
                     {format_timestamp(play.timestamp)}
                   </span>
                   <button
                     phx-click="toggle_favorite"
                     phx-value-sound={play.filename}
                     phx-stop
-                    class="text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-500 mr-2"
+                    class="text-muted hover:text-red-500 mr-2"
                   >
                     <%= if favorite?(@favorites, play.filename, @sound_ids_by_filename) do %>
                       <.icon name="hero-heart-solid" class="h-5 w-5 text-red-500" />
@@ -282,14 +284,14 @@ defmodule SoundboardWeb.StatsLive do
           </div>
         </div>
 
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
-          <h2 class="text-xl font-semibold text-gray-800 dark:text-gray-200 mb-4">
+        <div class="bg-surface rounded-theme border border-line shadow-theme p-6">
+          <h2 class="text-xl font-semibold text-ink mb-4">
             Recently Uploaded
           </h2>
           <div class="space-y-3">
             <%= for {sound_name, username, timestamp} <- @recent_uploads do %>
               <div
-                class="flex items-center justify-between p-2 px-6 rounded-lg bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer group"
+                class="flex items-center justify-between p-2 px-6 rounded-lg bg-surface-muted hover:bg-surface-raised cursor-pointer group"
                 id={"play-upload-#{sound_name}"}
                 phx-click="play_sound"
                 phx-value-sound={sound_name}
@@ -303,23 +305,23 @@ defmodule SoundboardWeb.StatsLive do
                     />
                   </div>
                   <div class="min-w-0">
-                    <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                    <p class="text-sm font-medium text-ink truncate">
                       {display_name(sound_name)}
                     </p>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">
+                    <p class="text-xs text-muted">
                       {username}
                     </p>
                   </div>
                 </div>
                 <div class="flex items-center gap-2">
-                  <span class="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                  <span class="text-xs text-muted whitespace-nowrap">
                     {format_timestamp(timestamp)}
                   </span>
                   <button
                     phx-click="toggle_favorite"
                     phx-value-sound={sound_name}
                     phx-stop
-                    class="text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-500 mr-2"
+                    class="text-muted hover:text-red-500 mr-2"
                   >
                     <%= if favorite?(@favorites, sound_name, @sound_ids_by_filename) do %>
                       <.icon name="hero-heart-solid" class="h-5 w-5 text-red-500" />

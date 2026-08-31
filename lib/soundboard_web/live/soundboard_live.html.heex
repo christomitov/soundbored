@@ -1,35 +1,44 @@
-<div class="max-w-6xl mx-auto px-4 py-8">
-  <div class="flex flex-wrap items-start justify-between gap-4 mb-8">
-    <h1 class="text-3xl font-bold text-gray-800 dark:text-gray-100 flex-1 min-w-[200px]">
-      <span class="group relative cursor-default inline-block">
-        Sounds<div class="pointer-events-none fixed inset-0 opacity-0 group-hover:opacity-100 transition-all duration-300 z-[9999]">
+<div class="theme-page mx-auto max-w-6xl px-4 py-8 text-ink">
+  <div class="theme-page-header mb-8 flex flex-wrap items-start justify-between gap-4">
+    <div class="theme-page-heading min-w-[200px] flex-1">
+      <div class="theme-eyebrow hidden">
+        <span class="h-2 w-2 rounded-full bg-pop"></span>{length(@uploaded_files)} sounds loaded
+      </div>
+      <h1 class="theme-page-title font-display text-3xl font-bold text-ink desk:uppercase desk:tracking-[0.14em]">
+        <span class="group relative inline-block cursor-default retro:hidden">
+          Sounds<div class="pointer-events-none fixed inset-0 opacity-0 group-hover:opacity-100 transition-all duration-300 z-[9999]">
           <img
-            src="/images/kubernetes.gif"
-            alt="kubernetes"
-            class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] object-contain"
-          />
+              src="/images/kubernetes.gif"
+              alt="kubernetes"
+              class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] object-contain"
+            />
         </div>
-      </span>
-    </h1>
-    <div class="flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:justify-end gap-2 w-full sm:w-auto">
+        </span>
+        <span class="relative hidden retro:inline-block">
+          <span class="theme-title-ghost" aria-hidden="true">SoundBored</span>
+          <span class="relative z-10">SoundBored</span>
+        </span>
+      </h1>
+    </div>
+    <div class="theme-actions flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
       <button
         phx-click="show_upload_modal"
-        class="w-full sm:w-auto justify-center px-3 py-2 sm:px-4 sm:py-2 bg-blue-600 text-white font-medium rounded-md
-               hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors
+        class="theme-button theme-button-primary w-full sm:w-auto justify-center px-3 py-2 sm:px-4 sm:py-2 bg-accent text-accent-contrast font-medium rounded-md
+               hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 transition-colors
                dark:focus:ring-offset-gray-900 text-sm sm:text-base"
       >
         Add Sound
       </button>
       <button
         phx-click="play_random"
-        class="w-full sm:w-auto justify-center px-3 py-2 sm:px-4 sm:py-2 rounded-md text-sm sm:text-base font-medium transition-colors
-               border border-blue-500/60 text-blue-600 dark:text-blue-300 hover:bg-blue-500/10 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900"
+        class="theme-button w-full sm:w-auto justify-center px-3 py-2 sm:px-4 sm:py-2 rounded-md text-sm sm:text-base font-medium transition-colors
+               border border-accent/60 text-accent hover:bg-accent/10 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2"
       >
         Play Random
       </button>
       <button
         phx-click="stop_sound"
-        class="w-full sm:w-auto justify-center px-3 py-2 sm:px-4 sm:py-2 rounded-md text-sm sm:text-base font-medium transition-colors
+        class="theme-button theme-button-pop w-full sm:w-auto justify-center px-3 py-2 sm:px-4 sm:py-2 rounded-md text-sm sm:text-base font-medium transition-colors
                border border-red-500/70 text-red-600 dark:text-red-300 hover:bg-red-500/10 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900"
       >
         Stop All
@@ -38,7 +47,7 @@
   </div>
 
   <%!-- Search Bar --%>
-  <div class="mb-8">
+  <div class="theme-search-wrap mb-8">
     <form phx-change="search" phx-submit="search" class="relative">
       <input
         type="text"
@@ -47,14 +56,13 @@
         placeholder="Search sounds..."
         autofocus
         phx-debounce="400"
-        class="block w-full rounded-md border-gray-300 dark:border-gray-700 shadow-sm pl-4 pr-10 py-2
-               focus:border-blue-500 focus:ring-blue-500 sm:text-sm
-               dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-400"
+        class="theme-search block w-full rounded-theme border-line bg-surface pl-4 pr-10 py-2 text-ink shadow-sm
+               placeholder:text-muted focus:border-accent focus:ring-accent sm:text-sm"
         autocomplete="off"
       />
       <div class="absolute inset-y-0 right-0 flex items-center pr-3">
         <svg
-          class="search-icon h-5 w-5 text-gray-400 dark:text-gray-500"
+          class="search-icon h-5 w-5 text-muted"
           xmlns="http://www.w3.org/2000/svg"
           viewBox="0 0 20 20"
           fill="currentColor"
@@ -66,7 +74,7 @@
           />
         </svg>
         <svg
-          class="search-spinner hidden animate-spin h-5 w-5 text-gray-400 dark:text-gray-500"
+          class="search-spinner hidden animate-spin h-5 w-5 text-muted"
           xmlns="http://www.w3.org/2000/svg"
           fill="none"
           viewBox="0 0 24 24"
@@ -88,7 +96,7 @@
     else
       Enum.take(tags, 12)
     end %>
-  <div class="mb-4 flex flex-wrap gap-2 items-center sm:hidden">
+  <div class="theme-tagbar mb-4 flex flex-wrap gap-2 items-center sm:hidden">
     <%= for tag <- limited_tags do %>
       <.tag_filter_button
         tag={tag}
@@ -99,14 +107,13 @@
     <%= if length(tags) > 12 do %>
       <button
         phx-click="toggle_tag_list"
-        class="inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium
-               bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
+        class="inline-flex items-center gap-1 rounded-full bg-surface-muted px-3 py-1 text-xs font-medium text-ink hover:bg-surface-raised"
       >
         {if @show_all_tags, do: "Show fewer tags", else: "Show more tags"}
       </button>
     <% end %>
   </div>
-  <div class="mb-4 hidden sm:flex sm:flex-wrap sm:gap-2 sm:items-center">
+  <div class="theme-tagbar mb-4 hidden sm:flex sm:flex-wrap sm:gap-2 sm:items-center">
     <%= for tag <- tags do %>
       <.tag_filter_button
         tag={tag}
@@ -116,13 +123,13 @@
     <% end %>
   </div>
 
-  <div class="flex justify-between items-center mb-2">
-    <div class="text-sm text-gray-600 dark:text-gray-400">
+  <div class="theme-count flex justify-between items-center mb-2">
+    <div class="text-sm text-muted">
       <p style="font-weight: bold">Total Sounds: {length(@uploaded_files)}</p>
     </div>
   </div>
   <%!-- Sound Grid --%>
-  <div class="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+  <div class="theme-sound-list grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 gap-4">
     <%= if @loading_sounds do %>
       <div class="col-span-full">
         <div class="loading-container">
@@ -130,28 +137,34 @@
         </div>
       </div>
     <% else %>
-      <%= for sound <- filter_sounds(@uploaded_files, @search_query, @selected_tags) do %>
-        <div class="relative bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-md transition-all duration-200">
+      <%= for {sound, rank} <-
+            filter_sounds(@uploaded_files, @search_query, @selected_tags)
+            |> Enum.with_index(1) do %>
+        <div class="theme-sound-card relative rounded-theme border border-line bg-surface shadow-theme transition-all duration-200 hover:-translate-y-0.5">
           <%!-- Make the whole card clickable --%>
           <button
             phx-click="play"
             phx-value-name={sound.filename}
-            class="absolute inset-0 w-full h-full cursor-pointer z-0
+            class="theme-sound-play absolute inset-0 w-full h-full cursor-pointer z-0
                    hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg
                    focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2
                    dark:focus:ring-offset-gray-800"
           >
           </button>
 
+          <span class="theme-sound-rank hidden pointer-events-none">
+            {rank |> Integer.to_string() |> String.pad_leading(2, "0")}
+          </span>
+
           <%!-- Content container with higher z-index --%>
-          <div class="relative z-10 p-4 flex flex-col min-h-[120px] pointer-events-none">
+          <div class="theme-sound-content relative z-10 p-4 flex flex-1 flex-col min-h-[120px] pointer-events-none">
             <%!-- Sound title and uploader info --%>
             <div class="flex-1 min-w-0">
-              <div class="text-gray-800 dark:text-gray-200 font-medium break-all">
+              <div class="theme-sound-title text-ink font-medium break-all">
                 {display_name(sound.filename)}
               </div>
               <%= if sound.user && sound.user.username do %>
-                <div class="text-xs text-gray-500 dark:text-gray-400">
+                <div class="theme-sound-meta text-xs text-muted">
                   Uploaded by {sound.user.username}
                 </div>
               <% end %>
@@ -167,7 +180,7 @@
                       phx-click="toggle_tag_filter"
                       phx-value-tag={tag.name}
                       class={[
-                        "inline-flex items-center rounded-full px-2 py-1 text-xs font-medium transition-colors",
+                        "theme-sound-tag inline-flex items-center rounded-full px-2 py-1 text-xs font-medium transition-colors",
                         if(tag_selected?(tag, @selected_tags),
                           do: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
                           else:
@@ -190,7 +203,7 @@
                   data-source-type={sound.source_type}
                   data-url={sound.url}
                   data-volume={sound.volume || 1.0}
-                  class="relative flex items-center justify-center w-8 h-8 text-gray-400 hover:text-green-600 
+                  class="theme-icon-button relative flex items-center justify-center w-8 h-8 text-gray-400 hover:text-green-600
                          dark:text-gray-500 dark:hover:text-green-400 rounded-md transition-colors"
                 >
                   <svg
@@ -223,7 +236,7 @@
                   <button
                     phx-click="toggle_favorite"
                     phx-value-sound-id={sound.id}
-                    class="relative flex items-center justify-center w-8 h-8 text-gray-400 hover:text-red-500 
+                    class="theme-icon-button relative flex items-center justify-center w-8 h-8 text-gray-400 hover:text-red-500
                            dark:text-gray-500 dark:hover:text-red-500 rounded-md transition-colors"
                   >
                     <%= if sound.id in @favorites do %>
@@ -236,7 +249,7 @@
                 <button
                   phx-click="edit"
                   phx-value-id={sound.id}
-                  class="relative flex items-center justify-center w-8 h-8 text-gray-400 hover:text-blue-600 
+                  class="theme-icon-button relative flex items-center justify-center w-8 h-8 text-gray-400 hover:text-blue-600
                          dark:text-gray-500 dark:hover:text-blue-400 rounded-md"
                 >
                   <svg

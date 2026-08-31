@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" class="[scrollbar-gutter:stable]">
+<html lang="en" data-theme="classic" class="[scrollbar-gutter:stable]">
   <head>
     <meta charset="utf-8" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -13,6 +13,13 @@
     <meta name="apple-mobile-web-app-title" content="SoundBored" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-touch-fullscreen" content="yes" />
+    <script>
+      (() => {
+        const allowed = ["classic", "desk", "retro"]
+        const saved = localStorage.getItem("soundbored-theme")
+        document.documentElement.dataset.theme = allowed.includes(saved) ? saved : "classic"
+      })()
+    </script>
 
     <link rel="apple-touch-icon" href={~p"/images/icon-192.png"} />
     <.live_title suffix="">
@@ -22,7 +29,7 @@
     <script defer phx-track-static type="text/javascript" src={~p"/assets/app.js"}>
     </script>
   </head>
-  <body class="antialiased bg-gray-900">
+  <body class="antialiased bg-canvas text-ink font-theme">
     {@inner_content}
   </body>
 </html>

@@ -84,8 +84,9 @@ defmodule SoundboardWeb.Components.Soundboard.TagComponents do
     <button
       phx-click={@click_event}
       phx-value-tag={tag_value(@tag, @tag_key)}
+      aria-pressed={LiveTags.tag_selected?(@tag, @selected_tags)}
       class={[
-        "inline-flex items-center gap-1 rounded-full px-3 py-1 text-sm font-medium",
+        "theme-tag-filter inline-flex items-center gap-1 rounded-full px-3 py-1 text-sm font-medium",
         if(LiveTags.tag_selected?(@tag, @selected_tags),
           do: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
           else:

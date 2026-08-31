@@ -53,6 +53,15 @@ defmodule SoundboardWeb.SettingsLiveTest do
     assert html =~ "Token values are shown"
   end
 
+  test "renders one Tailwind theme picker with all theme choices", %{conn: conn} do
+    {:ok, view, _html} = live(conn, "/settings")
+
+    assert has_element?(view, "#theme-picker")
+    assert has_element?(view, "[data-theme-choice='classic']", "Classic")
+    assert has_element?(view, "[data-theme-choice='desk']", "Studio Desk")
+    assert has_element?(view, "[data-theme-choice='retro']", "Retro Riso")
+  end
+
   test "shows upload API documentation", %{conn: conn} do
     {:ok, _view, html} = live(conn, "/settings")
 
