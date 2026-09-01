@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM elixir:1.20.0-otp-27-alpine AS build
+FROM elixir:1.20.4-otp-28-alpine AS build
 
 ARG MIX_ENV=prod
 
@@ -36,7 +36,7 @@ RUN export SKIP_RUNTIME_CONFIG=1 && \
     mkdir -p /app/_build/${MIX_ENV}/lib/eda/priv/native && \
     cp target/release/libeda_dave.so /app/_build/${MIX_ENV}/lib/eda/priv/native/eda_dave.so
 
-FROM elixir:1.20.0-otp-27-alpine
+FROM elixir:1.20.4-otp-28-alpine
 
 ENV MIX_ENV=prod \
     MIX_HOME=/app/.mix \
