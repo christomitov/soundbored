@@ -9,7 +9,12 @@ defmodule SoundboardWeb.GuildControllerTest do
   @guild %{"id" => "guild-controller-test", "name" => "Test Guild"}
 
   defp conn!(conn),
-    do: conn |> init_test_session(%{}) |> fetch_query_params() |> fetch_flash() |> Map.update!(:params, &Map.put(&1, "_format", "html"))
+    do:
+      conn
+      |> init_test_session(%{})
+      |> fetch_query_params()
+      |> fetch_flash()
+      |> Map.update!(:params, &Map.put(&1, "_format", "html"))
 
   defp call!(conn, action, params \\ %{}) do
     conn = Map.update!(conn, :params, &Map.merge(&1, params))
@@ -25,7 +30,15 @@ defmodule SoundboardWeb.GuildControllerTest do
          voice_states: fn _ -> [] end
        ]}
     ]) do
-      conn = call!(conn!(conn) |> assign(:current_guild_id, nil) |> assign(:current_user, %{id: 1, username: "owner"}) |> assign(:current_path, "/guilds") |> assign(:presences, []), :index)
+      conn =
+        call!(
+          conn!(conn)
+          |> assign(:current_guild_id, nil)
+          |> assign(:current_user, %{id: 1, username: "owner"})
+          |> assign(:current_path, "/guilds")
+          |> assign(:presences, []),
+          :index
+        )
 
       assert html_response(conn, 200) =~ "Test Guild"
     end

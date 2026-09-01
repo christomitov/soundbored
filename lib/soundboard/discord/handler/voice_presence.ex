@@ -5,6 +5,7 @@ defmodule Soundboard.Discord.Handler.VoicePresence do
 
   alias Soundboard.AudioPlayer
   alias Soundboard.Discord.{BotIdentity, GuildCache}
+  @boundary_exceptions Soundboard.Boundary.exceptions()
 
   def current_voice_channel(guild_id \\ nil) do
     with {:ok, bot_id} <- bot_id() do
@@ -40,7 +41,8 @@ defmodule Soundboard.Discord.Handler.VoicePresence do
   def cached_guilds do
     {:ok, GuildCache.all() |> Enum.to_list()}
   rescue
-    error -> {:error, {:guild_cache_unavailable, Exception.message(error)}}
+    error in @boundary_exceptions ->
+      {:error, {:guild_cache_unavailable, Exception.message(error)}}
   end
 
   @doc """

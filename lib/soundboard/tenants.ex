@@ -13,6 +13,7 @@ defmodule Soundboard.Tenants do
   import Ecto.Query
 
   alias Soundboard.{Repo, Sound, Tenants.Guild}
+  @boundary_exceptions Soundboard.Boundary.exceptions()
 
   @fallback_guild_id "default"
   @fallback_storage_bytes 2_147_483_648
@@ -49,7 +50,8 @@ defmodule Soundboard.Tenants do
       try do
         Soundboard.Discord.GuildCache.all()
       rescue
-        _ -> []
+        _ in @boundary_exceptions ->
+          []
       catch
         :exit, _ -> []
       end

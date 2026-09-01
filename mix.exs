@@ -18,9 +18,7 @@ defmodule Soundboard.MixProject do
       aliases: aliases(),
       deps: deps(),
       dialyzer: [
-        plt_file: {:no_warn, "_build/dev/dialyxir_plt.plt"},
-        plt_add_apps: [:ex_unit],
-        ignore_warnings: "dialyzer.ignore-warnings.exs"
+        plt_add_apps: [:ex_unit]
       ],
       test_coverage: [
         tool: ExCoveralls,

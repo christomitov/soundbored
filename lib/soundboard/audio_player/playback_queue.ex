@@ -5,6 +5,7 @@ defmodule Soundboard.AudioPlayer.PlaybackQueue do
 
   alias Soundboard.AudioPlayer.{PlaybackEngine, SoundLibrary, State}
   alias Soundboard.Discord.Voice
+  @boundary_exceptions Soundboard.Boundary.exceptions()
 
   @type play_request :: %{
           guild_id: String.t(),
@@ -256,6 +257,7 @@ defmodule Soundboard.AudioPlayer.PlaybackQueue do
   defp safe_voice_playing(guild_id) do
     {:ok, Voice.playing?(guild_id)}
   rescue
-    error -> {:error, {:voice_playing_unavailable, Exception.message(error)}}
+    error in @boundary_exceptions ->
+      {:error, {:voice_playing_unavailable, Exception.message(error)}}
   end
 end

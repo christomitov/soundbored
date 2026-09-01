@@ -10,6 +10,7 @@ defmodule Soundboard.AudioPlayer do
   alias Soundboard.AudioPlayer.Server
   alias Soundboard.AudioPlayer.SoundLibrary
   alias Soundboard.Tenants
+  @boundary_exceptions Soundboard.Boundary.exceptions()
 
   @registry Soundboard.AudioPlayer.Registry
   @supervisor Soundboard.AudioPlayer.Supervisor
@@ -67,7 +68,8 @@ defmodule Soundboard.AudioPlayer do
         {:ok, GenServer.call(pid, :get_voice_channel)}
     end
   rescue
-    error -> {:error, {:voice_channel_unavailable, Exception.message(error)}}
+    error in @boundary_exceptions ->
+      {:error, {:voice_channel_unavailable, Exception.message(error)}}
   catch
     :exit, reason -> {:error, {:voice_channel_unavailable, reason}}
   end

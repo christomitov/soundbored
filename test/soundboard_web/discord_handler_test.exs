@@ -12,10 +12,10 @@ defmodule Soundboard.Discord.HandlerTest do
   alias Soundboard.Discord.Voice
 
   setup do
-    :persistent_term.put(:soundboard_bot_ready, true)
+    Application.put_env(:soundboard, :bot_ready, true)
 
     on_exit(fn ->
-      :persistent_term.erase(:soundboard_bot_ready)
+      Application.delete_env(:soundboard, :bot_ready)
     end)
 
     :ok

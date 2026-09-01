@@ -17,6 +17,7 @@ defmodule Soundboard.AudioPlayer.Server do
   alias Soundboard.AudioPlayer.{Notifier, PlaybackQueue, SoundLibrary, VoiceSession}
   alias Soundboard.Discord.Handler.{AutoJoinPolicy, IdleTimeoutPolicy, VoicePresence}
   alias Soundboard.Discord.Voice
+  @boundary_exceptions Soundboard.Boundary.exceptions()
 
   @interrupt_watchdog_ms 35
   @interrupt_watchdog_max_attempts 20
@@ -244,7 +245,7 @@ defmodule Soundboard.AudioPlayer.Server do
         :not_found
     end
   rescue
-    error ->
+    error in @boundary_exceptions ->
       Logger.warning("Auto-join failed: #{inspect(error)}")
       :not_found
   end
@@ -252,7 +253,8 @@ defmodule Soundboard.AudioPlayer.Server do
   defp safely_leave(guild_id) do
     Voice.leave_channel(guild_id)
   rescue
-    error -> Logger.warning("Voice leave failed: #{inspect(error)}")
+    error in @boundary_exceptions ->
+      Logger.warning("Voice leave failed: #{inspect(error)}")
   end
 
   defp actor_discord_id(%User{discord_id: id}) when is_binary(id) and id != "", do: id

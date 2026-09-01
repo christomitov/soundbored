@@ -8,21 +8,23 @@ defmodule Soundboard.Sounds.Uploads.Source do
 
   alias Soundboard.{Repo, Sound, UploadsPath}
 
+  defstruct [:filename, :storage_key, :source_type, :url, :copied_file_path]
+
   @allowed_extensions ~w(.mp3 .wav .ogg .m4a)
   @allowed_audio_mime_types ~w(audio/mpeg audio/wav audio/ogg audio/mp4 audio/flac audio/aiff)
 
-  @spec prepare(map(), :validate | :create) :: {:ok, map()} | {:error, Ecto.Changeset.t()}
+  @spec prepare(map(), :validate | :create) ::
+          {:ok, %__MODULE__{}} | {:error, Ecto.Changeset.t()}
   def prepare(%{source_type: "url"} = params, _mode) do
     with {:ok, url} <- validate_url(params.url),
          filename <- params.name <> url_file_extension(url),
          :ok <- validate_destination_filename(filename, Map.get(params, :guild_id)) do
       {:ok,
-       %{
+       %__MODULE__{
          filename: filename,
          storage_key: Ecto.UUID.generate() <> url_file_extension(url),
          source_type: "url",
-         url: url,
-         copied_file_path: nil
+         url: url
        }}
     end
   end
@@ -33,12 +35,10 @@ defmodule Soundboard.Sounds.Uploads.Source do
          filename <- params.name <> ext,
          :ok <- validate_destination_filename(filename, Map.get(params, :guild_id)) do
       {:ok,
-       %{
+       %__MODULE__{
          filename: filename,
          storage_key: Ecto.UUID.generate() <> ext,
-         source_type: "local",
-         url: nil,
-         copied_file_path: nil
+         source_type: "local"
        }}
     end
   end
@@ -52,11 +52,10 @@ defmodule Soundboard.Sounds.Uploads.Source do
          storage_key <- Ecto.UUID.generate() <> ext,
          {:ok, copied_file_path} <- copy_local_file(upload.path, storage_key) do
       {:ok,
-       %{
+       %__MODULE__{
          filename: filename,
          storage_key: storage_key,
          source_type: "local",
-         url: nil,
          copied_file_path: copied_file_path
        }}
     end

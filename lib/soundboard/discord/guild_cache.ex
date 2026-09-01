@@ -62,9 +62,14 @@ defmodule Soundboard.Discord.GuildCache do
         value
 
       _ ->
-        atom_key = String.to_atom(key)
-        Map.get(map, atom_key)
+        Map.get(map, existing_atom(key))
     end
+  end
+
+  defp existing_atom(key) do
+    String.to_existing_atom(key)
+  rescue
+    _ in [ArgumentError] -> nil
   end
 
   defp to_id(value) when is_integer(value), do: Integer.to_string(value)

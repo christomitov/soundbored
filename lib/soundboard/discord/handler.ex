@@ -112,7 +112,7 @@ defmodule Soundboard.Discord.Handler do
 
   def handle_event({:READY, _payload, _ws_state}) do
     Logger.info("Bot is READY - gateway connection established")
-    :persistent_term.put(:soundboard_bot_ready, true)
+    Application.put_env(:soundboard, :bot_ready, true)
     []
   end
 

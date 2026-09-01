@@ -93,7 +93,7 @@ defmodule SoundboardWeb.Components.Layouts.Navbar do
           </div>
         </div>
       </div>
-
+      
     <!-- Mobile menu -->
       <div class="sm:hidden" id="mobile-menu" hidden>
         <div class="pt-2 pb-3 space-y-1">
