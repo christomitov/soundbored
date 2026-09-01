@@ -11,19 +11,10 @@ defmodule Soundboard.PubSubTopics do
   def stats_topic, do: @stats_topic
 
   @doc """
-  Playback topic for a guild. The default guild keeps the base topic name so
-  existing single-guild subscribers are unaffected; other guilds get
-  `"soundboard.playback:{guild_id}"`.
+  Playback topic for a guild: `"soundboard.playback:{guild_id}"`.
   """
-  def playback_topic(guild_id \\ nil) do
-    guild_id = Soundboard.Tenants.scope_guild_id(guild_id)
-
-    if guild_id == Soundboard.Tenants.default_guild_id() do
-      @playback_topic
-    else
-      "#{@playback_topic}:#{guild_id}"
-    end
-  end
+  def playback_topic(guild_id \\ nil),
+    do: "#{@playback_topic}:#{Soundboard.Tenants.scope_guild_id(guild_id)}"
 
   def subscribe_files, do: PubSub.subscribe(Soundboard.PubSub, @files_topic)
 

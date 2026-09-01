@@ -86,8 +86,14 @@ defmodule Soundboard.Tenants do
         {:ok, guild}
 
       nil ->
+        discord_guild_id = to_string(discord_guild_id)
+
+        # ponytail: provisional slug "guild-<id>" — unique by construction;
+        # claim_slug/2 renames it when someone claims a real subdomain
+        attrs = Map.put_new(attrs, :slug, "guild-#{discord_guild_id}")
+
         %Guild{}
-        |> Guild.changeset(Map.merge(%{discord_guild_id: to_string(discord_guild_id)}, attrs))
+        |> Guild.changeset(Map.merge(%{discord_guild_id: discord_guild_id}, attrs))
         |> Repo.insert()
     end
   end

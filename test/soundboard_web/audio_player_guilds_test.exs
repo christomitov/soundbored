@@ -86,9 +86,7 @@ defmodule Soundboard.AudioPlayer.GuildsTest do
   end
 
   test "playback events for one guild do not appear on another guild's topic" do
-    # The default guild keeps the base topic; other guilds get a suffixed one.
-    assert Soundboard.PubSubTopics.playback_topic(nil) == "soundboard.playback"
-    assert Soundboard.PubSubTopics.playback_topic(@default_guild) == "soundboard.playback"
+    assert Soundboard.PubSubTopics.playback_topic(nil) == "soundboard.playback:default"
     assert Soundboard.PubSubTopics.playback_topic("guild-z") == "soundboard.playback:guild-z"
 
     # Subscribing to guild A's topic must not receive guild B's broadcast.

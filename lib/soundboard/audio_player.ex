@@ -39,43 +39,24 @@ defmodule Soundboard.AudioPlayer do
     end
   end
 
-  def play_sound(sound_name, actor, guild_id \\ Tenants.default_guild_id()) do
-    guild_id = Tenants.scope_guild_id(guild_id)
-    ensure_started(guild_id)
-    GenServer.cast(Server.via(guild_id), {:play_sound, sound_name, actor})
-  end
+  def play_sound(sound_name, actor, guild_id \\ nil),
+    do: cast(guild_id, {:play_sound, sound_name, actor})
 
-  def stop_sound(guild_id \\ Tenants.default_guild_id()) do
-    guild_id = Tenants.scope_guild_id(guild_id)
-    ensure_started(guild_id)
-    GenServer.cast(Server.via(guild_id), :stop_sound)
-  end
+  def stop_sound(guild_id \\ nil), do: cast(guild_id, :stop_sound)
 
-  def set_voice_channel(guild_id, channel_id) do
-    guild_id = Tenants.scope_guild_id(guild_id)
-    ensure_started(guild_id)
-    GenServer.cast(Server.via(guild_id), {:set_voice_channel, guild_id, channel_id})
-  end
+  def set_voice_channel(guild_id, channel_id),
+    do: cast(guild_id, {:set_voice_channel, Tenants.scope_guild_id(guild_id), channel_id})
 
-  def last_user_left(guild_id) do
-    guild_id = Tenants.scope_guild_id(guild_id)
-    ensure_started(guild_id)
-    GenServer.cast(Server.via(guild_id), {:last_user_left, guild_id})
-  end
+  def last_user_left(guild_id),
+    do: cast(guild_id, {:last_user_left, Tenants.scope_guild_id(guild_id)})
 
-  def user_joined_channel(guild_id) do
-    guild_id = Tenants.scope_guild_id(guild_id)
-    ensure_started(guild_id)
-    GenServer.cast(Server.via(guild_id), {:user_joined_channel, guild_id})
-  end
+  def user_joined_channel(guild_id),
+    do: cast(guild_id, {:user_joined_channel, Tenants.scope_guild_id(guild_id)})
 
-  def playback_finished(guild_id) do
-    guild_id = Tenants.scope_guild_id(guild_id)
-    ensure_started(guild_id)
-    GenServer.cast(Server.via(guild_id), {:playback_finished, guild_id})
-  end
+  def playback_finished(guild_id),
+    do: cast(guild_id, {:playback_finished, Tenants.scope_guild_id(guild_id)})
 
-  def current_voice_channel(guild_id \\ Tenants.default_guild_id()) do
+  def current_voice_channel(guild_id \\ nil) do
     guild_id = Tenants.scope_guild_id(guild_id)
 
     case server_pid(guild_id) do
@@ -102,4 +83,10 @@ defmodule Soundboard.AudioPlayer do
     do: SoundLibrary.invalidate_cache(Tenants.default_guild_id(), filename)
 
   def invalidate_cache(_), do: :ok
+
+  defp cast(guild_id, message) do
+    guild_id = Tenants.scope_guild_id(guild_id)
+    ensure_started(guild_id)
+    GenServer.cast(Server.via(guild_id), message)
+  end
 end

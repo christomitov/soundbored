@@ -7,8 +7,7 @@ defmodule SoundboardWeb.Components.Layouts.NavbarTest do
 
   test "renders public navigation links" do
     html =
-      render_component(Navbar,
-        id: "navbar",
+      render_component(&Navbar.navbar/1,
         current_path: "/",
         current_user: nil,
         presences: %{}
@@ -23,8 +22,7 @@ defmodule SoundboardWeb.Components.Layouts.NavbarTest do
 
   test "renders settings link and deduplicated presences for authenticated users" do
     html =
-      render_component(Navbar,
-        id: "navbar",
+      render_component(&Navbar.navbar/1,
         current_path: "/settings",
         current_user: %{id: 1, username: "owner"},
         presences: %{
@@ -40,15 +38,5 @@ defmodule SoundboardWeb.Components.Layouts.NavbarTest do
 
     # Duplicated presence entries for the same user should only render once per menu section.
     assert Enum.count(Regex.scan(~r/user-alice/, html)) == 2
-  end
-
-  test "toggle-mobile-menu flips show_mobile_menu assign" do
-    {:ok, socket} = Navbar.mount(%Phoenix.LiveView.Socket{})
-
-    {:noreply, socket} = Navbar.handle_event("toggle-mobile-menu", %{}, socket)
-    assert socket.assigns.show_mobile_menu
-
-    {:noreply, socket} = Navbar.handle_event("toggle-mobile-menu", %{}, socket)
-    refute socket.assigns.show_mobile_menu
   end
 end
