@@ -6,7 +6,9 @@ defmodule Soundboard.TenantsTest do
 
   use Soundboard.DataCase, async: false
 
-  alias Soundboard.{Accounts.User, Repo, Tenants, Tenants.Guild}
+  import Mock
+
+  alias Soundboard.{Accounts.User, Repo, Sound, Tenants, Tenants.Guild}
 
   describe "default_guild_id/0" do
     test "falls back to the literal default when nothing is configured" do
@@ -43,6 +45,76 @@ defmodule Soundboard.TenantsTest do
 
     test "explicit guild ids pass through" do
       assert Tenants.scope_guild_id("999") == "999"
+    end
+  end
+
+  describe "default_guild_id/0 zero-config discovery" do
+    test "uses the bot's sole guild when no env is configured" do
+      Application.delete_env(:soundboard, :default_guild_id)
+      Application.delete_env(:soundboard, :required_guild_id)
+
+      with_mock Soundboard.Discord.GuildCache,
+        all: fn -> [%{id: "111", name: "g", guild: nil}] end do
+        assert Tenants.default_guild_id() == "111"
+      end
+    end
+
+    test "falls back to the literal default when the bot is in many guilds" do
+      Application.delete_env(:soundboard, :default_guild_id)
+      Application.delete_env(:soundboard, :required_guild_id)
+
+      with_mock Soundboard.Discord.GuildCache,
+        all: fn ->
+          [
+            %{id: "1", name: "a", guild: nil},
+            %{id: "2", name: "b", guild: nil}
+          ]
+        end do
+        assert Tenants.default_guild_id() == "default"
+      end
+    end
+
+    test "configured env still wins over discovery" do
+      Application.delete_env(:soundboard, :default_guild_id)
+      Application.put_env(:soundboard, :required_guild_id, "222")
+
+      with_mock Soundboard.Discord.GuildCache,
+        all: fn -> [%{id: "111", name: "g", guild: nil}] end do
+        assert Tenants.default_guild_id() == "222"
+      end
+    after
+      Application.delete_env(:soundboard, :required_guild_id)
+    end
+  end
+
+  describe "reconcile_default_guild/0" do
+    test "repoints legacy 'default' rows to the bot's sole guild" do
+      Application.delete_env(:soundboard, :default_guild_id)
+      Application.delete_env(:soundboard, :required_guild_id)
+
+      user = Repo.insert!(%User{discord_id: "u1", username: "u1", avatar: nil})
+
+      sound =
+        Repo.insert!(%Sound{
+          filename: "legacy.mp3",
+          storage_key: "legacy.mp3",
+          guild_id: "default",
+          user_id: user.id
+        })
+
+      with_mock Soundboard.Discord.GuildCache,
+        all: fn -> [%{id: "111", name: "g", guild: nil}] end do
+        assert {:ok, 1} = Tenants.reconcile_default_guild()
+        assert Repo.get(Sound, sound.id).guild_id == "111"
+      end
+    end
+
+    test "skips when a guild env is configured" do
+      Application.put_env(:soundboard, :required_guild_id, "222")
+
+      assert Tenants.reconcile_default_guild() == :skipped
+    after
+      Application.delete_env(:soundboard, :required_guild_id)
     end
   end
 

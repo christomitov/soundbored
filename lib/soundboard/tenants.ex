@@ -12,7 +12,8 @@ defmodule Soundboard.Tenants do
 
   import Ecto.Query
 
-  alias Soundboard.{Repo, Sound, Tenants.Guild}
+  alias Soundboard.{Repo, Sound, Tenants.Guild, UserSoundSetting}
+  require Logger
   @boundary_exceptions Soundboard.Boundary.exceptions()
 
   @fallback_guild_id "default"
@@ -26,19 +27,86 @@ defmodule Soundboard.Tenants do
 
   Resolution order: `SOUNDBOARD_DEFAULT_GUILD_ID` env (configured as
   `:default_guild_id`), the existing `DISCORD_REQUIRED_GUILD_ID` env
-  (configured as `:required_guild_id`), then the literal `"default"`.
+  (configured as `:required_guild_id`), the bot's sole guild (discovered via
+  `GuildCache` for zero-config single-guild deployments that never set the
+  legacy envs), then the literal `"default"`.
   """
   @spec default_guild_id() :: String.t()
   def default_guild_id do
     Application.get_env(:soundboard, :default_guild_id) ||
       Application.get_env(:soundboard, :required_guild_id) ||
+      sole_bot_guild_id() ||
       @fallback_guild_id
+  end
+
+  # The deployment's guild for bots in exactly one Discord server. This keeps
+  # pre-multi-tenant deployments zero-config on upgrade: the migration
+  # backfills the literal "default", then reconcile_default_guild/0 repoints
+  # those rows once the guild cache is populated.
+  # ponytail: sole-guild discovery only; multi-guild hosts must configure an
+  # env or claim a slug (guild switcher) since "default" is ambiguous there.
+  defp sole_bot_guild_id do
+    case cached_bot_guilds() do
+      [%{id: id} | []] -> to_string(id)
+      _ -> nil
+    end
+  end
+
+  defp cached_bot_guilds do
+    Soundboard.Discord.GuildCache.all()
+  rescue
+    _ in @boundary_exceptions -> []
+  catch
+    :exit, _ -> []
   end
 
   @doc "The guild id to scope by: the given id, or the default guild."
   @spec scope_guild_id(String.t() | nil) :: String.t()
   def scope_guild_id(nil), do: default_guild_id()
   def scope_guild_id(guild_id) when is_binary(guild_id), do: guild_id
+
+  @doc """
+  One-time self-heal for deployments upgrading from pre-multi-tenant code that
+  never configured a guild env (see `default_guild_id/0`).
+
+  When no env is configured and the bot is in exactly one guild, that guild is
+  the deployment's guild. The migration backfills the literal `"default"`;
+  this repoints those rows to the real guild id so web queries and voice
+  playbacks line up after upgrading.
+
+  Guarded: no-ops when a guild env is configured (those deployments backfill
+  correctly at migration time) or when the bot is in zero/many guilds (then an
+  explicit identity — env or slug claim — is required). Idempotent.
+  """
+  @spec reconcile_default_guild() :: :skipped | {:ok, non_neg_integer()}
+  def reconcile_default_guild do
+    case {guild_env_configured?(), sole_bot_guild_id()} do
+      {nil, nil} -> :skipped
+      {nil, guild_id} -> repoint_legacy_default_rows(guild_id)
+      {_configured, _} -> :skipped
+    end
+  end
+
+  defp guild_env_configured? do
+    Application.get_env(:soundboard, :default_guild_id) ||
+      Application.get_env(:soundboard, :required_guild_id)
+  end
+
+  defp repoint_legacy_default_rows(guild_id) do
+    moved =
+      from(s in Sound, where: s.guild_id == @fallback_guild_id)
+      |> Repo.update_all(set: [guild_id: guild_id])
+      |> elem(0)
+
+    from(uss in UserSoundSetting, where: uss.guild_id == @fallback_guild_id)
+    |> Repo.update_all(set: [guild_id: guild_id])
+
+    if moved > 0 do
+      Logger.info("Reconciled #{moved} legacy sound rows to bot guild #{guild_id}")
+    end
+
+    {:ok, moved}
+  end
 
   @doc """
   Lists the guilds the shared Discord bot is a member of, with their tenant
