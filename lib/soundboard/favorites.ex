@@ -5,9 +5,10 @@ defmodule Soundboard.Favorites do
 
   import Ecto.Query
 
-  alias Soundboard.{Favorites.Favorite, Repo, Sound}
+  alias Soundboard.Favorites.Favorite
+  alias Soundboard.{Repo, Sound, Tenants}
 
-  @type favorite_result :: {:ok, Favorite.t()} | {:error, Ecto.Changeset.t()}
+  @type favorite_result :: {:ok, Soundboard.Favorites.Favorite.t()} | {:error, Ecto.Changeset.t()}
 
   @max_favorites 16
 
@@ -19,8 +20,8 @@ defmodule Soundboard.Favorites do
     |> Repo.all()
   end
 
-  @spec list_favorite_sounds_with_tags(integer()) :: [Sound.t()]
-  def list_favorite_sounds_with_tags(user_id) do
+  @spec list_favorite_sounds_with_tags(integer(), String.t() | nil) :: [Sound.t()]
+  def list_favorite_sounds_with_tags(user_id, guild_id \\ nil) do
     favorite_ids_query =
       Favorite
       |> where([f], f.user_id == ^user_id)
@@ -28,6 +29,7 @@ defmodule Soundboard.Favorites do
 
     Sound.with_tags()
     |> where([s], s.id in subquery(favorite_ids_query))
+    |> where([s], s.guild_id == ^Tenants.scope_guild_id(guild_id))
     |> order_by([s], asc: fragment("lower(?)", s.filename))
     |> Repo.all()
   end

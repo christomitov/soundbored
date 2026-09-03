@@ -1,5 +1,10 @@
 # syntax=docker/dockerfile:1
-FROM elixir:1.20.0-otp-27-alpine AS build
+# elixir otp-28-alpine tags from 1.20.2+ (republished 2026-09-01) ship without a
+# linux/amd64 manifest in the index (only arm/arm64/386): docker build falls
+# back to linux/386, the stage runs i686, and tailwind.install crashes on
+# "architecture: i686-pc-linux-musl". Pin to 1.20.1 (amd64 present) and keep
+# --platform=$BUILDPLATFORM so the base resolves to the builder's platform.
+FROM --platform=$BUILDPLATFORM elixir:1.20.1-otp-28-alpine AS build
 
 ARG MIX_ENV=prod
 
@@ -36,7 +41,7 @@ RUN export SKIP_RUNTIME_CONFIG=1 && \
     mkdir -p /app/_build/${MIX_ENV}/lib/eda/priv/native && \
     cp target/release/libeda_dave.so /app/_build/${MIX_ENV}/lib/eda/priv/native/eda_dave.so
 
-FROM elixir:1.20.0-otp-27-alpine
+FROM --platform=$BUILDPLATFORM elixir:1.20.1-otp-28-alpine
 
 ENV MIX_ENV=prod \
     MIX_HOME=/app/.mix \

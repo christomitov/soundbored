@@ -5,6 +5,7 @@ defmodule Soundboard.AudioPlayer.VoiceSession do
 
   alias Soundboard.AudioPlayer.State
   alias Soundboard.Discord.Voice
+  @boundary_exceptions Soundboard.Boundary.exceptions()
 
   @spec normalize_channel(term(), term()) :: {String.t(), String.t()} | nil
   def normalize_channel(guild_id, channel_id) do
@@ -83,7 +84,8 @@ defmodule Soundboard.AudioPlayer.VoiceSession do
     try do
       Voice.leave_channel(status.guild_id)
     rescue
-      error -> Logger.warning("Voice leave failed during reset: #{inspect(error)}")
+      error in @boundary_exceptions ->
+        Logger.warning("Voice leave failed during reset: #{inspect(error)}")
     end
 
     Process.sleep(1_000)
@@ -104,20 +106,23 @@ defmodule Soundboard.AudioPlayer.VoiceSession do
   defp safe_voice_ready(guild_id) do
     {:ok, Voice.ready?(guild_id)}
   rescue
-    error -> {:error, {:voice_not_ready, Exception.message(error)}}
+    error in @boundary_exceptions ->
+      {:error, {:voice_not_ready, Exception.message(error)}}
   end
 
   defp safe_voice_playing(guild_id) do
     {:ok, Voice.playing?(guild_id)}
   rescue
-    error -> {:error, {:voice_playing_unavailable, Exception.message(error)}}
+    error in @boundary_exceptions ->
+      {:error, {:voice_playing_unavailable, Exception.message(error)}}
   end
 
   defp safe_join_voice_channel(guild_id, channel_id) do
     Voice.join_channel(guild_id, channel_id)
     :ok
   rescue
-    error -> {:error, {:voice_join_failed, Exception.message(error)}}
+    error in @boundary_exceptions ->
+      {:error, {:voice_join_failed, Exception.message(error)}}
   catch
     :exit, reason -> {:error, {:voice_join_failed, reason}}
   end

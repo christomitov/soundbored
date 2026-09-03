@@ -105,7 +105,10 @@ if config_env() == :dev do
     ffmpeg_available: ffmpeg_available,
     required_guild_id: required_guild_id,
     required_role_ids: required_role_ids,
-    role_recheck_interval_seconds: role_recheck_interval_seconds
+    role_recheck_interval_seconds: role_recheck_interval_seconds,
+    default_guild_id: env!("SOUNDBOARD_DEFAULT_GUILD_ID", :string, nil),
+    default_storage_bytes: env!("SOUNDBOARD_DEFAULT_STORAGE_BYTES", :integer, nil),
+    tenant_base_host: env!("TENANT_BASE_HOST", :string, nil)
 
   config :eda,
     token: discord_token,
@@ -229,7 +232,10 @@ if config_env() == :prod and is_nil(env!("SKIP_RUNTIME_CONFIG", :string, nil)) d
     ffmpeg_available: ffmpeg_available,
     required_guild_id: required_guild_id,
     required_role_ids: required_role_ids,
-    role_recheck_interval_seconds: role_recheck_interval_seconds
+    role_recheck_interval_seconds: role_recheck_interval_seconds,
+    default_guild_id: env!("SOUNDBOARD_DEFAULT_GUILD_ID", :string, nil),
+    default_storage_bytes: env!("SOUNDBOARD_DEFAULT_STORAGE_BYTES", :integer, nil),
+    tenant_base_host: env!("TENANT_BASE_HOST", :string, nil)
 
   config :eda,
     token: discord_token,

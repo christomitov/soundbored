@@ -20,6 +20,8 @@ defmodule Soundboard.Sound do
     field :source_type, :string, default: "local"
     field :description, :string
     field :volume, :float, default: 1.0
+    field :guild_id, :string
+    field :byte_size, :integer, default: 0
     belongs_to :user, Soundboard.Accounts.User
     has_many :user_sound_settings, Soundboard.UserSoundSetting
 
@@ -40,13 +42,16 @@ defmodule Soundboard.Sound do
       :source_type,
       :description,
       :user_id,
-      :volume
+      :volume,
+      :guild_id,
+      :byte_size
     ])
-    |> validate_required([:user_id])
+    |> Soundboard.Tenants.put_default_guild_id()
+    |> validate_required([:user_id, :guild_id])
     |> maybe_set_storage_key()
     |> validate_source_type()
     |> validate_volume()
-    |> unique_constraint(:filename, name: :sounds_filename_index)
+    |> unique_constraint(:filename, name: :sounds_guild_id_filename_index)
     |> unique_constraint(:storage_key, name: :sounds_storage_key_index)
     |> put_tags(attrs)
   end

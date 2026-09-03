@@ -5,6 +5,7 @@ defmodule Soundboard.Discord.Handler.VoiceCommands do
 
   alias Soundboard.AudioPlayer
   alias Soundboard.Discord.{BotIdentity, Voice}
+  @boundary_exceptions Soundboard.Boundary.exceptions()
 
   def join_voice_channel(guild_id, channel_id) do
     execute(
@@ -27,34 +28,38 @@ defmodule Soundboard.Discord.Handler.VoiceCommands do
         Logger.info("Bot leaving voice channel in guild #{guild_id}")
         run("leave voice channel", fn -> Voice.leave_channel(guild_id) end)
       end,
-      fn -> AudioPlayer.set_voice_channel(nil, nil) end,
+      fn -> AudioPlayer.set_voice_channel(guild_id, nil) end,
       fn error_msg -> Logger.error("Error leaving voice channel: #{error_msg}") end
     )
   end
 
   def connected_to_discord? do
-    ready = :persistent_term.get(:soundboard_bot_ready, false)
-
-    if ready do
-      try do
-        case BotIdentity.fetch() do
-          {:ok, _} ->
-            Logger.debug("Discord connection check: Connected and ready")
-            true
-
-          error ->
-            Logger.debug("Discord connection check failed: #{inspect(error)}")
-            false
-        end
-      rescue
-        error ->
-          Logger.debug("Discord connection check error: #{inspect(error)}")
-          false
-      end
+    if Application.get_env(:soundboard, :bot_ready, false) do
+      check_connection()
     else
       Logger.debug("Discord connection check: Bot not ready (READY event not received)")
       false
     end
+  end
+
+  defp connected_user?(id) do
+    (is_binary(id) and id != "") or (is_integer(id) and id > 0)
+  end
+
+  defp check_connection do
+    case BotIdentity.fetch() do
+      {:ok, %{id: id}} ->
+        Logger.debug("Discord connection check: Connected and ready")
+        connected_user?(id)
+
+      error ->
+        Logger.debug("Discord connection check failed: #{inspect(error)}")
+        false
+    end
+  rescue
+    error in @boundary_exceptions ->
+      Logger.debug("Discord connection check error: #{inspect(error)}")
+      false
   end
 
   defp execute(true, _skip_message, command_fun, success_fun, error_fun) do
@@ -90,10 +95,11 @@ defmodule Soundboard.Discord.Handler.VoiceCommands do
       other -> {:error, inspect(other)}
     end
   rescue
-    error -> {:error, Exception.message(error)}
+    error in @boundary_exceptions ->
+      {:error, Exception.message(error)}
   end
 
   defp rate_limited?(error_msg) do
-    is_binary(error_msg) and String.contains?(String.downcase(error_msg), "rate limit")
+    String.contains?(String.downcase(error_msg), "rate limit")
   end
 end

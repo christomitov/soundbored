@@ -6,6 +6,7 @@ defmodule Soundboard.Sounds.Uploads.CreateRequest do
   @enforce_keys [:user]
   defstruct [
     :user,
+    :guild_id,
     :source_type,
     :name,
     :url,
@@ -28,6 +29,7 @@ defmodule Soundboard.Sounds.Uploads.CreateRequest do
 
   @type t :: %__MODULE__{
           user: User.t() | nil,
+          guild_id: String.t() | nil,
           source_type: String.t() | nil,
           name: String.t() | nil,
           url: String.t() | nil,
@@ -43,6 +45,7 @@ defmodule Soundboard.Sounds.Uploads.CreateRequest do
   def new(user, attrs \\ %{}) when is_map(attrs) do
     %__MODULE__{
       user: user,
+      guild_id: get_param(attrs, :guild_id),
       source_type: get_param(attrs, :source_type),
       name: get_param(attrs, :name),
       url: get_param(attrs, :url),

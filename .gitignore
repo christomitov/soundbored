@@ -67,3 +67,4 @@ TODO
 # SQLite database files
 /priv/db/
 priv/bak
+priv/video_sessions/
