@@ -97,6 +97,26 @@ defmodule SoundboardWeb.SoundboardLive do
   end
 
   @impl true
+  def handle_event("commit_search", %{"query" => query}, socket) do
+    # Pressing enter commits the text search and drops any selected tag,
+    # giving a keyboard alternative to clicking the tag button to clear it.
+    {:noreply,
+     socket
+     |> assign(:search_query, query)
+     |> clear_tag_filters()}
+  end
+
+  @impl true
+  def handle_event("search_backspace", _params, socket) do
+    # Backspacing in an empty search box removes the selected tag chip
+    if socket.assigns.search_query == "" do
+      {:noreply, clear_tag_filters(socket)}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  @impl true
   def handle_event("toggle_tag_filter", %{"tag" => tag_name}, socket) do
     case Enum.find(all_tags(socket.assigns.uploaded_files), &(&1.name == tag_name)) do
       nil ->
@@ -114,9 +134,11 @@ defmodule SoundboardWeb.SoundboardLive do
   end
 
   @impl true
-  def handle_event("clear_tag_filters", _, socket) do
-    {:noreply, assign(socket, :selected_tags, [])}
+  def handle_event("clear_tag_filters", _params, socket) do
+    {:noreply, clear_tag_filters(socket)}
   end
+
+  defp clear_tag_filters(socket), do: assign(socket, :selected_tags, [])
 
   @impl true
   def handle_event("edit", %{"id" => id}, socket) do
