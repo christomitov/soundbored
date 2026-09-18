@@ -213,7 +213,7 @@ defmodule SoundboardWeb.SoundboardLiveTest do
       refute render(view) =~ "test.mp3"
 
       view
-      |> element("#sound-search-input")
+      |> element("form[phx-keydown='search_backspace']")
       |> render_keydown(%{"key" => "Backspace"})
 
       assert render(view) =~ "test.mp3"
@@ -241,11 +241,11 @@ defmodule SoundboardWeb.SoundboardLiveTest do
       |> render_click()
 
       view
-      |> element("#sound-search-input")
+      |> element("form[phx-change='search']")
       |> render_change(%{"query" => "fun"})
 
       view
-      |> element("#sound-search-input")
+      |> element("form[phx-keydown='search_backspace']")
       |> render_keydown(%{"key" => "Backspace"})
 
       rendered = render(view)

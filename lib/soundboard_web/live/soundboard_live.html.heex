@@ -39,7 +39,13 @@
 
   <%!-- Search Bar --%>
   <div class="mb-8">
-    <form phx-change="search" phx-submit="commit_search" class="relative">
+    <form
+      phx-change="search"
+      phx-submit="commit_search"
+      phx-keydown="search_backspace"
+      phx-key="Backspace"
+      class="relative"
+    >
       <div
         class="flex items-center gap-2 w-full rounded-md border border-gray-300 dark:border-gray-700 shadow-sm
                bg-white dark:bg-gray-800 pl-4 pr-10 py-1.5
@@ -70,8 +76,6 @@
           placeholder="Search sounds..."
           autofocus
           phx-debounce="400"
-          phx-keydown="search_backspace"
-          phx-key="Backspace"
           class="flex-1 min-w-0 bg-transparent border-0 p-0 py-1
                  focus:outline-none focus:ring-0 text-gray-900 dark:text-gray-100 dark:placeholder-gray-400"
           autocomplete="off"

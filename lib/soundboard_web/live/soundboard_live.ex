@@ -138,8 +138,6 @@ defmodule SoundboardWeb.SoundboardLive do
     {:noreply, clear_tag_filters(socket)}
   end
 
-  defp clear_tag_filters(socket), do: assign(socket, :selected_tags, [])
-
   @impl true
   def handle_event("edit", %{"id" => id}, socket) do
     EditFlow.open_modal(socket, id)
@@ -361,6 +359,8 @@ defmodule SoundboardWeb.SoundboardLive do
      |> load_sound_files()
      |> assign(:loading_sounds, false)}
   end
+
+  defp clear_tag_filters(socket), do: assign(socket, :selected_tags, [])
 
   defp assign_favorites(socket, nil), do: assign(socket, :favorites, [])
 
