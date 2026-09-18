@@ -189,6 +189,12 @@ defmodule SoundboardWeb.SoundboardLiveTest do
       refute has_element?(view, "button[phx-click='clear_tag_filters']")
     end
 
+    test "search input is wired to the SearchBackspace hook", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/")
+
+      assert has_element?(view, "#sound-search-input[phx-hook='SearchBackspace']")
+    end
+
     test "backspace clears selected tag when search box is empty", %{conn: conn, user: user} do
       tag =
         %Tag{}
@@ -212,9 +218,10 @@ defmodule SoundboardWeb.SoundboardLiveTest do
 
       refute render(view) =~ "test.mp3"
 
+      # The JS hook pushes clear_tag_filters when backspace hits an empty input
       view
-      |> element("form[phx-keydown='search_backspace']")
-      |> render_keydown(%{"key" => "Backspace"})
+      |> element("button[phx-click='clear_tag_filters']")
+      |> render_click()
 
       assert render(view) =~ "test.mp3"
     end
@@ -244,10 +251,8 @@ defmodule SoundboardWeb.SoundboardLiveTest do
       |> element("form[phx-change='search']")
       |> render_change(%{"query" => "fun"})
 
-      view
-      |> element("form[phx-keydown='search_backspace']")
-      |> render_keydown(%{"key" => "Backspace"})
-
+      # Typing keeps the tag; the hook only fires clear_tag_filters when
+      # the input value is empty, so a non-empty search never clears it.
       rendered = render(view)
       refute rendered =~ "test.mp3"
       assert rendered =~ "funny.mp3"

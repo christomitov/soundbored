@@ -107,16 +107,6 @@ defmodule SoundboardWeb.SoundboardLive do
   end
 
   @impl true
-  def handle_event("search_backspace", _params, socket) do
-    # Backspacing in an empty search box removes the selected tag chip
-    if socket.assigns.search_query == "" do
-      {:noreply, clear_tag_filters(socket)}
-    else
-      {:noreply, socket}
-    end
-  end
-
-  @impl true
   def handle_event("toggle_tag_filter", %{"tag" => tag_name}, socket) do
     case Enum.find(all_tags(socket.assigns.uploaded_files), &(&1.name == tag_name)) do
       nil ->
