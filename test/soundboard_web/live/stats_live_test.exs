@@ -66,6 +66,24 @@ defmodule SoundboardWeb.StatsLiveTest do
     assert render(view) =~ SoundHelpers.display_name(sound.filename)
   end
 
+  test "renders YouTube history, links, and top video stats", %{conn: conn, user: user} do
+    video = %{
+      youtube_id: "wIzJcg9eWM4",
+      title: "Public YouTube Test Video",
+      url: "https://www.youtube.com/watch?v=wIzJcg9eWM4"
+    }
+
+    assert {:ok, _play} = Stats.track_youtube_play(video, user.id)
+
+    {:ok, _view, html} = live(conn, "/stats")
+
+    assert html =~ "Top Videos"
+    assert html =~ video.title
+    assert html =~ video.youtube_id
+    assert html =~ ~s(href="#{video.url}")
+    assert html =~ "YouTube"
+  end
+
   test "renders renamed sounds from historical plays", %{conn: conn, sound: sound} do
     renamed = "renamed_#{System.unique_integer([:positive])}.mp3"
 

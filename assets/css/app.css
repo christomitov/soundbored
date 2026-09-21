@@ -69,3 +69,68 @@ body {
 /* Show inline search spinner while server processes phx-change */
 .phx-change-loading .search-spinner { display: inline; }
 .phx-change-loading .search-icon { display: none; }
+
+.video-queue-skeleton {
+  display: block;
+  background: linear-gradient(
+    110deg,
+    rgba(127, 127, 127, 0.16) 25%,
+    rgba(127, 127, 127, 0.34) 45%,
+    rgba(127, 127, 127, 0.16) 65%
+  );
+  background-size: 220% 100%;
+}
+
+.video-queue-title-skeleton {
+  width: min(15rem, 78%);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 2px 0;
+}
+
+.video-queue-title-skeleton i {
+  display: block;
+  width: 100%;
+  height: 10px;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.18;
+}
+
+.video-queue-title-skeleton i:last-child {
+  width: 62%;
+}
+
+.video-queue-progress {
+  width: min(18rem, 100%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 7px;
+}
+
+.video-queue-progress-track {
+  height: 5px;
+  flex: 1;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(127, 127, 127, 0.24);
+}
+
+.video-queue-progress-track i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #2563eb;
+  transition: width 240ms ease;
+}
+
+.video-queue-progress small {
+  min-width: 3ch;
+  font-family: "Space Mono", monospace;
+  font-size: 9px;
+  font-style: normal;
+  line-height: 1;
+  text-align: right;
+}

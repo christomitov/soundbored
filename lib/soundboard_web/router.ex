@@ -58,6 +58,7 @@ defmodule SoundboardWeb.Router do
     live "/", SoundboardLive
     live "/stats", StatsLive
     live "/favorites", FavoritesLive
+    live "/video", VideoLive
     live "/settings", SettingsLive
   end
 
@@ -71,6 +72,18 @@ defmodule SoundboardWeb.Router do
     ]
 
     get "/*path", SoundboardWeb.UploadController, :show
+  end
+
+  scope "/video/sessions" do
+    pipe_through [
+      :browser,
+      :auth,
+      :ensure_authenticated_user,
+      :require_role_check,
+      :require_browser_basic_auth
+    ]
+
+    get "/:session_id/*path", SoundboardWeb.VideoSessionController, :show
   end
 
   if Mix.env() == :test do

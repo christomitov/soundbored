@@ -33,6 +33,9 @@ defmodule SoundboardWeb.Components.Layouts.Navbar do
               <.nav_link navigate="/favorites" active={current_page?(@current_path, "/favorites")}>
                 Favorites
               </.nav_link>
+              <.nav_link navigate="/video" active={current_page?(@current_path, "/video")}>
+                Video
+              </.nav_link>
               <.nav_link navigate="/stats" active={current_page?(@current_path, "/stats")}>
                 Stats
               </.nav_link>
@@ -128,6 +131,9 @@ defmodule SoundboardWeb.Components.Layouts.Navbar do
           </.mobile_nav_link>
           <.mobile_nav_link navigate="/favorites" active={current_page?(@current_path, "/favorites")}>
             Favorites
+          </.mobile_nav_link>
+          <.mobile_nav_link navigate="/video" active={current_page?(@current_path, "/video")}>
+            Video
           </.mobile_nav_link>
           <.mobile_nav_link navigate="/stats" active={current_page?(@current_path, "/stats")}>
             Stats

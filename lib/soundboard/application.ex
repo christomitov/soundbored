@@ -5,6 +5,7 @@ defmodule Soundboard.Application do
 
   use Application
   alias Soundboard.Discord.RuntimeCapability
+  alias Soundboard.YouTube.YtDlp
   require Logger
 
   @impl true
@@ -15,6 +16,7 @@ defmodule Soundboard.Application do
       Soundboard.Repo,
       {Task.Supervisor, name: Soundboard.AudioTaskSupervisor},
       {Soundboard.AudioPlayer, []},
+      {Soundboard.VideoPlayer, []},
       SoundboardWeb.Telemetry,
       {Phoenix.PubSub, name: Soundboard.PubSub},
       SoundboardWeb.Presence,
@@ -25,7 +27,38 @@ defmodule Soundboard.Application do
     ]
 
     opts = [strategy: :one_for_one, name: Soundboard.Supervisor]
-    Supervisor.start_link(children, opts)
+
+    with {:ok, pid} <- Supervisor.start_link(children, opts) do
+      _ =
+        Task.Supervisor.start_child(Soundboard.AudioTaskSupervisor, fn ->
+          ensure_ytdlp()
+        end)
+
+      {:ok, pid}
+    end
+  end
+
+  defp ensure_ytdlp do
+    case YtDlp.ensure() do
+      {:ok, path} ->
+        Logger.info("yt-dlp executable: #{path}")
+        ensure_ytdlp_js_runtime()
+
+      {:error, reason} ->
+        Logger.warning("yt-dlp unavailable: #{reason}. YouTube video playback will be disabled.")
+    end
+  end
+
+  defp ensure_ytdlp_js_runtime do
+    case YtDlp.resolve_js_runtime() do
+      {runtime, path} ->
+        Logger.info("yt-dlp JS runtime: #{runtime} (#{path})")
+
+      nil ->
+        Logger.warning(
+          "No JS runtime found for yt-dlp (install nodejs 22+). YouTube may only return storyboard images until one is available."
+        )
+    end
   end
 
   defp discord_children do

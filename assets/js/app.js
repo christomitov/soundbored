@@ -21,6 +21,24 @@ import "phoenix_html"
 import {Socket} from "phoenix"
 import {LiveSocket} from "phoenix_live_view"
 import topbar from "../vendor/topbar"
+// esbuild treats the UMD build as CommonJS, so window.Hls is never set —
+// import the constructor directly instead.
+import Hls from "../vendor/hls.min.js"
+
+const HlsCtor = () => Hls || window.Hls
+
+// Discord audio (YouTube URL → ffmpeg → Opus → RTP) typically trails the
+// browser remux edge by a few seconds. Hold the muted video back by this
+// amount so lips stay closer to Discord.
+const LIVE_AV_OFFSET_SEC = 3.5
+
+// The server position is a snapshot. HLS can take a noticeable amount of time
+// to attach after that snapshot arrives, so keep advancing the target locally
+// and periodically correct media stalls instead of seeking to stale time.
+const VIDEO_SYNC_INTERVAL_MS = 500
+const VIDEO_HARD_DRIFT_SEC = 0.6
+const VIDEO_SOFT_DRIFT_SEC = 0.08
+const VIDEO_MAX_RATE_ADJUSTMENT = 0.08
 
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 
@@ -583,6 +601,383 @@ Hooks.VolumeControl = {
 
     this.previewButton.textContent = isPlaying ? "Stop Preview" : this.previewLabel
     this.previewButton.dataset.previewState = isPlaying ? "playing" : "stopped"
+  }
+}
+
+Hooks.VideoPlayer = {
+  mounted() {
+    this.video = this.el.querySelector("video")
+    this.hls = null
+    this.currentSessionId = null
+    this.currentHlsUrl = null
+    this.isHost = false
+    this.applyingSync = false
+    this.programmaticSeek = false
+    this.playbackEventSuppressions = 0
+    this.syncToken = 0
+    this.wantPlaying = false
+    this.isLive = false
+    this.syncAnchor = null
+    this.syncTimer = setInterval(() => this.correctDrift(), VIDEO_SYNC_INTERVAL_MS)
+
+    this.handleSeeked = () => {
+      // Ignore seeks we applied from server sync — those were restarting Discord
+      // in a tight loop and made playback laggy.
+      if (!this.isHost || this.applyingSync || this.programmaticSeek || !this.video) {
+        this.programmaticSeek = false
+        return
+      }
+      // Live Discord follows the upstream stream and cannot seek into its DVR.
+      if (this.isLive) {
+        // A live Discord stream cannot seek into DVR, so put the browser back
+        // beside the audio instead of leaving the two permanently out of sync.
+        this.seekToLiveEdge()
+        return
+      }
+
+      const ms = Math.round(this.video.currentTime * 1000)
+      this.pushEvent("video_seek", {ms})
+    }
+
+    this.handlePlay = () => {
+      if (!this.isHost || this.ignorePlaybackEvent() || this.wantPlaying) return
+      this.wantPlaying = true
+      this.pushEvent("resume_video", {})
+    }
+
+    this.handlePause = () => {
+      // A media element emits pause as part of its normal ended sequence. Let
+      // the ended event advance the queue instead of first pausing the session
+      // and cancelling its server-side completion timer.
+      if (this.video?.ended) return
+      if (!this.isHost || this.ignorePlaybackEvent() || !this.wantPlaying) return
+      this.wantPlaying = false
+      this.pushEvent("pause_video", {})
+    }
+
+    this.handleEnded = () => {
+      if (!this.isHost || this.ignorePlaybackEvent()) return
+      const sessionId = this.currentSessionId
+      if (!sessionId) return
+      this.wantPlaying = false
+      this.pushEvent("video_ended", {session_id: sessionId})
+    }
+
+    if (this.video) {
+      this.video.addEventListener("seeked", this.handleSeeked)
+      this.video.addEventListener("play", this.handlePlay)
+      this.video.addEventListener("pause", this.handlePause)
+      this.video.addEventListener("ended", this.handleEnded)
+      this.video.muted = true
+      this.video.playsInline = true
+    }
+
+    this.handleEvent("video_state", (payload) => this.applyState(payload))
+    this.handleEvent("video_sync", (payload) => this.applySync(payload))
+    this.handleEvent("video_stop", () => this.teardown())
+
+    this.pushEvent("request_video_state", {})
+  },
+  destroyed() {
+    this.teardown()
+    if (this.syncTimer) {
+      clearInterval(this.syncTimer)
+      this.syncTimer = null
+    }
+    if (this.video) {
+      this.video.removeEventListener("seeked", this.handleSeeked)
+      this.video.removeEventListener("play", this.handlePlay)
+      this.video.removeEventListener("pause", this.handlePause)
+      this.video.removeEventListener("ended", this.handleEnded)
+    }
+  },
+  ignorePlaybackEvent() {
+    return this.applyingSync || this.playbackEventSuppressions > 0 || !this.currentSessionId
+  },
+  withoutPlaybackEvents(action) {
+    this.playbackEventSuppressions += 1
+    try {
+      return action()
+    } finally {
+      // Media play/pause events are queued by the browser. Release on the next
+      // task so those events still see the suppression flag.
+      setTimeout(() => {
+        this.playbackEventSuppressions = Math.max(0, this.playbackEventSuppressions - 1)
+      }, 0)
+    }
+  },
+  applyState(payload) {
+    if (!this.video) return
+
+    this.isHost = !!payload.is_host
+    this.video.controls = this.isHost
+    this.video.muted = true
+    this.isLive = payload.live === true || payload.live === "true"
+
+    if (!payload.hls_url || payload.status !== "ready") {
+      if (!payload.hls_url) this.teardownMedia()
+      return
+    }
+
+    const sessionChanged =
+      this.currentSessionId !== payload.session_id || this.currentHlsUrl !== payload.hls_url
+    if (sessionChanged) {
+      this.attachHls(payload.hls_url, payload.session_id)
+    }
+
+    this.applySync(payload, {forceSeek: sessionChanged})
+  },
+  applySync(payload, opts = {}) {
+    if (!this.video || payload == null) return
+
+    const live = payload.live === true || payload.live === "true"
+    const positionMs = Number(payload.position_ms)
+    const playing = payload.playing === true || payload.playing === "true"
+    const wasPlaying = this.wantPlaying
+    const token = ++this.syncToken
+    this.isLive = live
+    this.wantPlaying = playing
+
+    if (!live && Number.isFinite(positionMs)) {
+      this.syncAnchor = {
+        positionSec: positionMs / 1000,
+        observedAt: performance.now(),
+        playing
+      }
+    } else {
+      this.syncAnchor = null
+    }
+
+    this.applyingSync = true
+
+    // Snap when starting/resuming, attaching, or while the media is still
+    // loading. A newer sync event must replace any stale metadata callback.
+    const shouldSeek = opts.forceSeek || (playing && (!wasPlaying || this.video.readyState < 2))
+    if (shouldSeek) {
+      if (live) {
+        this.seekToLiveEdge(token)
+      } else if (Number.isFinite(positionMs)) {
+        this.seekToMs(positionMs, token)
+      }
+    }
+
+    const finish = () => {
+      if (token !== this.syncToken) return
+      this.applyingSync = false
+    }
+
+    if (playing) {
+      const playPromise = this.withoutPlaybackEvents(() => this.video.play())
+      if (playPromise && typeof playPromise.finally === "function") {
+        playPromise.catch(() => {}).finally(finish)
+      } else if (playPromise && playPromise.catch) {
+        playPromise.catch(() => {}).then(finish)
+      } else {
+        setTimeout(finish, 250)
+      }
+    } else {
+      this.withoutPlaybackEvents(() => this.video.pause())
+      this.video.playbackRate = 1
+      setTimeout(finish, 100)
+    }
+  },
+  targetPosition(fallbackPositionSec = null) {
+    if (!this.syncAnchor) return fallbackPositionSec
+
+    const elapsed = this.syncAnchor.playing
+      ? Math.max(0, performance.now() - this.syncAnchor.observedAt) / 1000
+      : 0
+
+    let target = this.syncAnchor.positionSec + elapsed
+    if (Number.isFinite(this.video?.duration)) {
+      target = Math.min(target, this.video.duration)
+    }
+    return Math.max(0, target)
+  },
+  liveTargetPosition() {
+    if (!this.video) return null
+    const Hls = HlsCtor()
+
+    if (this.hls && Hls && Number.isFinite(this.hls.liveSyncPosition)) {
+      return this.hls.liveSyncPosition - LIVE_AV_OFFSET_SEC
+    }
+
+    try {
+      if (this.video.seekable?.length > 0) {
+        return this.video.seekable.end(this.video.seekable.length - 1) - (1.5 + LIVE_AV_OFFSET_SEC)
+      }
+    } catch (_err) {
+      return null
+    }
+
+    return null
+  },
+  clampToSeekable(target) {
+    if (!this.video || !Number.isFinite(target)) return target
+
+    try {
+      if (this.video.seekable?.length > 0) {
+        const range = this.video.seekable.length - 1
+        return Math.min(Math.max(target, this.video.seekable.start(range)), this.video.seekable.end(range))
+      }
+    } catch (_err) {
+      return target
+    }
+
+    return target
+  },
+  correctDrift() {
+    if (!this.video || !this.wantPlaying || this.video.readyState < 2 || this.video.seeking) return
+
+    const target = this.isLive ? this.liveTargetPosition() : this.targetPosition()
+    if (!Number.isFinite(target)) return
+
+    const drift = this.clampToSeekable(target) - this.video.currentTime
+    if (Math.abs(drift) >= VIDEO_HARD_DRIFT_SEC) {
+      try {
+        this.programmaticSeek = true
+        this.video.currentTime = this.clampToSeekable(target)
+        this.video.playbackRate = 1
+      } catch (_err) {
+        this.programmaticSeek = false
+      }
+      return
+    }
+
+    if (this.isLive || Math.abs(drift) <= VIDEO_SOFT_DRIFT_SEC) {
+      this.video.playbackRate = 1
+      return
+    }
+
+    // Small corrections are less distracting as a temporary speed adjustment.
+    this.video.playbackRate = 1 + clamp(
+      drift * 0.12,
+      -VIDEO_MAX_RATE_ADJUSTMENT,
+      VIDEO_MAX_RATE_ADJUSTMENT
+    )
+  },
+  seekToLiveEdge(token = this.syncToken) {
+    if (!this.video) return
+
+    const apply = () => {
+      if (!this.video || token !== this.syncToken) return
+
+      try {
+        const target = this.liveTargetPosition()
+
+        if (target == null) return
+
+        this.programmaticSeek = true
+        this.video.currentTime = this.clampToSeekable(target)
+      } catch (_err) {
+        this.programmaticSeek = false
+      }
+    }
+
+    const Hls = HlsCtor()
+    if (this.hls && Hls?.Events?.LEVEL_LOADED) {
+      this.hls.once(Hls.Events.LEVEL_LOADED, apply)
+      apply()
+    } else if (this.video.readyState >= 1) {
+      apply()
+    } else {
+      this.video.addEventListener("loadedmetadata", apply, {once: true})
+    }
+  },
+  seekToMs(positionMs, token = this.syncToken) {
+    if (!this.video || !Number.isFinite(positionMs)) return
+
+    const apply = () => {
+      if (!this.video || token !== this.syncToken) return
+      const target = this.targetPosition(positionMs / 1000)
+      const drift = Math.abs(this.video.currentTime - target)
+      if (drift <= VIDEO_SOFT_DRIFT_SEC) return
+
+      try {
+        this.programmaticSeek = true
+        this.video.currentTime = target
+      } catch (_err) {
+        this.programmaticSeek = false
+      }
+    }
+
+    if (this.video.readyState >= 1) {
+      apply()
+    } else {
+      this.video.addEventListener("loadedmetadata", apply, {once: true})
+    }
+  },
+  attachHls(url, sessionId) {
+    this.teardownMedia()
+    this.currentSessionId = sessionId
+    this.currentHlsUrl = url
+    const Hls = HlsCtor()
+
+    if (this.video.canPlayType("application/vnd.apple.mpegurl")) {
+      this.video.src = url
+      return
+    }
+
+    if (Hls && Hls.isSupported()) {
+      // Hold ~2 segments behind the remux edge, then seekToLiveEdge applies an
+      // extra LIVE_AV_OFFSET_SEC so video waits for Discord audio.
+      this.hls = new Hls({
+        enableWorker: true,
+        liveSyncDurationCount: 3,
+        liveMaxLatencyDurationCount: 6,
+        liveDurationInfinity: true,
+        // Don't speed up to chase the live edge — that pulls video ahead of Discord.
+        maxLiveSyncPlaybackRate: 1,
+        xhrSetup: (xhr) => {
+          xhr.withCredentials = true
+        }
+      })
+      this.hls.on(Hls.Events.ERROR, (_event, data) => {
+        if (data?.fatal) {
+          console.error("HLS fatal error", data)
+          if (data.type === Hls.ErrorTypes.NETWORK_ERROR) this.hls.startLoad()
+          if (data.type === Hls.ErrorTypes.MEDIA_ERROR) this.hls.recoverMediaError()
+        }
+      })
+      this.hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        if (!this.video) return
+        if (this.wantPlaying) {
+          if (this.isLive) {
+            this.seekToLiveEdge()
+          } else if (this.syncAnchor) {
+            this.seekToMs(this.syncAnchor.positionSec * 1000)
+          }
+          const playPromise = this.withoutPlaybackEvents(() => this.video.play())
+          if (playPromise && playPromise.catch) playPromise.catch(() => {})
+        }
+      })
+      this.hls.loadSource(url)
+      this.hls.attachMedia(this.video)
+      return
+    }
+
+    console.error("HLS.js is unavailable; cannot play video in this browser")
+  },
+  teardownMedia() {
+    if (this.hls) {
+      this.hls.destroy()
+      this.hls = null
+    }
+    if (this.video) {
+      this.withoutPlaybackEvents(() => {
+        this.video.removeAttribute("src")
+        this.video.load()
+      })
+    }
+    this.currentSessionId = null
+    this.currentHlsUrl = null
+    this.syncAnchor = null
+    if (this.video) this.video.playbackRate = 1
+  },
+  teardown() {
+    this.teardownMedia()
+    this.wantPlaying = false
+    this.isLive = false
   }
 }
 

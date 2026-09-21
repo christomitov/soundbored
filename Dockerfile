@@ -49,7 +49,11 @@ ENV MIX_ENV=prod \
 RUN apk add --no-cache \
     ffmpeg \
     git \
-    libstdc++
+    libstdc++ \
+    ca-certificates \
+    curl \
+    python3 \
+    nodejs
 
 WORKDIR /app
 COPY --from=build /app .

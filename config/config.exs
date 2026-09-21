@@ -85,7 +85,13 @@ config :soundboard, SoundboardWeb.Presence, pubsub_server: Soundboard.PubSub
 config :soundboard,
   voice_rtp_probe: false,
   voice_rtp_probe_timeout_ms: 6_000,
-  max_upload_bytes: 10_000_000
+  max_upload_bytes: 10_000_000,
+  ytdlp_executable: :system,
+  ytdlp_managed_path: "priv/bin/yt-dlp",
+  ytdlp_auto_download: true,
+  ytdlp_timeout_ms: 120_000,
+  youtube_cookies_path: "priv/youtube/cookies.txt",
+  video_sessions_dir: "priv/video_sessions"
 
 # Add this with your other configs
 config :ueberauth, Ueberauth,

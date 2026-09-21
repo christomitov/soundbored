@@ -66,6 +66,7 @@ defmodule SoundboardWeb.StatsLive do
     {start_date, end_date} = socket.assigns.selected_week
     top_users = Stats.get_top_users(start_date, end_date, limit: @recent_limit)
     top_sounds = Stats.get_top_sounds(start_date, end_date, limit: @recent_limit)
+    top_videos = Stats.get_top_videos(start_date, end_date, limit: @recent_limit)
 
     recent_plays = recent_plays()
 
@@ -77,6 +78,7 @@ defmodule SoundboardWeb.StatsLive do
     socket
     |> assign(:top_users, top_users)
     |> assign(:top_sounds, top_sounds)
+    |> assign(:top_videos, top_videos)
     |> stream(:recent_plays, recent_plays, reset: true)
     |> assign(:recent_uploads, recent_uploads)
     |> assign(:favorites, favorites)
@@ -167,7 +169,7 @@ defmodule SoundboardWeb.StatsLive do
         </div>
       </div>
 
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
           <h2 class="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-4">Top Users</h2>
           <div class="space-y-2">
@@ -230,18 +232,49 @@ defmodule SoundboardWeb.StatsLive do
             <% end %>
           </div>
         </div>
+
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+          <h2 class="text-xl font-semibold text-gray-800 dark:text-gray-200 mb-4">Top Videos</h2>
+          <div class="space-y-3">
+            <%= if @top_videos == [] do %>
+              <p class="text-sm text-gray-500 dark:text-gray-400">No videos played this week</p>
+            <% else %>
+              <%= for video <- @top_videos do %>
+                <a
+                  id={"youtube-stat-#{video.youtube_id}"}
+                  href={youtube_url(video)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="block p-2 rounded-lg bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600"
+                >
+                  <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                    {video.title}
+                  </p>
+                  <p class="text-xs text-gray-500 dark:text-gray-400">
+                    {video.count} plays · {video.youtube_id}
+                  </p>
+                </a>
+              <% end %>
+            <% end %>
+          </div>
+        </div>
       </div>
 
       <div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-8">
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
-          <h2 class="text-xl font-semibold text-gray-800 dark:text-gray-200 mb-4">Recent Plays</h2>
+          <h2 class="text-xl font-semibold text-gray-800 dark:text-gray-200 mb-4">
+            Recent Activity
+          </h2>
           <div class="space-y-3" id="recent_plays" phx-update="stream">
             <%= for {dom_id, play} <- @streams.recent_plays do %>
               <div
-                class="flex items-center justify-between p-2 rounded-lg bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer group"
+                class={[
+                  "flex items-center justify-between p-2 rounded-lg bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 group",
+                  sound_play?(play) && "cursor-pointer"
+                ]}
                 id={dom_id}
-                phx-click="play_sound"
-                phx-value-sound={play.filename}
+                phx-click={if(sound_play?(play), do: "play_sound")}
+                phx-value-sound={if(sound_play?(play), do: play.filename)}
               >
                 <div class="flex items-center gap-3 min-w-0">
                   <div class="flex-shrink-0">
@@ -252,11 +285,22 @@ defmodule SoundboardWeb.StatsLive do
                     />
                   </div>
                   <div class="min-w-0">
-                    <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
-                      {display_name(play.filename)}
-                    </p>
+                    <%= if youtube_play?(play) do %>
+                      <a
+                        href={youtube_url(play)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline truncate"
+                      >
+                        {activity_title(play)}
+                      </a>
+                    <% else %>
+                      <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                        {activity_title(play)}
+                      </p>
+                    <% end %>
                     <p class="text-xs text-gray-500 dark:text-gray-400">
-                      {play.username}
+                      {play.username}{if youtube_play?(play), do: " · YouTube"}
                     </p>
                   </div>
                 </div>
@@ -265,6 +309,7 @@ defmodule SoundboardWeb.StatsLive do
                     {format_timestamp(play.timestamp)}
                   </span>
                   <button
+                    :if={sound_play?(play)}
                     phx-click="toggle_favorite"
                     phx-value-sound={play.filename}
                     phx-stop
@@ -374,16 +419,19 @@ defmodule SoundboardWeb.StatsLive do
   end
 
   defp recent_plays do
-    Stats.get_recent_plays(limit: @recent_limit)
+    Stats.get_recent_activity(limit: @recent_limit)
     |> Enum.map(&map_recent_play/1)
   end
 
-  defp map_recent_play({id, filename, username, timestamp}) do
+  defp map_recent_play(play) do
     %{
-      id: id,
-      filename: filename,
-      username: username,
-      timestamp: timestamp
+      id: play.id,
+      filename: play.title,
+      username: play.username,
+      timestamp: play.timestamp,
+      media_type: play.media_type,
+      youtube_id: play.youtube_id,
+      url: play.url
     }
   end
 
@@ -391,7 +439,11 @@ defmodule SoundboardWeb.StatsLive do
     filenames =
       top_sounds
       |> Enum.map(fn {filename, _count} -> filename end)
-      |> Kernel.++(Enum.map(recent_plays, & &1.filename))
+      |> Kernel.++(
+        recent_plays
+        |> Enum.filter(&sound_play?/1)
+        |> Enum.map(& &1.filename)
+      )
       |> Kernel.++(Enum.map(recent_uploads, fn {filename, _username, _timestamp} -> filename end))
       |> Enum.uniq()
 
@@ -425,6 +477,24 @@ defmodule SoundboardWeb.StatsLive do
     base = slugify(play.filename)
     "recent-play-#{base}-#{play.id}"
   end
+
+  defp sound_play?(%{media_type: "sound"}), do: true
+  defp sound_play?(_), do: false
+
+  defp youtube_play?(%{media_type: "youtube"}), do: true
+  defp youtube_play?(_), do: false
+
+  defp activity_title(play) do
+    if sound_play?(play), do: display_name(play.filename), else: play.filename
+  end
+
+  defp youtube_url(%{youtube_id: youtube_id})
+       when is_binary(youtube_id) and byte_size(youtube_id) > 0 do
+    "https://www.youtube.com/watch?v=#{youtube_id}"
+  end
+
+  defp youtube_url(%{url: url}) when is_binary(url), do: url
+  defp youtube_url(_), do: "https://www.youtube.com"
 
   @impl true
   def handle_event("play_sound", %{"sound" => sound_name}, socket) do

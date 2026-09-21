@@ -3,7 +3,7 @@ defmodule Soundboard.AudioPlayer.PlaybackQueue do
 
   require Logger
 
-  alias Soundboard.AudioPlayer.{PlaybackEngine, SoundLibrary, State}
+  alias Soundboard.AudioPlayer.{Notifier, PlaybackEngine, SoundLibrary, State}
   alias Soundboard.Discord.Voice
 
   @type play_request :: %{
@@ -37,18 +37,37 @@ defmodule Soundboard.AudioPlayer.PlaybackQueue do
 
   @spec enqueue(State.t(), play_request(), pos_integer()) :: State.t()
   def enqueue(%State{} = state, request, interrupt_watchdog_ms) do
-    case state.current_playback do
-      nil ->
+    case {state.current_playback, state.interrupting} do
+      {nil, true} ->
+        # A voice source outside this queue (video audio) is still crossing its
+        # stop boundary. Keep only the latest requested effect until it clears.
+        Map.put(state, :pending_request, request)
+
+      {nil, _} ->
         state
         |> cancel_interrupt_watchdog()
         |> Map.merge(%{interrupting: false, interrupt_watchdog_attempt: 0})
         |> start_playback(request)
 
-      _ ->
+      {_current, _} ->
         state
         |> Map.put(:pending_request, request)
         |> maybe_interrupt_current(interrupt_watchdog_ms)
     end
+  end
+
+  @doc false
+  @spec await_external_interrupt(State.t(), play_request(), pos_integer()) :: State.t()
+  def await_external_interrupt(%State{} = state, request, interrupt_watchdog_ms) do
+    state
+    |> cancel_interrupt_watchdog()
+    |> Map.merge(%{
+      current_playback: nil,
+      pending_request: request,
+      interrupting: true,
+      interrupt_watchdog_attempt: 0
+    })
+    |> schedule_interrupt_watchdog(request.guild_id, 1, interrupt_watchdog_ms)
   end
 
   @spec clear_all(State.t()) :: State.t()
@@ -135,21 +154,33 @@ defmodule Soundboard.AudioPlayer.PlaybackQueue do
 
   @spec handle_playback_finished(State.t(), String.t()) :: State.t()
   def handle_playback_finished(%State{} = state, guild_id) do
-    cond do
-      match?(%{guild_id: ^guild_id}, state.current_playback) ->
-        state
-        |> clear_current_playback()
-        |> maybe_start_pending()
+    next_state =
+      cond do
+        match?(%{guild_id: ^guild_id}, state.current_playback) ->
+          state
+          |> clear_current_playback()
+          |> maybe_start_pending()
 
-      state.interrupting and match?({^guild_id, _}, state.voice_channel) ->
-        state
-        |> reset_interrupt_state()
-        |> maybe_start_pending()
+        state.interrupting and match?({^guild_id, _}, state.voice_channel) ->
+          state
+          |> reset_interrupt_state()
+          |> maybe_start_pending()
 
-      true ->
-        state
-    end
+        true ->
+          state
+      end
+
+    maybe_broadcast_playback_stopped(next_state)
   end
+
+  defp maybe_broadcast_playback_stopped(
+         %State{current_playback: nil, pending_request: nil} = state
+       ) do
+    Notifier.playback_stopped()
+    state
+  end
+
+  defp maybe_broadcast_playback_stopped(%State{} = state), do: state
 
   defp start_playback(state, request) do
     task =

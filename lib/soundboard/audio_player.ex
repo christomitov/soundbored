@@ -53,6 +53,14 @@ defmodule Soundboard.AudioPlayer do
     GenServer.cast(__MODULE__, :stop_sound)
   end
 
+  @doc """
+  Stops voice playback and clears the queue without broadcasting a voice-channel error
+  when disconnected. Used by video playback before taking over Discord audio.
+  """
+  def clear_playback do
+    GenServer.cast(__MODULE__, :clear_playback)
+  end
+
   def set_voice_channel(guild_id, channel_id) do
     GenServer.cast(__MODULE__, {:set_voice_channel, guild_id, channel_id})
   end
@@ -69,12 +77,36 @@ defmodule Soundboard.AudioPlayer do
     GenServer.cast(__MODULE__, {:playback_finished, guild_id})
   end
 
+  @doc false
+  @spec sound_playing?() :: boolean()
+  def sound_playing? do
+    GenServer.call(__MODULE__, :sound_playing?)
+  catch
+    :exit, _ -> false
+  end
+
   def current_voice_channel do
     {:ok, GenServer.call(__MODULE__, :get_voice_channel)}
   rescue
     error -> {:error, {:voice_channel_unavailable, Exception.message(error)}}
   catch
     :exit, reason -> {:error, {:voice_channel_unavailable, reason}}
+  end
+
+  @doc """
+  Returns the bot's current voice channel, auto-joining the actor's channel when
+  `AUTO_JOIN=play` and the bot is not connected yet.
+  """
+  @spec ensure_voice_channel(term()) ::
+          {:ok, {String.t(), String.t()}} | {:error, String.t()}
+  def ensure_voice_channel(actor) do
+    GenServer.call(__MODULE__, {:ensure_voice_channel, actor}, 15_000)
+  rescue
+    error ->
+      {:error, "Voice channel unavailable: #{Exception.message(error)}"}
+  catch
+    :exit, reason ->
+      {:error, "Voice channel unavailable: #{inspect(reason)}"}
   end
 
   @doc """
@@ -104,6 +136,8 @@ defmodule Soundboard.AudioPlayer do
     next_state =
       case VoiceSession.normalize_channel(guild_id, channel_id) do
         nil ->
+          Notifier.playback_stopped()
+
           state
           |> PlaybackQueue.clear_all()
           |> cancel_idle_timeout()
@@ -122,19 +156,49 @@ defmodule Soundboard.AudioPlayer do
   end
 
   def handle_cast(:stop_sound, %{voice_channel: {guild_id, _channel_id}} = state) do
+    Soundboard.VideoPlayer.interrupt()
     Voice.stop(guild_id)
-    Notifier.sound_played("All sounds stopped", "System")
+    Notifier.playback_stopped()
 
     {:noreply, PlaybackQueue.clear_all(state)}
   end
 
   def handle_cast(:stop_sound, state) do
+    Soundboard.VideoPlayer.interrupt()
     Notifier.error("Bot is not connected to a voice channel")
     {:noreply, state}
   end
 
+  def handle_cast(:clear_playback, %{voice_channel: {guild_id, _channel_id}} = state) do
+    Voice.stop(guild_id)
+    Notifier.playback_stopped()
+
+    {:noreply, PlaybackQueue.clear_all(state)}
+  end
+
+  def handle_cast(:clear_playback, state) do
+    {:noreply, state}
+  end
+
   def handle_cast({:playback_finished, guild_id}, state) do
-    {:noreply, PlaybackQueue.handle_playback_finished(state, guild_id)}
+    sound_boundary? =
+      match?(%{guild_id: ^guild_id}, state.current_playback) or
+        (state.interrupting and match?({^guild_id, _}, state.voice_channel) and
+           not is_nil(state.pending_request))
+
+    next_state = PlaybackQueue.handle_playback_finished(state, guild_id)
+
+    if sound_boundary? do
+      maybe_resume_video_audio(next_state)
+    else
+      # Live YouTube audio is continuous — an ffmpeg blip must not end the session.
+      # VOD end-of-file should advance the queue while actively playing.
+      if Soundboard.VideoPlayer.playing?() and not Soundboard.VideoPlayer.livestreaming?() do
+        Soundboard.VideoPlayer.notify_media_ended()
+      end
+    end
+
+    {:noreply, next_state}
   end
 
   def handle_cast({:play_sound, sound_name, actor}, %{voice_channel: nil} = state) do
@@ -167,6 +231,7 @@ defmodule Soundboard.AudioPlayer do
       mode when mode in [:presence, :play] ->
         Logger.info("Last user left (#{mode} mode); leaving guild #{guild_id}")
         safely_leave(guild_id)
+        Notifier.playback_stopped()
 
         new_state =
           state
@@ -193,6 +258,54 @@ defmodule Soundboard.AudioPlayer do
     {:reply, state.voice_channel, state}
   end
 
+  def handle_call({:ensure_voice_channel, actor}, _from, state) do
+    case state.voice_channel do
+      {_, _} = channel ->
+        new_state =
+          if AutoJoinPolicy.mode() == :play, do: reset_idle_timeout(state), else: state
+
+        {:reply, {:ok, channel}, new_state}
+
+      nil ->
+        ensure_missing_voice_channel(actor, state)
+    end
+  end
+
+  def handle_call(:sound_playing?, _from, state) do
+    active? =
+      not is_nil(state.current_playback) or not is_nil(state.pending_request) or
+        state.interrupting == true
+
+    {:reply, active?, state}
+  end
+
+  defp ensure_missing_voice_channel(actor, state) do
+    if AutoJoinPolicy.mode() == :play do
+      auto_join_voice_channel(actor, state)
+    else
+      {:reply, {:error, "Bot is not connected to a voice channel. Use !join in Discord first."},
+       state}
+    end
+  end
+
+  defp auto_join_voice_channel(actor, state) do
+    case try_auto_join(actor) do
+      {:ok, channel} ->
+        new_state =
+          state
+          |> Map.put(:voice_channel, channel)
+          |> schedule_idle_timeout()
+
+        {:reply, {:ok, channel}, new_state}
+
+      :not_found ->
+        {:reply,
+         {:error,
+          "Bot is not connected to a voice channel. Join a Discord voice channel and try again (or use !join)."},
+         state}
+    end
+  end
+
   @impl true
   def handle_info(
         {:idle_timeout, token},
@@ -200,6 +313,7 @@ defmodule Soundboard.AudioPlayer do
       ) do
     Logger.info("Voice idle timeout in guild #{guild_id}; leaving channel")
     safely_leave(guild_id)
+    Notifier.playback_stopped()
 
     new_state =
       %{state | idle_timeout_ref: nil}
@@ -220,7 +334,9 @@ defmodule Soundboard.AudioPlayer do
   @impl true
   def handle_info({ref, result}, %{current_playback: %{task_ref: ref}} = state) do
     Process.demonitor(ref, [:flush])
-    {:noreply, PlaybackQueue.handle_task_result(state, result)}
+    next_state = PlaybackQueue.handle_task_result(state, result)
+    maybe_resume_video_audio(next_state)
+    {:noreply, next_state}
   end
 
   @impl true
@@ -228,19 +344,24 @@ defmodule Soundboard.AudioPlayer do
         {:DOWN, ref, :process, _pid, reason},
         %{current_playback: %{task_ref: ref}} = state
       ) do
-    {:noreply, PlaybackQueue.handle_task_down(state, reason)}
+    next_state = PlaybackQueue.handle_task_down(state, reason)
+    maybe_resume_video_audio(next_state)
+    {:noreply, next_state}
   end
 
   @impl true
   def handle_info({:interrupt_watchdog, guild_id, attempt}, state) do
-    {:noreply,
-     PlaybackQueue.handle_interrupt_watchdog(
-       state,
-       guild_id,
-       attempt,
-       @interrupt_watchdog_max_attempts,
-       @interrupt_watchdog_ms
-     )}
+    next_state =
+      PlaybackQueue.handle_interrupt_watchdog(
+        state,
+        guild_id,
+        attempt,
+        @interrupt_watchdog_max_attempts,
+        @interrupt_watchdog_ms
+      )
+
+    maybe_resume_video_audio(next_state)
+    {:noreply, next_state}
   end
 
   @impl true
@@ -252,13 +373,41 @@ defmodule Soundboard.AudioPlayer do
         new_state =
           if AutoJoinPolicy.mode() == :play, do: reset_idle_timeout(state), else: state
 
-        {:noreply, PlaybackQueue.enqueue(new_state, request, @interrupt_watchdog_ms)}
+        {:noreply, enqueue_sound_request(new_state, request)}
 
       {:error, reason} ->
         Notifier.error(reason)
         {:noreply, state}
     end
   end
+
+  defp enqueue_sound_request(state, request) do
+    overlay_video? =
+      is_nil(state.current_playback) and not state.interrupting and
+        Soundboard.VideoPlayer.playing?()
+
+    if overlay_video? and Soundboard.VideoPlayer.suspend_discord_audio() == :suspended do
+      PlaybackQueue.await_external_interrupt(state, request, @interrupt_watchdog_ms)
+    else
+      PlaybackQueue.enqueue(state, request, @interrupt_watchdog_ms)
+    end
+  end
+
+  defp maybe_resume_video_audio(%State{
+         current_playback: nil,
+         pending_request: nil,
+         interrupting: false
+       }) do
+    if Soundboard.VideoPlayer.playing?() do
+      Soundboard.VideoPlayer.resume_discord_audio()
+    else
+      Soundboard.VideoPlayer.sound_playback_idle()
+    end
+
+    :ok
+  end
+
+  defp maybe_resume_video_audio(_state), do: :ok
 
   defp try_auto_join(actor) do
     case actor_discord_id(actor) do

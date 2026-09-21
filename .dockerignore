@@ -6,3 +6,7 @@ test
 coveralls.json
 docker-compose.yml
 Dockerfile
+priv/bin/
+priv/youtube/
+priv/video_sessions/
+priv/video_sessions_test/

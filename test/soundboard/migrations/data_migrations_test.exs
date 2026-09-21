@@ -1,16 +1,23 @@
-for migration_file <- [
-      "20250101213201_create_sounds.exs",
-      "20250101213717_create_tags.exs",
-      "20250101231744_create_users.exs",
-      "20250102212120_create_plays.exs",
-      "20250102212121_create_favorites.exs",
-      "20250102212122_add_user_id_to_sounds.exs",
-      "20250102212123_change_favorites_filename_to_sound_id.exs",
-      "20260306150000_add_sound_id_to_plays.exs",
-      "20260306151000_finalize_favorites_and_sound_tags_migrations.exs",
-      "20260307211000_rename_sound_name_to_played_filename_in_plays.exs"
+for {module, migration_file} <- [
+      {Soundboard.Repo.Migrations.CreateSounds, "20250101213201_create_sounds.exs"},
+      {Soundboard.Repo.Migrations.CreateTags, "20250101213717_create_tags.exs"},
+      {Soundboard.Repo.Migrations.CreateUsers, "20250101231744_create_users.exs"},
+      {Soundboard.Repo.Migrations.CreatePlays, "20250102212120_create_plays.exs"},
+      {Soundboard.Repo.Migrations.CreateFavorites, "20250102212121_create_favorites.exs"},
+      {Soundboard.Repo.Migrations.AddUserIdToSounds, "20250102212122_add_user_id_to_sounds.exs"},
+      {Soundboard.Repo.Migrations.ChangeFavoritesFilenameToSoundId,
+       "20250102212123_change_favorites_filename_to_sound_id.exs"},
+      {Soundboard.Repo.Migrations.AddSoundIdToPlays, "20260306150000_add_sound_id_to_plays.exs"},
+      {Soundboard.Repo.Migrations.FinalizeFavoritesAndSoundTagsMigrations,
+       "20260306151000_finalize_favorites_and_sound_tags_migrations.exs"},
+      {Soundboard.Repo.Migrations.RenameSoundNameToPlayedFilenameInPlays,
+       "20260307211000_rename_sound_name_to_played_filename_in_plays.exs"},
+      {Soundboard.Repo.Migrations.AddYoutubeMetadataToPlays,
+       "20260811041500_add_youtube_metadata_to_plays.exs"}
     ] do
-  Code.require_file(Path.expand("../../../priv/repo/migrations/#{migration_file}", __DIR__))
+  unless Code.ensure_loaded?(module) do
+    Code.require_file(Path.expand("../../../priv/repo/migrations/#{migration_file}", __DIR__))
+  end
 end
 
 defmodule Soundboard.Migrations.DataMigrationsTest do
@@ -19,6 +26,7 @@ defmodule Soundboard.Migrations.DataMigrationsTest do
   alias Soundboard.Repo.Migrations.{
     AddSoundIdToPlays,
     AddUserIdToSounds,
+    AddYoutubeMetadataToPlays,
     ChangeFavoritesFilenameToSoundId,
     CreateFavorites,
     CreatePlays,
@@ -136,6 +144,45 @@ defmodule Soundboard.Migrations.DataMigrationsTest do
 
     assert column_names(repo, "plays") |> Enum.member?("sound_name")
     refute column_names(repo, "plays") |> Enum.member?("played_filename")
+  end
+
+  test "add_youtube_metadata_to_plays preserves sounds and supports video rows", %{repo: repo} do
+    migrate_up(repo, [
+      {20_250_101_213_201, CreateSounds},
+      {20_250_101_231_744, CreateUsers},
+      {20_250_102_212_120, CreatePlays},
+      {20_250_102_212_122, AddUserIdToSounds},
+      {20_260_306_150_000, AddSoundIdToPlays},
+      {20_260_307_211_000, RenameSoundNameToPlayedFilenameInPlays}
+    ])
+
+    repo.query!("""
+    INSERT INTO users (id, discord_id, username, avatar, inserted_at, updated_at)
+    VALUES (1, 'discord-1', 'tester', 'avatar.png', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    """)
+
+    repo.query!("""
+    INSERT INTO plays (id, played_filename, user_id, inserted_at, updated_at)
+    VALUES (1, 'beep.mp3', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    """)
+
+    :ok =
+      Ecto.Migrator.up(repo, 20_260_811_041_500, AddYoutubeMetadataToPlays, log: false)
+
+    assert [["sound"]] = repo.query!("SELECT media_type FROM plays WHERE id = 1").rows
+
+    repo.query!("""
+    INSERT INTO plays (
+      played_filename, media_type, youtube_id, source_url, user_id, inserted_at, updated_at
+    ) VALUES (
+      'A video', 'youtube', 'wIzJcg9eWM4',
+      'https://www.youtube.com/watch?v=wIzJcg9eWM4', 1,
+      CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+    )
+    """)
+
+    assert [["youtube", "wIzJcg9eWM4"]] =
+             repo.query!("SELECT media_type, youtube_id FROM plays WHERE id = 2").rows
   end
 
   test "finalize favorites and sound tags backfills legacy tags and restores them on rollback", %{
