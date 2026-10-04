@@ -132,7 +132,7 @@ defmodule Soundboard.MixProject do
       ci: [
         "compile --warnings-as-errors",
         "format --check-formatted",
-        "test",
+        "cmd ./scripts/check-coverage.sh",
         "credo --strict",
         "dialyzer",
         "ex_dna --max-clones 0",

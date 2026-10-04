@@ -366,12 +366,19 @@ defmodule Soundboard.Billing do
     end
   end
 
-  defp remember_subscription(guild_id, %{} = state) when is_binary(guild_id) do
+  @doc "Caches the guild's subscription state (id, item, price) in memory."
+  @spec remember_subscription(String.t() | term(), %{
+          id: String.t(),
+          item_id: String.t() | nil,
+          price_id: String.t() | nil
+        }) ::
+          :ok
+  def remember_subscription(guild_id, %{} = state) when is_binary(guild_id) do
     ensure_ets(@subscriptions_ets)
     :ets.insert(@subscriptions_ets, {guild_id, state})
   end
 
-  defp remember_subscription(_, _), do: :ok
+  def remember_subscription(_, _), do: :ok
 
   @doc """
   Moves the guild's live subscription to another price (tier or interval
