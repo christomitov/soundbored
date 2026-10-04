@@ -32,7 +32,7 @@ defmodule SoundboardWeb.AuthController do
           conn
           |> put_session(:user_id, user.id)
           |> put_session(:roles_verified_at, System.system_time(:second))
-          |> redirect(to: "/")
+          |> redirect_after_sign_in()
 
         {:error, _reason} ->
           conn
@@ -50,6 +50,22 @@ defmodule SoundboardWeb.AuthController do
     conn
     |> put_flash(:error, "Failed to authenticate")
     |> redirect(to: "/")
+  end
+
+  # SB-2 slug claim: a signed-out visitor who hit /g/:slug stashed the desired
+  # slug in the session; land them on it after sign-in.
+  defp redirect_after_sign_in(conn) do
+    case get_session(conn, :pending_slug) do
+      nil ->
+        redirect(conn, to: "/")
+
+      slug ->
+        slug = if slug =~ ~r/^[A-Za-z0-9-]+$/, do: slug, else: ""
+
+        conn
+        |> delete_session(:pending_slug)
+        |> redirect(to: if(slug == "", do: "/", else: "/g/#{slug}"))
+    end
   end
 
   @doc """

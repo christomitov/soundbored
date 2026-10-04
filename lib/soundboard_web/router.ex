@@ -22,6 +22,16 @@ defmodule SoundboardWeb.Router do
     plug :fetch_session
     plug :fetch_current_user
     plug SoundboardWeb.Plugs.Tenant
+    plug :assign_controller_defaults
+  end
+
+  # The shared app layout reads @current_path and @presences. LiveViews assign
+  # these on the socket, but controller-rendered pages render from conn, so the
+  # pipeline supplies the defaults here.
+  def assign_controller_defaults(conn, _opts) do
+    conn
+    |> Plug.Conn.assign(:current_path, conn.request_path)
+    |> Plug.Conn.assign(:presences, [])
   end
 
   pipeline :auth_browser do
@@ -69,7 +79,24 @@ defmodule SoundboardWeb.Router do
 
     get "/guilds", GuildController, :index
     post "/guilds/switch", GuildController, :switch
+    post "/guilds/claim", GuildController, :claim
     get "/onboarding", OnboardingController, :show
+  end
+
+  # Slug entry point: /g/:slug resolves the tenant by slug and scopes the app
+  # to it. Signed-out visitors keep the desired slug across the auth redirect
+  # via the :pending_slug session key (see remember_pending_slug/2 below).
+  scope "/g", SoundboardWeb do
+    pipe_through([
+      :browser,
+      :auth,
+      :remember_pending_slug,
+      :ensure_authenticated_user,
+      :require_role_check,
+      :require_browser_basic_auth
+    ])
+
+    get "/:slug", GuildController, :show
   end
 
   scope "/uploads" do
@@ -117,6 +144,17 @@ defmodule SoundboardWeb.Router do
       end
     else
       assign(conn, :current_user, nil)
+    end
+  end
+
+  def remember_pending_slug(conn, _opts) do
+    if conn.assigns[:current_user] do
+      conn
+    else
+      case conn.path_info do
+        ["g", slug | _] -> put_session(conn, :pending_slug, slug)
+        _ -> conn
+      end
     end
   end
 

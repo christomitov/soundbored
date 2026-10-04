@@ -35,6 +35,30 @@
   <p class="opacity-60">The bot is not a member of any guild yet.</p>
 <% end %>
 
+<div class="mt-8 border rounded p-4 max-w-lg">
+  <h2 class="font-semibold mb-1">Claim your subdomain</h2>
+  <%= if @current_guild do %>
+    <p class="text-sm mb-2 opacity-70">
+      Current slug: <code>{@current_guild.slug || "(unclaimed)"}</code>
+    </p>
+
+    <.form for={%{}} as={:claim} action={~p"/guilds/claim"} class="flex gap-2 items-center">
+      <input
+        type="text"
+        name="slug"
+        value={@current_guild.slug}
+        placeholder="my-soundboard"
+        class="input input-bordered input-sm"
+        pattern="[a-zA-Z0-9]([a-zA-Z0-9-]{0,28}[a-zA-Z0-9])?"
+        required
+      />
+      <button type="submit" class="btn btn-sm">Claim</button>
+    </.form>
+  <% else %>
+    <p class="text-sm opacity-60">Pick a soundboard above first, then claim a subdomain.</p>
+  <% end %>
+</div>
+
 <p class="mt-6">
   <a href={~p"/onboarding"}>Add the bot to a server</a>
 </p>
