@@ -10,6 +10,8 @@ defmodule SoundboardWeb.OnboardingController do
   alias Soundboard.Discord.InviteURL
 
   def show(conn, _params) do
-    render(conn, :show, invite_url: InviteURL.build())
+    conn
+    |> assign(:current_path, conn.request_path)
+    |> render(:show, invite_url: InviteURL.build())
   end
 end

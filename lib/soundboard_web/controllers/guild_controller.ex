@@ -10,7 +10,9 @@ defmodule SoundboardWeb.GuildController do
   alias Soundboard.{Discord.GuildCache, Tenants}
 
   def index(conn, _params) do
-    render(conn, :index,
+    conn
+    |> assign(:current_path, conn.request_path)
+    |> render(:index,
       bot_guilds: Tenants.bot_guilds(),
       current_guild_id: conn.assigns.current_guild_id
     )
