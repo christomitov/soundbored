@@ -17,7 +17,6 @@ defmodule Soundboard.Tenants do
   @boundary_exceptions Soundboard.Boundary.exceptions()
 
   @fallback_guild_id "default"
-  @fallback_storage_bytes 2_147_483_648
   @reserved_slugs ~w(www dash api admin app auth uploads static assets mail settings stats favorites)
 
   # -- Guild resolution -------------------------------------------------------
@@ -264,33 +263,36 @@ defmodule Soundboard.Tenants do
   end
 
   @doc """
-  The storage cap for a guild: its own `max_storage_bytes`, else
-  `SOUNDBOARD_DEFAULT_STORAGE_BYTES` (configured as `:default_storage_bytes`),
-  else the built-in 2GB fallback.
+  The storage cap for a guild: its own `max_storage_bytes`, or nil when the
+  guild has no cap — which means unlimited. Caps exist only where subscriptions
+  put them: on hosted, the billing webhook writes exact plan caps; self-hosted
+  installs have no cap at all.
   """
-  @spec storage_cap(String.t() | term()) :: pos_integer()
+  @spec storage_cap(String.t() | term()) :: pos_integer() | nil
   def storage_cap(guild_id) do
     case get_guild(guild_id) do
       %Guild{max_storage_bytes: bytes} when is_integer(bytes) and bytes > 0 -> bytes
-      _ -> default_storage_bytes()
+      _ -> nil
     end
   end
 
-  @spec default_storage_bytes() :: pos_integer()
-  def default_storage_bytes do
-    Application.get_env(:soundboard, :default_storage_bytes) || @fallback_storage_bytes
-  end
-
-  @spec storage_remaining(String.t() | term()) :: non_neg_integer()
+  @spec storage_remaining(String.t() | term()) :: non_neg_integer() | nil
   def storage_remaining(guild_id) do
-    max(storage_cap(guild_id) - storage_used(guild_id), 0)
+    case storage_cap(guild_id) do
+      nil -> nil
+      cap -> max(cap - storage_used(guild_id), 0)
+    end
   end
 
   @doc """
   Whether uploading `incoming_bytes` more would stay within the guild's cap.
+  An uncapped guild (self-hosted) is always within its limit.
   """
   @spec within_storage_limit?(String.t() | term(), non_neg_integer()) :: boolean()
   def within_storage_limit?(guild_id, incoming_bytes) do
-    storage_used(guild_id) + incoming_bytes <= storage_cap(guild_id)
+    case storage_cap(guild_id) do
+      nil -> true
+      cap -> storage_used(guild_id) + incoming_bytes <= cap
+    end
   end
 end

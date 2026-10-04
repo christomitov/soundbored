@@ -1,74 +1,105 @@
-<h1 class="text-2xl font-bold mb-4">Your soundboards</h1>
+<div class="max-w-4xl mx-auto px-4 py-8">
+  <h1 class="text-3xl font-bold text-gray-800 dark:text-gray-100 mb-2">Your soundboards</h1>
+  <p class="mb-6 text-sm text-gray-600 dark:text-gray-400">
+    Switching selects which soundboard you are managing.
+  </p>
 
-<p class="mb-6 text-sm opacity-70">
-  Guilds the Soundbored bot is a member of. Switching selects which soundboard
-  you are managing; inviting the bot to a new guild makes it available here.
-</p>
-
-<ul class="space-y-3">
-  <%= for entry <- @bot_guilds do %>
-    <li class="flex items-center justify-between border rounded p-4">
-      <div>
-        <div class="font-semibold">{entry.name || entry.id}</div>
-        <div class="text-sm opacity-60">
-          <%= if entry.guild do %>
-            soundboard: {entry.guild.slug || "(unclaimed)"}
-          <% else %>
-            not provisioned yet
-          <% end %>
+  <ul class="space-y-3">
+    <%= for entry <- @bot_guilds do %>
+      <li class="flex items-center justify-between gap-4 bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+        <div class="font-medium text-gray-800 dark:text-gray-200 truncate">
+          {entry.name || entry.id}
         </div>
-      </div>
 
-      <%= if entry.id == @current_guild_id do %>
-        <span class="text-sm font-medium opacity-60">active</span>
-      <% else %>
-        <.form for={%{}} as={:switch} action={~p"/guilds/switch"} class="inline">
-          <input type="hidden" name="discord_guild_id" value={entry.id} />
-          <button type="submit" class="btn btn-sm">Use this guild</button>
+        <%= if entry.id == @current_guild_id do %>
+          <span class="shrink-0 text-xs font-medium text-green-500 bg-green-500/10 rounded-full px-2.5 py-1">
+            Active
+          </span>
+        <% else %>
+          <.form for={%{}} as={:switch} action={~p"/guilds/switch"} class="shrink-0">
+            <input type="hidden" name="discord_guild_id" value={entry.id} />
+            <button
+              type="submit"
+              class="px-3 py-1.5 bg-blue-600 text-white font-medium rounded-md
+                     hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors text-sm"
+            >
+              Use this guild
+            </button>
+          </.form>
+        <% end %>
+      </li>
+    <% end %>
+  </ul>
+
+  <%= if Enum.empty?(@bot_guilds) do %>
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6 text-center">
+      <p class="text-gray-600 dark:text-gray-400 mb-4">
+        The bot is not a member of any guild yet.
+      </p>
+      <a
+        href={~p"/onboarding"}
+        class="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white font-medium rounded-md
+               hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors text-sm"
+      >
+        Add the bot to a server
+      </a>
+    </div>
+  <% end %>
+
+  <%= if @tenant_hosted do %>
+    <div class="mt-8 bg-white dark:bg-gray-800 rounded-lg shadow p-4 sm:p-6">
+      <h2 class="font-semibold text-gray-800 dark:text-gray-200 mb-1">Claim your subdomain</h2>
+      <%= if @current_guild do %>
+        <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">
+          <%= if @current_guild.slug && !String.starts_with?(@current_guild.slug, "guild-") do %>
+            Your soundboard lives at
+            <code class="text-gray-700 dark:text-gray-300">
+              {@current_guild.slug}.{@tenant_host}
+            </code>
+          <% else %>
+            Pick a short name for your soundboard's web address.
+          <% end %>
+        </p>
+
+        <.form
+          for={%{}}
+          as={:claim}
+          action={~p"/guilds/claim"}
+          class="flex flex-wrap gap-2 items-center"
+        >
+          <input
+            type="text"
+            name="slug"
+            value={@current_guild.slug}
+            placeholder="my-soundboard"
+            class="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200
+                 text-sm px-3 py-2 focus:ring-blue-500 focus:border-blue-500 flex-1 min-w-[12rem]"
+            pattern="[a-zA-Z0-9]([a-zA-Z0-9-]{0,28}[a-zA-Z0-9])?"
+            required
+          />
+          <button
+            type="submit"
+            class="px-3 py-2 bg-blue-600 text-white font-medium rounded-md
+                 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors text-sm"
+          >
+            Claim
+          </button>
         </.form>
+      <% else %>
+        <p class="text-sm text-gray-600 dark:text-gray-400">
+          Pick a soundboard above first, then claim a subdomain.
+        </p>
       <% end %>
-    </li>
+    </div>
   <% end %>
-</ul>
 
-<%= if Enum.empty?(@bot_guilds) do %>
-  <p class="opacity-60">The bot is not a member of any guild yet.</p>
-<% end %>
-
-<div class="mt-8 border rounded p-4 max-w-lg">
-  <h2 class="font-semibold mb-1">Claim your subdomain</h2>
-  <%= if @current_guild do %>
-    <p class="text-sm mb-2 opacity-70">
-      Current slug: <code>{@current_guild.slug || "(unclaimed)"}</code>
-    </p>
-
-    <.form for={%{}} as={:claim} action={~p"/guilds/claim"} class="flex gap-2 items-center">
-      <input
-        type="text"
-        name="slug"
-        value={@current_guild.slug}
-        placeholder="my-soundboard"
-        class="input input-bordered input-sm"
-        pattern="[a-zA-Z0-9]([a-zA-Z0-9-]{0,28}[a-zA-Z0-9])?"
-        required
-      />
-      <button type="submit" class="btn btn-sm">Claim</button>
-    </.form>
-  <% else %>
-    <p class="text-sm opacity-60">Pick a soundboard above first, then claim a subdomain.</p>
-  <% end %>
-</div>
-
-<p class="mt-6">
-  <a href={~p"/onboarding"}>Add the bot to a server</a>
-</p>
-
-<%= if @stripe_configured do %>
-  <div class="mt-8 border rounded p-4 max-w-lg">
-    <h2 class="font-semibold mb-1">Plan</h2>
-    <p class="text-sm opacity-70">
-      Plan: {@plan_label} · Storage used: {@storage_used} of {@storage_cap}
-    </p>
-    <a href={~p"/billing"} class="btn btn-sm mt-2">Manage plan</a>
+  <div class="mt-6">
+    <a
+      href={~p"/onboarding"}
+      class="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white font-medium rounded-md
+             hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors text-sm"
+    >
+      Add the bot to a server
+    </a>
   </div>
-<% end %>
+</div>

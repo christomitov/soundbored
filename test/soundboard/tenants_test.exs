@@ -124,12 +124,12 @@ defmodule Soundboard.TenantsTest do
 
       assert guild.discord_guild_id == "12345"
       assert guild.slug == "acme"
-      assert guild.max_storage_bytes == Tenants.default_storage_bytes()
+      assert guild.max_storage_bytes == nil
     end
 
     test "is idempotent" do
       {:ok, first} = Tenants.get_or_create_guild("12345", %{slug: "acme"})
-      assert first.max_storage_bytes == Tenants.default_storage_bytes()
+      assert first.max_storage_bytes == nil
       {:ok, second} = Tenants.get_or_create_guild("12345")
 
       assert first.id == second.id
@@ -198,12 +198,17 @@ defmodule Soundboard.TenantsTest do
       assert Tenants.storage_cap("g1") == 1_000
     end
 
-    test "cap falls back to the configured default when no row exists" do
-      Application.put_env(:soundboard, :default_storage_bytes, 5_000)
+    test "an unknown guild is uncapped (unlimited)" do
+      assert Tenants.storage_cap("unknown-guild") == nil
+      assert Tenants.within_storage_limit?("unknown-guild", 999_999_999_999)
+      assert Tenants.storage_remaining("unknown-guild") == nil
+    end
 
-      assert Tenants.storage_cap("unknown-guild") == 5_000
-    after
-      Application.delete_env(:soundboard, :default_storage_bytes)
+    test "a guild created without a cap is uncapped" do
+      {:ok, _} = Tenants.get_or_create_guild("g-uncapped", %{slug: "uncapped"})
+      assert Tenants.get_guild("g-uncapped").max_storage_bytes == nil
+      assert Tenants.storage_cap("g-uncapped") == nil
+      assert Tenants.within_storage_limit?("g-uncapped", 999_999_999_999)
     end
 
     test "within_storage_limit?/2 admits up to the cap and rejects beyond it", %{user: user} do

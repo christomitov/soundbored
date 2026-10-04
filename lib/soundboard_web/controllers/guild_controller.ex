@@ -11,15 +11,15 @@ defmodule SoundboardWeb.GuildController do
 
   def index(conn, _params) do
     current_guild = Tenants.get_guild(conn.assigns.current_guild_id)
+    tenant_base_host = Application.get_env(:soundboard, :tenant_base_host)
 
     render(conn, :index,
       bot_guilds: Tenants.bot_guilds(),
       current_guild_id: conn.assigns.current_guild_id,
       current_guild: current_guild,
-      stripe_configured: Billing.configured?(),
-      plan_label: Billing.plan_label(current_guild && current_guild.max_storage_bytes),
-      storage_used: Billing.format_bytes(Tenants.storage_used(conn.assigns.current_guild_id)),
-      storage_cap: Billing.format_bytes((current_guild && current_guild.max_storage_bytes) || 0)
+      tenant_hosted: is_binary(tenant_base_host) and tenant_base_host != "",
+      tenant_host: tenant_base_host,
+      stripe_configured: Billing.configured?()
     )
   end
 
@@ -30,7 +30,6 @@ defmodule SoundboardWeb.GuildController do
       # provisioning path); no tenant row is created here.
       conn
       |> put_session(:billing_guild_id, to_string(discord_guild_id))
-      |> put_flash(:info, "That soundboard needs a subscription - pick a plan")
       |> redirect(to: "/billing")
     else
       do_switch(conn, discord_guild_id)
@@ -38,8 +37,14 @@ defmodule SoundboardWeb.GuildController do
   end
 
   defp do_switch(conn, discord_guild_id) do
+    owner =
+      case conn.assigns[:current_user] do
+        %{discord_id: discord_id} -> %{owner_discord_id: discord_id}
+        _ -> %{}
+      end
+
     with {:ok, _discord_guild} <- GuildCache.get(discord_guild_id),
-         {:ok, _tenant} <- Tenants.get_or_create_guild(discord_guild_id) do
+         {:ok, _tenant} <- Tenants.get_or_create_guild(discord_guild_id, owner) do
       conn
       |> put_session(:guild_id, to_string(discord_guild_id))
       |> put_flash(:info, "Switched soundboard")

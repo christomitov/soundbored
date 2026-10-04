@@ -36,7 +36,7 @@ defmodule Soundboard.Sounds.Uploads.Creator do
       :ok
     else
       {:error,
-       "Storage limit reached for this soundboard (cap #{Tenants.storage_cap(params.guild_id)} bytes). Remove some sounds or upgrade the plan."}
+       "Storage limit reached for this soundboard (#{Soundboard.Billing.format_bytes(Tenants.storage_cap(params.guild_id))} cap). Remove some sounds or upgrade your plan."}
     end
   end
 
