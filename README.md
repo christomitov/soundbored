@@ -79,6 +79,9 @@ All available keys live in `.env.example`. Configure the ones that match your se
 | `AUTO_JOIN` | optional | Voice join mode. `play` (default) — bot joins when you play a sound. `presence` — bot follows users into channels. `false` — manual `!join` only. |
 | `VOICE_IDLE_TIMEOUT_SECONDS` | optional | Seconds of inactivity before the bot auto-leaves. Defaults to `600` (10 min). Set to `0` to disable. In `play` mode: timer resets per sound, bot also leaves when the last user departs. In `false` mode: timer starts after the last user leaves. In `presence` mode: ignored. |
 | `BIND_IP` | optional | IP address the HTTP server binds to. Defaults to `127.0.0.1`; set to `0.0.0.0` to bind all interfaces (e.g. Docker dev). |
+| `SOUNDBOARD_DEFAULT_GUILD_ID` | optional | Guild id used to scope sounds when no tenant is specified. Falls back to `DISCORD_REQUIRED_GUILD_ID`, then the bot's sole guild, then the literal `default`. |
+| `SOUNDBOARD_DEFAULT_STORAGE_BYTES` | optional | Default per-guild storage cap in bytes. Defaults to `2147483648` (2GB). |
+| `TENANT_BASE_HOST` | optional | Base host for tenant subdomains, e.g. `soundbored.app` resolves `{slug}.soundbored.app` to that guild's soundboard. Empty disables subdomain routing. |
 
 ## Deployment
 
