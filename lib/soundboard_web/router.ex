@@ -43,6 +43,10 @@ defmodule SoundboardWeb.Router do
   scope "/auth", SoundboardWeb do
     pipe_through [:browser]
 
+    if Application.compile_env(:soundboard, :enable_test_login, false) do
+      get "/test-login", AuthController, :test_login
+    end
+
     get "/:provider", AuthController, :request
     get "/:provider/callback", AuthController, :callback
     delete "/logout", AuthController, :logout
@@ -65,6 +69,7 @@ defmodule SoundboardWeb.Router do
 
     get "/guilds", GuildController, :index
     post "/guilds/switch", GuildController, :switch
+    get "/onboarding", OnboardingController, :show
   end
 
   scope "/uploads" do

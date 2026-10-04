@@ -68,3 +68,12 @@ TODO
 /priv/db/
 priv/bak
 priv/video_sessions/
+
+# Local env with real secrets (never commit)
+.env.onboarding
+
+# Playwright e2e
+e2e/node_modules/
+e2e/test-results/
+e2e/playwright-report/
+e2e/.playwright-mcp/

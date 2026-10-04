@@ -1,5 +1,7 @@
 import Config
 
+config :soundboard, enable_test_login: true
+
 # Configure your database
 #
 # The MIX_TEST_PARTITION environment variable can be used

@@ -32,5 +32,9 @@
 </ul>
 
 <%= if Enum.empty?(@bot_guilds) do %>
-  <p class="opacity-60">The bot is not a member of any guild yet. Invite it to get started.</p>
+  <p class="opacity-60">The bot is not a member of any guild yet.</p>
 <% end %>
+
+<p class="mt-6">
+  <a href={~p"/onboarding"}>Add the bot to a server</a>
+</p>

@@ -1,5 +1,7 @@
 import Config
 
+config :soundboard, enable_test_login: true
+
 config :soundboard, Soundboard.Repo,
   database: "priv/db/soundboard_dev.db",
   adapter: Ecto.Adapters.SQLite3

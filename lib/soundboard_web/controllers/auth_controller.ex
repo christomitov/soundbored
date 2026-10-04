@@ -52,6 +52,31 @@ defmodule SoundboardWeb.AuthController do
     |> redirect(to: "/")
   end
 
+  @doc """
+  Test-only sign-in for Playwright e2e runs. The route is registered only when
+  `:enable_test_login` is configured, which is dev/test — never prod.
+  """
+  def test_login(conn, params) do
+    user_params = %{
+      discord_id: Map.get(params, "discord_id", "000000000000000001"),
+      username: Map.get(params, "username", "e2e-user"),
+      avatar: Map.get(params, "avatar")
+    }
+
+    case find_or_create_user(user_params) do
+      {:ok, user} ->
+        conn
+        |> put_session(:user_id, user.id)
+        |> put_session(:roles_verified_at, System.system_time(:second))
+        |> redirect(to: "/guilds")
+
+      {:error, _reason} ->
+        conn
+        |> put_flash(:error, "Error signing in")
+        |> redirect(to: "/")
+    end
+  end
+
   defp find_or_create_user(%{discord_id: discord_id} = params) do
     case Repo.get_by(User, discord_id: discord_id) do
       nil ->

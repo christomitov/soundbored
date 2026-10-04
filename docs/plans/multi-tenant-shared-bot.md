@@ -91,6 +91,7 @@ event-driven and guild-keyed; `GuildCache` is keyed per guild;
 - `DISCORD_REQUIRED_GUILD_ID`/`ROLE_IDS` still drive gating via env; runtime gating does not yet read the `guilds` table.
 
 ### Task 5: Routing + deploy as multi-tenant host ☐ (not started)
+- Onboarding handoff implemented: `GET /onboarding` renders the shared-bot invite flow; invite URL built by `Soundboard.Discord.InviteURL` (client id from `DISCORD_CLIENT_ID`, scope `bot applications.commands`, pinned permissions integer). The guild index links to it. The billing gate on `switch/2` for unpaid guilds lands with Stripe.
 - Wildcard subdomain resolution is implemented in the `Tenant` plug (driven by `TENANT_BASE_HOST`), but there is **no `/s/{slug}` path fallback** and no deployment/DNS/Caddy setup.
 - Single-container deploy config, on-demand TLS, and `*.soundbored.app` DNS are all out of scope for this repo.
 
