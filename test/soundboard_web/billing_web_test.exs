@@ -108,6 +108,7 @@ defmodule SoundboardWeb.BillingWebTest do
         end do
         conn =
           conn!(conn)
+          |> assign(:current_user, %{discord_id: "owner-1"})
           |> assign(:current_guild_id, "checkout-guild")
           |> call!(:checkout, %{"price_id" => "price_pro_m"})
 
@@ -115,9 +116,10 @@ defmodule SoundboardWeb.BillingWebTest do
 
         assert_received {:stripe_checkout_params, params}
         assert params.client_reference_id == "checkout-guild"
-        assert params.mode == "subscription"
+        assert params.mode == :subscription
         assert params.metadata["guild_id"] == "checkout-guild"
         assert params.metadata["price_id"] == "price_pro_m"
+        assert params.metadata["owner_discord_id"] == "owner-1"
         assert params.subscription_data.metadata["guild_id"] == "checkout-guild"
         assert [%{price: "price_pro_m", quantity: 1}] = params.line_items
       end
@@ -140,6 +142,7 @@ defmodule SoundboardWeb.BillingWebTest do
         conn =
           conn!(conn)
           |> put_session(:billing_guild_id, "switch-target")
+          |> assign(:current_user, %{discord_id: "owner-1"})
           |> assign(:current_guild_id, "current-guild")
           |> call!(:checkout, %{"price_id" => "price_studio_y"})
 
@@ -189,7 +192,8 @@ defmodule SoundboardWeb.BillingWebTest do
           call_guild!(conn!(conn), :switch, %{"discord_guild_id" => @guild["id"]})
 
         assert redirected_to(conn) == "/billing"
-        assert Phoenix.Flash.get(conn.assigns.flash, :info) =~ "subscription"
+        # no flash: the billing page itself communicates the paywall
+        assert Phoenix.Flash.get(conn.assigns.flash, :info) == nil
         refute Tenants.get_guild(@guild["id"])
         assert get_session(conn, :billing_guild_id) == @guild["id"]
       end

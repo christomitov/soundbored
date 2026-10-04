@@ -35,11 +35,11 @@ defmodule Soundboard.BillingTest do
 
   describe "plan_cap/1" do
     test "maps each configured price id to its tier cap" do
-      # 25 GB / 100 GB, same cap for monthly and yearly of a tier
-      assert Billing.plan_cap("price_pro_monthly") == 26_843_545_600
-      assert Billing.plan_cap("price_pro_yearly") == 26_843_545_600
-      assert Billing.plan_cap("price_studio_monthly") == 107_374_182_400
-      assert Billing.plan_cap("price_studio_yearly") == 107_374_182_400
+      # 1 GB / 5 GB, same cap for monthly and yearly of a tier
+      assert Billing.plan_cap("price_pro_monthly") == 1_073_741_824
+      assert Billing.plan_cap("price_pro_yearly") == 1_073_741_824
+      assert Billing.plan_cap("price_studio_monthly") == 5_368_709_120
+      assert Billing.plan_cap("price_studio_yearly") == 5_368_709_120
     end
 
     test "unknown price ids and non-binaries map to nil" do
@@ -89,7 +89,7 @@ defmodule Soundboard.BillingTest do
 
       guild = Tenants.get_guild("bill-checkout")
       assert %Tenants.Guild{} = guild
-      assert guild.max_storage_bytes == 107_374_182_400
+      assert guild.max_storage_bytes == 5_368_709_120
       assert Billing.customer_id_for_guild("bill-checkout") == "cus_1"
     end
 
@@ -101,7 +101,7 @@ defmodule Soundboard.BillingTest do
     end
 
     test "subscription deletion zeroes the cap but keeps the guild row" do
-      {:ok, _} = Tenants.get_or_create_guild("bill-del", %{max_storage_bytes: 26_843_545_600})
+      {:ok, _} = Tenants.get_or_create_guild("bill-del", %{max_storage_bytes: 1_073_741_824})
 
       {payload, header} =
         signed(
@@ -118,7 +118,7 @@ defmodule Soundboard.BillingTest do
     end
 
     test "subscription updates cap the guild to the new plan" do
-      {:ok, _} = Tenants.get_or_create_guild("bill-upd", %{max_storage_bytes: 26_843_545_600})
+      {:ok, _} = Tenants.get_or_create_guild("bill-upd", %{max_storage_bytes: 1_073_741_824})
 
       {payload, header} =
         signed(
@@ -130,7 +130,7 @@ defmodule Soundboard.BillingTest do
         )
 
       assert {:ok, "evt_upd_1"} = Billing.handle_webhook(payload, header)
-      assert Tenants.get_guild("bill-upd").max_storage_bytes == 107_374_182_400
+      assert Tenants.get_guild("bill-upd").max_storage_bytes == 5_368_709_120
     end
 
     test "duplicate event ids are processed once (no-op on replay)" do
@@ -146,20 +146,27 @@ defmodule Soundboard.BillingTest do
       # write converges: a replay is still a no-op state-wise.
       Billing.reset_memory()
       assert {:ok, "evt_dup_1"} = Billing.handle_webhook(payload, header)
-      assert Tenants.get_guild("bill-dup").max_storage_bytes == 26_843_545_600
+      assert Tenants.get_guild("bill-dup").max_storage_bytes == 1_073_741_824
       assert Billing.customer_id_for_guild("bill-dup") == "cus_dup"
     end
   end
 
   describe "subscription_active?/1" do
-    test "a row with a positive cap is active; cap 0 or no row is not" do
+    test "only exact plan caps are active; legacy/default, cap 0, or no row are not" do
       refute Billing.subscription_active?("bill-none")
+
+      # legacy row: default self-host cap, no plan matches
+      {:ok, _} = Tenants.get_or_create_guild("bill-legacy")
+      refute Billing.subscription_active?("bill-legacy")
+
       {:ok, _} = Tenants.get_or_create_guild("bill-zero", %{max_storage_bytes: 0})
       guild = Tenants.get_guild("bill-zero")
       assert guild.max_storage_bytes == 0
       refute Billing.subscription_active?("bill-zero")
 
-      {:ok, _} = Tenants.get_or_create_guild("bill-paid", %{max_storage_bytes: 1})
+      {:ok, _} =
+        Tenants.get_or_create_guild("bill-paid", %{max_storage_bytes: 1_073_741_824})
+
       assert Billing.subscription_active?("bill-paid")
     end
   end

@@ -42,7 +42,7 @@ set `TENANT_BASE_HOST=soundbored.app` (already set in the compose). The plug
    (`mix phx.gen.secret` or `openssl rand -base64 48`).
    Set `PHX_HOST=app.soundbored.app`, `SCHEME=https`,
    `TENANT_BASE_HOST=soundbored.app`, and optionally
-   `SOUNDBOARD_DEFAULT_STORAGE_BYTES` (default 2 GiB per guild).
+   There is no free tier on hosted: every tenant needs an active Stripe subscription before it can be provisioned (the webhook is the only provisioning path). There is also no default storage cap anywhere: self-hosted installs are uncapped (unlimited), and hosted caps exist only because a subscription wrote them.
    **Leave `DISCORD_REQUIRED_GUILD_ID` and `DISCORD_REQUIRED_ROLE_IDS`
    unset** — hosted mode is open signup, and `RoleChecker` treats unset as
    open. Do not set them "for safety": they would lock signups to one guild's
@@ -62,7 +62,7 @@ set `TENANT_BASE_HOST=soundbored.app` (already set in the compose). The plug
 | `SECRET_KEY_BASE` | set | Session signing; rotating it signs everyone out. |
 | `PHX_HOST` / `SCHEME` | `app.soundbored.app` / `https` | URL generation and OAuth redirect correctness behind the proxy. |
 | `TENANT_BASE_HOST` | `soundbored.app` | Enables the subdomain resolution path; harmless while no wildcard DNS exists. Remove it only to hard-disable subdomains. |
-| `SOUNDBOARD_DEFAULT_STORAGE_BYTES` | set (2 GiB) | The free-tier cap; the paid knob is per-guild `max_storage_bytes` in the DB. |
+| — | — | There is no default storage cap. Self-hosted is unlimited; hosted caps come only from subscriptions (the webhook writes the plan's exact cap). |
 | `DISCORD_REQUIRED_GUILD_ID`, `DISCORD_REQUIRED_ROLE_IDS` | **unset** | Open signups. Setting them would gate sign-in to one guild's roles and break hosted onboarding. |
 | `AUTO_JOIN` | operator choice | Voice join behavior is a product preference, not a tenancy setting. |
 | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, price ids | unset until SB-3 launches | Billing dormant without them: no billing routes, no payment behavior. |
@@ -92,7 +92,7 @@ The operator owns DNS and the cutover window; the deployer never touches DNS.
 
 ## Per-guild cap overrides
 
-The free cap is `SOUNDBOARD_DEFAULT_STORAGE_BYTES` (2 GiB). Paid tiers and
+There is no free tier and no default cap. A tenant row is created only by the Stripe webhook after checkout, so every hosted soundboard is a paying one with its plan's exact cap. Self-hosted installs are uncapped — storage is limited only by disk. Paid tiers and
 one-off overrides are per-row: `UPDATE guilds SET max_storage_bytes = <bytes>
 WHERE discord_guild_id = '<id>';`. Billing (SB-3) writes this column from
 webhook events; manual overrides are the operator's lever for comped guilds.
@@ -133,9 +133,11 @@ it at the new image, restore a production volume snapshot, and assert).
 
 ## Operational watch items
 
-- **SQLite is a single writer.** At launch volume this is fine; if the logs
-  show `database is locked`, reduce write concurrency (uploads) before
-  considering Postgres.
+- **SQLite is a single writer, running in WAL mode** (prod config sets
+  `journal_mode: :wal` and `busy_timeout: 5000`): concurrent reads never block,
+  writes queue instead of erroring. At launch volume this is comfortable;
+  sustained write contention (log shows busy timeouts exhausting) is the signal
+  to move to Postgres.
 - **Wildcard certificates.** Before enabling the subdomain flip, make sure the
   certificate strategy for `*.soundbored.app` does not issue certs for any
   hostname (on-demand issuance with an ask endpoint that verifies the slug
