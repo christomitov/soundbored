@@ -87,6 +87,8 @@ All available keys live in `.env.example`. Configure the ones that match your se
 
 The application is published to Docker Hub as `christom/soundbored`.
 
+For hosted, multi-tenant deployments (Coolify or compose + Caddy), see [docs/hosted-deployment.md](docs/hosted-deployment.md).
+
 ### Simple Docker Host
 ```bash
 docker pull christom/soundbored:latest

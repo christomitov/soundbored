@@ -1,0 +1,46 @@
+# Hosted multi-tenant deployment: one app container. TLS, the reverse proxy,
+# and certificates are supplied by Coolify — nothing proxies here.
+# This stack is for the hosted deployment only; self-hosting needs nothing
+# more than the published Docker image and the root docker-compose.yml.
+#
+# Coolify consumes this compose (or equivalent service config) and injects the
+# environment directly — see docs/hosted-deployment.md for the env list.
+#
+# Never put real secrets in this file.
+services:
+  app:
+    image: christom/soundbored:${SOUNDBORED_IMAGE_TAG:-latest}
+    user: "9999:9999"
+    read_only: true
+    tmpfs:
+      - /tmp/mix_pubsub:mode=0777
+    volumes:
+      - app_uploads:/app/priv/static/uploads
+      - app_db:/app/priv/db
+    secrets:
+      - soundbored_secret_key_base
+    environment:
+      TMPDIR: /tmp/mix_pubsub
+      SECRET_KEY_BASE_FILE: /run/secrets/soundbored_secret_key_base
+      PHX_HOST: app.soundbored.app
+      SCHEME: https
+      PORT: 4000
+      # Hosted multi-tenancy: path-based tenants on the single shared domain
+      # (/g/{slug}). Leave the subdomain plug flip for later; no wildcard DNS
+      # is required for v1.
+      TENANT_BASE_HOST: soundbored.app
+      # Free per-guild cap. Override per guild in the DB (guilds.max_storage_bytes).
+      SOUNDBOARD_DEFAULT_STORAGE_BYTES: ${SOUNDBOARD_DEFAULT_STORAGE_BYTES:-2147483648}
+      # Deliberately UNSET for hosted mode (open signups; RoleChecker treats
+      # unset as open). Do not set these here:
+      #   DISCORD_REQUIRED_GUILD_ID
+      #   DISCORD_REQUIRED_ROLE_IDS
+    restart: unless-stopped
+
+volumes:
+  app_uploads:
+  app_db:
+
+secrets:
+  soundbored_secret_key_base:
+    file: ../secret_key_base.txt
