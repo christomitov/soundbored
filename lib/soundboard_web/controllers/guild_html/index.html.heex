@@ -62,3 +62,13 @@
 <p class="mt-6">
   <a href={~p"/onboarding"}>Add the bot to a server</a>
 </p>
+
+<%= if @stripe_configured do %>
+  <div class="mt-8 border rounded p-4 max-w-lg">
+    <h2 class="font-semibold mb-1">Plan</h2>
+    <p class="text-sm opacity-70">
+      Plan: {@plan_label} · Storage used: {@storage_used} of {@storage_cap}
+    </p>
+    <a href={~p"/billing"} class="btn btn-sm mt-2">Manage plan</a>
+  </div>
+<% end %>

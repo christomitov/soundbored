@@ -115,6 +115,16 @@ if config_env() == :dev do
     dave: eda_dave
 end
 
+# Stripe billing applies in every environment; billing stays dormant unless
+# STRIPE_SECRET_KEY is set (see Soundboard.Billing.configured?/0).
+config :soundboard, Soundboard.Billing,
+  secret_key: env!("STRIPE_SECRET_KEY", :string, nil),
+  webhook_secret: env!("STRIPE_WEBHOOK_SECRET", :string, nil),
+  price_pro_monthly: env!("SOUNDBORED_STRIPE_PRICE_PRO_MONTHLY", :string, nil),
+  price_pro_yearly: env!("SOUNDBORED_STRIPE_PRICE_PRO_YEARLY", :string, nil),
+  price_studio_monthly: env!("SOUNDBORED_STRIPE_PRICE_STUDIO_MONTHLY", :string, nil),
+  price_studio_yearly: env!("SOUNDBORED_STRIPE_PRICE_STUDIO_YEARLY", :string, nil)
+
 # Allow build tooling to opt-out to avoid requiring secrets during image builds.
 if config_env() == :prod and is_nil(env!("SKIP_RUNTIME_CONFIG", :string, nil)) do
   port = env!("PORT", :integer, 4000)

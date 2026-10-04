@@ -1,6 +1,6 @@
 # Multi-Tenant Shared Bot Implementation Plan
 
-**Status:** Implemented on `feature/multi-tenant` (Tasks 1–4 plus SB-2 slug claim: `POST /guilds/claim`, the claim form on /guilds, and `GET /g/:slug` slug entry with pending-slug-across-auth). Task 5 (routing + deploy as multi-tenant host) is not done. Wildcard-host config (`TENANT_BASE_HOST`) and subdomain tenant resolution are in place; Caddy/DNS is out of scope.
+**Status:** Implemented on `feature/multi-tenant` (Tasks 1–4 plus SB-2 slug claim: `POST /guilds/claim`, the claim form on /guilds, and `GET /g/:slug` slug entry with pending-slug-across-auth; plus SB-3 Stripe subscriptions: dormant-without-env billing with checkout, portal, webhook provisioning, and the switch paywall gate). Task 5 (routing + deploy as multi-tenant host) is not done. Wildcard-host config (`TENANT_BASE_HOST`) and subdomain tenant resolution are in place; deployment is Coolify and out of scope (see `docs/hosted-deployment.md`).
 
 ## Production upgrade path (verified by migration test)
 

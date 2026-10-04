@@ -49,6 +49,50 @@ defmodule SoundboardWeb.Router do
     plug SoundboardWeb.Plugs.Tenant
   end
 
+  # Stripe webhook: public (no session auth) - the Stripe signature header is
+  # the credential. No CSRF token is expected on this POST.
+  pipeline :stripe_webhook do
+    plug :accepts, ["json"]
+  end
+
+  # Billing routes are mounted unless billing is explicitly disabled via the
+  # compile-time :enable_billing kill switch; the :require_stripe plug then
+  # 404s them at runtime whenever STRIPE_SECRET_KEY is unset, so an
+  # unconfigured deployment behaves as if the routes do not exist.
+  if Application.compile_env(:soundboard, :enable_billing, true) do
+    scope "/billing", SoundboardWeb do
+      pipe_through([
+        :browser,
+        :auth,
+        :ensure_authenticated_user,
+        :require_role_check,
+        :require_browser_basic_auth,
+        :require_stripe
+      ])
+
+      get "/", BillingController, :index
+      post "/checkout", BillingController, :checkout
+      post "/portal", BillingController, :portal
+    end
+
+    scope "/billing", SoundboardWeb do
+      pipe_through [:stripe_webhook]
+
+      post "/webhook", BillingController, :webhook
+    end
+  end
+
+  def require_stripe(conn, _opts) do
+    if Soundboard.Billing.configured?() do
+      conn
+    else
+      conn
+      |> put_resp_content_type("text/plain")
+      |> send_resp(:not_found, "Not Found")
+      |> halt()
+    end
+  end
+
   # Discord OAuth routes - must come before protected routes
   scope "/auth", SoundboardWeb do
     pipe_through [:browser]

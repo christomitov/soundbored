@@ -95,6 +95,7 @@ defmodule Soundboard.MixProject do
       {:ecto_sqlite3, "~> 0.22"},
       {:ueberauth, "~> 0.10.5"},
       {:ueberauth_discord, "~> 0.6"},
+      {:stripity_stripe, "~> 3.2"},
       {:mock, "~> 0.3.9", only: :test},
       {:dotenvy, "~> 1.0.0", runtime: false},
       {:excoveralls, "~> 0.18.5", only: :test},

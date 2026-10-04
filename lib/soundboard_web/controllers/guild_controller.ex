@@ -7,17 +7,37 @@ defmodule SoundboardWeb.GuildController do
 
   use SoundboardWeb, :controller
 
-  alias Soundboard.{Discord.GuildCache, Tenants}
+  alias Soundboard.{Billing, Discord.GuildCache, Tenants}
 
   def index(conn, _params) do
+    current_guild = Tenants.get_guild(conn.assigns.current_guild_id)
+
     render(conn, :index,
       bot_guilds: Tenants.bot_guilds(),
       current_guild_id: conn.assigns.current_guild_id,
-      current_guild: Tenants.get_guild(conn.assigns.current_guild_id)
+      current_guild: current_guild,
+      stripe_configured: Billing.configured?(),
+      plan_label: Billing.plan_label(current_guild && current_guild.max_storage_bytes),
+      storage_used: Billing.format_bytes(Tenants.storage_used(conn.assigns.current_guild_id)),
+      storage_cap: Billing.format_bytes((current_guild && current_guild.max_storage_bytes) || 0)
     )
   end
 
   def switch(conn, %{"discord_guild_id" => discord_guild_id}) do
+    if Billing.configured?() and not Billing.subscription_active?(discord_guild_id) do
+      # Paywall: the guild has no active subscription. Remember the intended
+      # guild so checkout can provision it (the webhook is the only hosted
+      # provisioning path); no tenant row is created here.
+      conn
+      |> put_session(:billing_guild_id, to_string(discord_guild_id))
+      |> put_flash(:info, "That soundboard needs a subscription - pick a plan")
+      |> redirect(to: "/billing")
+    else
+      do_switch(conn, discord_guild_id)
+    end
+  end
+
+  defp do_switch(conn, discord_guild_id) do
     with {:ok, _discord_guild} <- GuildCache.get(discord_guild_id),
          {:ok, _tenant} <- Tenants.get_or_create_guild(discord_guild_id) do
       conn
