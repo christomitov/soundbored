@@ -7,8 +7,11 @@ defmodule SoundboardWeb.Components.Layouts.Navbar do
 
   use SoundboardWeb, :html
   alias Phoenix.LiveView.JS
+  alias Soundboard.Billing
 
   def navbar(assigns) do
+    assigns = assign_new(assigns, :app_unlocked, fn -> true end)
+
     ~H"""
     <nav class="fixed w-full top-0 left-0 right-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 z-50">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -16,25 +19,36 @@ defmodule SoundboardWeb.Components.Layouts.Navbar do
           <div class="flex">
             <div class="flex-shrink-0 flex items-center">
               <span class="text-xl font-bold text-gray-800 dark:text-white">
-                <.link navigate="/">SoundBored</.link>
+                <.link navigate={if @app_unlocked, do: ~p"/", else: ~p"/guilds"}>SoundBored</.link>
               </span>
             </div>
             <div class="hidden sm:ml-6 sm:flex sm:space-x-8">
-              <.nav_link navigate="/" active={current_page?(@current_path, "/")}>
-                Sounds
-              </.nav_link>
-              <.nav_link navigate="/favorites" active={current_page?(@current_path, "/favorites")}>
-                Favorites
-              </.nav_link>
-              <.nav_link navigate="/stats" active={current_page?(@current_path, "/stats")}>
-                Stats
-              </.nav_link>
-              <%= if @current_user do %>
-                <.nav_link
-                  navigate="/settings"
-                  active={current_page?(@current_path, "/settings")}
-                >
-                  Settings
+              <%= if @app_unlocked do %>
+                <.nav_link navigate="/" active={current_page?(@current_path, "/")}>
+                  Sounds
+                </.nav_link>
+                <.nav_link navigate="/favorites" active={current_page?(@current_path, "/favorites")}>
+                  Favorites
+                </.nav_link>
+                <.nav_link navigate="/stats" active={current_page?(@current_path, "/stats")}>
+                  Stats
+                </.nav_link>
+                <%= if @current_user do %>
+                  <.nav_link
+                    navigate="/settings"
+                    active={current_page?(@current_path, "/settings")}
+                  >
+                    Settings
+                  </.nav_link>
+                <% end %>
+              <% else %>
+                <.nav_link navigate="/guilds" active={current_page?(@current_path, "/guilds")}>
+                  Get started
+                </.nav_link>
+              <% end %>
+              <%= if @current_user != nil and Billing.configured?() do %>
+                <.nav_link navigate="/billing" active={current_page?(@current_path, "/billing")}>
+                  Billing
                 </.nav_link>
               <% end %>
             </div>
@@ -97,21 +111,35 @@ defmodule SoundboardWeb.Components.Layouts.Navbar do
     <!-- Mobile menu -->
       <div class="sm:hidden" id="mobile-menu" hidden>
         <div class="pt-2 pb-3 space-y-1">
-          <.mobile_nav_link navigate="/" active={current_page?(@current_path, "/")}>
-            Sounds
-          </.mobile_nav_link>
-          <.mobile_nav_link navigate="/favorites" active={current_page?(@current_path, "/favorites")}>
-            Favorites
-          </.mobile_nav_link>
-          <.mobile_nav_link navigate="/stats" active={current_page?(@current_path, "/stats")}>
-            Stats
-          </.mobile_nav_link>
-          <%= if @current_user do %>
+          <%= if @app_unlocked do %>
+            <.mobile_nav_link navigate="/" active={current_page?(@current_path, "/")}>
+              Sounds
+            </.mobile_nav_link>
             <.mobile_nav_link
-              navigate="/settings"
-              active={current_page?(@current_path, "/settings")}
+              navigate="/favorites"
+              active={current_page?(@current_path, "/favorites")}
             >
-              Settings
+              Favorites
+            </.mobile_nav_link>
+            <.mobile_nav_link navigate="/stats" active={current_page?(@current_path, "/stats")}>
+              Stats
+            </.mobile_nav_link>
+            <%= if @current_user do %>
+              <.mobile_nav_link
+                navigate="/settings"
+                active={current_page?(@current_path, "/settings")}
+              >
+                Settings
+              </.mobile_nav_link>
+            <% end %>
+          <% else %>
+            <.mobile_nav_link navigate="/guilds" active={current_page?(@current_path, "/guilds")}>
+              Get started
+            </.mobile_nav_link>
+          <% end %>
+          <%= if @current_user != nil and Billing.configured?() do %>
+            <.mobile_nav_link navigate="/billing" active={current_page?(@current_path, "/billing")}>
+              Billing
             </.mobile_nav_link>
           <% end %>
         </div>

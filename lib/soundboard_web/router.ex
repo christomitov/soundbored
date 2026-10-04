@@ -23,6 +23,15 @@ defmodule SoundboardWeb.Router do
     plug :fetch_current_user
     plug SoundboardWeb.Plugs.Tenant
     plug :assign_controller_defaults
+    # Used by the navbar: setup pages stay reachable while locked, but the app
+    # navigation stays hidden until the gate opens.
+    plug SoundboardWeb.Plugs.AppGate, :assign_only
+  end
+
+  # The soundboard app pages (Sounds, Stats, Favorites, Settings). On hosted,
+  # these require an active subscription; self-hosted is always unlocked.
+  pipeline :app_access do
+    plug SoundboardWeb.Plugs.AppGate
   end
 
   # The shared app layout reads @current_path and @presences. LiveViews assign
@@ -73,6 +82,8 @@ defmodule SoundboardWeb.Router do
       get "/", BillingController, :index
       post "/checkout", BillingController, :checkout
       post "/portal", BillingController, :portal
+      post "/change", BillingController, :change
+      post "/cancel", BillingController, :cancel
     end
 
     scope "/billing", SoundboardWeb do
@@ -120,6 +131,18 @@ defmodule SoundboardWeb.Router do
     live "/stats", StatsLive
     live "/favorites", FavoritesLive
     live "/settings", SettingsLive
+  end
+
+  # Setup pages: reachable while the app is locked — they are the path to
+  # unlocking it (pick a guild, claim a subdomain, subscribe).
+  scope "/", SoundboardWeb do
+    pipe_through([
+      :browser,
+      :auth,
+      :ensure_authenticated_user,
+      :require_role_check,
+      :require_browser_basic_auth
+    ])
 
     get "/guilds", GuildController, :index
     post "/guilds/switch", GuildController, :switch
