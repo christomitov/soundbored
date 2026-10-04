@@ -14,68 +14,67 @@ jobs:
 
     steps:
       - uses: actions/checkout@v5
-      
+
       - name: Set up Elixir
         uses: erlef/setup-beam@v1
         with:
           elixir-version: '1.20.x'
           otp-version: '28.x'
-          
-      - name: Restore dependencies cache
+
+      # _build is cached so the MIX_ENV=test compile artifacts survive runs;
+      # deps covers the dependency downloads.
+      - name: Restore dependencies and build cache
         uses: actions/cache@v4
         with:
-          path: deps
-          key: ${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
-          restore-keys: ${{ runner.os }}-mix-
-          
+          path: |
+            deps
+            _build
+          key: test-${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
+          restore-keys: test-${{ runner.os }}-mix-
+
       - name: Install dependencies
         run: mix deps.get
-        
+
+      # Compile once, in the same MIX_ENV the tests use, so coveralls does not
+      # recompile the whole project in a fresh _build.
       - name: Compile (warnings as errors)
         run: mix compile --warnings-as-errors
-        
-      - name: Install SQLite dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y sqlite3 libsqlite3-dev
-          
+        env:
+          MIX_ENV: test
+
       - name: Prepare test database
         run: mix do ecto.create --quiet + ecto.migrate --quiet
         env:
           MIX_ENV: test
           DISCORD_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
 
-      - name: Run tests (warnings as errors)
-        run: mix do compile --warnings-as-errors + test --warnings-as-errors
-        env:
-          MIX_ENV: test
-          DISCORD_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
-          
+      # The single test run: fails the job on test failure (pipefail), posts
+      # the Coveralls status, and leaves the output for the threshold check —
+      # no separate re-run just to read the total.
       - name: Run tests with coverage
-        run: mix coveralls.github
+        run: |
+          set -o pipefail
+          mix coveralls.github | tee coveralls.out
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
           MIX_ENV: test
           DISCORD_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
-          
+
       - name: Verify minimum coverage
         run: |
-          COVERAGE=$(mix coveralls | grep "\[TOTAL\]" | awk '{print $2}' | sed 's/%//')
+          COVERAGE=$(grep "\[TOTAL\]" coveralls.out | awk '{print $2}' | sed 's/%//')
           MINIMUM=80.0
-          
+
           if (( $(echo "$COVERAGE < $MINIMUM" | bc -l) )); then
             echo "Test coverage is below minimum: $COVERAGE% < $MINIMUM%"
             exit 1
           else
             echo "Coverage is $COVERAGE%, which meets the minimum requirement of $MINIMUM%"
           fi
-        env:
-          DISCORD_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
-          
+
       - name: Run Credo
         run: mix credo --strict
-        
 
   build-and-push:
     needs: test
@@ -89,13 +88,13 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
-        
+
       - name: Set up QEMU (for multi-platform builds)
         uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-        
+
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
@@ -142,9 +141,11 @@ jobs:
       - name: Restore dependencies cache
         uses: actions/cache@v4
         with:
-          path: deps
-          key: ${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
-          restore-keys: ${{ runner.os }}-mix-
+          path: |
+            deps
+            _build
+          key: test-${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
+          restore-keys: test-${{ runner.os }}-mix-
 
       - name: Install dependencies
         run: mix deps.get
