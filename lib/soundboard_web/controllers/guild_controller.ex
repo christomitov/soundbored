@@ -85,7 +85,7 @@ defmodule SoundboardWeb.GuildController do
             conn
             |> put_flash(
               :info,
-              "Claimed! Your soundboard is now at https://app.soundbored.app/g/#{guild.slug}"
+              "Claimed! Your soundboard is now at https://dashboard.soundbored.app/g/#{guild.slug}"
             )
             |> redirect(to: "/guilds")
 
@@ -123,7 +123,7 @@ defmodule SoundboardWeb.GuildController do
 
   defp already_claimed(conn, slug) do
     conn
-    |> put_flash(:info, "Already claimed: https://app.soundbored.app/g/#{slug}")
+    |> put_flash(:info, "Already claimed: https://dashboard.soundbored.app/g/#{slug}")
     |> redirect(to: "/guilds")
   end
 

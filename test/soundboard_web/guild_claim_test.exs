@@ -28,7 +28,7 @@ defmodule SoundboardWeb.GuildClaimTest do
       assert Tenants.get_by_slug("my-server").discord_guild_id == "claim-success"
 
       assert Phoenix.Flash.get(conn.assigns.flash, :info) =~
-               "https://app.soundbored.app/g/my-server"
+               "https://dashboard.soundbored.app/g/my-server"
     end
 
     test "a duplicate slug is rejected without mutating anything", %{conn: conn} do
