@@ -17,6 +17,7 @@ defmodule Soundboard.MixProject do
       listeners: [Phoenix.CodeReloader],
       aliases: aliases(),
       deps: deps(),
+      usage_rules: usage_rules(),
       dialyzer: [
         plt_add_apps: [:ex_unit]
       ],
@@ -45,6 +46,27 @@ defmodule Soundboard.MixProject do
           SoundboardWeb.ConnCase,
           Soundboard.DataCase,
           Soundboard.TestHelpers
+        ]
+      ]
+    ]
+  end
+
+  defp usage_rules do
+    [
+      file: "AGENTS.md",
+      # Inlined (loaded every session): built-in Elixir/OTP rules + search_docs guidance.
+      # Phoenix's sub-rules (~390 lines, web-specific) go to the skill below instead.
+      # After adding deps, check discovery with: mix usage_rules.list
+      usage_rules: [{:usage_rules, sub_rules: [:elixir, :otp]}],
+      skills: [
+        location: ".agents/skills",
+        build: [
+          phoenix: [
+            description:
+              "Use when editing files under lib/soundboard_web (controllers, LiveView, " <>
+                "components, HTML) or Ecto schemas and queries in lib/soundboard.",
+            usage_rules: ["phoenix:all"]
+          ]
         ]
       ]
     ]
@@ -105,7 +127,8 @@ defmodule Soundboard.MixProject do
       {:ex_dna, "~> 1.1", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:reach, "~> 2.8", only: [:dev, :test], runtime: false},
-      {:ex_slop, "~> 0.4", only: [:dev, :test], runtime: false}
+      {:ex_slop, "~> 0.4", only: [:dev, :test], runtime: false},
+      {:usage_rules, "~> 1.2", only: :dev}
     ]
   end
 
