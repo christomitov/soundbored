@@ -21,11 +21,8 @@ defmodule SoundboardWeb.AuthController do
 
   def callback(%{assigns: %{ueberauth_auth: auth}} = conn, _params) do
     if RoleChecker.authorized?(auth.uid) do
-      user_params = %{
-        discord_id: auth.uid,
-        username: auth.info.nickname || auth.info.name,
-        avatar: auth.info.image
-      }
+      user_params =
+        User.discord_params(auth.uid, auth.info.nickname || auth.info.name, auth.info.image)
 
       case find_or_create_user(user_params) do
         {:ok, user} ->
@@ -73,11 +70,12 @@ defmodule SoundboardWeb.AuthController do
   `:enable_test_login` is configured, which is dev/test — never prod.
   """
   def test_login(conn, params) do
-    user_params = %{
-      discord_id: Map.get(params, "discord_id", "000000000000000001"),
-      username: Map.get(params, "username", "e2e-user"),
-      avatar: Map.get(params, "avatar")
-    }
+    user_params =
+      User.discord_params(
+        Map.get(params, "discord_id", "000000000000000001"),
+        Map.get(params, "username", "e2e-user"),
+        Map.get(params, "avatar")
+      )
 
     case find_or_create_user(user_params) do
       {:ok, user} ->

@@ -68,12 +68,12 @@
 
   <ul id="plan-grid" class="grid grid-cols-1 gap-4 sm:grid-cols-2" data-interval="yearly">
     <%= for tier <- @tiers do %>
-      <% tier_name = tier.name |> String.downcase() |> String.to_atom()
+      <% tier_name = String.downcase(tier.name)
 
       state =
         cond do
           is_nil(@current_tier) -> :new
-          tier_name == @current_tier -> :current
+          tier_name == Atom.to_string(@current_tier) -> :current
           tier.cap_bytes > current_tier_cap(@current_tier) -> :upgrade
           true -> :downgrade
         end %>

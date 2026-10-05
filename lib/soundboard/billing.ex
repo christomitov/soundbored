@@ -41,6 +41,21 @@ defmodule Soundboard.Billing do
   alias Soundboard.Tenants.Guild
   require Logger
 
+  defmodule SubscriptionSnapshot do
+    @moduledoc """
+    The guild's live Stripe subscription state cached in memory between
+    webhooks: the subscription id, its line item id, and the price id.
+    """
+
+    defstruct [:id, :item_id, :price_id]
+
+    @type t :: %__MODULE__{
+            id: String.t(),
+            item_id: String.t() | nil,
+            price_id: String.t() | nil
+          }
+  end
+
   @events_ets :billing_processed_events
   @customers_ets :billing_stripe_customers
   @subscriptions_ets :billing_stripe_subscriptions
@@ -367,18 +382,20 @@ defmodule Soundboard.Billing do
   end
 
   @doc "Caches the guild's subscription state (id, item, price) in memory."
-  @spec remember_subscription(String.t() | term(), %{
-          id: String.t(),
-          item_id: String.t() | nil,
-          price_id: String.t() | nil
-        }) ::
-          :ok
-  def remember_subscription(guild_id, %{} = state) when is_binary(guild_id) do
+  @spec remember_subscription(String.t() | term(), SubscriptionSnapshot.t()) :: :ok
+  def remember_subscription(guild_id, %SubscriptionSnapshot{} = state) when is_binary(guild_id) do
     ensure_ets(@subscriptions_ets)
     :ets.insert(@subscriptions_ets, {guild_id, state})
   end
 
-  def remember_subscription(_, _), do: :ok
+  def remember_subscription(guild_id, state) do
+    Logger.warning(
+      "remember_subscription: ignoring call with guild_id=#{inspect(guild_id)} " <>
+        "and state=#{inspect(state)}; expected a binary guild id and %SubscriptionSnapshot{}"
+    )
+
+    :ok
+  end
 
   @doc """
   Moves the guild's live subscription to another price (tier or interval
@@ -434,8 +451,9 @@ defmodule Soundboard.Billing do
   # API results arrive as structs; webhook payloads as raw maps — read both.
   defp resolve_subscription(guild_id) do
     case subscription_state_for_guild(guild_id) do
-      %{id: id, item_id: item_id} when is_binary(id) and is_binary(item_id) ->
-        {:ok, %{id: id, item_id: item_id}}
+      %SubscriptionSnapshot{id: id, item_id: item_id} = snapshot
+      when is_binary(id) and is_binary(item_id) ->
+        {:ok, snapshot}
 
       _ ->
         case customer_id_for_guild(guild_id) do
@@ -473,13 +491,15 @@ defmodule Soundboard.Billing do
             item_id = item && field(item, :id)
             price_id = item && item |> field(:price) |> field(:id)
 
-            remember_subscription(guild_id, %{
+            snapshot = %SubscriptionSnapshot{
               id: field(sub, :id),
               item_id: item_id,
               price_id: price_id
-            })
+            }
 
-            {:ok, %{id: field(sub, :id), item_id: item_id}}
+            remember_subscription(guild_id, snapshot)
+
+            {:ok, snapshot}
 
           _ ->
             {:error, :no_subscription}
@@ -640,11 +660,10 @@ defmodule Soundboard.Billing do
     remember_customer(guild_id, session["customer"])
 
     if is_binary(session["subscription"]) do
-      remember_subscription(guild_id, %{
-        id: session["subscription"],
-        item_id: nil,
-        price_id: price_id
-      })
+      remember_subscription(
+        guild_id,
+        %SubscriptionSnapshot{id: session["subscription"], item_id: nil, price_id: price_id}
+      )
     end
 
     apply_cap(guild_id, cap, owner)
@@ -665,11 +684,14 @@ defmodule Soundboard.Billing do
           _ -> nil
         end
 
-      remember_subscription(guild_id, %{
-        id: subscription["id"],
-        item_id: item_id,
-        price_id: subscription_price_id(subscription)
-      })
+      remember_subscription(
+        guild_id,
+        %SubscriptionSnapshot{
+          id: subscription["id"],
+          item_id: item_id,
+          price_id: subscription_price_id(subscription)
+        }
+      )
     end
 
     if is_binary(guild_id) and cap do

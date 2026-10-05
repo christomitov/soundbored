@@ -3,6 +3,7 @@ defmodule Soundboard.TestHelpers do
   Helper functions for testing.
   """
   alias Soundboard.{Accounts, Repo, Sound, Tag}
+  alias Soundboard.Accounts.User
 
   def create_test_file(filename) do
     test_dir = "test/support/fixtures"
@@ -62,11 +63,7 @@ defmodule Soundboard.TestHelpers do
 
   def create_user(attrs \\ %{}) do
     user_attrs =
-      Enum.into(attrs, %{
-        username: "testuser",
-        discord_id: "123456789",
-        avatar: "test_avatar.jpg"
-      })
+      Enum.into(attrs, User.discord_params("123456789", "testuser", "test_avatar.jpg"))
 
     %Soundboard.Accounts.User{}
     |> Accounts.User.changeset(user_attrs)
