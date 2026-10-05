@@ -29,15 +29,6 @@ if env!("PHX_SERVER", :boolean, false) do
   config :soundboard, SoundboardWeb.Endpoint, server: true
 end
 
-# The advertised URL must not carry the internal bind port. Phoenix falls
-# back to the listener port when url[:port] is nil, so publish the explicit
-# scheme default (443/80), which renders without a port suffix (#79). A
-# nonstandard public port goes in PHX_HOST itself.
-default_public_port = fn
-  "https" -> 443
-  _ -> 80
-end
-
 if config_env() == :dev do
   host = env!("PHX_HOST", :string!, "localhost:4000")
   scheme = env!("SCHEME", :string!, "http")
@@ -71,10 +62,10 @@ if config_env() == :dev do
       _ -> {127, 0, 0, 1}
     end
 
-  public_port = default_public_port.(scheme)
-
+  # Dev talks straight to the server (no reverse proxy), so the advertised
+  # URL carries the actual bind port (4000 by default).
   endpoint_overrides = [
-    url: [host: host, port: public_port, scheme: scheme],
+    url: [host: host, port: port, scheme: scheme],
     http: [ip: bind_ip, port: port]
   ]
 
@@ -188,10 +179,14 @@ if config_env() == :prod and is_nil(env!("SKIP_RUNTIME_CONFIG", :string, nil)) d
 
   # Configure endpoint first
   config :soundboard, SoundboardWeb.Endpoint,
+    # The advertised URL must not carry the internal bind port. Phoenix falls
+    # back to the listener port when url[:port] is nil, so publish the explicit
+    # scheme default (443/80), which renders without a port suffix (#79). A
+    # nonstandard public port goes in PHX_HOST itself.
     url: [
       scheme: scheme,
       host: host,
-      port: default_public_port.(scheme)
+      port: if(scheme == "https", do: 443, else: 80)
     ],
     http: [
       ip: {0, 0, 0, 0},

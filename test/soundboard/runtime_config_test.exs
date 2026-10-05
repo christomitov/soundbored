@@ -1,9 +1,9 @@
 defmodule Soundboard.RuntimeConfigTest do
-  # Regression test for issue #79: the URL the bot advertises (join message,
-  # OAuth callback) must not carry the internal bind port. Phoenix falls back
-  # to the listener port when url[:port] is nil, so the runtime config must
-  # publish the explicit scheme default (443/80), which renders without a
-  # port suffix.
+  # Regression test for issue #79 in prod: the advertised URL must not carry
+  # the internal bind port. Phoenix falls back to the listener port when
+  # url[:port] is nil, so prod publishes the explicit scheme default (443/80).
+  # Dev intentionally advertises the bind port: it talks straight to the
+  # server, there is no reverse proxy in front of it.
   use ExUnit.Case, async: false
 
   @env %{
@@ -29,15 +29,17 @@ defmodule Soundboard.RuntimeConfigTest do
     end)
   end
 
-  test "the advertised URL uses the scheme default port, never the bind port" do
-    for env <- [:dev, :prod] do
-      config = Config.Reader.read!("config/runtime.exs", env: env, imports: [])
-      url = config[:soundboard][SoundboardWeb.Endpoint][:url]
+  test "dev advertises the bind port, prod uses the scheme default" do
+    dev = Config.Reader.read!("config/runtime.exs", env: :dev, imports: [])
+    prod = Config.Reader.read!("config/runtime.exs", env: :prod, imports: [])
 
-      assert url[:scheme] == "https"
-      assert url[:host] == "soundboard.example"
-      assert url[:port] == 443
-    end
+    dev_url = dev[:soundboard][SoundboardWeb.Endpoint][:url]
+    prod_url = prod[:soundboard][SoundboardWeb.Endpoint][:url]
+
+    assert dev_url[:port] == 4000
+    assert prod_url[:port] == 443
+    assert prod_url[:scheme] == "https"
+    assert prod_url[:host] == "soundboard.example"
   end
 
   test "a nonstandard public port can be published through PHX_HOST" do
