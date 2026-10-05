@@ -62,8 +62,14 @@ if config_env() == :dev do
       _ -> {127, 0, 0, 1}
     end
 
+  # The advertised URL must not carry the internal bind port. Phoenix falls
+  # back to the listener port when url[:port] is nil, so publish the explicit
+  # scheme default (443/80), which renders without a port suffix (#79). A
+  # nonstandard public port goes in PHX_HOST itself.
+  public_port = if scheme == "https", do: 443, else: 80
+
   endpoint_overrides = [
-    url: [host: host, port: port, scheme: scheme],
+    url: [host: host, port: public_port, scheme: scheme],
     http: [ip: bind_ip, port: port]
   ]
 
@@ -177,12 +183,14 @@ if config_env() == :prod and is_nil(env!("SKIP_RUNTIME_CONFIG", :string, nil)) d
 
   # Configure endpoint first
   config :soundboard, SoundboardWeb.Endpoint,
-    # In prod, PHX_HOST represents the externally visible host. Do not append
-    # the app's internal listen port unless the host itself already includes one.
+    # The advertised URL must not carry the internal bind port. Phoenix falls
+    # back to the listener port when url[:port] is nil, so publish the explicit
+    # scheme default (443/80), which renders without a port suffix (#79). A
+    # nonstandard public port goes in PHX_HOST itself.
     url: [
       scheme: scheme,
       host: host,
-      port: nil
+      port: if(scheme == "https", do: 443, else: 80)
     ],
     http: [
       ip: {0, 0, 0, 0},
