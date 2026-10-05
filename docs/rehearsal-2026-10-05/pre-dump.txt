@@ -1,5 +1,0 @@
-setting|1|1|1|0
-sound|rehearsal-one.mp3|f946a942-7773-48d4-840f-3a249c48bc82.mp3|1|local
-sound|rehearsal-two.mp3|2d339be2-b64e-42a7-be71-5b69042a80e8.mp3|1|local
-token|e5c690498e117f9e26262bb70bf76ff1330d73c1650e8685a087420a1b4919a0|1
-user|888888888888888801|rehearsal-user

@@ -3,8 +3,8 @@
 This is the operational runbook for the shared, multi-tenant soundboard at
 `dashboard.soundbored.app`. Deployment is **Coolify-first**: Coolify supplies the
 reverse proxy, certificates, and persistent storage. There is no Caddy in this
-stack; the compose file in `deploy/` is the container shape Coolify consumes
-(and the local harness for the upgrade rehearsal).
+stack; the container shape (image, volumes, environment) below is what Coolify
+consumes.
 
 ## Architecture in one paragraph
 
@@ -31,8 +31,9 @@ set `TENANT_BASE_HOST=soundbored.app` (already set in the compose). The plug
 
 ## Deploying with Coolify (primary path)
 
-1. Create a new resource from a Docker Compose file; point it at
-   `deploy/docker-compose.prod.yml` in this repository.
+1. Create a new resource from a Docker Compose file with one `app` service
+   running `christom/soundbored:<tag>`; mount the two named volumes and pass
+   the environment from `.env` as described below.
 2. Attach persistent storage for both named volumes (`app_uploads`,
    `app_db`) to Coolify's persistent storage so upgrades and restarts keep
    sounds and the database.
@@ -52,7 +53,9 @@ set `TENANT_BASE_HOST=soundbored.app` (already set in the compose). The plug
    proxies the container's port 4000.
 5. Deploy. The container entrypoint runs `mix ecto.migrate` on boot, so the
    first deploy creates and migrates the schema. Existing single-tenant
-   deployments upgrade through the same path (see the rehearsal section).
+   deployments upgrade through the same path: migrations run on boot and the
+   backfill repoints legacy rows, verified by the upgrade rehearsal kept on
+   the feature branch (not shipped on main).
 
 ## Why each env is set or unset
 
@@ -107,29 +110,6 @@ cancellation, the operator may purge the row and its files (a purge is a
 manual step, never automatic). Do not purge earlier; the user may be fixing a
 payment method.
 
-## Upgrade rehearsal
-
-`deploy/upgrade-rehearsal.sh` is the standing guard for the upgrade path, and
-it gates sign-off on any change to migrations. It:
-
-1. boots the pre-upgrade image (`christom/soundbored:latest`) on a local
-   compose stack with named volumes,
-2. signs in through the **real Discord OAuth flow** with a test account
-   (`TEST_DISCORD_EMAIL`/`TEST_DISCORD_PASSWORD`) and uploads two sounds,
-3. snapshots both volumes,
-4. swaps to the multi-tenant image and reboots (the entrypoint migrates), and
-5. asserts the sounds, the signed-in user, and the join/leave settings
-   survived.
-
-Run it with the shared bot credentials and a test Discord account in the
-environment. Keep the volume snapshots it prints; they are the evidence for
-the sign-off. Rerun it at merge time whenever a migration changes after the
-last green run.
-
-The script's local compose is the development harness. The authoritative
-rehearsal surface is the real Coolify deployment: before flipping production,
-repeat steps 2-4 against a Coolify staging instance (clone the resource, point
-it at the new image, restore a production volume snapshot, and assert).
 
 ## Operational watch items
 
