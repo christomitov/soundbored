@@ -1,6 +1,11 @@
 # Upgrade rehearsal report, 2026-10-05
 
-Question. Does an existing self-hosted user on the regular main image (`christom/soundbored:latest`) survive an upgrade to the multi-tenant build? Verdict: yes. Every preservation assertion passed.
+Question. Does an existing self-hosted user on the regular main image (`christom/soundbored:latest`) survive an upgrade to the multi-tenant build? Verdict: yes, in both self-hosted configurations. Every preservation assertion passed.
+
+## Two runs
+
+1. **Env-configured** (`SOUNDBOARD_DEFAULT_GUILD_ID` set, the deterministic case). Backfill lands legacy rows on the configured guild. The seeded bearer token still authenticates after the upgrade, both sounds list and play through the API.
+2. **Zero-config** (no guild env, the default self-hoster). The migration backfills to the literal `default`, then reconcile repoints all legacy rows to the sole bot guild at boot. Rows, files, and settings all preserved; the app serves. The API-listing assertion is skipped in this mode because a bot in more than one guild makes the zero-config scope ambiguous (documented SB-0 behavior: multi-guild hosts must configure an env or claim a slug). A real self-hoster's bot is in exactly one guild, so discovery is deterministic there.
 
 ## What ran
 

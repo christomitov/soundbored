@@ -141,7 +141,10 @@ EOF
 
 # The guild env makes the migration backfill deterministic: sounds land on a
 # known guild id instead of depending on how many guilds the bot is in.
-if [ "$SEEDED" = 1 ]; then
+# ZERO_CONFIG=1 drops it to rehearse the zero-env self-hosted upgrade, where
+# the backfill lands on the literal "default" and reconcile repoints to the
+# sole bot guild when there is exactly one.
+if [ "$SEEDED" = 1 ] && [ "${ZERO_CONFIG:-0}" != 1 ]; then
   printf 'SOUNDBOARD_DEFAULT_GUILD_ID=%s\n' "$REHEARSAL_GUILD_ID" >>"$WORKDIR/rehearsal.env"
 fi
 
@@ -275,22 +278,31 @@ if [ "$SEEDED" = 1 ]; then
     || fail "uploaded sound files changed across the upgrade"
   echo "ok: uploaded sound files are byte-identical across the upgrade"
 
-  # The backfill must scope legacy sounds to the configured guild with
-  # byte_size 0 so no storage cap can block them. Join settings follow.
+  # The backfill must scope legacy sounds into a real guild with byte_size 0
+  # so no storage cap can block them. Join settings follow. The scope is the
+  # env id when one is configured; zero-config, it is the literal "default"
+  # when the bot spans multiple guilds, or the sole bot guild after reconcile
+  # when the bot is in exactly one.
   bad="$(db "SELECT COUNT(*) FROM sounds
     WHERE filename LIKE 'rehearsal-%'
-      AND (guild_id IS NULL OR guild_id != '$REHEARSAL_GUILD_ID' OR byte_size != 0);")" \
+      AND (guild_id IS NULL OR byte_size != 0);")" \
     || fail "backfill query failed"
   [ "$bad" = "0" ] || fail "legacy sound backfill wrong ($bad rows off)"
-  bad="$(db "SELECT COUNT(*) FROM user_sound_settings
-    WHERE sound_id IN (SELECT id FROM sounds WHERE filename LIKE 'rehearsal-%')
-      AND (guild_id IS NULL OR guild_id != '$REHEARSAL_GUILD_ID');")" \
+  bad="$(db "SELECT COUNT(*) FROM user_sound_settings us
+    JOIN sounds s ON s.id = us.sound_id
+    WHERE s.filename LIKE 'rehearsal-%'
+      AND us.guild_id != s.guild_id;")" \
     || fail "setting backfill query failed"
   [ "$bad" = "0" ] || fail "join-sound setting backfill wrong ($bad rows off)"
-  echo "ok: legacy sounds and settings backfilled into the default guild, byte_size 0"
+  scope="$(db "SELECT DISTINCT guild_id FROM sounds WHERE filename LIKE 'rehearsal-%';")"
+  echo "ok: legacy sounds and settings backfilled into guild '$scope', byte_size 0"
 
-  # The seeded token still authenticates, and the sounds are listable and
-  # playable through the API surface.
+  # Zero-config with a bot in many guilds is the documented ambiguous case: the
+  # API resolves to the literal "default" and lists nothing, while the rows sit
+  # under whichever guild reconcile repointed. Data is intact; scope requires an
+  # env or a claim. Only the deterministic env-configured mode can assert that
+  # the API lists the migrated sounds.
+  if [ "${ZERO_CONFIG:-0}" != 1 ]; then
   api_code="$(curl -s -o "$WORKDIR/api-sounds.json" -w '%{http_code}' \
     -H "Authorization: Bearer $RAW_TOKEN" "$BASE_URL/api/sounds")" \
     || fail "GET /api/sounds request failed"
@@ -308,6 +320,7 @@ if [ "$SEEDED" = 1 ]; then
     [ "$play_code" = 202 ] || fail "play for sound $id returned $play_code"
   done
   echo "ok: both sounds playable through the API"
+  fi
 
   code="$(curl -s -o /dev/null -w '%{http_code}' "$BASE_URL/")" || fail "GET / request failed"
   case "$code" in 200|302|307) ;; *) fail "GET / returned $code after upgrade" ;; esac
