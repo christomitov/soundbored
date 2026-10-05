@@ -388,7 +388,14 @@ defmodule Soundboard.Billing do
     :ets.insert(@subscriptions_ets, {guild_id, state})
   end
 
-  def remember_subscription(_, _), do: :ok
+  def remember_subscription(guild_id, state) do
+    Logger.warning(
+      "remember_subscription: ignoring call with guild_id=#{inspect(guild_id)} " <>
+        "and state=#{inspect(state)}; expected a binary guild id and %SubscriptionSnapshot{}"
+    )
+
+    :ok
+  end
 
   @doc """
   Moves the guild's live subscription to another price (tier or interval
@@ -492,7 +499,7 @@ defmodule Soundboard.Billing do
 
             remember_subscription(guild_id, snapshot)
 
-            {:ok, %SubscriptionSnapshot{id: snapshot.id, item_id: item_id}}
+            {:ok, snapshot}
 
           _ ->
             {:error, :no_subscription}
