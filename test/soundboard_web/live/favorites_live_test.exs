@@ -67,12 +67,12 @@ defmodule SoundboardWeb.FavoritesLiveTest do
   test "plays a favorite sound", %{conn: conn, user: user, sound: sound} do
     {:ok, view, _html} = live(conn, "/favorites")
 
-    with_mock Soundboard.AudioPlayer, play_sound: fn _, _ -> :ok end do
+    with_mock Soundboard.AudioPlayer, play_sound: fn _, _, _ -> :ok end do
       view
       |> element("[phx-click='play'][phx-value-name='#{sound.filename}']")
       |> render_click()
 
-      assert_called(Soundboard.AudioPlayer.play_sound(sound.filename, user))
+      assert_called(Soundboard.AudioPlayer.play_sound(sound.filename, user, :_))
     end
   end
 

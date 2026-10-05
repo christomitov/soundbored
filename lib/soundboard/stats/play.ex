@@ -9,6 +9,8 @@ defmodule Soundboard.Stats.Play do
   alias Soundboard.Accounts.User
   alias Soundboard.Sound
 
+  @type t :: %__MODULE__{}
+
   schema "plays" do
     field :played_filename, :string
     belongs_to :sound, Sound

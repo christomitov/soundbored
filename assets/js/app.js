@@ -586,6 +586,25 @@ Hooks.VolumeControl = {
   }
 }
 
+Hooks.SearchBackspace = {
+  mounted() {
+    this.handleKeydown = (e) => {
+      if (e.key !== "Backspace") return
+      // Only act when the input is truly empty (client-side check — the
+      // server's debounced search_query can lag behind the DOM value).
+      if (this.el.value !== "") return
+      // Only clear when a tag chip is actually rendered.
+      const chip = document.querySelector("[phx-click='clear_tag_filters']")
+      if (!chip) return
+      this.pushEvent("clear_tag_filters", {})
+    }
+    this.el.addEventListener("keydown", this.handleKeydown)
+  },
+  destroyed() {
+    this.el.removeEventListener("keydown", this.handleKeydown)
+  }
+}
+
 Hooks.CopyButton = {
   mounted() {
     this.handleClick = async (e) => {

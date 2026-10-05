@@ -40,7 +40,7 @@ defmodule SoundboardWeb.Live.SoundboardLive.EditFlow do
         {:ok, extension} ->
           filename = String.trim(params["filename"] || "") <> extension
 
-          if Sounds.filename_taken_excluding?(filename, current_sound_id) do
+          if Sounds.filename_taken_excluding?(filename, current_sound_id, socket.assigns.guild_id) do
             "A sound with that name already exists"
           end
 
@@ -81,7 +81,7 @@ defmodule SoundboardWeb.Live.SoundboardLive.EditFlow do
     {:noreply,
      socket
      |> update_state(&%{&1 | current_sound: updated_sound})
-     |> assign(:uploaded_files, Sounds.list_detailed())}
+     |> assign(:uploaded_files, Sounds.list_detailed(socket.assigns.guild_id))}
   end
 
   def select_tag_suggestion(socket, tag_name), do: select_tag(socket, tag_name)
@@ -105,7 +105,7 @@ defmodule SoundboardWeb.Live.SoundboardLive.EditFlow do
          socket
          |> Phoenix.LiveView.put_flash(:info, "Sound updated successfully")
          |> close_modal()
-         |> assign(:uploaded_files, Sounds.list_detailed())}
+         |> assign(:uploaded_files, Sounds.list_detailed(socket.assigns.guild_id))}
 
       {:error, error} ->
         {:noreply,
@@ -133,7 +133,7 @@ defmodule SoundboardWeb.Live.SoundboardLive.EditFlow do
         {:noreply,
          socket
          |> close_modal()
-         |> assign(:uploaded_files, Sounds.list_detailed())
+         |> assign(:uploaded_files, Sounds.list_detailed(socket.assigns.guild_id))
          |> Phoenix.LiveView.put_flash(:info, "Sound deleted successfully")}
 
       {:error, :forbidden} ->

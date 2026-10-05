@@ -15,7 +15,7 @@ defmodule Soundboard.Discord.Handler.VoiceRuntimeTest do
       {VoicePresence, [],
        [
          bot_user?: fn "user-1" -> false end,
-         current_voice_channel: fn -> {:ok, {"guild-1", "channel-1"}} end,
+         current_voice_channel: fn _guild -> {:ok, {"guild-1", "channel-1"}} end,
          users_in_channel: fn "guild-1", "channel-1" -> {:ok, 2} end
        ]}
     ]) do
@@ -33,7 +33,7 @@ defmodule Soundboard.Discord.Handler.VoiceRuntimeTest do
       {VoicePresence, [],
        [
          bot_user?: fn "user-1" -> false end,
-         current_voice_channel: fn -> {:ok, {"guild-1", "channel-1"}} end,
+         current_voice_channel: fn _guild -> {:ok, {"guild-1", "channel-1"}} end,
          users_in_channel: fn "guild-1", "channel-1" -> {:ok, 3} end
        ]}
     ]) do
@@ -49,7 +49,7 @@ defmodule Soundboard.Discord.Handler.VoiceRuntimeTest do
         with_mocks([
           {VoicePresence, [],
            [
-             current_voice_channel: fn -> {:ok, {"guild-1", "channel-1"}} end,
+             current_voice_channel: fn _guild -> {:ok, {"guild-1", "channel-1"}} end,
              users_in_channel: fn "guild-1", "channel-1" -> {:error, :unavailable} end
            ]}
         ]) do
@@ -102,7 +102,7 @@ defmodule Soundboard.Discord.Handler.VoiceRuntimeTest do
       {VoicePresence, [],
        [
          bot_user?: fn "user-1" -> false end,
-         current_voice_channel: fn -> {:ok, {"guild-1", "channel-1"}} end,
+         current_voice_channel: fn _guild -> {:ok, {"guild-1", "channel-1"}} end,
          users_in_channel: fn "guild-1", "channel-1" -> {:ok, 0} end
        ]},
       {AudioPlayer, [],
@@ -126,7 +126,7 @@ defmodule Soundboard.Discord.Handler.VoiceRuntimeTest do
       {VoicePresence, [],
        [
          bot_user?: fn "user-1" -> false end,
-         current_voice_channel: fn -> {:ok, {"guild-1", "channel-1"}} end,
+         current_voice_channel: fn _guild -> {:ok, {"guild-1", "channel-1"}} end,
          users_in_channel: fn "guild-1", "channel-1" -> {:ok, 0} end
        ]},
       {AudioPlayer, [],
@@ -150,7 +150,7 @@ defmodule Soundboard.Discord.Handler.VoiceRuntimeTest do
       {VoicePresence, [],
        [
          bot_user?: fn "user-1" -> false end,
-         current_voice_channel: fn -> {:ok, {"guild-1", "channel-1"}} end
+         current_voice_channel: fn _guild -> {:ok, {"guild-1", "channel-1"}} end
        ]},
       {AudioPlayer, [],
        [
@@ -172,7 +172,7 @@ defmodule Soundboard.Discord.Handler.VoiceRuntimeTest do
       {VoicePresence, [],
        [
          bot_user?: fn "user-1" -> false end,
-         current_voice_channel: fn -> {:ok, {"guild-1", "channel-1"}} end
+         current_voice_channel: fn _guild -> {:ok, {"guild-1", "channel-1"}} end
        ]},
       {AudioPlayer, [], [user_joined_channel: fn _ -> :ok end]}
     ]) do

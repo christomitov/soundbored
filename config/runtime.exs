@@ -105,12 +105,24 @@ if config_env() == :dev do
     ffmpeg_available: ffmpeg_available,
     required_guild_id: required_guild_id,
     required_role_ids: required_role_ids,
-    role_recheck_interval_seconds: role_recheck_interval_seconds
+    role_recheck_interval_seconds: role_recheck_interval_seconds,
+    default_guild_id: env!("SOUNDBOARD_DEFAULT_GUILD_ID", :string, nil),
+    tenant_base_host: env!("TENANT_BASE_HOST", :string, nil)
 
   config :eda,
     token: discord_token,
     dave: eda_dave
 end
+
+# Stripe billing applies in every environment; billing stays dormant unless
+# STRIPE_SECRET_KEY is set (see Soundboard.Billing.configured?/0).
+config :soundboard, Soundboard.Billing,
+  secret_key: env!("STRIPE_SECRET_KEY", :string, nil),
+  webhook_secret: env!("STRIPE_WEBHOOK_SECRET", :string, nil),
+  price_pro_monthly: env!("SOUNDBORED_STRIPE_PRICE_PRO_MONTHLY", :string, nil),
+  price_pro_yearly: env!("SOUNDBORED_STRIPE_PRICE_PRO_YEARLY", :string, nil),
+  price_studio_monthly: env!("SOUNDBORED_STRIPE_PRICE_STUDIO_MONTHLY", :string, nil),
+  price_studio_yearly: env!("SOUNDBORED_STRIPE_PRICE_STUDIO_YEARLY", :string, nil)
 
 # Allow build tooling to opt-out to avoid requiring secrets during image builds.
 if config_env() == :prod and is_nil(env!("SKIP_RUNTIME_CONFIG", :string, nil)) do
@@ -125,7 +137,11 @@ if config_env() == :prod and is_nil(env!("SKIP_RUNTIME_CONFIG", :string, nil)) d
   config :soundboard, Soundboard.Repo,
     database: database_path,
     adapter: Ecto.Adapters.SQLite3,
-    pool_size: env!("POOL_SIZE", :integer, 10)
+    pool_size: env!("POOL_SIZE", :integer, 10),
+    # WAL: concurrent readers while the single writer works; busy_timeout queues
+    # writers instead of erroring with "database is locked" under contention.
+    journal_mode: :wal,
+    busy_timeout: 5_000
 
   # The secret key base is used to sign/encrypt cookies and other secrets.
   secret_key_base =
@@ -229,7 +245,9 @@ if config_env() == :prod and is_nil(env!("SKIP_RUNTIME_CONFIG", :string, nil)) d
     ffmpeg_available: ffmpeg_available,
     required_guild_id: required_guild_id,
     required_role_ids: required_role_ids,
-    role_recheck_interval_seconds: role_recheck_interval_seconds
+    role_recheck_interval_seconds: role_recheck_interval_seconds,
+    default_guild_id: env!("SOUNDBOARD_DEFAULT_GUILD_ID", :string, nil),
+    tenant_base_host: env!("TENANT_BASE_HOST", :string, nil)
 
   config :eda,
     token: discord_token,

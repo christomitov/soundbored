@@ -5,6 +5,7 @@ defmodule Soundboard.AudioPlayer.PlaybackEngine do
 
   alias Soundboard.Accounts.User
   alias Soundboard.{AudioPlayer, AudioPlayer.Notifier, AudioPlayer.SoundLibrary, Discord.Voice}
+  @boundary_exceptions Soundboard.Boundary.exceptions()
 
   @system_users ["System"]
   @rtp_probe_poll_ms 20
@@ -16,6 +17,11 @@ defmodule Soundboard.AudioPlayer.PlaybackEngine do
   @voice_settle_ms 120
   @rejoin_retry_threshold 3
   @max_play_attempts 20
+
+  defmodule Retry do
+    @moduledoc false
+    defstruct [:log, :sleep_ms, :stop_first?, :force_refresh?]
+  end
 
   def play(guild_id, channel_id, sound_name, path_or_url, volume, actor) do
     join_state = ensure_joined_channel(guild_id, channel_id)
@@ -32,10 +38,10 @@ defmodule Soundboard.AudioPlayer.PlaybackEngine do
   defp submit_play_request(guild_id, sound_name, path_or_url, volume, actor) do
     if is_nil(ffmpeg_executable()) do
       Logger.error("ffmpeg not found in PATH. Cannot play #{sound_name}")
-      broadcast_error("ffmpeg is not installed on this host")
+      broadcast_error(guild_id, "ffmpeg is not installed on this host")
       :error
     else
-      {play_input, play_type} = SoundLibrary.prepare_play_input(sound_name, path_or_url)
+      {play_input, play_type} = SoundLibrary.prepare_play_input(guild_id, sound_name, path_or_url)
 
       play_request = %{
         guild_id: guild_id,
@@ -55,8 +61,8 @@ defmodule Soundboard.AudioPlayer.PlaybackEngine do
     case voice_play(play_request) |> classify_play_attempt() do
       :ok ->
         maybe_probe_first_rtp(play_request.guild_id, play_request.sound_name, attempt + 1)
-        track_play_if_needed(play_request.sound_name, play_request.actor)
-        broadcast_success(play_request.sound_name, play_request.actor)
+        track_play_if_needed(play_request.guild_id, play_request.sound_name, play_request.actor)
+        broadcast_success(play_request.guild_id, play_request.sound_name, play_request.actor)
         :ok
 
       {:retry, retry} ->
@@ -64,14 +70,18 @@ defmodule Soundboard.AudioPlayer.PlaybackEngine do
 
       {:error, reason} ->
         Logger.error("Voice.play failed: #{inspect(reason)} (attempt #{attempt + 1})")
-        broadcast_error("Failed to play sound: #{reason}")
+        broadcast_error(play_request.guild_id, "Failed to play sound: #{reason}")
         :error
     end
   end
 
-  defp play_with_retries(%{sound_name: sound_name}, attempt, _refresh_attempted) do
+  defp play_with_retries(
+         %{guild_id: guild_id, sound_name: sound_name},
+         attempt,
+         _refresh_attempted
+       ) do
     Logger.error("Exceeded max retries (#{attempt}) for playing #{sound_name}")
-    broadcast_error("Failed to play sound after multiple attempts")
+    broadcast_error(guild_id, "Failed to play sound after multiple attempts")
     :error
   end
 
@@ -88,7 +98,7 @@ defmodule Soundboard.AudioPlayer.PlaybackEngine do
 
   defp classify_play_attempt({:error, "Audio already playing in voice channel."}) do
     {:retry,
-     %{
+     %Retry{
        log: "Audio still playing, stopping and retrying...",
        sleep_ms: 50,
        stop_first?: true,
@@ -98,17 +108,15 @@ defmodule Soundboard.AudioPlayer.PlaybackEngine do
 
   defp classify_play_attempt({:error, "Must be connected to voice channel to play audio."}) do
     {:retry,
-     %{
+     %Retry{
        log: "Voice reported not connected, waiting before retry...",
-       sleep_ms: @voice_not_ready_retry_ms,
-       stop_first?: false,
-       force_refresh?: false
+       sleep_ms: @voice_not_ready_retry_ms
      }}
   end
 
   defp classify_play_attempt({:error, "Voice session is still negotiating encryption."}) do
     {:retry,
-     %{
+     %Retry{
        log:
          "Voice encryption not ready yet, waiting #{@voice_not_ready_retry_ms}ms before retry...",
        sleep_ms: @voice_not_ready_retry_ms,
@@ -148,7 +156,7 @@ defmodule Soundboard.AudioPlayer.PlaybackEngine do
   end
 
   defp maybe_rejoin_current_channel(guild_id, force_refresh) do
-    case AudioPlayer.current_voice_channel() do
+    case AudioPlayer.current_voice_channel(guild_id) do
       {:ok, {^guild_id, channel_id}} ->
         maybe_rejoin_for_channel(guild_id, channel_id, force_refresh)
 
@@ -163,30 +171,19 @@ defmodule Soundboard.AudioPlayer.PlaybackEngine do
     :ok
   end
 
-  defp maybe_rejoin_for_channel(guild_id, channel_id, true) do
+  defp maybe_rejoin_for_channel(guild_id, channel_id, force_refresh?) do
     joined? = Voice.channel_id(guild_id) == to_string(channel_id)
     ready? = match?({:ok, true}, safe_voice_ready(guild_id))
 
     cond do
-      joined? and not ready? ->
+      force_refresh? and joined? and not ready? ->
         refresh_voice_session(guild_id, channel_id)
 
       joined? and ready? ->
-        Logger.debug("Skipping refresh; voice already ready in channel #{channel_id}")
+        Logger.debug("Skipping rejoin; already in voice channel #{channel_id}")
 
       true ->
         rejoin_voice_channel(guild_id, channel_id)
-    end
-  end
-
-  defp maybe_rejoin_for_channel(guild_id, channel_id, false) do
-    joined? = Voice.channel_id(guild_id) == to_string(channel_id)
-    ready? = match?({:ok, true}, safe_voice_ready(guild_id))
-
-    if joined? and ready? do
-      Logger.debug("Skipping rejoin; already in voice channel #{channel_id}")
-    else
-      rejoin_voice_channel(guild_id, channel_id)
     end
   end
 
@@ -328,7 +325,8 @@ defmodule Soundboard.AudioPlayer.PlaybackEngine do
       {:error, reason} -> {:error, {:voice_state_unavailable, reason}}
     end
   rescue
-    error -> {:error, {:voice_state_unavailable, Exception.message(error)}}
+    error in @boundary_exceptions ->
+      {:error, {:voice_state_unavailable, Exception.message(error)}}
   end
 
   defp safe_voice_status(guild_id) do
@@ -341,34 +339,38 @@ defmodule Soundboard.AudioPlayer.PlaybackEngine do
   defp safe_voice_ready(guild_id) do
     {:ok, Voice.ready?(guild_id)}
   rescue
-    error -> {:error, {:voice_not_ready, Exception.message(error)}}
+    error in @boundary_exceptions ->
+      {:error, {:voice_not_ready, Exception.message(error)}}
   end
 
   defp safe_voice_channel(guild_id) do
     {:ok, Voice.channel_id(guild_id)}
   rescue
-    error -> {:error, {:voice_channel_unavailable, Exception.message(error)}}
+    error in @boundary_exceptions ->
+      {:error, {:voice_channel_unavailable, Exception.message(error)}}
   end
 
   defp safe_voice_playing(guild_id) do
     {:ok, Voice.playing?(guild_id)}
   rescue
-    error -> {:error, {:voice_playback_unavailable, Exception.message(error)}}
+    error in @boundary_exceptions ->
+      {:error, {:voice_playback_unavailable, Exception.message(error)}}
   end
 
-  defp track_play_if_needed(sound_name, actor) do
+  defp track_play_if_needed(guild_id, sound_name, actor) do
+    actor_user_id = actor_user_id(actor)
+    username = actor_display_name(actor)
+
     cond do
       system_user?(actor) ->
         :ok
 
-      is_integer(actor_user_id(actor)) ->
-        Soundboard.Stats.track_play(sound_name, actor_user_id(actor))
+      is_integer(actor_user_id) ->
+        Soundboard.Stats.track_play(sound_name, actor_user_id, guild_id)
 
-      is_binary(actor_display_name(actor)) ->
-        username = actor_display_name(actor)
-
+      is_binary(username) ->
         case Soundboard.Repo.get_by(User, username: username) do
-          %{id: user_id} -> Soundboard.Stats.track_play(sound_name, user_id)
+          %{id: user_id} -> Soundboard.Stats.track_play(sound_name, user_id, guild_id)
           nil -> Logger.warning("Could not find user_id for #{username}")
         end
 
@@ -377,12 +379,12 @@ defmodule Soundboard.AudioPlayer.PlaybackEngine do
     end
   end
 
-  defp broadcast_success(sound_name, actor) do
-    Notifier.sound_played(sound_name, actor_display_name(actor) || "Unknown")
+  defp broadcast_success(guild_id, sound_name, actor) do
+    Notifier.sound_played(sound_name, actor_display_name(actor) || "Unknown", guild_id)
   end
 
-  defp broadcast_error(message) do
-    Notifier.error(message)
+  defp broadcast_error(guild_id, message) do
+    Notifier.error(message, guild_id)
   end
 
   defp unwrap_sequence({:ok, sequence}), do: sequence

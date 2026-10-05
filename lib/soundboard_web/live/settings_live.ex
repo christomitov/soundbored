@@ -1,19 +1,21 @@
 defmodule SoundboardWeb.SettingsLive do
   use SoundboardWeb, :live_view
   use SoundboardWeb.Live.Support.PresenceLive
-  alias Soundboard.Accounts.ApiTokens
-  alias Soundboard.PublicURL
+  alias Soundboard.{Accounts.ApiTokens, Billing, PublicURL, Tenants}
 
   @impl true
   def mount(_params, session, socket) do
+    user = get_user_from_session(session)
+
     socket =
       socket
       |> mount_presence(session)
       |> assign(:current_path, "/settings")
-      |> assign(:current_user, get_user_from_session(session))
+      |> assign(:current_user, user)
       |> assign(:tokens, [])
       |> assign(:new_token, nil)
       |> assign(:base_url, PublicURL.current())
+      |> assign(:billing, plan_card(user, session))
 
     {:ok, load_tokens(socket)}
   end
@@ -48,6 +50,30 @@ defmodule SoundboardWeb.SettingsLive do
       {:error, :forbidden} -> {:noreply, put_flash(socket, :error, "Not allowed")}
       {:error, :not_found} -> {:noreply, put_flash(socket, :error, "Token not found")}
       {:error, _} -> {:noreply, put_flash(socket, :error, "Failed to revoke token")}
+    end
+  end
+
+  # The Plan card is hosted-only: visible when billing is configured and the
+  # signed-in user is the Discord account that provisioned the guild.
+  defp plan_card(user, session) do
+    guild = Tenants.get_guild(session["guild_id"])
+
+    owner? =
+      Billing.configured?() and guild != nil and is_binary(guild.owner_discord_id) and
+        user != nil and guild.owner_discord_id == user.discord_id
+
+    if owner? do
+      used = Tenants.storage_used(guild.discord_guild_id)
+      cap = guild.max_storage_bytes || 0
+
+      %{
+        plan_label: Billing.plan_label(guild.max_storage_bytes),
+        storage_used: Billing.format_bytes(used),
+        storage_cap: Billing.format_bytes(cap),
+        usage_pct: if(cap > 0, do: min(100, div(used * 100, cap)), else: 0)
+      }
+    else
+      nil
     end
   end
 
@@ -284,6 +310,33 @@ defmodule SoundboardWeb.SettingsLive do
           </div>
         </div>
       </section>
+
+      <%= if @billing do %>
+        <section aria-labelledby="plan-heading" class="space-y-2">
+          <h2 id="plan-heading" class="text-xl font-semibold text-gray-800 dark:text-gray-100">
+            Plan
+          </h2>
+          <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-5 space-y-3">
+            <div class="flex items-center justify-between gap-3">
+              <span class="text-sm font-medium text-gray-800 dark:text-gray-100">
+                {@billing.plan_label}
+              </span>
+              <a
+                href={~p"/billing"}
+                class="px-3 py-1.5 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 transition-colors text-sm"
+              >
+                Manage plan
+              </a>
+            </div>
+            <div class="h-2 w-full rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden">
+              <div class="h-full rounded-full bg-blue-600" style="width: {@billing.usage_pct}%"></div>
+            </div>
+            <p class="text-sm text-gray-600 dark:text-gray-400">
+              {@billing.storage_used} of {@billing.storage_cap} used
+            </p>
+          </div>
+        </section>
+      <% end %>
     </div>
     """
   end

@@ -12,6 +12,7 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
     @moduledoc false
 
     defstruct show_upload_modal: false,
+              guild_id: nil,
               source_type: "local",
               upload_name: "",
               url: "",
@@ -44,7 +45,8 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
           }
   end
 
-  def assign_defaults(socket), do: put_state(socket, default_state())
+  def assign_defaults(socket),
+    do: put_state(socket, %{default_state() | guild_id: socket.assigns[:guild_id]})
 
   def change_source_type(socket, source_type) do
     {:noreply, update_state(socket, &%{&1 | source_type: source_type})}
@@ -60,7 +62,7 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
             {:noreply,
              socket
              |> close_modal()
-             |> assign(:uploaded_files, Sounds.list_detailed())
+             |> assign(:uploaded_files, Sounds.list_detailed(upload.guild_id))
              |> Phoenix.LiveView.put_flash(:info, "Sound added successfully")}
 
           {:error, changeset} ->
@@ -225,7 +227,7 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
     {:noreply,
      socket
      |> close_modal()
-     |> assign(:uploaded_files, Sounds.list_detailed())
+     |> assign(:uploaded_files, Sounds.list_detailed(socket.assigns[:guild_id]))
      |> Phoenix.LiveView.put_flash(:info, "Sound added successfully")}
   end
 
@@ -252,6 +254,7 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
 
   defp build_request(%State{} = upload, params) do
     Sounds.new_create_request(upload.current_user, %{
+      guild_id: upload.guild_id,
       source_type: upload.source_type,
       name: params["name"],
       url: params["url"],

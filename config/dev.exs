@@ -1,5 +1,7 @@
 import Config
 
+config :soundboard, enable_test_login: true
+
 config :soundboard, Soundboard.Repo,
   database: "priv/db/soundboard_dev.db",
   adapter: Ecto.Adapters.SQLite3
@@ -25,9 +27,13 @@ secret_key_base =
       generate_secret_key_base.()
   end
 
+# PORT lets a second instance (mix run scripts, hermetic e2e) boot next to
+# the main dev server without an address-in-use crash.
+port = System.get_env("PORT", "4000") |> String.to_integer()
+
 config :soundboard, SoundboardWeb.Endpoint,
-  http: [ip: {127, 0, 0, 1}, port: 4000],
-  url: [host: "localhost", port: 4000, scheme: "http"],
+  http: [ip: {127, 0, 0, 1}, port: port],
+  url: [host: "localhost", port: port, scheme: "http"],
   check_origin: false,
   code_reloader: true,
   debug_errors: true,

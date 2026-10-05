@@ -55,7 +55,7 @@ defmodule SoundboardWeb.SoundboardLiveTest do
     test "can play sound", %{conn: conn, sound: sound} do
       {:ok, view, _html} = live(conn, "/")
 
-      with_mock Soundboard.AudioPlayer, play_sound: fn _, _ -> :ok end do
+      with_mock Soundboard.AudioPlayer, play_sound: fn _, _, _ -> :ok end do
         rendered =
           view
           |> element("[phx-click='play'][phx-value-name='#{sound.filename}']")
@@ -80,12 +80,12 @@ defmodule SoundboardWeb.SoundboardLiveTest do
       |> element("form")
       |> render_change(%{"query" => "filtered"})
 
-      with_mock Soundboard.AudioPlayer, play_sound: fn _, _ -> :ok end do
+      with_mock Soundboard.AudioPlayer, play_sound: fn _, _, _ -> :ok end do
         view
         |> element("[phx-click='play_random']")
         |> render_click()
 
-        assert_called(Soundboard.AudioPlayer.play_sound("filtered.mp3", :_))
+        assert_called(Soundboard.AudioPlayer.play_sound("filtered.mp3", :_, :_))
       end
     end
 
@@ -110,13 +110,152 @@ defmodule SoundboardWeb.SoundboardLiveTest do
       |> element("div.hidden.sm\\:flex button[phx-value-tag='funny']")
       |> render_click()
 
-      with_mock Soundboard.AudioPlayer, play_sound: fn _, _ -> :ok end do
+      with_mock Soundboard.AudioPlayer, play_sound: fn _, _, _ -> :ok end do
         view
         |> element("[phx-click='play_random']")
         |> render_click()
 
-        assert_called(Soundboard.AudioPlayer.play_sound("funny.mp3", :_))
+        assert_called(Soundboard.AudioPlayer.play_sound("funny.mp3", :_, :_))
       end
+    end
+
+    test "pressing enter in search clears selected tag", %{conn: conn, user: user} do
+      tag =
+        %Tag{}
+        |> Tag.changeset(%{name: "funny"})
+        |> Repo.insert!()
+
+      %Sound{}
+      |> Sound.changeset(%{
+        filename: "funny.mp3",
+        source_type: "local",
+        user_id: user.id,
+        tags: [tag]
+      })
+      |> Repo.insert!()
+
+      {:ok, view, _html} = live(conn, "/")
+
+      view
+      |> element("div.hidden.sm\\:flex button[phx-value-tag='funny']")
+      |> render_click()
+
+      # With the tag selected, the untagged sound is filtered out
+      refute render(view) =~ "test.mp3"
+
+      # Submitting the search (pressing enter) clears the tag filter,
+      # so the query matches the untagged sound again
+      view
+      |> element("form[phx-submit='commit_search']")
+      |> render_submit(%{"query" => "test"})
+
+      rendered = render(view)
+      assert rendered =~ "test.mp3"
+      refute rendered =~ "funny.mp3"
+    end
+
+    test "selected tag renders as a removable chip in the search bar", %{conn: conn, user: user} do
+      tag =
+        %Tag{}
+        |> Tag.changeset(%{name: "funny"})
+        |> Repo.insert!()
+
+      %Sound{}
+      |> Sound.changeset(%{
+        filename: "funny.mp3",
+        source_type: "local",
+        user_id: user.id,
+        tags: [tag]
+      })
+      |> Repo.insert!()
+
+      {:ok, view, _html} = live(conn, "/")
+
+      refute has_element?(view, "button[phx-click='clear_tag_filters']")
+
+      view
+      |> element("div.hidden.sm\\:flex button[phx-value-tag='funny']")
+      |> render_click()
+
+      assert has_element?(view, "button[phx-click='clear_tag_filters']")
+
+      view
+      |> element("button[phx-click='clear_tag_filters']")
+      |> render_click()
+
+      rendered = render(view)
+      assert rendered =~ "test.mp3"
+      assert rendered =~ "funny.mp3"
+      refute has_element?(view, "button[phx-click='clear_tag_filters']")
+    end
+
+    test "search input is wired to the SearchBackspace hook", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/")
+
+      assert has_element?(view, "#sound-search-input[phx-hook='SearchBackspace']")
+    end
+
+    test "backspace clears selected tag when search box is empty", %{conn: conn, user: user} do
+      tag =
+        %Tag{}
+        |> Tag.changeset(%{name: "funny"})
+        |> Repo.insert!()
+
+      %Sound{}
+      |> Sound.changeset(%{
+        filename: "funny.mp3",
+        source_type: "local",
+        user_id: user.id,
+        tags: [tag]
+      })
+      |> Repo.insert!()
+
+      {:ok, view, _html} = live(conn, "/")
+
+      view
+      |> element("div.hidden.sm\\:flex button[phx-value-tag='funny']")
+      |> render_click()
+
+      refute render(view) =~ "test.mp3"
+
+      # The JS hook pushes clear_tag_filters when backspace hits an empty input
+      view
+      |> element("button[phx-click='clear_tag_filters']")
+      |> render_click()
+
+      assert render(view) =~ "test.mp3"
+    end
+
+    test "backspace does not clear selected tag while typing", %{conn: conn, user: user} do
+      tag =
+        %Tag{}
+        |> Tag.changeset(%{name: "funny"})
+        |> Repo.insert!()
+
+      %Sound{}
+      |> Sound.changeset(%{
+        filename: "funny.mp3",
+        source_type: "local",
+        user_id: user.id,
+        tags: [tag]
+      })
+      |> Repo.insert!()
+
+      {:ok, view, _html} = live(conn, "/")
+
+      view
+      |> element("div.hidden.sm\\:flex button[phx-value-tag='funny']")
+      |> render_click()
+
+      view
+      |> element("form[phx-change='search']")
+      |> render_change(%{"query" => "fun"})
+
+      # Typing keeps the tag; the hook only fires clear_tag_filters when
+      # the input value is empty, so a non-empty search never clears it.
+      rendered = render(view)
+      refute rendered =~ "test.mp3"
+      assert rendered =~ "funny.mp3"
     end
 
     test "can open and close upload modal", %{conn: conn} do

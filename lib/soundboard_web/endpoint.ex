@@ -45,7 +45,8 @@ defmodule SoundboardWeb.Endpoint do
     parsers: [:urlencoded, :multipart, :json],
     pass: ["*/*"],
     length: Application.compile_env(:soundboard, :max_upload_bytes, 10_000_000),
-    json_decoder: Phoenix.json_library()
+    json_decoder: Phoenix.json_library(),
+    body_reader: {SoundboardWeb.RawBodyReader, :read_body, []}
 
   plug Plug.MethodOverride
   plug Plug.Head

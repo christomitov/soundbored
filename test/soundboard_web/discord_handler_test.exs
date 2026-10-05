@@ -12,10 +12,10 @@ defmodule Soundboard.Discord.HandlerTest do
   alias Soundboard.Discord.Voice
 
   setup do
-    :persistent_term.put(:soundboard_bot_ready, true)
+    Application.put_env(:soundboard, :bot_ready, true)
 
     on_exit(fn ->
-      :persistent_term.erase(:soundboard_bot_ready)
+      Application.delete_env(:soundboard, :bot_ready)
     end)
 
     :ok
@@ -93,8 +93,8 @@ defmodule Soundboard.Discord.HandlerTest do
 
     test "plays join sounds immediately without artificial delay" do
       user = insert_user!(%{discord_id: "555", username: "joiner"})
-      sound = insert_sound!(user, %{filename: "join.mp3"})
-      insert_user_sound_setting!(user, sound, %{is_join_sound: true})
+      sound = insert_sound!(user, %{filename: "join.mp3", guild_id: "456"})
+      insert_user_sound_setting!(user, sound, %{guild_id: "456", is_join_sound: true})
 
       bot_id = "999"
       guild_id = "456"
@@ -121,7 +121,7 @@ defmodule Soundboard.Discord.HandlerTest do
           {Soundboard.Discord.BotIdentity, [], [fetch: fn -> {:ok, %{id: bot_id}} end]},
           {Soundboard.AudioPlayer, [],
            [
-             play_sound: fn filename, played_by ->
+             play_sound: fn filename, played_by, _guild ->
                Agent.update(recorder, &(&1 ++ [{:play_sound, filename, played_by}]))
                :ok
              end
@@ -143,8 +143,8 @@ defmodule Soundboard.Discord.HandlerTest do
 
     test "plays leave sounds before auto-leaving the voice channel" do
       user = insert_user!(%{discord_id: "556", username: "leaver"})
-      sound = insert_sound!(user, %{filename: "leave.mp3"})
-      insert_user_sound_setting!(user, sound, %{is_leave_sound: true})
+      sound = insert_sound!(user, %{filename: "leave.mp3", guild_id: "456"})
+      insert_user_sound_setting!(user, sound, %{guild_id: "456", is_leave_sound: true})
 
       bot_id = "999"
       guild_id = "456"
@@ -169,7 +169,7 @@ defmodule Soundboard.Discord.HandlerTest do
           {Soundboard.Discord.BotIdentity, [], [fetch: fn -> {:ok, %{id: bot_id}} end]},
           {Soundboard.AudioPlayer, [],
            [
-             play_sound: fn filename, played_by ->
+             play_sound: fn filename, played_by, _guild ->
                Agent.update(recorder, &(&1 ++ [{:play_sound, filename, played_by}]))
                :ok
              end,
@@ -270,7 +270,7 @@ defmodule Soundboard.Discord.HandlerTest do
                    {:join_channel, guild_id, channel_id},
                    {:set_voice_channel, guild_id, channel_id},
                    {:leave_channel, guild_id},
-                   {:set_voice_channel, nil, nil}
+                   {:set_voice_channel, guild_id, nil}
                  ]
         end
       end)

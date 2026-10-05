@@ -1,5 +1,25 @@
 # Upgrading Soundbored
 
+## Unreleased (multi-tenant)
+
+This release turns Soundbored into a multi-tenant deployment: one shared bot serves many guilds, and sounds are scoped per guild. The upgrade is automatic and data-preserving. Single-guild deployments that set none of the new variables behave exactly as before.
+
+### Database migration
+
+`mix ecto.migrate` (run automatically by the container entrypoint) creates the `guilds` table, adds `guild_id` and `byte_size` to `sounds` and `guild_id` to `user_sound_settings`, and backfills every existing row with the default guild. Existing sound files stay where they are; there is no per-guild uploads directory. `byte_size` is backfilled as `0`, so no existing deployment can hit the new storage cap retroactively. The migration is additive and `down` is also data-preserving.
+
+### Storage cap behavior change
+
+Uploads are now checked against the guild's storage cap (sum of sound `byte_size` vs `max_storage_bytes`) before the sound is inserted. Over-cap uploads are rejected with an error asking the user to remove sounds or upgrade. Per-guild cap overrides (`guilds.max_storage_bytes`) are the knob for paid tiers.
+
+### New environment variables (all optional)
+
+| Variable | Purpose |
+| --- | --- |
+| `SOUNDBOARD_DEFAULT_GUILD_ID` | Guild id used to scope sounds when no tenant is specified. Falls back to `DISCORD_REQUIRED_GUILD_ID`, then the bot's sole guild, then the literal `default`. |
+| `SOUNDBOARD_DEFAULT_STORAGE_BYTES` | Default per-guild storage cap in bytes. Defaults to `2147483648` (2GB). |
+| `TENANT_BASE_HOST` | Base host for tenant subdomains, e.g. `soundbored.app` resolves `{slug}.soundbored.app` to that guild's soundboard. Empty disables subdomain routing. |
+
 ## v1.8.0 (security release)
 
 This release contains three breaking infrastructure changes. **Read all three sections before upgrading.**

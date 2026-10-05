@@ -1,5 +1,7 @@
 import Config
 
+config :soundboard, enable_test_login: true
+
 # Configure your database
 #
 # The MIX_TEST_PARTITION environment variable can be used
@@ -59,7 +61,7 @@ config :soundboard, :sql_sandbox, true
 
 config :soundboard, env: :test
 
-config :soundboard, Soundboard.AudioPlayer, voice_maintenance_enabled: false
+config :soundboard, Soundboard.AudioPlayer.Server, voice_maintenance_enabled: false
 
 config :soundboard, Soundboard.PubSub,
   adapter: Phoenix.PubSub.PG2,

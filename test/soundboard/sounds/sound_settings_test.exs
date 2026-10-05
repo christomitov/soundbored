@@ -110,14 +110,15 @@ defmodule Soundboard.Sounds.SoundSettingsTest do
     test "enforces unique join sound per user", %{user: user, sound: sound} do
       # First insert succeeds
       {:ok, _} =
-        %UserSoundSetting{
+        %UserSoundSetting{}
+        |> UserSoundSetting.changeset(%{
           user_id: user.id,
           sound_id: sound.id,
           is_join_sound: true
-        }
+        })
         |> Repo.insert()
 
-      # Second insert should fail with constraint error
+      # Second insert should fail with constraint error (same guild)
       changeset =
         %UserSoundSetting{}
         |> UserSoundSetting.changeset(%{
@@ -126,7 +127,7 @@ defmodule Soundboard.Sounds.SoundSettingsTest do
           is_join_sound: true
         })
         |> unique_constraint(:user_id,
-          name: "user_sound_settings_user_id_is_join_sound_index",
+          name: "user_sound_settings_user_id_guild_id_is_join_sound_index",
           message: "already has a join sound"
         )
 
@@ -137,11 +138,12 @@ defmodule Soundboard.Sounds.SoundSettingsTest do
     test "enforces unique leave sound per user", %{user: user, sound: sound} do
       # First insert succeeds
       {:ok, _} =
-        %UserSoundSetting{
+        %UserSoundSetting{}
+        |> UserSoundSetting.changeset(%{
           user_id: user.id,
           sound_id: sound.id,
           is_leave_sound: true
-        }
+        })
         |> Repo.insert()
 
       # Second insert should fail with constraint error
@@ -153,7 +155,7 @@ defmodule Soundboard.Sounds.SoundSettingsTest do
           is_leave_sound: true
         })
         |> unique_constraint(:user_id,
-          name: "user_sound_settings_user_id_is_leave_sound_index",
+          name: "user_sound_settings_user_id_guild_id_is_leave_sound_index",
           message: "already has a leave sound"
         )
 

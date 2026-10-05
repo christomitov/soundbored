@@ -34,7 +34,11 @@ defmodule Soundboard.AudioPlayer.PlaybackEngineTest do
 
     with_mocks([
       {Soundboard.AudioPlayer.SoundLibrary, [],
-       [prepare_play_input: fn "intro.mp3", "/tmp/intro.mp3" -> {"/tmp/intro.mp3", :url} end]},
+       [
+         prepare_play_input: fn _guild, "intro.mp3", "/tmp/intro.mp3" ->
+           {"/tmp/intro.mp3", :url}
+         end
+       ]},
       {Soundboard.Discord.Voice, [],
        [
          channel_id: fn "guild-1" -> nil end,
@@ -46,9 +50,13 @@ defmodule Soundboard.AudioPlayer.PlaybackEngineTest do
          end
        ]},
       {Soundboard.PubSubTopics, [],
-       [broadcast_sound_played: fn "intro.mp3", "System" -> send(test_pid, :broadcast_played) end]},
+       [
+         broadcast_sound_played: fn "intro.mp3", "System", _guild ->
+           send(test_pid, :broadcast_played)
+         end
+       ]},
       {Soundboard.Stats, [],
-       [track_play: fn _sound_name, _user_id -> send(test_pid, :tracked_play) end]}
+       [track_play: fn _sound_name, _user_id, _guild -> send(test_pid, :tracked_play) end]}
     ]) do
       assert :ok =
                PlaybackEngine.play(
@@ -74,7 +82,11 @@ defmodule Soundboard.AudioPlayer.PlaybackEngineTest do
 
     with_mocks([
       {Soundboard.AudioPlayer.SoundLibrary, [],
-       [prepare_play_input: fn "retry.mp3", "/tmp/retry.mp3" -> {"/tmp/retry.mp3", :url} end]},
+       [
+         prepare_play_input: fn _guild, "retry.mp3", "/tmp/retry.mp3" ->
+           {"/tmp/retry.mp3", :url}
+         end
+       ]},
       {Soundboard.Discord.Voice, [],
        [
          channel_id: fn "guild-1" -> "channel-9" end,
@@ -93,9 +105,13 @@ defmodule Soundboard.AudioPlayer.PlaybackEngineTest do
          end
        ]},
       {Soundboard.PubSubTopics, [],
-       [broadcast_sound_played: fn "retry.mp3", "System" -> send(test_pid, :broadcast_played) end]},
+       [
+         broadcast_sound_played: fn "retry.mp3", "System", _guild ->
+           send(test_pid, :broadcast_played)
+         end
+       ]},
       {Soundboard.Stats, [],
-       [track_play: fn _sound_name, _user_id -> send(test_pid, :tracked_play) end]}
+       [track_play: fn _sound_name, _user_id, _guild -> send(test_pid, :tracked_play) end]}
     ]) do
       assert :ok =
                PlaybackEngine.play(
@@ -124,12 +140,12 @@ defmodule Soundboard.AudioPlayer.PlaybackEngineTest do
     with_mocks([
       {Soundboard.AudioPlayer.SoundLibrary, [],
        [
-         prepare_play_input: fn "refresh.mp3", "/tmp/refresh.mp3" ->
+         prepare_play_input: fn _guild, "refresh.mp3", "/tmp/refresh.mp3" ->
            {"/tmp/refresh.mp3", :url}
          end
        ]},
       {Soundboard.AudioPlayer, [],
-       [current_voice_channel: fn -> {:ok, {"guild-1", "channel-9"}} end]},
+       [current_voice_channel: fn _guild -> {:ok, {"guild-1", "channel-9"}} end]},
       {Soundboard.Discord.Voice, [],
        [
          channel_id: fn "guild-1" -> "channel-9" end,
@@ -162,13 +178,13 @@ defmodule Soundboard.AudioPlayer.PlaybackEngineTest do
        ]},
       {Soundboard.PubSubTopics, [],
        [
-         broadcast_sound_played: fn "refresh.mp3", "System" ->
+         broadcast_sound_played: fn "refresh.mp3", "System", _guild ->
            send(test_pid, :broadcast_played)
          end,
-         broadcast_error: fn message -> flunk("unexpected playback error: #{message}") end
+         broadcast_error: fn _guild, message -> flunk("unexpected playback error: #{message}") end
        ]},
       {Soundboard.Stats, [],
-       [track_play: fn _sound_name, _user_id -> send(test_pid, :tracked_play) end]}
+       [track_play: fn _sound_name, _user_id, _guild -> send(test_pid, :tracked_play) end]}
     ]) do
       assert :ok =
                PlaybackEngine.play(
@@ -199,7 +215,7 @@ defmodule Soundboard.AudioPlayer.PlaybackEngineTest do
        ]},
       {Soundboard.PubSubTopics, [],
        [
-         broadcast_error: fn "ffmpeg is not installed on this host" ->
+         broadcast_error: fn "ffmpeg is not installed on this host", _guild ->
            send(test_pid, :broadcast_error)
          end
        ]}
@@ -224,7 +240,7 @@ defmodule Soundboard.AudioPlayer.PlaybackEngineTest do
         with_mocks([
           {Soundboard.AudioPlayer.SoundLibrary, [],
            [
-             prepare_play_input: fn "timeout.mp3", "/tmp/timeout.mp3" ->
+             prepare_play_input: fn _guild, "timeout.mp3", "/tmp/timeout.mp3" ->
                {"/tmp/timeout.mp3", :url}
              end
            ]},
@@ -236,10 +252,10 @@ defmodule Soundboard.AudioPlayer.PlaybackEngineTest do
            ]},
           {Soundboard.PubSubTopics, [],
            [
-             broadcast_sound_played: fn _, _ -> :ok end,
-             broadcast_error: fn _ -> :ok end
+             broadcast_sound_played: fn _, _, _ -> :ok end,
+             broadcast_error: fn _, _ -> :ok end
            ]},
-          {Soundboard.Stats, [], [track_play: fn _, _ -> :ok end]}
+          {Soundboard.Stats, [], [track_play: fn _, _, _ -> :ok end]}
         ]) do
           assert :ok =
                    PlaybackEngine.play(

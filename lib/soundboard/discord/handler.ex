@@ -76,7 +76,7 @@ defmodule Soundboard.Discord.Handler do
     if VoiceRuntime.bot_user?(payload.user_id) do
       Logger.debug("Skipping leave sound lookup for bot user #{payload.user_id}")
     else
-      SoundEffects.handle_leave(payload.user_id)
+      SoundEffects.handle_leave(payload.user_id, payload.guild_id)
     end
 
     VoiceRuntime.handle_disconnect(payload)
@@ -112,7 +112,8 @@ defmodule Soundboard.Discord.Handler do
 
   def handle_event({:READY, _payload, _ws_state}) do
     Logger.info("Bot is READY - gateway connection established")
-    :persistent_term.put(:soundboard_bot_ready, true)
+    Application.put_env(:soundboard, :bot_ready, true)
+    maybe_reconcile_default_guild()
     []
   end
 
@@ -176,6 +177,35 @@ defmodule Soundboard.Discord.Handler do
 
   defp apply_runtime_actions(actions) do
     Enum.each(actions, &apply_runtime_action/1)
+  end
+
+  # Legacy upgrades: guilds stream into the cache after READY, so poll briefly
+  # to let a zero-config (env-less) single-guild deployment discover its guild
+  # and repoint rows that were migrated as "default". Configured deployments
+  # skip this entirely (see Tenants.reconcile_default_guild/0).
+  defp maybe_reconcile_default_guild do
+    if Application.get_env(:soundboard, :default_guild_id) ||
+         Application.get_env(:soundboard, :required_guild_id) do
+      :ok
+    else
+      Task.start(&reconcile_default_guild_loop/0)
+      :ok
+    end
+  end
+
+  defp reconcile_default_guild_loop do
+    Enum.reduce_while(1..10, nil, fn _, _ -> reconcile_default_guild_step() end)
+  end
+
+  defp reconcile_default_guild_step do
+    case Soundboard.Tenants.reconcile_default_guild() do
+      {:ok, _} = ok ->
+        {:halt, ok}
+
+      :skipped ->
+        Process.sleep(2_000)
+        {:cont, nil}
+    end
   end
 
   defp apply_runtime_action({:schedule_recheck_alone, guild_id, channel_id, delay_ms}) do

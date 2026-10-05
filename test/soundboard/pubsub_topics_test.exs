@@ -5,7 +5,7 @@ defmodule Soundboard.PubSubTopicsTest do
 
   test "exposes canonical topic names" do
     assert PubSubTopics.files_topic() == "soundboard.files"
-    assert PubSubTopics.playback_topic() == "soundboard.playback"
+    assert PubSubTopics.playback_topic() == "soundboard.playback:default"
     assert PubSubTopics.stats_topic() == "soundboard.stats"
   end
 

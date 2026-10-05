@@ -40,7 +40,7 @@ defmodule Soundboard.Discord.Handler.VoiceRuntime do
 
   @spec recheck_alone(String.t(), String.t()) :: [runtime_action()]
   def recheck_alone(guild_id, channel_id) do
-    case current_voice_channel_status() do
+    case current_voice_channel_status(guild_id) do
       {:ok, {^guild_id, ^channel_id}} -> handle_recheck_alone(guild_id, channel_id)
       _ -> Logger.debug("Recheck skipped; voice target changed")
     end
@@ -48,8 +48,8 @@ defmodule Soundboard.Discord.Handler.VoiceRuntime do
     []
   end
 
-  def get_current_voice_channel do
-    case current_voice_channel_status() do
+  def get_current_voice_channel(guild_id \\ nil) do
+    case current_voice_channel_status(guild_id) do
       {:ok, channel} -> channel
       _ -> nil
     end
@@ -86,7 +86,7 @@ defmodule Soundboard.Discord.Handler.VoiceRuntime do
   end
 
   defp process_guilds(guilds) do
-    Logger.info("Checking #{length(guilds)} guilds for active voice channels")
+    Logger.info("Checking #{Enum.count(guilds)} guilds for active voice channels")
     Enum.each(guilds, &check_and_join_voice/1)
   end
 
@@ -123,8 +123,8 @@ defmodule Soundboard.Discord.Handler.VoiceRuntime do
 
   defp maybe_act_if_bot_alone(_guild_id, _channel_id, _users), do: :ok
 
-  defp handle_bot_alone_check(_guild_id) do
-    case current_voice_channel_status() do
+  defp handle_bot_alone_check(guild_id) do
+    case current_voice_channel_status(guild_id) do
       {:ok, {guild_id, channel_id}} -> check_and_maybe_act(guild_id, channel_id)
       _ -> []
     end
@@ -170,7 +170,7 @@ defmodule Soundboard.Discord.Handler.VoiceRuntime do
     if bot_user?(payload.user_id) do
       []
     else
-      case current_voice_channel_status() do
+      case current_voice_channel_status(payload.guild_id) do
         {:ok, {guild_id, channel_id}}
         when guild_id == payload.guild_id and channel_id == payload.channel_id ->
           Logger.debug("User rejoined bot's channel (false mode); cancelling idle timer")
@@ -184,7 +184,7 @@ defmodule Soundboard.Discord.Handler.VoiceRuntime do
   end
 
   defp process_user_voice_update(payload) do
-    case current_voice_channel_status() do
+    case current_voice_channel_status(payload.guild_id) do
       :not_found when payload.channel_id != nil ->
         handle_bot_not_in_voice(payload)
 
@@ -253,8 +253,8 @@ defmodule Soundboard.Discord.Handler.VoiceRuntime do
   defp schedule_recheck(guild_id, channel_id),
     do: {:schedule_recheck_alone, guild_id, channel_id, 1_500}
 
-  defp current_voice_channel_status do
-    case VoicePresence.current_voice_channel() do
+  defp current_voice_channel_status(guild_id) do
+    case VoicePresence.current_voice_channel(guild_id) do
       {:ok, channel} ->
         {:ok, channel}
 

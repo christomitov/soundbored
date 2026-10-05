@@ -36,3 +36,19 @@
 - Secrets via `.env` (see `.env.example`): Discord tokens, API token, `PHX_HOST`, `SCHEME`.
 - Do not commit real secrets; prefer Docker env files in development and deployment.
 - For production, keep secrets in `.env` and run the single compose stack; integrate your own reverse proxy/load balancer as needed.
+
+# VibeKit quality gate
+
+## Development
+
+```sh
+mix deps.get
+mix ci
+```
+
+## Conventions
+
+- Use `mix ci` for the full validation suite before finishing changes.
+- For Phoenix/web apps, keep Phoenix's generated guidance, but treat this VibeKit section as the final quality gate.
+- For non-web Elixir projects, VibeKit is the default project baseline.
+- Keep changes small, tested, and formatted.

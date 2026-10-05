@@ -32,8 +32,8 @@ defmodule Soundboard.Sounds.Management do
       case Sound.changeset(db_sound, sound_params) |> Repo.update() do
         {:ok, updated_sound} ->
           updated_sound = update_user_settings(db_sound, user_id, updated_sound, params)
-          AudioPlayer.invalidate_cache(db_sound.filename)
-          AudioPlayer.invalidate_cache(updated_sound.filename)
+          AudioPlayer.invalidate_cache(db_sound.guild_id, db_sound.filename)
+          AudioPlayer.invalidate_cache(updated_sound.guild_id, updated_sound.filename)
           updated_sound
 
         {:error, changeset} ->
@@ -47,7 +47,7 @@ defmodule Soundboard.Sounds.Management do
 
     with true <- db_sound.user_id == user_id,
          {:ok, _deleted_sound} <- Repo.delete(db_sound) do
-      AudioPlayer.invalidate_cache(db_sound.filename)
+      AudioPlayer.invalidate_cache(db_sound.guild_id, db_sound.filename)
       maybe_remove_local_file(db_sound)
       :ok
     else
@@ -71,6 +71,7 @@ defmodule Soundboard.Sounds.Management do
     setting_params = %{
       user_id: user_id,
       sound_id: sound.id,
+      guild_id: sound.guild_id,
       is_join_sound: params["is_join_sound"] == "true",
       is_leave_sound: params["is_leave_sound"] == "true"
     }
@@ -79,7 +80,8 @@ defmodule Soundboard.Sounds.Management do
       user_id,
       sound.id,
       setting_params.is_join_sound,
-      setting_params.is_leave_sound
+      setting_params.is_leave_sound,
+      sound.guild_id
     )
 
     case user_setting
