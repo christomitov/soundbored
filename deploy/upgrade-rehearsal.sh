@@ -98,6 +98,12 @@ checksum_files() {
 log "Staging rehearsal stack in $WORKDIR"
 cd "$(dirname "$0")/.."
 
+# A failed earlier run leaves the project behind, and compose does not hash
+# env_file contents, so it would happily reuse a stale container.
+trap 'docker compose -p "$PROJECT" down -v >/dev/null 2>&1 || true' EXIT
+trap 'fail "interrupted"' INT TERM
+docker compose -p "$PROJECT" down -v >/dev/null 2>&1 || true
+
 # Rehearsal compose: the prod image shape (same volumes, entrypoint, user) on a
 # local port, without the Coolify proxy. SCHEME is http locally.
 cat >"$COMPOSE_FILE" <<EOF
@@ -124,7 +130,7 @@ volumes:
   app_db:
 EOF
 
-SECRET_KEY_BASE="${SECRET_KEY_BASE:-$(openssl rand -base64 48)}"
+SECRET_KEY_BASE="${SECRET_KEY_BASE:-$(openssl rand -hex 48)}"
 cat >"$WORKDIR/rehearsal.env" <<EOF
 DISCORD_TOKEN=$DISCORD_TOKEN
 DISCORD_CLIENT_ID=$DISCORD_CLIENT_ID
@@ -301,4 +307,5 @@ fi
 
 log "Cleaning up"
 docker compose -p "$PROJECT" down -v
+trap - EXIT
 echo "REHEARSAL PASSED. Artifacts in $WORKDIR (volume snapshots, dumps, checksums)."
