@@ -54,7 +54,8 @@ ENV MIX_ENV=prod \
 RUN apk add --no-cache \
     ffmpeg \
     git \
-    libstdc++
+    libstdc++ \
+    su-exec
 
 WORKDIR /app
 COPY --from=build /app .

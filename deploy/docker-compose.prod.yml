@@ -10,7 +10,6 @@
 services:
   app:
     image: christom/soundbored:${SOUNDBORED_IMAGE_TAG:-latest}
-    user: "9999:9999"
     read_only: true
     tmpfs:
       - /tmp/mix_pubsub:mode=0777
