@@ -10,7 +10,7 @@ defmodule SoundboardWeb.BillingHTML do
   @doc "Storage cap for a tier atom (:pro/:studio), used for upgrade/downgrade math."
   def current_tier_cap(tier) do
     Enum.find_value(Soundboard.Billing.tiers(), fn t ->
-      if t.name |> String.downcase() |> String.to_atom() == tier, do: t.cap_bytes
+      if String.downcase(t.name) == Atom.to_string(tier), do: t.cap_bytes
     end)
   end
 

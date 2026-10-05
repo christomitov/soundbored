@@ -267,7 +267,7 @@ defmodule SoundboardWeb.BillingWebTest do
       })
       |> Repo.update!()
 
-      Billing.remember_subscription("billing-render-sub", %{
+      Billing.remember_subscription("billing-render-sub", %Billing.SubscriptionSnapshot{
         id: "sub_1",
         item_id: nil,
         price_id: @stripe_env[:price_pro_monthly]
