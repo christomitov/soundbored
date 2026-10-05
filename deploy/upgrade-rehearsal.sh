@@ -76,7 +76,7 @@ app_ctr() { docker compose -p "$PROJECT" ps -qa app | head -1; }
 
 # SQL against the rehearsal database from a sidecar sharing the app volumes.
 db() {
-  docker run --rm --volumes-from "$(app_ctr)" keinos/sqlite3 \
+  docker run --rm -u 0 --volumes-from "$(app_ctr)" keinos/sqlite3 \
     sqlite3 /app/priv/db/soundboard_prod.db "$1"
 }
 
@@ -100,7 +100,7 @@ cd "$(dirname "$0")/.."
 
 # A failed earlier run leaves the project behind, and compose does not hash
 # env_file contents, so it would happily reuse a stale container.
-trap 'docker compose -p "$PROJECT" down -v >/dev/null 2>&1 || true' EXIT
+trap 'docker compose -p "$PROJECT" down >/dev/null 2>&1 || true' EXIT
 trap 'fail "interrupted"' INT TERM
 docker compose -p "$PROJECT" down -v >/dev/null 2>&1 || true
 
@@ -130,7 +130,7 @@ volumes:
   app_db:
 EOF
 
-SECRET_KEY_BASE="${SECRET_KEY_BASE:-$(openssl rand -hex 48)}"
+SECRET_KEY_BASE="$(openssl rand -hex 48)"
 cat >"$WORKDIR/rehearsal.env" <<EOF
 DISCORD_TOKEN=$DISCORD_TOKEN
 DISCORD_CLIENT_ID=$DISCORD_CLIENT_ID
@@ -203,7 +203,7 @@ boot() {
   SOUNDBORED_IMAGE_TAG="$1" docker compose -p "$PROJECT" up -d
   for i in $(seq 1 60); do
     curl -sf "$BASE_URL/" >/dev/null && break
-    [ "$i" = 60 ] && fail "app never became reachable on :$PORT"
+    [ "$i" = 60 ] && { docker logs "$(docker compose -p "$PROJECT" ps -qa app | head -1)" 2>&1 | grep -v WARNING | tail -40 >"$WORKDIR/boot-failure.log"; fail "app never became reachable on :$PORT (logs: $WORKDIR/boot-failure.log)"; }
     sleep 2
   done
 }
@@ -221,9 +221,9 @@ if [ "$SEEDED" = 1 ]; then
 INSERT INTO users (discord_id, username, avatar, inserted_at, updated_at)
   VALUES ('$DISCORD_ID', 'rehearsal-user', NULL, '$SEED_DATE', '$SEED_DATE');
 
-INSERT INTO api_tokens (user_id, token_hash, label, token, revoked_at, last_used_at, inserted_at, updated_at)
+INSERT INTO api_tokens (user_id, token_hash, label, revoked_at, last_used_at, inserted_at, updated_at)
   VALUES ((SELECT id FROM users WHERE discord_id = '$DISCORD_ID'), '$TOKEN_HASH', 'rehearsal',
-          'sb_rehearsal_placeholder', NULL, NULL, '$SEED_DATE', '$SEED_DATE');
+          NULL, NULL, '$SEED_DATE', '$SEED_DATE');
 
 INSERT INTO sounds (filename, storage_key, source_type, volume, user_id, inserted_at, updated_at)
   VALUES
@@ -238,7 +238,7 @@ EOF
     cp /rehearsal/sounds/rehearsal-1.mp3 /app/priv/static/uploads/$KEY1 &&
     cp /rehearsal/sounds/rehearsal-2.mp3 /app/priv/static/uploads/$KEY2
   "
-  docker run --rm -i --volumes-from "$(app_ctr)" keinos/sqlite3 \
+  docker run --rm -u 0 -i --volumes-from "$(app_ctr)" keinos/sqlite3 \
     sqlite3 /app/priv/db/soundboard_prod.db <"$WORKDIR/seed.sql"
 
   # Stop the app so the snapshot and the diff baseline are consistent.
@@ -264,40 +264,54 @@ boot "$NEW_IMAGE"
 
 if [ "$SEEDED" = 1 ]; then
   log "Asserting sounds, users, and settings survived"
+
   dump_state >"$WORKDIR/post-dump.txt"
   diff "$WORKDIR/pre-dump.txt" "$WORKDIR/post-dump.txt" >/dev/null \
     || fail "user, token, sound, or setting rows changed across the upgrade (diff $WORKDIR/pre-dump.txt $WORKDIR/post-dump.txt)"
+  echo "ok: user, token, sound, and setting rows are byte-identical across the upgrade"
 
   checksum_files >"$WORKDIR/post-checksums.txt"
   diff "$WORKDIR/pre-checksums.txt" "$WORKDIR/post-checksums.txt" >/dev/null \
     || fail "uploaded sound files changed across the upgrade"
+  echo "ok: uploaded sound files are byte-identical across the upgrade"
 
   # The backfill must scope legacy sounds to the configured guild with
   # byte_size 0 so no storage cap can block them. Join settings follow.
   bad="$(db "SELECT COUNT(*) FROM sounds
     WHERE filename LIKE 'rehearsal-%'
-      AND (guild_id IS NULL OR guild_id != '$REHEARSAL_GUILD_ID' OR byte_size != 0);")"
+      AND (guild_id IS NULL OR guild_id != '$REHEARSAL_GUILD_ID' OR byte_size != 0);")" \
+    || fail "backfill query failed"
   [ "$bad" = "0" ] || fail "legacy sound backfill wrong ($bad rows off)"
   bad="$(db "SELECT COUNT(*) FROM user_sound_settings
     WHERE sound_id IN (SELECT id FROM sounds WHERE filename LIKE 'rehearsal-%')
-      AND (guild_id IS NULL OR guild_id != '$REHEARSAL_GUILD_ID');")"
+      AND (guild_id IS NULL OR guild_id != '$REHEARSAL_GUILD_ID');")" \
+    || fail "setting backfill query failed"
   [ "$bad" = "0" ] || fail "join-sound setting backfill wrong ($bad rows off)"
+  echo "ok: legacy sounds and settings backfilled into the default guild, byte_size 0"
 
   # The seeded token still authenticates, and the sounds are listable and
   # playable through the API surface.
-  api_body="$(curl -sf -H "Authorization: Bearer $RAW_TOKEN" "$BASE_URL/api/sounds")"
-  printf '%s\n' "$api_body" | grep -q rehearsal-one.mp3 || fail "API does not list rehearsal-one.mp3"
-  printf '%s\n' "$api_body" | grep -q rehearsal-two.mp3 || fail "API does not list rehearsal-two.mp3"
-  ids="$(printf '%s\n' "$api_body" | grep -o '"id": *"[0-9]*"' | grep -o '[0-9]*')"
-  [ "$(printf '%s\n' "$ids" | grep -c .)" = 2 ] || fail "expected two sounds from the API"
-  for id in $ids; do
-    code="$(curl -s -o /dev/null -w '%{http_code}' -X POST \
-      -H "Authorization: Bearer $RAW_TOKEN" "$BASE_URL/api/sounds/$id/play")"
-    [ "$code" = 202 ] || fail "play for sound $id returned $code"
-  done
+  api_code="$(curl -s -o "$WORKDIR/api-sounds.json" -w '%{http_code}' \
+    -H "Authorization: Bearer $RAW_TOKEN" "$BASE_URL/api/sounds")" \
+    || fail "GET /api/sounds request failed"
+  [ "$api_code" = 200 ] || fail "GET /api/sounds returned $api_code ($(cat "$WORKDIR/api-sounds.json" 2>/dev/null))"
+  grep -q rehearsal-one.mp3 "$WORKDIR/api-sounds.json" || fail "API does not list rehearsal-one.mp3"
+  grep -q rehearsal-two.mp3 "$WORKDIR/api-sounds.json" || fail "API does not list rehearsal-two.mp3"
+  echo "ok: seeded API token authenticates and lists both sounds"
 
-  code="$(curl -s -o /dev/null -w '%{http_code}' "$BASE_URL/")"
+  ids="$(grep -o '"id": *"\?[0-9]*' "$WORKDIR/api-sounds.json" | grep -o '[0-9]*' | sort -u)"
+  [ "$(printf '%s\n' "$ids" | grep -c .)" = 2 ] || fail "expected two sound ids from the API"
+  for id in $ids; do
+    play_code="$(curl -s -o /dev/null -w '%{http_code}' -X POST \
+      -H "Authorization: Bearer $RAW_TOKEN" "$BASE_URL/api/sounds/$id/play")" \
+      || fail "play request for sound $id failed"
+    [ "$play_code" = 202 ] || fail "play for sound $id returned $play_code"
+  done
+  echo "ok: both sounds playable through the API"
+
+  code="$(curl -s -o /dev/null -w '%{http_code}' "$BASE_URL/")" || fail "GET / request failed"
   case "$code" in 200|302|307) ;; *) fail "GET / returned $code after upgrade" ;; esac
+  echo "ok: app serves after the upgrade"
 
   echo "asserted: user, token, both sounds and their files, and the join setting survived the upgrade"
 else
@@ -306,6 +320,6 @@ else
 fi
 
 log "Cleaning up"
-docker compose -p "$PROJECT" down -v
+docker compose -p "$PROJECT" down -v >/dev/null 2>&1
 trap - EXIT
 echo "REHEARSAL PASSED. Artifacts in $WORKDIR (volume snapshots, dumps, checksums)."

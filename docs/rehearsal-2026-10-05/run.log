@@ -1,0 +1,48 @@
+
+=== Staging rehearsal stack in /var/folders/sq/hkhtyl0n3351jws80zh6280h0000gn/T//soundbored-rehearsal.VFIksU ===
+
+=== Booting the pre-upgrade image (christom/soundbored:latest) ===
+ Network soundbored-rehearsal_default Creating 
+ Network soundbored-rehearsal_default Created 
+ Volume soundbored-rehearsal_app_uploads Creating 
+ Volume soundbored-rehearsal_app_uploads Created 
+ Volume soundbored-rehearsal_app_db Creating 
+ Volume soundbored-rehearsal_app_db Created 
+ Container soundbored-rehearsal-app-1 Creating 
+ Container soundbored-rehearsal-app-1 Created 
+ Container soundbored-rehearsal-app-1 Starting 
+ Container soundbored-rehearsal-app-1 Started 
+
+=== Seeding user, token, sounds, and join setting into the old image ===
+ Container soundbored-rehearsal-app-1 Stopping 
+ Container soundbored-rehearsal-app-1 Stopped 
+
+=== Snapshotting volumes ===
+-rw-r--r--@ 1 christo  staff   3831 Oct  5 11:44 /var/folders/sq/hkhtyl0n3351jws80zh6280h0000gn/T//soundbored-rehearsal.VFIksU/app_db.tgz
+-rw-r--r--@ 1 christo  staff  22883 Oct  5 11:44 /var/folders/sq/hkhtyl0n3351jws80zh6280h0000gn/T//soundbored-rehearsal.VFIksU/app_uploads.tgz
+
+=== Swapping to the multi-tenant image (soundbored:rehearsal-multi-tenant) and rebooting ===
+ Container soundbored-rehearsal-app-1 Stopping 
+ Container soundbored-rehearsal-app-1 Stopped 
+ Container soundbored-rehearsal-app-1 Removing 
+ Container soundbored-rehearsal-app-1 Removed 
+ Network soundbored-rehearsal_default Removing 
+ Network soundbored-rehearsal_default Removed 
+ Network soundbored-rehearsal_default Creating 
+ Network soundbored-rehearsal_default Created 
+ Container soundbored-rehearsal-app-1 Creating 
+ Container soundbored-rehearsal-app-1 Created 
+ Container soundbored-rehearsal-app-1 Starting 
+ Container soundbored-rehearsal-app-1 Started 
+
+=== Asserting sounds, users, and settings survived ===
+ok: user, token, sound, and setting rows are byte-identical across the upgrade
+ok: uploaded sound files are byte-identical across the upgrade
+ok: legacy sounds and settings backfilled into the default guild, byte_size 0
+ok: seeded API token authenticates and lists both sounds
+ok: both sounds playable through the API
+ok: app serves after the upgrade
+asserted: user, token, both sounds and their files, and the join setting survived the upgrade
+
+=== Cleaning up ===
+REHEARSAL PASSED. Artifacts in /var/folders/sq/hkhtyl0n3351jws80zh6280h0000gn/T//soundbored-rehearsal.VFIksU (volume snapshots, dumps, checksums).
