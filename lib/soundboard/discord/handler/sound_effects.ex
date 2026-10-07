@@ -9,9 +9,22 @@ defmodule Soundboard.Discord.Handler.SoundEffects do
   def handle_join(user_id, previous_state, guild_id, channel_id) do
     is_join_event =
       case previous_state do
-        nil -> true
-        {nil, _} -> true
-        {prev_channel, _} -> prev_channel != channel_id
+        # No tracked voice state: genuine first join (or state lost on restart).
+        nil ->
+          true
+
+        # Previously disconnected from voice, now joining again.
+        {nil, _} ->
+          true
+
+        # Already in a channel: a channel switch or same-channel state update
+        # (mute/deafen/etc.), never a fresh join.
+        {prev_channel, _} ->
+          Logger.debug(
+            "User #{user_id} moved channels #{prev_channel} -> #{channel_id}; not a join"
+          )
+
+          false
       end
 
     Logger.info(
