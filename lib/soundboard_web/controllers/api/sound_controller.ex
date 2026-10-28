@@ -77,7 +77,7 @@ defmodule SoundboardWeb.API.SoundController do
         redirect(conn, external: url)
 
       sound ->
-        path = UploadsPath.file_path(sound.filename)
+        path = UploadsPath.file_path(sound.storage_key || sound.filename)
 
         if File.regular?(path) do
           send_file(conn, 200, path)
