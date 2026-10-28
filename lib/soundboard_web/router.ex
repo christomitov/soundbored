@@ -193,6 +193,7 @@ defmodule SoundboardWeb.Router do
     get "/sounds", SoundController, :index
     post "/sounds", SoundController, :create
     post "/sounds/:id/play", SoundController, :play
+    get "/sounds/:id/file", SoundController, :file
     post "/sounds/stop", SoundController, :stop
   end
 

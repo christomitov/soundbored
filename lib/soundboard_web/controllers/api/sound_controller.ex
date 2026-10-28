@@ -3,7 +3,7 @@ defmodule SoundboardWeb.API.SoundController do
 
   import Ecto.Query, only: [where: 2]
 
-  alias Soundboard.{Repo, Sound, Sounds}
+  alias Soundboard.{Repo, Sound, Sounds, UploadsPath}
 
   def index(conn, _params) do
     sounds =
@@ -62,6 +62,29 @@ defmodule SoundboardWeb.API.SoundController do
             conn
             |> put_status(:forbidden)
             |> json(%{error: "Playback requires a user API token"})
+        end
+    end
+  end
+
+  def file(conn, %{"id" => id}) do
+    case Repo.get_by(Sound, id: id, guild_id: guild_id(conn)) do
+      nil ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{error: "Sound not found"})
+
+      %Sound{source_type: "url", url: url} when is_binary(url) ->
+        redirect(conn, external: url)
+
+      sound ->
+        path = UploadsPath.file_path(sound.filename)
+
+        if File.regular?(path) do
+          send_file(conn, 200, path)
+        else
+          conn
+          |> put_status(:not_found)
+          |> json(%{error: "Sound file missing"})
         end
     end
   end
