@@ -16,6 +16,22 @@ defmodule SoundboardWeb.API.SoundController do
     json(conn, %{data: sounds})
   end
 
+  def favorites(conn, _params) do
+    case conn.assigns[:current_user] do
+      %Soundboard.Accounts.User{} = user ->
+        sounds =
+          Soundboard.Favorites.list_favorite_sounds_with_tags(user.id, guild_id(conn))
+          |> Enum.map(&format_sound(&1, user))
+
+        json(conn, %{data: sounds})
+
+      _ ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%{error: "Favorites require a user API token"})
+    end
+  end
+
   def create(conn, params) do
     with {:ok, user} <- require_upload_user(conn),
          {:ok, sound} <- create_sound(user, params, guild_id(conn)) do
