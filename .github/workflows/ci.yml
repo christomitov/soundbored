@@ -6,6 +6,12 @@ on:
   pull_request:
     branches: [ "main" ]
 
+# One run per branch/PR: a newer push cancels the older run, so two quick
+# merges to main never produce two releases.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     name: Build and test
@@ -58,6 +64,26 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
+          MIX_ENV: test
+          DISCORD_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+
+      # The full run uses one random order, which can hide tests that only
+      # pass because an earlier test left state behind (e.g. created the
+      # uploads dir). Running every file alone, from a clean uploads dir,
+      # fails those deterministically instead of on an unlucky seed later.
+      - name: Run each test file in isolation
+        run: |
+          failed=0
+          for f in $(find test -name '*_test.exs' | sort); do
+            rm -rf priv/static/uploads
+            if ! mix test "$f" > test-isolated.log 2>&1; then
+              echo "::error file=$f::fails when run on its own"
+              cat test-isolated.log
+              failed=1
+            fi
+          done
+          exit $failed
+        env:
           MIX_ENV: test
           DISCORD_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
 
