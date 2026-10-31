@@ -8,6 +8,10 @@ defmodule Soundboard.Sounds.ManagementTest do
   alias Soundboard.Sounds.Management
 
   setup do
+    # Tests write files straight into the uploads dir; don't rely on another
+    # test having created it first (fails under some random seeds in CI).
+    File.mkdir_p!(uploads_dir())
+
     {:ok, user} =
       %User{}
       |> User.changeset(%{
