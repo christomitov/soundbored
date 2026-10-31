@@ -1,0 +1,1117 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="x-ua-compatible" content="ie=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="ExDoc v0.40.3">
+    <meta name="project" content="soundboard v1.7.0">
+
+
+    <title>Soundboard.Billing — soundboard v1.7.0</title>
+
+    <link rel="stylesheet" href="dist/html-elixir-NHQLCD6Y.css" />
+
+    <script defer src="dist/sidebar_items-D5B242B7.js"></script>
+    <script defer src="docs_config.js"></script>
+    <script defer src="dist/html-Y2MUTVIN.js"></script>
+
+  </head>
+  <body>
+    <script>(()=>{var t="ex_doc:settings",e="dark";var o="dark",s="light";var E="sidebar_state",n="closed";var r="sidebar_width";var a="sidebar-open";var i=new URLSearchParams(window.location.search),S=i.get("theme")||JSON.parse(localStorage.getItem(t)||"{}").theme;(S===o||S!==s&&window.matchMedia("(prefers-color-scheme: dark)").matches)&&document.body.classList.add(e);var d=sessionStorage.getItem(E),A=d!==n&&!window.matchMedia(`screen and (max-width: ${768}px)`).matches;document.body.classList.toggle(a,A);var c=sessionStorage.getItem(r);c&&document.body.style.setProperty("--sidebarWidth",`${c}px`);var p=/(Macintosh|iPhone|iPad|iPod)/.test(window.navigator.userAgent);document.documentElement.classList.toggle("apple-os",p);})();
+</script>
+
+<div class="body-wrapper">
+
+<button id="sidebar-menu" class="sidebar-button sidebar-toggle" aria-label="toggle sidebar" aria-controls="sidebar">
+  <i class="ri-menu-line ri-lg" title="Collapse/expand sidebar"></i>
+</button>
+
+<nav id="sidebar" class="sidebar">
+
+  <div class="sidebar-header">
+    <div class="sidebar-projectInfo">
+
+      <div>
+        <a href="api-reference.html" class="sidebar-projectName" translate="no">
+soundboard
+        </a>
+        <div class="sidebar-projectVersion" translate="no">
+          v1.7.0
+        </div>
+      </div>
+    </div>
+    <ul id="sidebar-list-nav" class="sidebar-list-nav" role="tablist" data-extras="Pages"></ul>
+  </div>
+</nav>
+
+<output role="status" id="toast"></output>
+
+<main class="content page-module" id="main" data-type="modules">
+  <div id="content" class="content-inner">
+    <div class="top-search">
+      <div class="search-settings">
+        <form class="search-bar" action="search.html">
+          <label class="search-label">
+            <span class="sr-only">Search documentation of soundboard</span>
+            <div class="search-input-wrapper">
+              <input name="q" type="text" class="search-input" placeholder="Press / to search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />
+              <button type="button" tabindex="-1" class="search-close-button" aria-hidden="true">
+                <i class="ri-close-line ri-lg" title="Cancel search"></i>
+              </button>
+            </div>
+          </label>
+        </form>
+        <div class="autocomplete">
+        </div>
+        <div class="engine-selector" data-multiple="false">
+          <button type="button" class="engine-button" aria-label="Select search engine" aria-haspopup="true" aria-expanded="false">
+            <i class="ri-search-2-line" aria-hidden="true"></i>
+            <span class="engine-name">Default</span>
+            <i class="ri-arrow-down-s-line" aria-hidden="true"></i>
+          </button>
+          <div class="engine-dropdown" hidden role="menu">
+
+              <button type="button"
+                      class="engine-option"
+                      data-engine-url="search.html?q="
+                      role="menuitemradio"
+                      aria-checked="true">
+                <span class="name">Default</span>
+                <span class="help">In-browser search</span>
+              </button>
+
+          </div>
+        </div>
+        <button class="icon-settings display-settings">
+          <i class="ri-settings-3-line"></i>
+          <span class="sr-only">Settings</span>
+        </button>
+      </div>
+    </div>
+
+<div id="top-content">
+  <div class="heading-with-actions top-heading">
+    <h1>
+      <span translate="no">Soundboard.<wbr />Billing</span> 
+      <small class="app-vsn" translate="no">(soundboard v1.7.0)</small>
+
+    </h1>
+
+<a href="Soundboard.Billing.md" title="Copy Markdown (hold Ctrl/Cmd and click it to open as Markdown)" class="copy-markdown icon-action" rel="help">
+  <i class="ri-markdown-line" aria-hidden="true"></i>
+  <span class="sr-only">Copy Markdown</span>
+</a>
+
+
+
+  </div>
+
+
+    <section id="moduledoc">
+<p>Stripe-backed storage subscriptions for guild tenants.</p><p>Dormancy: billing is dormant unless <code class="inline">STRIPE_SECRET_KEY</code> is set. Everything in
+this module gates on <a href="#configured?/0"><code class="inline">configured?/0</code></a>; when Stripe is unconfigured the app
+behaves exactly as it did before billing existed (provisioning happens on
+guild switch, every tenant gets the platform default storage cap).</p><p>Plan catalog (price ids come from env, see <code class="inline">config/runtime.exs</code>):</p><table><thead><tr><th style="text-align: left;">Tier</th><th style="text-align: left;">Cap</th><th style="text-align: left;">Monthly</th><th style="text-align: left;">Yearly</th></tr></thead><tbody><tr><td style="text-align: left;">Pro</td><td style="text-align: left;">1 GB</td><td style="text-align: left;">$4</td><td style="text-align: left;">$36</td></tr><tr><td style="text-align: left;">Studio</td><td style="text-align: left;">5 GB</td><td style="text-align: left;">$10</td><td style="text-align: left;">$96</td></tr></tbody></table><p>The price-id -&gt; cap mapping lives here (<a href="#plan_cap/1"><code class="inline">plan_cap/1</code></a>) and is the single
+source of truth; the webhook is the only hosted provisioning path (it
+provisions the tenant row via <code class="inline">Tenants.get_or_create_guild/2</code> and writes
+<code class="inline">max_storage_bytes</code>), so a guild can never get a paid cap without a Stripe
+payment event.</p><h2 id="module-idempotency" class="section-heading"><a href="#module-idempotency" class="hover-link"><i class="ri-link-m" aria-hidden="true"></i></a><span class="text">Idempotency</span></h2><p>Stripe retries webhook deliveries until they are acked, so events must be
+processed at most once. Processed event ids are remembered in a public ETS
+table (<code class="inline">:billing_processed_events</code>). Tradeoff: ETS is in-memory, so a node
+restart forgets the set and Stripe retries arriving across a restart could
+replay an event. That is safe here because every handler is an absolute
+write (set the cap to the plan's cap, not an increment), so replays are
+no-ops; the ETS set just avoids redundant work in the common case.</p><p>Stripe customer ids seen on events are kept in a second ETS table
+(<code class="inline">:billing_stripe_customers</code>) so the customer portal can be opened without
+a <code class="inline">stripe_customer_id</code> column on <code class="inline">guilds</code>. Also in-memory: after a restart
+the portal is unavailable until the next event repopulates it.</p>
+    </section>
+
+</div>
+
+  <section id="summary" class="details-list">
+    <h2 class="section-heading">
+      <a class="hover-link" href="#summary">
+        <i class="ri-link-m" aria-hidden="true"></i>
+      </a>
+      <span class="text">Summary</span>
+    </h2>
+<div class="summary-functions summary">
+  <h3>
+    <a href="#functions">Functions</a>
+  </h3>
+
+    <div class="summary-row">
+      <div class="summary-signature">
+        <a href="#cancel_subscription/1" data-no-tooltip="" translate="no">cancel_subscription(guild_id)</a>
+
+      </div>
+
+        <div class="summary-synopsis"><p>Flags the guild's subscription to cancel at the end of the current billing
+period (Stripe keeps it active until then; customer.subscription.deleted
+later reverts the guild to no plan).</p></div>
+
+    </div>
+
+    <div class="summary-row">
+      <div class="summary-signature">
+        <a href="#change_subscription_price/2" data-no-tooltip="" translate="no">change_subscription_price(guild_id, price_id)</a>
+
+      </div>
+
+        <div class="summary-synopsis"><p>Moves the guild's live subscription to another price (tier or interval
+change). Stripe prorates automatically; the subscription.updated webhook
+applies the new cap.</p></div>
+
+    </div>
+
+    <div class="summary-row">
+      <div class="summary-signature">
+        <a href="#config/0" data-no-tooltip="" translate="no">config()</a>
+
+      </div>
+
+        <div class="summary-synopsis"><p>Billing configuration (set in <code class="inline">config/runtime.exs</code> from STRIPE_* env vars).</p></div>
+
+    </div>
+
+    <div class="summary-row">
+      <div class="summary-signature">
+        <a href="#configured?/0" data-no-tooltip="" translate="no">configured?()</a>
+
+      </div>
+
+        <div class="summary-synopsis"><p>Whether Stripe billing is active (STRIPE_SECRET_KEY present).</p></div>
+
+    </div>
+
+    <div class="summary-row">
+      <div class="summary-signature">
+        <a href="#create_checkout_session/4" data-no-tooltip="" translate="no">create_checkout_session(guild_id, price_id, owner_discord_id \\ nil, opts \\ [])</a>
+
+      </div>
+
+        <div class="summary-synopsis"><p>Creates a Stripe Checkout Session for <code class="inline">guild_id</code> at <code class="inline">price_id</code>.</p></div>
+
+    </div>
+
+    <div class="summary-row">
+      <div class="summary-signature">
+        <a href="#create_portal_session/2" data-no-tooltip="" translate="no">create_portal_session(guild_id, opts \\ [])</a>
+
+      </div>
+
+        <div class="summary-synopsis"><p>Creates a Stripe customer portal session for the guild's customer. Requires
+the guild to have a customer id already seen on a billing webhook event
+(kept in-memory; see the module doc).</p></div>
+
+    </div>
+
+    <div class="summary-row">
+      <div class="summary-signature">
+        <a href="#current_price_id_for_guild/1" data-no-tooltip="" translate="no">current_price_id_for_guild(guild_id)</a>
+
+      </div>
+
+        <div class="summary-synopsis"><p>The price id last seen on the guild's subscription, or nil.</p></div>
+
+    </div>
+
+    <div class="summary-row">
+      <div class="summary-signature">
+        <a href="#customer_id_for_guild/1" data-no-tooltip="" translate="no">customer_id_for_guild(guild_id)</a>
+
+      </div>
+
+        <div class="summary-synopsis"><p>The Stripe customer id last seen for a guild, or nil.</p></div>
+
+    </div>
+
+    <div class="summary-row">
+      <div class="summary-signature">
+        <a href="#format_bytes/1" data-no-tooltip="" translate="no">format_bytes(bytes)</a>
+
+      </div>
+
+        <div class="summary-synopsis"><p>Bytes formatted for display: MB up to 1000 MB, then GB.</p></div>
+
+    </div>
+
+    <div class="summary-row">
+      <div class="summary-signature">
+        <a href="#format_price/1" data-no-tooltip="" translate="no">format_price(cents)</a>
+
+      </div>
+
+        <div class="summary-synopsis"><p>Cents to a display price like &quot;$3.99&quot;.</p></div>
+
+    </div>
+
+    <div class="summary-row">
+      <div class="summary-signature">
+        <a href="#handle_event/1" data-no-tooltip="" translate="no">handle_event(arg1)</a>
+
+      </div>
+
+        <div class="summary-synopsis"><p>Handles a decoded Stripe event map. Public for direct unit testing.</p></div>
+
+    </div>
+
+    <div class="summary-row">
+      <div class="summary-signature">
+        <a href="#handle_webhook/2" data-no-tooltip="" translate="no">handle_webhook(payload, signature_header)</a>
+
+      </div>
+
+        <div class="summary-synopsis"><p>Verifies the Stripe signature header, then dispatches the event.</p></div>
+
+    </div>
+
+    <div class="summary-row">
+      <div class="summary-signature">
+        <a href="#interval_for_price/1" data-no-tooltip="" translate="no">interval_for_price(price_id)</a>
+
+      </div>
+
+        <div class="summary-synopsis"><p>Maps a known plan price id to its billing interval (:monthly/:yearly), or nil.</p></div>
+
+    </div>
+
+    <div class="summary-row">
+      <div class="summary-signature">
+        <a href="#known_subscription?/1" data-no-tooltip="" translate="no">known_subscription?(guild_id)</a>
+
+      </div>
+
+        <div class="summary-synopsis"><p>Whether the guild has a Stripe subscription we can act on. Falls back to a
+Stripe lookup by remembered customer when in-memory state is missing (e.g.
+after a restart, or events processed by older code).</p></div>
+
+    </div>
+
+    <div class="summary-row">
+      <div class="summary-signature">
+        <a href="#plan_cap/1" data-no-tooltip="" translate="no">plan_cap(price_id)</a>
+
+      </div>
+
+        <div class="summary-synopsis"><p>The storage cap in bytes for a Stripe price id, or nil when unknown.</p></div>
+
+    </div>
+
+    <div class="summary-row">
+      <div class="summary-signature">
+        <a href="#plan_for_cap/1" data-no-tooltip="" translate="no">plan_for_cap(cap)</a>
+
+      </div>
+
+        <div class="summary-synopsis"><p>The plan a storage cap belongs to: :studio, :pro, or nil.</p></div>
+
+    </div>
+
+    <div class="summary-row">
+      <div class="summary-signature">
+        <a href="#plan_label/1" data-no-tooltip="" translate="no">plan_label(cap)</a>
+
+      </div>
+
+        <div class="summary-synopsis"><p>Human plan name for a cap value.</p></div>
+
+    </div>
+
+    <div class="summary-row">
+      <div class="summary-signature">
+        <a href="#price_cap_map/0" data-no-tooltip="" translate="no">price_cap_map()</a>
+
+      </div>
+
+        <div class="summary-synopsis"><p>Maps every configured Stripe price id to its storage cap in bytes. This is
+the single source of truth for the price -&gt; plan mapping.</p></div>
+
+    </div>
+
+    <div class="summary-row">
+      <div class="summary-signature">
+        <a href="#remember_subscription/2" data-no-tooltip="" translate="no">remember_subscription(guild_id, state)</a>
+
+      </div>
+
+        <div class="summary-synopsis"><p>Caches the guild's subscription state (id, item, price) in memory.</p></div>
+
+    </div>
+
+    <div class="summary-row">
+      <div class="summary-signature">
+        <a href="#reset_memory/0" data-no-tooltip="" translate="no">reset_memory()</a>
+
+      </div>
+
+        <div class="summary-synopsis"><p>Clears in-memory billing state (processed events, customer ids). Test and
+ops helper; production state is intentionally reconstructible (see the
+module doc on idempotency).</p></div>
+
+    </div>
+
+    <div class="summary-row">
+      <div class="summary-signature">
+        <a href="#subscription_active?/1" data-no-tooltip="" translate="no">subscription_active?(guild_id)</a>
+
+      </div>
+
+        <div class="summary-synopsis"><p>Whether a guild has an active subscription: a tenant row whose storage cap
+exactly matches a paid plan (the webhook only writes exact plan caps).
+Rows with cap 0, legacy/default caps, or no row at all count as unpaid —
+on hosted there is no free tier; self-hosted never reaches this check
+because the paywall gate short-circuits when billing is dormant.</p></div>
+
+    </div>
+
+    <div class="summary-row">
+      <div class="summary-signature">
+        <a href="#subscription_id_for_guild/1" data-no-tooltip="" translate="no">subscription_id_for_guild(guild_id)</a>
+
+      </div>
+
+        <div class="summary-synopsis"><p>The Stripe subscription id last seen for a guild, or nil.</p></div>
+
+    </div>
+
+    <div class="summary-row">
+      <div class="summary-signature">
+        <a href="#tiers/0" data-no-tooltip="" translate="no">tiers()</a>
+
+      </div>
+
+        <div class="summary-synopsis"><p>Plan catalog entries for display (name, cap, amounts, configured price ids).</p></div>
+
+    </div>
+
+    <div class="summary-row">
+      <div class="summary-signature">
+        <a href="#valid_price?/1" data-no-tooltip="" translate="no">valid_price?(price_id)</a>
+
+      </div>
+
+        <div class="summary-synopsis"><p>Whether the price id belongs to the configured plan catalog.</p></div>
+
+    </div>
+
+    <div class="summary-row">
+      <div class="summary-signature">
+        <a href="#verify_webhook_signature/4" data-no-tooltip="" translate="no">verify_webhook_signature(payload, signature_header, secret \\ nil, tolerance \\ 300)</a>
+
+      </div>
+
+        <div class="summary-synopsis"><p>Verifies a Stripe webhook signature header (<code class="inline">t=...,v1=...</code>) against
+<code class="inline">payload</code> using HMAC-SHA256. Verified locally instead of via
+<a href="https://hexdocs.pm/stripity_stripe/3.2.0/Stripe.Webhook.html#construct_event/3"><code class="inline">Stripe.Webhook.construct_event/3</code></a> so the boundary is testable without
+network or Stripe SDK behavior drift.</p></div>
+
+    </div>
+
+    <div class="summary-row">
+      <div class="summary-signature">
+        <a href="#webhook_configured?/0" data-no-tooltip="" translate="no">webhook_configured?()</a>
+
+      </div>
+
+        <div class="summary-synopsis"><p>Whether webhook signature verification is possible.</p></div>
+
+    </div>
+
+</div>
+
+  </section>
+
+
+  <section id="functions" class="details-list">
+    <h2 class="section-heading">
+      <a class="hover-link" href="#functions">
+        <i class="ri-link-m" aria-hidden="true"></i>
+      </a>
+      <span class="text">Functions</span>
+    </h2>
+
+    <div class="functions-list">
+<section class="detail" id="cancel_subscription/1">
+
+  <div class="detail-header">
+    <a href="#cancel_subscription/1" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
+      <i class="ri-link-m" aria-hidden="true"></i>
+    </a>
+    <div class="heading-with-actions">
+      <h1 class="signature" translate="no">cancel_subscription(guild_id)</h1>
+
+
+    </div>
+  </div>
+
+  <section class="docstring">
+
+      <div class="specs">
+
+          <pre translate="no"><span class="attribute">@spec</span> cancel_subscription(<a href="https://hexdocs.pm/elixir/String.html#t:t/0">String.t</a>() | <a href="https://hexdocs.pm/elixir/typespecs.html#built-in-types">term</a>()) ::
+  {:ok, %{cancel_at: <a href="https://hexdocs.pm/elixir/typespecs.html#basic-types">non_neg_integer</a>() | nil}}
+  | {:error, :not_configured | :no_subscription | <a href="https://hexdocs.pm/elixir/typespecs.html#built-in-types">term</a>()}</pre>
+
+      </div>
+
+<p>Flags the guild's subscription to cancel at the end of the current billing
+period (Stripe keeps it active until then; customer.subscription.deleted
+later reverts the guild to no plan).</p>
+  </section>
+</section>
+<section class="detail" id="change_subscription_price/2">
+
+  <div class="detail-header">
+    <a href="#change_subscription_price/2" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
+      <i class="ri-link-m" aria-hidden="true"></i>
+    </a>
+    <div class="heading-with-actions">
+      <h1 class="signature" translate="no">change_subscription_price(guild_id, price_id)</h1>
+
+
+    </div>
+  </div>
+
+  <section class="docstring">
+
+      <div class="specs">
+
+          <pre translate="no"><span class="attribute">@spec</span> change_subscription_price(<a href="https://hexdocs.pm/elixir/String.html#t:t/0">String.t</a>() | <a href="https://hexdocs.pm/elixir/typespecs.html#built-in-types">term</a>(), <a href="https://hexdocs.pm/elixir/String.html#t:t/0">String.t</a>()) ::
+  {:ok, :updated}
+  | {:error, :not_configured | :no_subscription | :invalid_price | <a href="https://hexdocs.pm/elixir/typespecs.html#built-in-types">term</a>()}</pre>
+
+      </div>
+
+<p>Moves the guild's live subscription to another price (tier or interval
+change). Stripe prorates automatically; the subscription.updated webhook
+applies the new cap.</p>
+  </section>
+</section>
+<section class="detail" id="config/0">
+
+  <div class="detail-header">
+    <a href="#config/0" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
+      <i class="ri-link-m" aria-hidden="true"></i>
+    </a>
+    <div class="heading-with-actions">
+      <h1 class="signature" translate="no">config()</h1>
+
+
+    </div>
+  </div>
+
+  <section class="docstring">
+
+<p>Billing configuration (set in <code class="inline">config/runtime.exs</code> from STRIPE_* env vars).</p>
+  </section>
+</section>
+<section class="detail" id="configured?/0">
+
+  <div class="detail-header">
+    <a href="#configured?/0" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
+      <i class="ri-link-m" aria-hidden="true"></i>
+    </a>
+    <div class="heading-with-actions">
+      <h1 class="signature" translate="no">configured?()</h1>
+
+
+    </div>
+  </div>
+
+  <section class="docstring">
+
+<p>Whether Stripe billing is active (STRIPE_SECRET_KEY present).</p>
+  </section>
+</section>
+<section class="detail" id="create_checkout_session/4">
+
+    <span id="create_checkout_session/2"></span>
+
+    <span id="create_checkout_session/3"></span>
+
+  <div class="detail-header">
+    <a href="#create_checkout_session/4" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
+      <i class="ri-link-m" aria-hidden="true"></i>
+    </a>
+    <div class="heading-with-actions">
+      <h1 class="signature" translate="no">create_checkout_session(guild_id, price_id, owner_discord_id \\ nil, opts \\ [])</h1>
+
+
+    </div>
+  </div>
+
+  <section class="docstring">
+
+      <div class="specs">
+
+          <pre translate="no"><span class="attribute">@spec</span> create_checkout_session(<a href="https://hexdocs.pm/elixir/String.html#t:t/0">String.t</a>() | <a href="https://hexdocs.pm/elixir/typespecs.html#built-in-types">term</a>(), <a href="https://hexdocs.pm/elixir/String.html#t:t/0">String.t</a>(), <a href="https://hexdocs.pm/elixir/typespecs.html#built-in-types">term</a>(), <a href="https://hexdocs.pm/elixir/typespecs.html#built-in-types">keyword</a>()) ::
+  {:ok, %{id: <a href="https://hexdocs.pm/elixir/String.html#t:t/0">String.t</a>(), url: <a href="https://hexdocs.pm/elixir/String.html#t:t/0">String.t</a>() | nil}} | {:error, <a href="https://hexdocs.pm/elixir/typespecs.html#built-in-types">term</a>()}</pre>
+
+      </div>
+
+<p>Creates a Stripe Checkout Session for <code class="inline">guild_id</code> at <code class="inline">price_id</code>.</p><p>The session carries the guild id in <code class="inline">client_reference_id</code> (Stripe's
+reconciliation key) and in metadata (read back by the webhook). The price id
+is also mirrored into metadata because checkout session payloads do not
+include line items unless they are expanded.</p><p>Returns <code class="inline">{:ok, %{id: id, url: url}}</code> or <code class="inline">{:error, :not_configured | :invalid_price | term()}</code>.</p>
+  </section>
+</section>
+<section class="detail" id="create_portal_session/2">
+
+    <span id="create_portal_session/1"></span>
+
+  <div class="detail-header">
+    <a href="#create_portal_session/2" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
+      <i class="ri-link-m" aria-hidden="true"></i>
+    </a>
+    <div class="heading-with-actions">
+      <h1 class="signature" translate="no">create_portal_session(guild_id, opts \\ [])</h1>
+
+
+    </div>
+  </div>
+
+  <section class="docstring">
+
+      <div class="specs">
+
+          <pre translate="no"><span class="attribute">@spec</span> create_portal_session(
+  <a href="https://hexdocs.pm/elixir/String.html#t:t/0">String.t</a>() | <a href="https://hexdocs.pm/elixir/typespecs.html#built-in-types">term</a>(),
+  <a href="https://hexdocs.pm/elixir/typespecs.html#built-in-types">keyword</a>()
+) ::
+  {:ok, %{url: <a href="https://hexdocs.pm/elixir/String.html#t:t/0">String.t</a>()}} | {:error, :not_configured | :no_customer | <a href="https://hexdocs.pm/elixir/typespecs.html#built-in-types">term</a>()}</pre>
+
+      </div>
+
+<p>Creates a Stripe customer portal session for the guild's customer. Requires
+the guild to have a customer id already seen on a billing webhook event
+(kept in-memory; see the module doc).</p>
+  </section>
+</section>
+<section class="detail" id="current_price_id_for_guild/1">
+
+  <div class="detail-header">
+    <a href="#current_price_id_for_guild/1" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
+      <i class="ri-link-m" aria-hidden="true"></i>
+    </a>
+    <div class="heading-with-actions">
+      <h1 class="signature" translate="no">current_price_id_for_guild(guild_id)</h1>
+
+
+    </div>
+  </div>
+
+  <section class="docstring">
+
+      <div class="specs">
+
+          <pre translate="no"><span class="attribute">@spec</span> current_price_id_for_guild(<a href="https://hexdocs.pm/elixir/String.html#t:t/0">String.t</a>() | <a href="https://hexdocs.pm/elixir/typespecs.html#built-in-types">term</a>()) :: <a href="https://hexdocs.pm/elixir/String.html#t:t/0">String.t</a>() | nil</pre>
+
+      </div>
+
+<p>The price id last seen on the guild's subscription, or nil.</p>
+  </section>
+</section>
+<section class="detail" id="customer_id_for_guild/1">
+
+  <div class="detail-header">
+    <a href="#customer_id_for_guild/1" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
+      <i class="ri-link-m" aria-hidden="true"></i>
+    </a>
+    <div class="heading-with-actions">
+      <h1 class="signature" translate="no">customer_id_for_guild(guild_id)</h1>
+
+
+    </div>
+  </div>
+
+  <section class="docstring">
+
+      <div class="specs">
+
+          <pre translate="no"><span class="attribute">@spec</span> customer_id_for_guild(<a href="https://hexdocs.pm/elixir/String.html#t:t/0">String.t</a>() | <a href="https://hexdocs.pm/elixir/typespecs.html#built-in-types">term</a>()) :: <a href="https://hexdocs.pm/elixir/String.html#t:t/0">String.t</a>() | nil</pre>
+
+      </div>
+
+<p>The Stripe customer id last seen for a guild, or nil.</p>
+  </section>
+</section>
+<section class="detail" id="format_bytes/1">
+
+  <div class="detail-header">
+    <a href="#format_bytes/1" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
+      <i class="ri-link-m" aria-hidden="true"></i>
+    </a>
+    <div class="heading-with-actions">
+      <h1 class="signature" translate="no">format_bytes(bytes)</h1>
+
+
+    </div>
+  </div>
+
+  <section class="docstring">
+
+      <div class="specs">
+
+          <pre translate="no"><span class="attribute">@spec</span> format_bytes(<a href="https://hexdocs.pm/elixir/typespecs.html#basic-types">non_neg_integer</a>()) :: <a href="https://hexdocs.pm/elixir/String.html#t:t/0">String.t</a>()</pre>
+
+      </div>
+
+<p>Bytes formatted for display: MB up to 1000 MB, then GB.</p>
+  </section>
+</section>
+<section class="detail" id="format_price/1">
+
+  <div class="detail-header">
+    <a href="#format_price/1" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
+      <i class="ri-link-m" aria-hidden="true"></i>
+    </a>
+    <div class="heading-with-actions">
+      <h1 class="signature" translate="no">format_price(cents)</h1>
+
+
+    </div>
+  </div>
+
+  <section class="docstring">
+
+      <div class="specs">
+
+          <pre translate="no"><span class="attribute">@spec</span> format_price(<a href="https://hexdocs.pm/elixir/typespecs.html#basic-types">pos_integer</a>()) :: <a href="https://hexdocs.pm/elixir/String.html#t:t/0">String.t</a>()</pre>
+
+      </div>
+
+<p>Cents to a display price like &quot;$3.99&quot;.</p>
+  </section>
+</section>
+<section class="detail" id="handle_event/1">
+
+  <div class="detail-header">
+    <a href="#handle_event/1" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
+      <i class="ri-link-m" aria-hidden="true"></i>
+    </a>
+    <div class="heading-with-actions">
+      <h1 class="signature" translate="no">handle_event(arg1)</h1>
+
+
+    </div>
+  </div>
+
+  <section class="docstring">
+
+      <div class="specs">
+
+          <pre translate="no"><span class="attribute">@spec</span> handle_event(<a href="https://hexdocs.pm/elixir/typespecs.html#basic-types">map</a>()) :: :ok | {:error, <a href="https://hexdocs.pm/elixir/typespecs.html#built-in-types">term</a>()}</pre>
+
+      </div>
+
+<p>Handles a decoded Stripe event map. Public for direct unit testing.</p>
+  </section>
+</section>
+<section class="detail" id="handle_webhook/2">
+
+  <div class="detail-header">
+    <a href="#handle_webhook/2" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
+      <i class="ri-link-m" aria-hidden="true"></i>
+    </a>
+    <div class="heading-with-actions">
+      <h1 class="signature" translate="no">handle_webhook(payload, signature_header)</h1>
+
+
+    </div>
+  </div>
+
+  <section class="docstring">
+
+      <div class="specs">
+
+          <pre translate="no"><span class="attribute">@spec</span> handle_webhook(<a href="https://hexdocs.pm/elixir/typespecs.html#built-in-types">binary</a>(), <a href="https://hexdocs.pm/elixir/String.html#t:t/0">String.t</a>() | nil) ::
+  {:ok, <a href="https://hexdocs.pm/elixir/String.html#t:t/0">String.t</a>() | :duplicate} | {:error, <a href="https://hexdocs.pm/elixir/typespecs.html#built-in-types">term</a>()}</pre>
+
+      </div>
+
+<p>Verifies the Stripe signature header, then dispatches the event.</p><p>Returns <code class="inline">{:ok, event_id | :duplicate}</code> on success (both ack the delivery),
+<code class="inline">{:error, :invalid_signature}</code> for tampered/foreign payloads, or
+<code class="inline">{:error, term()}</code> for malformed payloads / handler failures.</p>
+  </section>
+</section>
+<section class="detail" id="interval_for_price/1">
+
+  <div class="detail-header">
+    <a href="#interval_for_price/1" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
+      <i class="ri-link-m" aria-hidden="true"></i>
+    </a>
+    <div class="heading-with-actions">
+      <h1 class="signature" translate="no">interval_for_price(price_id)</h1>
+
+
+    </div>
+  </div>
+
+  <section class="docstring">
+
+      <div class="specs">
+
+          <pre translate="no"><span class="attribute">@spec</span> interval_for_price(<a href="https://hexdocs.pm/elixir/String.html#t:t/0">String.t</a>() | nil) :: :monthly | :yearly | nil</pre>
+
+      </div>
+
+<p>Maps a known plan price id to its billing interval (:monthly/:yearly), or nil.</p>
+  </section>
+</section>
+<section class="detail" id="known_subscription?/1">
+
+  <div class="detail-header">
+    <a href="#known_subscription?/1" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
+      <i class="ri-link-m" aria-hidden="true"></i>
+    </a>
+    <div class="heading-with-actions">
+      <h1 class="signature" translate="no">known_subscription?(guild_id)</h1>
+
+
+    </div>
+  </div>
+
+  <section class="docstring">
+
+      <div class="specs">
+
+          <pre translate="no"><span class="attribute">@spec</span> known_subscription?(<a href="https://hexdocs.pm/elixir/String.html#t:t/0">String.t</a>() | <a href="https://hexdocs.pm/elixir/typespecs.html#built-in-types">term</a>()) :: <a href="https://hexdocs.pm/elixir/typespecs.html#built-in-types">boolean</a>()</pre>
+
+      </div>
+
+<p>Whether the guild has a Stripe subscription we can act on. Falls back to a
+Stripe lookup by remembered customer when in-memory state is missing (e.g.
+after a restart, or events processed by older code).</p>
+  </section>
+</section>
+<section class="detail" id="plan_cap/1">
+
+  <div class="detail-header">
+    <a href="#plan_cap/1" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
+      <i class="ri-link-m" aria-hidden="true"></i>
+    </a>
+    <div class="heading-with-actions">
+      <h1 class="signature" translate="no">plan_cap(price_id)</h1>
+
+
+    </div>
+  </div>
+
+  <section class="docstring">
+
+      <div class="specs">
+
+          <pre translate="no"><span class="attribute">@spec</span> plan_cap(<a href="https://hexdocs.pm/elixir/String.html#t:t/0">String.t</a>() | nil) :: <a href="https://hexdocs.pm/elixir/typespecs.html#basic-types">non_neg_integer</a>() | nil</pre>
+
+      </div>
+
+<p>The storage cap in bytes for a Stripe price id, or nil when unknown.</p>
+  </section>
+</section>
+<section class="detail" id="plan_for_cap/1">
+
+  <div class="detail-header">
+    <a href="#plan_for_cap/1" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
+      <i class="ri-link-m" aria-hidden="true"></i>
+    </a>
+    <div class="heading-with-actions">
+      <h1 class="signature" translate="no">plan_for_cap(cap)</h1>
+
+
+    </div>
+  </div>
+
+  <section class="docstring">
+
+      <div class="specs">
+
+          <pre translate="no"><span class="attribute">@spec</span> plan_for_cap(<a href="https://hexdocs.pm/elixir/typespecs.html#basic-types">non_neg_integer</a>() | nil) :: :studio | :pro | nil</pre>
+
+      </div>
+
+<p>The plan a storage cap belongs to: :studio, :pro, or nil.</p>
+  </section>
+</section>
+<section class="detail" id="plan_label/1">
+
+  <div class="detail-header">
+    <a href="#plan_label/1" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
+      <i class="ri-link-m" aria-hidden="true"></i>
+    </a>
+    <div class="heading-with-actions">
+      <h1 class="signature" translate="no">plan_label(cap)</h1>
+
+
+    </div>
+  </div>
+
+  <section class="docstring">
+
+      <div class="specs">
+
+          <pre translate="no"><span class="attribute">@spec</span> plan_label(<a href="https://hexdocs.pm/elixir/typespecs.html#basic-types">non_neg_integer</a>() | nil) :: <a href="https://hexdocs.pm/elixir/String.html#t:t/0">String.t</a>()</pre>
+
+      </div>
+
+<p>Human plan name for a cap value.</p>
+  </section>
+</section>
+<section class="detail" id="price_cap_map/0">
+
+  <div class="detail-header">
+    <a href="#price_cap_map/0" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
+      <i class="ri-link-m" aria-hidden="true"></i>
+    </a>
+    <div class="heading-with-actions">
+      <h1 class="signature" translate="no">price_cap_map()</h1>
+
+
+    </div>
+  </div>
+
+  <section class="docstring">
+
+      <div class="specs">
+
+          <pre translate="no"><span class="attribute">@spec</span> price_cap_map() :: %{required(<a href="https://hexdocs.pm/elixir/String.html#t:t/0">String.t</a>()) =&gt; <a href="https://hexdocs.pm/elixir/typespecs.html#basic-types">pos_integer</a>()}</pre>
+
+      </div>
+
+<p>Maps every configured Stripe price id to its storage cap in bytes. This is
+the single source of truth for the price -&gt; plan mapping.</p>
+  </section>
+</section>
+<section class="detail" id="remember_subscription/2">
+
+  <div class="detail-header">
+    <a href="#remember_subscription/2" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
+      <i class="ri-link-m" aria-hidden="true"></i>
+    </a>
+    <div class="heading-with-actions">
+      <h1 class="signature" translate="no">remember_subscription(guild_id, state)</h1>
+
+
+    </div>
+  </div>
+
+  <section class="docstring">
+
+      <div class="specs">
+
+          <pre translate="no"><span class="attribute">@spec</span> remember_subscription(
+  <a href="https://hexdocs.pm/elixir/String.html#t:t/0">String.t</a>() | <a href="https://hexdocs.pm/elixir/typespecs.html#built-in-types">term</a>(),
+  <a href="Soundboard.Billing.SubscriptionSnapshot.html#t:t/0">Soundboard.Billing.SubscriptionSnapshot.t</a>()
+) :: :ok</pre>
+
+      </div>
+
+<p>Caches the guild's subscription state (id, item, price) in memory.</p>
+  </section>
+</section>
+<section class="detail" id="reset_memory/0">
+
+  <div class="detail-header">
+    <a href="#reset_memory/0" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
+      <i class="ri-link-m" aria-hidden="true"></i>
+    </a>
+    <div class="heading-with-actions">
+      <h1 class="signature" translate="no">reset_memory()</h1>
+
+
+    </div>
+  </div>
+
+  <section class="docstring">
+
+<p>Clears in-memory billing state (processed events, customer ids). Test and
+ops helper; production state is intentionally reconstructible (see the
+module doc on idempotency).</p>
+  </section>
+</section>
+<section class="detail" id="subscription_active?/1">
+
+  <div class="detail-header">
+    <a href="#subscription_active?/1" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
+      <i class="ri-link-m" aria-hidden="true"></i>
+    </a>
+    <div class="heading-with-actions">
+      <h1 class="signature" translate="no">subscription_active?(guild_id)</h1>
+
+
+    </div>
+  </div>
+
+  <section class="docstring">
+
+      <div class="specs">
+
+          <pre translate="no"><span class="attribute">@spec</span> subscription_active?(<a href="https://hexdocs.pm/elixir/String.html#t:t/0">String.t</a>() | <a href="https://hexdocs.pm/elixir/typespecs.html#built-in-types">term</a>()) :: <a href="https://hexdocs.pm/elixir/typespecs.html#built-in-types">boolean</a>()</pre>
+
+      </div>
+
+<p>Whether a guild has an active subscription: a tenant row whose storage cap
+exactly matches a paid plan (the webhook only writes exact plan caps).
+Rows with cap 0, legacy/default caps, or no row at all count as unpaid —
+on hosted there is no free tier; self-hosted never reaches this check
+because the paywall gate short-circuits when billing is dormant.</p>
+  </section>
+</section>
+<section class="detail" id="subscription_id_for_guild/1">
+
+  <div class="detail-header">
+    <a href="#subscription_id_for_guild/1" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
+      <i class="ri-link-m" aria-hidden="true"></i>
+    </a>
+    <div class="heading-with-actions">
+      <h1 class="signature" translate="no">subscription_id_for_guild(guild_id)</h1>
+
+
+    </div>
+  </div>
+
+  <section class="docstring">
+
+      <div class="specs">
+
+          <pre translate="no"><span class="attribute">@spec</span> subscription_id_for_guild(<a href="https://hexdocs.pm/elixir/String.html#t:t/0">String.t</a>() | <a href="https://hexdocs.pm/elixir/typespecs.html#built-in-types">term</a>()) :: <a href="https://hexdocs.pm/elixir/String.html#t:t/0">String.t</a>() | nil</pre>
+
+      </div>
+
+<p>The Stripe subscription id last seen for a guild, or nil.</p>
+  </section>
+</section>
+<section class="detail" id="tiers/0">
+
+  <div class="detail-header">
+    <a href="#tiers/0" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
+      <i class="ri-link-m" aria-hidden="true"></i>
+    </a>
+    <div class="heading-with-actions">
+      <h1 class="signature" translate="no">tiers()</h1>
+
+
+    </div>
+  </div>
+
+  <section class="docstring">
+
+<p>Plan catalog entries for display (name, cap, amounts, configured price ids).</p>
+  </section>
+</section>
+<section class="detail" id="valid_price?/1">
+
+  <div class="detail-header">
+    <a href="#valid_price?/1" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
+      <i class="ri-link-m" aria-hidden="true"></i>
+    </a>
+    <div class="heading-with-actions">
+      <h1 class="signature" translate="no">valid_price?(price_id)</h1>
+
+
+    </div>
+  </div>
+
+  <section class="docstring">
+
+<p>Whether the price id belongs to the configured plan catalog.</p>
+  </section>
+</section>
+<section class="detail" id="verify_webhook_signature/4">
+
+    <span id="verify_webhook_signature/2"></span>
+
+    <span id="verify_webhook_signature/3"></span>
+
+  <div class="detail-header">
+    <a href="#verify_webhook_signature/4" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
+      <i class="ri-link-m" aria-hidden="true"></i>
+    </a>
+    <div class="heading-with-actions">
+      <h1 class="signature" translate="no">verify_webhook_signature(payload, signature_header, secret \\ nil, tolerance \\ 300)</h1>
+
+
+    </div>
+  </div>
+
+  <section class="docstring">
+
+      <div class="specs">
+
+          <pre translate="no"><span class="attribute">@spec</span> verify_webhook_signature(
+  <a href="https://hexdocs.pm/elixir/typespecs.html#built-in-types">binary</a>(),
+  <a href="https://hexdocs.pm/elixir/String.html#t:t/0">String.t</a>() | nil,
+  <a href="https://hexdocs.pm/elixir/String.html#t:t/0">String.t</a>() | nil,
+  <a href="https://hexdocs.pm/elixir/typespecs.html#basic-types">pos_integer</a>()
+) ::
+  :ok | {:error, :invalid_signature | :not_configured}</pre>
+
+      </div>
+
+<p>Verifies a Stripe webhook signature header (<code class="inline">t=...,v1=...</code>) against
+<code class="inline">payload</code> using HMAC-SHA256. Verified locally instead of via
+<a href="https://hexdocs.pm/stripity_stripe/3.2.0/Stripe.Webhook.html#construct_event/3"><code class="inline">Stripe.Webhook.construct_event/3</code></a> so the boundary is testable without
+network or Stripe SDK behavior drift.</p>
+  </section>
+</section>
+<section class="detail" id="webhook_configured?/0">
+
+  <div class="detail-header">
+    <a href="#webhook_configured?/0" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
+      <i class="ri-link-m" aria-hidden="true"></i>
+    </a>
+    <div class="heading-with-actions">
+      <h1 class="signature" translate="no">webhook_configured?()</h1>
+
+
+    </div>
+  </div>
+
+  <section class="docstring">
+
+<p>Whether webhook signature verification is possible.</p>
+  </section>
+</section>
+
+    </div>
+  </section>
+
+    <footer class="footer">
+
+        <p>
+
+          <span class="line">
+            <button class="a-main footer-button display-quick-switch" title="Go to package docs">
+              Go to package docs
+            </button>
+
+              <a href="llms.txt" target="_blank">
+                View llms.txt
+              </a>
+
+
+              <a href="soundboard.epub">
+                Download ePub version
+              </a>
+
+          </span>
+        </p>
+
+        <p class="built-using">
+          Built using
+          <a href="https://github.com/elixir-lang/ex_doc" title="ExDoc" target="_blank" rel="help noopener" translate="no">ExDoc</a> (v0.40.3) for the
+
+            <a href="https://elixir-lang.org" title="Elixir" target="_blank" translate="no">Elixir programming language</a>
+
+        </p>
+
+
+    </footer>
+  </div>
+</main>
+</div>
+
+  </body>
+</html>

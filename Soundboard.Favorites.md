@@ -24,7 +24,9 @@ The Favorites module.
 # `list_favorite_sounds_with_tags`
 
 ```elixir
-@spec list_favorite_sounds_with_tags(integer()) :: [Soundboard.Sound.t()]
+@spec list_favorite_sounds_with_tags(integer(), String.t() | nil) :: [
+  Soundboard.Sound.t()
+]
 ```
 
 # `list_favorites`

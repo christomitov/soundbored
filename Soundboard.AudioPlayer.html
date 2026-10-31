@@ -12,7 +12,7 @@
 
     <link rel="stylesheet" href="dist/html-elixir-NHQLCD6Y.css" />
 
-    <script defer src="dist/sidebar_items-8F47D679.js"></script>
+    <script defer src="dist/sidebar_items-D5B242B7.js"></script>
     <script defer src="docs_config.js"></script>
     <script defer src="dist/html-Y2MUTVIN.js"></script>
 
@@ -109,7 +109,9 @@ soundboard
 
 
     <section id="moduledoc">
-<p>Handles audio playback coordination.</p>
+<p>Facade over the per-guild audio player servers.</p><p>One <a href="Soundboard.AudioPlayer.Server.html"><code class="inline">Soundboard.AudioPlayer.Server</code></a> process exists per guild. All functions
+route by <code class="inline">guild_id</code>; when omitted, the default guild is used so existing
+single-guild deployments behave exactly as before.</p>
     </section>
 
 </div>
@@ -128,17 +130,7 @@ soundboard
 
     <div class="summary-row">
       <div class="summary-signature">
-        <a href="#child_spec/1" data-no-tooltip="" translate="no">child_spec(init_arg)</a>
-
-      </div>
-
-        <div class="summary-synopsis"><p>Returns a specification to start this module under a supervisor.</p></div>
-
-    </div>
-
-    <div class="summary-row">
-      <div class="summary-signature">
-        <a href="#current_voice_channel/0" data-no-tooltip="" translate="no">current_voice_channel()</a>
+        <a href="#current_voice_channel/1" data-no-tooltip="" translate="no">current_voice_channel(guild_id \\ nil)</a>
 
       </div>
 
@@ -146,11 +138,30 @@ soundboard
 
     <div class="summary-row">
       <div class="summary-signature">
-        <a href="#invalidate_cache/1" data-no-tooltip="" translate="no">invalidate_cache(sound_name)</a>
+        <a href="#ensure_started/1" data-no-tooltip="" translate="no">ensure_started(guild_id)</a>
 
       </div>
 
-        <div class="summary-synopsis"><p>Removes any cached metadata for the given <code class="inline">sound_name</code> so future plays use fresh data.</p></div>
+        <div class="summary-synopsis"><p>Starts the player for <code class="inline">guild_id</code> if not already running. Returns its pid.</p></div>
+
+    </div>
+
+    <div class="summary-row">
+      <div class="summary-signature">
+        <a href="#invalidate_cache/1" data-no-tooltip="" translate="no">invalidate_cache(filename)</a>
+
+      </div>
+
+    </div>
+
+    <div class="summary-row">
+      <div class="summary-signature">
+        <a href="#invalidate_cache/2" data-no-tooltip="" translate="no">invalidate_cache(guild_id, filename)</a>
+
+      </div>
+
+        <div class="summary-synopsis"><p>Removes any cached metadata for <code class="inline">filename</code> in <code class="inline">guild_id</code> so future plays use
+fresh data. The 1-arity form targets the default guild (back-compat).</p></div>
 
     </div>
 
@@ -164,7 +175,7 @@ soundboard
 
     <div class="summary-row">
       <div class="summary-signature">
-        <a href="#play_sound/2" data-no-tooltip="" translate="no">play_sound(sound_name, actor)</a>
+        <a href="#play_sound/3" data-no-tooltip="" translate="no">play_sound(sound_name, actor, guild_id \\ nil)</a>
 
       </div>
 
@@ -180,6 +191,16 @@ soundboard
 
     <div class="summary-row">
       <div class="summary-signature">
+        <a href="#server_pid/1" data-no-tooltip="" translate="no">server_pid(guild_id)</a>
+
+      </div>
+
+        <div class="summary-synopsis"><p>Pid of the player server for <code class="inline">guild_id</code>, if running.</p></div>
+
+    </div>
+
+    <div class="summary-row">
+      <div class="summary-signature">
         <a href="#set_voice_channel/2" data-no-tooltip="" translate="no">set_voice_channel(guild_id, channel_id)</a>
 
       </div>
@@ -188,15 +209,7 @@ soundboard
 
     <div class="summary-row">
       <div class="summary-signature">
-        <a href="#start_link/1" data-no-tooltip="" translate="no">start_link(opts)</a>
-
-      </div>
-
-    </div>
-
-    <div class="summary-row">
-      <div class="summary-signature">
-        <a href="#stop_sound/0" data-no-tooltip="" translate="no">stop_sound()</a>
+        <a href="#stop_sound/1" data-no-tooltip="" translate="no">stop_sound(guild_id \\ nil)</a>
 
       </div>
 
@@ -224,14 +237,16 @@ soundboard
     </h2>
 
     <div class="functions-list">
-<section class="detail" id="child_spec/1">
+<section class="detail" id="current_voice_channel/1">
+
+    <span id="current_voice_channel/0"></span>
 
   <div class="detail-header">
-    <a href="#child_spec/1" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
+    <a href="#current_voice_channel/1" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
       <i class="ri-link-m" aria-hidden="true"></i>
     </a>
     <div class="heading-with-actions">
-      <h1 class="signature" translate="no">child_spec(init_arg)</h1>
+      <h1 class="signature" translate="no">current_voice_channel(guild_id \\ nil)</h1>
 
 
     </div>
@@ -239,17 +254,17 @@ soundboard
 
   <section class="docstring">
 
-<p>Returns a specification to start this module under a supervisor.</p><p>See <a href="https://hexdocs.pm/elixir/Supervisor.html"><code class="inline">Supervisor</code></a>.</p>
+
   </section>
 </section>
-<section class="detail" id="current_voice_channel/0">
+<section class="detail" id="ensure_started/1">
 
   <div class="detail-header">
-    <a href="#current_voice_channel/0" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
+    <a href="#ensure_started/1" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
       <i class="ri-link-m" aria-hidden="true"></i>
     </a>
     <div class="heading-with-actions">
-      <h1 class="signature" translate="no">current_voice_channel()</h1>
+      <h1 class="signature" translate="no">ensure_started(guild_id)</h1>
 
 
     </div>
@@ -257,7 +272,13 @@ soundboard
 
   <section class="docstring">
 
+      <div class="specs">
 
+          <pre translate="no"><span class="attribute">@spec</span> ensure_started(<a href="https://hexdocs.pm/elixir/String.html#t:t/0">String.t</a>()) :: <a href="https://hexdocs.pm/elixir/typespecs.html#basic-types">pid</a>()</pre>
+
+      </div>
+
+<p>Starts the player for <code class="inline">guild_id</code> if not already running. Returns its pid.</p>
   </section>
 </section>
 <section class="detail" id="invalidate_cache/1">
@@ -267,7 +288,7 @@ soundboard
       <i class="ri-link-m" aria-hidden="true"></i>
     </a>
     <div class="heading-with-actions">
-      <h1 class="signature" translate="no">invalidate_cache(sound_name)</h1>
+      <h1 class="signature" translate="no">invalidate_cache(filename)</h1>
 
 
     </div>
@@ -275,7 +296,26 @@ soundboard
 
   <section class="docstring">
 
-<p>Removes any cached metadata for the given <code class="inline">sound_name</code> so future plays use fresh data.</p>
+
+  </section>
+</section>
+<section class="detail" id="invalidate_cache/2">
+
+  <div class="detail-header">
+    <a href="#invalidate_cache/2" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
+      <i class="ri-link-m" aria-hidden="true"></i>
+    </a>
+    <div class="heading-with-actions">
+      <h1 class="signature" translate="no">invalidate_cache(guild_id, filename)</h1>
+
+
+    </div>
+  </div>
+
+  <section class="docstring">
+
+<p>Removes any cached metadata for <code class="inline">filename</code> in <code class="inline">guild_id</code> so future plays use
+fresh data. The 1-arity form targets the default guild (back-compat).</p>
   </section>
 </section>
 <section class="detail" id="last_user_left/1">
@@ -296,14 +336,16 @@ soundboard
 
   </section>
 </section>
-<section class="detail" id="play_sound/2">
+<section class="detail" id="play_sound/3">
+
+    <span id="play_sound/2"></span>
 
   <div class="detail-header">
-    <a href="#play_sound/2" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
+    <a href="#play_sound/3" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
       <i class="ri-link-m" aria-hidden="true"></i>
     </a>
     <div class="heading-with-actions">
-      <h1 class="signature" translate="no">play_sound(sound_name, actor)</h1>
+      <h1 class="signature" translate="no">play_sound(sound_name, actor, guild_id \\ nil)</h1>
 
 
     </div>
@@ -332,6 +374,30 @@ soundboard
 
   </section>
 </section>
+<section class="detail" id="server_pid/1">
+
+  <div class="detail-header">
+    <a href="#server_pid/1" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
+      <i class="ri-link-m" aria-hidden="true"></i>
+    </a>
+    <div class="heading-with-actions">
+      <h1 class="signature" translate="no">server_pid(guild_id)</h1>
+
+
+    </div>
+  </div>
+
+  <section class="docstring">
+
+      <div class="specs">
+
+          <pre translate="no"><span class="attribute">@spec</span> server_pid(<a href="https://hexdocs.pm/elixir/String.html#t:t/0">String.t</a>()) :: <a href="https://hexdocs.pm/elixir/typespecs.html#basic-types">pid</a>() | nil</pre>
+
+      </div>
+
+<p>Pid of the player server for <code class="inline">guild_id</code>, if running.</p>
+  </section>
+</section>
 <section class="detail" id="set_voice_channel/2">
 
   <div class="detail-header">
@@ -350,32 +416,16 @@ soundboard
 
   </section>
 </section>
-<section class="detail" id="start_link/1">
+<section class="detail" id="stop_sound/1">
+
+    <span id="stop_sound/0"></span>
 
   <div class="detail-header">
-    <a href="#start_link/1" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
+    <a href="#stop_sound/1" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
       <i class="ri-link-m" aria-hidden="true"></i>
     </a>
     <div class="heading-with-actions">
-      <h1 class="signature" translate="no">start_link(opts)</h1>
-
-
-    </div>
-  </div>
-
-  <section class="docstring">
-
-
-  </section>
-</section>
-<section class="detail" id="stop_sound/0">
-
-  <div class="detail-header">
-    <a href="#stop_sound/0" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
-      <i class="ri-link-m" aria-hidden="true"></i>
-    </a>
-    <div class="heading-with-actions">
-      <h1 class="signature" translate="no">stop_sound()</h1>
+      <h1 class="signature" translate="no">stop_sound(guild_id \\ nil)</h1>
 
 
     </div>

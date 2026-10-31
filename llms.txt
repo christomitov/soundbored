@@ -11,14 +11,19 @@ and business logic.
 
 - [Soundboard.Accounts.User](Soundboard.Accounts.User.md): The User module.
 
-- [Soundboard.AudioPlayer](Soundboard.AudioPlayer.md): Handles audio playback coordination.
+- [Soundboard.AudioPlayer](Soundboard.AudioPlayer.md): Facade over the per-guild audio player servers.
+- [Soundboard.AudioPlayer.Server](Soundboard.AudioPlayer.Server.md): Per-guild audio playback coordinator.
+- [Soundboard.AudioPlayer.State](Soundboard.AudioPlayer.State.md): The state of a per-guild audio player server.
 
-- [Soundboard.AudioPlayer.State](Soundboard.AudioPlayer.State.md): The state of the audio player.
+- [Soundboard.Billing](Soundboard.Billing.md): Stripe-backed storage subscriptions for guild tenants.
+- [Soundboard.Billing.SubscriptionSnapshot](Soundboard.Billing.SubscriptionSnapshot.md): The guild's live Stripe subscription state cached in memory between
+webhooks: the subscription id, its line item id, and the price id.
 
 - [Soundboard.Discord.Handler](Soundboard.Discord.Handler.md): Handles the Discord events.
 
 - [Soundboard.Discord.Handler.State](Soundboard.Discord.Handler.State.md): Handles the state of the Discord handler.
 
+- [Soundboard.Discord.InviteURL](Soundboard.Discord.InviteURL.md): Builds the bot invite URL used by the onboarding flow.
 - [Soundboard.Favorites](Soundboard.Favorites.md): The Favorites module.
 
 - [Soundboard.Favorites.Favorite](Soundboard.Favorites.Favorite.md): The Favorite module.
@@ -42,6 +47,9 @@ and business logic.
 
 - [Soundboard.Tag](Soundboard.Tag.md): The Tag module.
 
+- [Soundboard.Tenants](Soundboard.Tenants.md): Multi-tenant context.
+- [Soundboard.Tenants.Guild](Soundboard.Tenants.Guild.md): A tenant: one Discord guild's provisioned soundboard.
+
 - [Soundboard.UploadsPath](Soundboard.UploadsPath.md): Central source of truth for uploaded sound storage paths.
 
 - [Soundboard.UserSoundSetting](Soundboard.UserSoundSetting.md): The UserSoundSetting module.
@@ -52,9 +60,15 @@ and business logic.
 as controllers, components, channels, and so on.
 - [SoundboardWeb.API.SoundController](SoundboardWeb.API.SoundController.md)
 - [SoundboardWeb.AuthController](SoundboardWeb.AuthController.md)
+- [SoundboardWeb.BillingController](SoundboardWeb.BillingController.md): Stripe subscriptions: plan options, checkout, customer portal, and the
+public webhook receiver (signature-verified, no session auth).
+- [SoundboardWeb.BillingHTML](SoundboardWeb.BillingHTML.md): Templates for the billing pages (plan options, storage usage, upgrade).
+
 - [SoundboardWeb.Components.FlashComponent](SoundboardWeb.Components.FlashComponent.md): The flash component.
 
-- [SoundboardWeb.Components.Layouts.Navbar](SoundboardWeb.Components.Layouts.Navbar.md): The navbar component.
+- [SoundboardWeb.Components.Layouts.Navbar](SoundboardWeb.Components.Layouts.Navbar.md): The navbar component. A plain function component so it renders in both
+LiveViews and controller-rendered pages; the mobile menu toggles entirely
+client-side via JS.
 
 - [SoundboardWeb.Components.Soundboard.DeleteModal](SoundboardWeb.Components.Soundboard.DeleteModal.md): The delete modal component.
 
@@ -76,16 +90,28 @@ as controllers, components, channels, and so on.
 
 - [SoundboardWeb.FavoritesLive](SoundboardWeb.FavoritesLive.md)
 - [SoundboardWeb.Gettext](SoundboardWeb.Gettext.md): A module providing Internationalization with a gettext-based API.
+- [SoundboardWeb.GuildController](SoundboardWeb.GuildController.md): Tenant onboarding: list the guilds the shared bot is a member of and let the
+signed-in user switch their active soundboard (creating the tenant row on
+first use — that is the whole "provisioning" step).
+
 - [SoundboardWeb.Live.Support.LiveTags](SoundboardWeb.Live.Support.LiveTags.md): LiveView-facing tag queries and mutations for the soundboard.
 
 - [SoundboardWeb.Live.Support.PresenceLive](SoundboardWeb.Live.Support.PresenceLive.md)
+- [SoundboardWeb.OnboardingController](SoundboardWeb.OnboardingController.md): The onboarding handoff for hosted signups. A signed-in user invites the
+shared bot from here, then continues to `/guilds` where switching
+provisions the tenant.
+
 - [SoundboardWeb.Plugs.APIAuth](SoundboardWeb.Plugs.APIAuth.md): API authentication plug.
 
+- [SoundboardWeb.Plugs.AppGate](SoundboardWeb.Plugs.AppGate.md): Gate for the soundboard app pages (Sounds, Stats, Favorites, Settings).
 - [SoundboardWeb.Plugs.BasicAuth](SoundboardWeb.Plugs.BasicAuth.md): Basic authentication plug.
+- [SoundboardWeb.Plugs.Tenant](SoundboardWeb.Plugs.Tenant.md): Resolves the current tenant (guild) for a request.
 - [SoundboardWeb.Presence](SoundboardWeb.Presence.md): The Presence module.
 
 - [SoundboardWeb.PresenceHandler](SoundboardWeb.PresenceHandler.md): Handles presence tracking for the Soundboard app.
 
+- [SoundboardWeb.RawBodyReader](SoundboardWeb.RawBodyReader.md): A `Plug.Parsers` body_reader that keeps the untouched JSON request body in
+`conn.assigns[:raw_body]` (a list of chunks).
 - [SoundboardWeb.Router](SoundboardWeb.Router.md)
 - [SoundboardWeb.SettingsLive](SoundboardWeb.SettingsLive.md)
 - [SoundboardWeb.SoundHelpers](SoundboardWeb.SoundHelpers.md): Shared helpers for formatting sound metadata for UI rendering.

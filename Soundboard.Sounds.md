@@ -30,25 +30,30 @@ Sound domain context.
 # `fetch_sound_id`
 
 ```elixir
-@spec fetch_sound_id(String.t()) :: {:ok, integer()} | :error
+@spec fetch_sound_id(String.t(), String.t() | nil) :: {:ok, integer()} | :error
 ```
 
 # `filename_conflicts_across_extensions?`
 
 ```elixir
-@spec filename_conflicts_across_extensions?(String.t(), [String.t()]) :: boolean()
+@spec filename_conflicts_across_extensions?(
+  String.t(),
+  [String.t()],
+  String.t() | nil
+) :: boolean()
 ```
 
 # `filename_taken?`
 
 ```elixir
-@spec filename_taken?(String.t()) :: boolean()
+@spec filename_taken?(String.t(), String.t() | nil) :: boolean()
 ```
 
 # `filename_taken_excluding?`
 
 ```elixir
-@spec filename_taken_excluding?(String.t(), integer() | String.t()) :: boolean()
+@spec filename_taken_excluding?(String.t(), integer() | String.t(), String.t() | nil) ::
+  boolean()
 ```
 
 # `get_recent_uploads`
@@ -66,49 +71,52 @@ Sound domain context.
 # `get_user_join_sound`
 
 ```elixir
-@spec get_user_join_sound(integer()) :: String.t() | nil
+@spec get_user_join_sound(integer(), String.t() | nil) :: String.t() | nil
 ```
 
 # `get_user_join_sound_by_discord_id`
 
 ```elixir
-@spec get_user_join_sound_by_discord_id(term()) :: String.t() | nil
+@spec get_user_join_sound_by_discord_id(term(), String.t() | nil) :: String.t() | nil
 ```
 
 # `get_user_leave_sound`
 
 ```elixir
-@spec get_user_leave_sound(integer()) :: String.t() | nil
+@spec get_user_leave_sound(integer(), String.t() | nil) :: String.t() | nil
 ```
 
 # `get_user_leave_sound_by_discord_id`
 
 ```elixir
-@spec get_user_leave_sound_by_discord_id(term()) :: String.t() | nil
+@spec get_user_leave_sound_by_discord_id(term(), String.t() | nil) :: String.t() | nil
 ```
 
 # `get_user_sound_preferences_by_discord_id`
 
 ```elixir
-@spec get_user_sound_preferences_by_discord_id(term()) :: map() | nil
+@spec get_user_sound_preferences_by_discord_id(term(), String.t() | nil) ::
+  map() | nil
 ```
 
 # `ids_by_filename`
 
 ```elixir
-@spec ids_by_filename([String.t()]) :: %{optional(String.t()) =&gt; integer()}
+@spec ids_by_filename([String.t()], String.t() | nil) :: %{
+  optional(String.t()) =&gt; integer()
+}
 ```
 
 # `list_detailed`
 
 ```elixir
-@spec list_detailed() :: [Soundboard.Sound.t()]
+@spec list_detailed(String.t() | nil) :: [Soundboard.Sound.t()]
 ```
 
 # `list_files`
 
 ```elixir
-@spec list_files() :: [Soundboard.Sound.t()]
+@spec list_files(String.t() | nil) :: [Soundboard.Sound.t()]
 ```
 
 # `new_create_request`

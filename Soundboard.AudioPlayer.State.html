@@ -12,7 +12,7 @@
 
     <link rel="stylesheet" href="dist/html-elixir-NHQLCD6Y.css" />
 
-    <script defer src="dist/sidebar_items-8F47D679.js"></script>
+    <script defer src="dist/sidebar_items-D5B242B7.js"></script>
     <script defer src="docs_config.js"></script>
     <script defer src="dist/html-Y2MUTVIN.js"></script>
 
@@ -109,7 +109,7 @@ soundboard
 
 
     <section id="moduledoc">
-<p>The state of the audio player.</p>
+<p>The state of a per-guild audio player server.</p>
     </section>
 
 </div>
@@ -167,6 +167,7 @@ soundboard
 
           <pre translate="no"><span class="attribute">@type</span> t() :: %Soundboard.AudioPlayer.State{
   current_playback: <a href="https://hexdocs.pm/elixir/typespecs.html#basic-types">map</a>() | nil,
+  guild_id: <a href="https://hexdocs.pm/elixir/String.html#t:t/0">String.t</a>(),
   idle_timeout_ref: {<a href="https://hexdocs.pm/elixir/typespecs.html#basic-types">reference</a>(), <a href="https://hexdocs.pm/elixir/typespecs.html#basic-types">reference</a>()} | nil,
   interrupt_watchdog_attempt: <a href="https://hexdocs.pm/elixir/typespecs.html#basic-types">non_neg_integer</a>() | nil,
   interrupt_watchdog_ref: <a href="https://hexdocs.pm/elixir/typespecs.html#basic-types">reference</a>() | nil,

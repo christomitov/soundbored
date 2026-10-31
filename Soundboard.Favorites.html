@@ -12,7 +12,7 @@
 
     <link rel="stylesheet" href="dist/html-elixir-NHQLCD6Y.css" />
 
-    <script defer src="dist/sidebar_items-8F47D679.js"></script>
+    <script defer src="dist/sidebar_items-D5B242B7.js"></script>
     <script defer src="docs_config.js"></script>
     <script defer src="dist/html-Y2MUTVIN.js"></script>
 
@@ -158,7 +158,7 @@ soundboard
 
     <div class="summary-row">
       <div class="summary-signature">
-        <a href="#list_favorite_sounds_with_tags/1" data-no-tooltip="" translate="no">list_favorite_sounds_with_tags(user_id)</a>
+        <a href="#list_favorite_sounds_with_tags/2" data-no-tooltip="" translate="no">list_favorite_sounds_with_tags(user_id, guild_id \\ nil)</a>
 
       </div>
 
@@ -220,7 +220,7 @@ soundboard
       <div class="specs">
 
           <pre translate="no"><span class="attribute">@type</span> favorite_result() ::
-  {:ok, Soundboard.Favorites.Favorite.t()} | {:error, <a href="https://hexdocs.pm/ecto/3.14.2/Ecto.Changeset.html#t:t/0">Ecto.Changeset.t</a>()}</pre>
+  {:ok, <a href="Soundboard.Favorites.Favorite.html#t:t/0">Soundboard.Favorites.Favorite.t</a>()} | {:error, <a href="https://hexdocs.pm/ecto/3.14.2/Ecto.Changeset.html#t:t/0">Ecto.Changeset.t</a>()}</pre>
 
       </div>
 
@@ -288,14 +288,16 @@ soundboard
 
   </section>
 </section>
-<section class="detail" id="list_favorite_sounds_with_tags/1">
+<section class="detail" id="list_favorite_sounds_with_tags/2">
+
+    <span id="list_favorite_sounds_with_tags/1"></span>
 
   <div class="detail-header">
-    <a href="#list_favorite_sounds_with_tags/1" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
+    <a href="#list_favorite_sounds_with_tags/2" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
       <i class="ri-link-m" aria-hidden="true"></i>
     </a>
     <div class="heading-with-actions">
-      <h1 class="signature" translate="no">list_favorite_sounds_with_tags(user_id)</h1>
+      <h1 class="signature" translate="no">list_favorite_sounds_with_tags(user_id, guild_id \\ nil)</h1>
 
 
     </div>
@@ -305,7 +307,9 @@ soundboard
 
       <div class="specs">
 
-          <pre translate="no"><span class="attribute">@spec</span> list_favorite_sounds_with_tags(<a href="https://hexdocs.pm/elixir/typespecs.html#basic-types">integer</a>()) :: [<a href="Soundboard.Sound.html#t:t/0">Soundboard.Sound.t</a>()]</pre>
+          <pre translate="no"><span class="attribute">@spec</span> list_favorite_sounds_with_tags(<a href="https://hexdocs.pm/elixir/typespecs.html#basic-types">integer</a>(), <a href="https://hexdocs.pm/elixir/String.html#t:t/0">String.t</a>() | nil) :: [
+  <a href="Soundboard.Sound.html#t:t/0">Soundboard.Sound.t</a>()
+]</pre>
 
       </div>
 

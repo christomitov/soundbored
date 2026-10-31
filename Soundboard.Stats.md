@@ -47,7 +47,7 @@ Handles the stats of the soundboard.
 # `track_play`
 
 ```elixir
-@spec track_play(String.t(), integer() | nil) ::
+@spec track_play(String.t(), integer() | nil, String.t() | nil) ::
   {:ok, Soundboard.Stats.Play.t()} | {:error, Ecto.Changeset.t()}
 ```
 

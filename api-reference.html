@@ -12,7 +12,7 @@
 
     <link rel="stylesheet" href="dist/html-elixir-NHQLCD6Y.css" />
 
-    <script defer src="dist/sidebar_items-8F47D679.js"></script>
+    <script defer src="dist/sidebar_items-D5B242B7.js"></script>
     <script defer src="docs_config.js"></script>
     <script defer src="dist/html-Y2MUTVIN.js"></script>
 
@@ -156,7 +156,16 @@ and business logic.</p></div>
 
   </div>
 
-    <div class="summary-synopsis"><p>Handles audio playback coordination.</p></div>
+    <div class="summary-synopsis"><p>Facade over the per-guild audio player servers.</p></div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="Soundboard.AudioPlayer.Server.html" translate="no">Soundboard.<wbr />AudioPlayer.<wbr />Server</a>
+
+  </div>
+
+    <div class="summary-synopsis"><p>Per-guild audio playback coordinator.</p></div>
 
 </div>
 <div class="summary-row">
@@ -165,7 +174,26 @@ and business logic.</p></div>
 
   </div>
 
-    <div class="summary-synopsis"><p>The state of the audio player.</p></div>
+    <div class="summary-synopsis"><p>The state of a per-guild audio player server.</p></div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="Soundboard.Billing.html" translate="no">Soundboard.<wbr />Billing</a>
+
+  </div>
+
+    <div class="summary-synopsis"><p>Stripe-backed storage subscriptions for guild tenants.</p></div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="Soundboard.Billing.SubscriptionSnapshot.html" translate="no">Soundboard.<wbr />Billing.<wbr />SubscriptionSnapshot</a>
+
+  </div>
+
+    <div class="summary-synopsis"><p>The guild's live Stripe subscription state cached in memory between
+webhooks: the subscription id, its line item id, and the price id.</p></div>
 
 </div>
 <div class="summary-row">
@@ -184,6 +212,15 @@ and business logic.</p></div>
   </div>
 
     <div class="summary-synopsis"><p>Handles the state of the Discord handler.</p></div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="Soundboard.Discord.InviteURL.html" translate="no">Soundboard.<wbr />Discord.<wbr />InviteURL</a>
+
+  </div>
+
+    <div class="summary-synopsis"><p>Builds the bot invite URL used by the onboarding flow.</p></div>
 
 </div>
 <div class="summary-row">
@@ -303,6 +340,24 @@ and business logic.</p></div>
 </div>
 <div class="summary-row">
   <div class="summary-signature">
+    <a href="Soundboard.Tenants.html" translate="no">Soundboard.<wbr />Tenants</a>
+
+  </div>
+
+    <div class="summary-synopsis"><p>Multi-tenant context.</p></div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="Soundboard.Tenants.Guild.html" translate="no">Soundboard.<wbr />Tenants.<wbr />Guild</a>
+
+  </div>
+
+    <div class="summary-synopsis"><p>A tenant: one Discord guild's provisioned soundboard.</p></div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
     <a href="Soundboard.UploadsPath.html" translate="no">Soundboard.<wbr />UploadsPath</a>
 
   </div>
@@ -354,6 +409,25 @@ as controllers, components, channels, and so on.</p></div>
 </div>
 <div class="summary-row">
   <div class="summary-signature">
+    <a href="SoundboardWeb.BillingController.html" translate="no">SoundboardWeb.<wbr />BillingController</a>
+
+  </div>
+
+    <div class="summary-synopsis"><p>Stripe subscriptions: plan options, checkout, customer portal, and the
+public webhook receiver (signature-verified, no session auth).</p></div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="SoundboardWeb.BillingHTML.html" translate="no">SoundboardWeb.<wbr />BillingHTML</a>
+
+  </div>
+
+    <div class="summary-synopsis"><p>Templates for the billing pages (plan options, storage usage, upgrade).</p></div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
     <a href="SoundboardWeb.Components.FlashComponent.html" translate="no">SoundboardWeb.<wbr />Components.<wbr />FlashComponent</a>
 
   </div>
@@ -367,7 +441,9 @@ as controllers, components, channels, and so on.</p></div>
 
   </div>
 
-    <div class="summary-synopsis"><p>The navbar component.</p></div>
+    <div class="summary-synopsis"><p>The navbar component. A plain function component so it renders in both
+LiveViews and controller-rendered pages; the mobile menu toggles entirely
+client-side via JS.</p></div>
 
 </div>
 <div class="summary-row">
@@ -476,6 +552,17 @@ as controllers, components, channels, and so on.</p></div>
 </div>
 <div class="summary-row">
   <div class="summary-signature">
+    <a href="SoundboardWeb.GuildController.html" translate="no">SoundboardWeb.<wbr />GuildController</a>
+
+  </div>
+
+    <div class="summary-synopsis"><p>Tenant onboarding: list the guilds the shared bot is a member of and let the
+signed-in user switch their active soundboard (creating the tenant row on
+first use — that is the whole &quot;provisioning&quot; step).</p></div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
     <a href="SoundboardWeb.Live.Support.LiveTags.html" translate="no">SoundboardWeb.<wbr />Live.<wbr />Support.<wbr />LiveTags</a>
 
   </div>
@@ -492,6 +579,17 @@ as controllers, components, channels, and so on.</p></div>
 </div>
 <div class="summary-row">
   <div class="summary-signature">
+    <a href="SoundboardWeb.OnboardingController.html" translate="no">SoundboardWeb.<wbr />OnboardingController</a>
+
+  </div>
+
+    <div class="summary-synopsis"><p>The onboarding handoff for hosted signups. A signed-in user invites the
+shared bot from here, then continues to <code class="inline">/guilds</code> where switching
+provisions the tenant.</p></div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
     <a href="SoundboardWeb.Plugs.APIAuth.html" translate="no">SoundboardWeb.<wbr />Plugs.<wbr />APIAuth</a>
 
   </div>
@@ -501,11 +599,29 @@ as controllers, components, channels, and so on.</p></div>
 </div>
 <div class="summary-row">
   <div class="summary-signature">
+    <a href="SoundboardWeb.Plugs.AppGate.html" translate="no">SoundboardWeb.<wbr />Plugs.<wbr />AppGate</a>
+
+  </div>
+
+    <div class="summary-synopsis"><p>Gate for the soundboard app pages (Sounds, Stats, Favorites, Settings).</p></div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
     <a href="SoundboardWeb.Plugs.BasicAuth.html" translate="no">SoundboardWeb.<wbr />Plugs.<wbr />BasicAuth</a>
 
   </div>
 
     <div class="summary-synopsis"><p>Basic authentication plug.</p></div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="SoundboardWeb.Plugs.Tenant.html" translate="no">SoundboardWeb.<wbr />Plugs.<wbr />Tenant</a>
+
+  </div>
+
+    <div class="summary-synopsis"><p>Resolves the current tenant (guild) for a request.</p></div>
 
 </div>
 <div class="summary-row">
@@ -524,6 +640,16 @@ as controllers, components, channels, and so on.</p></div>
   </div>
 
     <div class="summary-synopsis"><p>Handles presence tracking for the Soundboard app.</p></div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="SoundboardWeb.RawBodyReader.html" translate="no">SoundboardWeb.<wbr />RawBodyReader</a>
+
+  </div>
+
+    <div class="summary-synopsis"><p>A <a href="https://hexdocs.pm/plug/1.20.3/Plug.Parsers.html"><code class="inline">Plug.Parsers</code></a> body_reader that keeps the untouched JSON request body in
+<code class="inline">conn.assigns[:raw_body]</code> (a list of chunks).</p></div>
 
 </div>
 <div class="summary-row">

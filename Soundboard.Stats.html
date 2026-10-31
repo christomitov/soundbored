@@ -12,7 +12,7 @@
 
     <link rel="stylesheet" href="dist/html-elixir-NHQLCD6Y.css" />
 
-    <script defer src="dist/sidebar_items-8F47D679.js"></script>
+    <script defer src="dist/sidebar_items-D5B242B7.js"></script>
     <script defer src="docs_config.js"></script>
     <script defer src="dist/html-Y2MUTVIN.js"></script>
 
@@ -190,7 +190,7 @@ soundboard
 
     <div class="summary-row">
       <div class="summary-signature">
-        <a href="#track_play/2" data-no-tooltip="" translate="no">track_play(sound_name, user_id)</a>
+        <a href="#track_play/3" data-no-tooltip="" translate="no">track_play(sound_name, user_id, guild_id \\ nil)</a>
 
       </div>
 
@@ -397,14 +397,16 @@ soundboard
 
   </section>
 </section>
-<section class="detail" id="track_play/2">
+<section class="detail" id="track_play/3">
+
+    <span id="track_play/2"></span>
 
   <div class="detail-header">
-    <a href="#track_play/2" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
+    <a href="#track_play/3" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
       <i class="ri-link-m" aria-hidden="true"></i>
     </a>
     <div class="heading-with-actions">
-      <h1 class="signature" translate="no">track_play(sound_name, user_id)</h1>
+      <h1 class="signature" translate="no">track_play(sound_name, user_id, guild_id \\ nil)</h1>
 
 
     </div>
@@ -414,8 +416,8 @@ soundboard
 
       <div class="specs">
 
-          <pre translate="no"><span class="attribute">@spec</span> track_play(<a href="https://hexdocs.pm/elixir/String.html#t:t/0">String.t</a>(), <a href="https://hexdocs.pm/elixir/typespecs.html#basic-types">integer</a>() | nil) ::
-  {:ok, Soundboard.Stats.Play.t()} | {:error, <a href="https://hexdocs.pm/ecto/3.14.2/Ecto.Changeset.html#t:t/0">Ecto.Changeset.t</a>()}</pre>
+          <pre translate="no"><span class="attribute">@spec</span> track_play(<a href="https://hexdocs.pm/elixir/String.html#t:t/0">String.t</a>(), <a href="https://hexdocs.pm/elixir/typespecs.html#basic-types">integer</a>() | nil, <a href="https://hexdocs.pm/elixir/String.html#t:t/0">String.t</a>() | nil) ::
+  {:ok, <a href="Soundboard.Stats.Play.html#t:t/0">Soundboard.Stats.Play.t</a>()} | {:error, <a href="https://hexdocs.pm/ecto/3.14.2/Ecto.Changeset.html#t:t/0">Ecto.Changeset.t</a>()}</pre>
 
       </div>
 

@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="x-ua-compatible" content="ie=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="ExDoc v0.40.3">
+    <meta name="project" content="soundboard v1.7.0">
+
+
+    <title>SoundboardWeb.BillingController — soundboard v1.7.0</title>
+
+    <link rel="stylesheet" href="dist/html-elixir-NHQLCD6Y.css" />
+
+    <script defer src="dist/sidebar_items-D5B242B7.js"></script>
+    <script defer src="docs_config.js"></script>
+    <script defer src="dist/html-Y2MUTVIN.js"></script>
+
+  </head>
+  <body>
+    <script>(()=>{var t="ex_doc:settings",e="dark";var o="dark",s="light";var E="sidebar_state",n="closed";var r="sidebar_width";var a="sidebar-open";var i=new URLSearchParams(window.location.search),S=i.get("theme")||JSON.parse(localStorage.getItem(t)||"{}").theme;(S===o||S!==s&&window.matchMedia("(prefers-color-scheme: dark)").matches)&&document.body.classList.add(e);var d=sessionStorage.getItem(E),A=d!==n&&!window.matchMedia(`screen and (max-width: ${768}px)`).matches;document.body.classList.toggle(a,A);var c=sessionStorage.getItem(r);c&&document.body.style.setProperty("--sidebarWidth",`${c}px`);var p=/(Macintosh|iPhone|iPad|iPod)/.test(window.navigator.userAgent);document.documentElement.classList.toggle("apple-os",p);})();
+</script>
+
+<div class="body-wrapper">
+
+<button id="sidebar-menu" class="sidebar-button sidebar-toggle" aria-label="toggle sidebar" aria-controls="sidebar">
+  <i class="ri-menu-line ri-lg" title="Collapse/expand sidebar"></i>
+</button>
+
+<nav id="sidebar" class="sidebar">
+
+  <div class="sidebar-header">
+    <div class="sidebar-projectInfo">
+
+      <div>
+        <a href="api-reference.html" class="sidebar-projectName" translate="no">
+soundboard
+        </a>
+        <div class="sidebar-projectVersion" translate="no">
+          v1.7.0
+        </div>
+      </div>
+    </div>
+    <ul id="sidebar-list-nav" class="sidebar-list-nav" role="tablist" data-extras="Pages"></ul>
+  </div>
+</nav>
+
+<output role="status" id="toast"></output>
+
+<main class="content page-module" id="main" data-type="modules">
+  <div id="content" class="content-inner">
+    <div class="top-search">
+      <div class="search-settings">
+        <form class="search-bar" action="search.html">
+          <label class="search-label">
+            <span class="sr-only">Search documentation of soundboard</span>
+            <div class="search-input-wrapper">
+              <input name="q" type="text" class="search-input" placeholder="Press / to search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />
+              <button type="button" tabindex="-1" class="search-close-button" aria-hidden="true">
+                <i class="ri-close-line ri-lg" title="Cancel search"></i>
+              </button>
+            </div>
+          </label>
+        </form>
+        <div class="autocomplete">
+        </div>
+        <div class="engine-selector" data-multiple="false">
+          <button type="button" class="engine-button" aria-label="Select search engine" aria-haspopup="true" aria-expanded="false">
+            <i class="ri-search-2-line" aria-hidden="true"></i>
+            <span class="engine-name">Default</span>
+            <i class="ri-arrow-down-s-line" aria-hidden="true"></i>
+          </button>
+          <div class="engine-dropdown" hidden role="menu">
+
+              <button type="button"
+                      class="engine-option"
+                      data-engine-url="search.html?q="
+                      role="menuitemradio"
+                      aria-checked="true">
+                <span class="name">Default</span>
+                <span class="help">In-browser search</span>
+              </button>
+
+          </div>
+        </div>
+        <button class="icon-settings display-settings">
+          <i class="ri-settings-3-line"></i>
+          <span class="sr-only">Settings</span>
+        </button>
+      </div>
+    </div>
+
+<div id="top-content">
+  <div class="heading-with-actions top-heading">
+    <h1>
+      <span translate="no">SoundboardWeb.<wbr />BillingController</span> 
+      <small class="app-vsn" translate="no">(soundboard v1.7.0)</small>
+
+    </h1>
+
+<a href="SoundboardWeb.BillingController.md" title="Copy Markdown (hold Ctrl/Cmd and click it to open as Markdown)" class="copy-markdown icon-action" rel="help">
+  <i class="ri-markdown-line" aria-hidden="true"></i>
+  <span class="sr-only">Copy Markdown</span>
+</a>
+
+
+
+  </div>
+
+
+    <section id="moduledoc">
+<p>Stripe subscriptions: plan options, checkout, customer portal, and the
+public webhook receiver (signature-verified, no session auth).</p><p>Checkout/portal delegate to <a href="Soundboard.Billing.html"><code class="inline">Soundboard.Billing</code></a> so tests can stub at that
+seam instead of Stripe internals.</p>
+    </section>
+
+</div>
+
+  <section id="summary" class="details-list">
+    <h2 class="section-heading">
+      <a class="hover-link" href="#summary">
+        <i class="ri-link-m" aria-hidden="true"></i>
+      </a>
+      <span class="text">Summary</span>
+    </h2>
+<div class="summary-functions summary">
+  <h3>
+    <a href="#functions">Functions</a>
+  </h3>
+
+    <div class="summary-row">
+      <div class="summary-signature">
+        <a href="#cancel/2" data-no-tooltip="" translate="no">cancel(conn, params)</a>
+
+      </div>
+
+        <div class="summary-synopsis"><p>Cancels the session guild's subscription at period end.</p></div>
+
+    </div>
+
+    <div class="summary-row">
+      <div class="summary-signature">
+        <a href="#change/2" data-no-tooltip="" translate="no">change(conn, arg2)</a>
+
+      </div>
+
+        <div class="summary-synopsis"><p>Switches the session guild's subscription to another price (tier or interval).</p></div>
+
+    </div>
+
+    <div class="summary-row">
+      <div class="summary-signature">
+        <a href="#checkout/2" data-no-tooltip="" translate="no">checkout(conn, arg2)</a>
+
+      </div>
+
+        <div class="summary-synopsis"><p>Starts Stripe Checkout. The guild id comes from the session's pending
+billing guild (set when a switch to an unpaid guild was gated) or the
+session's current guild; <code class="inline">Billing</code> puts it into <code class="inline">client_reference_id</code> and
+metadata so the webhook can provision the right tenant.</p></div>
+
+    </div>
+
+    <div class="summary-row">
+      <div class="summary-signature">
+        <a href="#index/2" data-no-tooltip="" translate="no">index(conn, params)</a>
+
+      </div>
+
+    </div>
+
+    <div class="summary-row">
+      <div class="summary-signature">
+        <a href="#portal/2" data-no-tooltip="" translate="no">portal(conn, params)</a>
+
+      </div>
+
+        <div class="summary-synopsis"><p>Opens the Stripe customer portal for the session's guild.</p></div>
+
+    </div>
+
+    <div class="summary-row">
+      <div class="summary-signature">
+        <a href="#webhook/2" data-no-tooltip="" translate="no">webhook(conn, params)</a>
+
+      </div>
+
+        <div class="summary-synopsis"><p>Public Stripe webhook receiver. No session auth — the Stripe signature
+header is the credential. Bad signatures and malformed payloads get a 400;
+duplicates get a 200 so Stripe stops retrying.</p></div>
+
+    </div>
+
+</div>
+
+  </section>
+
+
+  <section id="functions" class="details-list">
+    <h2 class="section-heading">
+      <a class="hover-link" href="#functions">
+        <i class="ri-link-m" aria-hidden="true"></i>
+      </a>
+      <span class="text">Functions</span>
+    </h2>
+
+    <div class="functions-list">
+<section class="detail" id="cancel/2">
+
+  <div class="detail-header">
+    <a href="#cancel/2" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
+      <i class="ri-link-m" aria-hidden="true"></i>
+    </a>
+    <div class="heading-with-actions">
+      <h1 class="signature" translate="no">cancel(conn, params)</h1>
+
+
+    </div>
+  </div>
+
+  <section class="docstring">
+
+<p>Cancels the session guild's subscription at period end.</p>
+  </section>
+</section>
+<section class="detail" id="change/2">
+
+  <div class="detail-header">
+    <a href="#change/2" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
+      <i class="ri-link-m" aria-hidden="true"></i>
+    </a>
+    <div class="heading-with-actions">
+      <h1 class="signature" translate="no">change(conn, arg2)</h1>
+
+
+    </div>
+  </div>
+
+  <section class="docstring">
+
+<p>Switches the session guild's subscription to another price (tier or interval).</p>
+  </section>
+</section>
+<section class="detail" id="checkout/2">
+
+  <div class="detail-header">
+    <a href="#checkout/2" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
+      <i class="ri-link-m" aria-hidden="true"></i>
+    </a>
+    <div class="heading-with-actions">
+      <h1 class="signature" translate="no">checkout(conn, arg2)</h1>
+
+
+    </div>
+  </div>
+
+  <section class="docstring">
+
+<p>Starts Stripe Checkout. The guild id comes from the session's pending
+billing guild (set when a switch to an unpaid guild was gated) or the
+session's current guild; <code class="inline">Billing</code> puts it into <code class="inline">client_reference_id</code> and
+metadata so the webhook can provision the right tenant.</p>
+  </section>
+</section>
+<section class="detail" id="index/2">
+
+  <div class="detail-header">
+    <a href="#index/2" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
+      <i class="ri-link-m" aria-hidden="true"></i>
+    </a>
+    <div class="heading-with-actions">
+      <h1 class="signature" translate="no">index(conn, params)</h1>
+
+
+    </div>
+  </div>
+
+  <section class="docstring">
+
+
+  </section>
+</section>
+<section class="detail" id="portal/2">
+
+  <div class="detail-header">
+    <a href="#portal/2" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
+      <i class="ri-link-m" aria-hidden="true"></i>
+    </a>
+    <div class="heading-with-actions">
+      <h1 class="signature" translate="no">portal(conn, params)</h1>
+
+
+    </div>
+  </div>
+
+  <section class="docstring">
+
+<p>Opens the Stripe customer portal for the session's guild.</p>
+  </section>
+</section>
+<section class="detail" id="webhook/2">
+
+  <div class="detail-header">
+    <a href="#webhook/2" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
+      <i class="ri-link-m" aria-hidden="true"></i>
+    </a>
+    <div class="heading-with-actions">
+      <h1 class="signature" translate="no">webhook(conn, params)</h1>
+
+
+    </div>
+  </div>
+
+  <section class="docstring">
+
+<p>Public Stripe webhook receiver. No session auth — the Stripe signature
+header is the credential. Bad signatures and malformed payloads get a 400;
+duplicates get a 200 so Stripe stops retrying.</p>
+  </section>
+</section>
+
+    </div>
+  </section>
+
+    <footer class="footer">
+
+        <p>
+
+          <span class="line">
+            <button class="a-main footer-button display-quick-switch" title="Go to package docs">
+              Go to package docs
+            </button>
+
+              <a href="llms.txt" target="_blank">
+                View llms.txt
+              </a>
+
+
+              <a href="soundboard.epub">
+                Download ePub version
+              </a>
+
+          </span>
+        </p>
+
+        <p class="built-using">
+          Built using
+          <a href="https://github.com/elixir-lang/ex_doc" title="ExDoc" target="_blank" rel="help noopener" translate="no">ExDoc</a> (v0.40.3) for the
+
+            <a href="https://elixir-lang.org" title="Elixir" target="_blank" translate="no">Elixir programming language</a>
+
+        </p>
+
+
+    </footer>
+  </div>
+</main>
+</div>
+
+  </body>
+</html>

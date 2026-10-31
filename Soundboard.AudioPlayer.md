@@ -1,18 +1,27 @@
 # `Soundboard.AudioPlayer`
 
-Handles audio playback coordination.
+Facade over the per-guild audio player servers.
 
-# `child_spec`
-
-Returns a specification to start this module under a supervisor.
-
-See `Supervisor`.
+One `Soundboard.AudioPlayer.Server` process exists per guild. All functions
+route by `guild_id`; when omitted, the default guild is used so existing
+single-guild deployments behave exactly as before.
 
 # `current_voice_channel`
 
+# `ensure_started`
+
+```elixir
+@spec ensure_started(String.t()) :: pid()
+```
+
+Starts the player for `guild_id` if not already running. Returns its pid.
+
 # `invalidate_cache`
 
-Removes any cached metadata for the given `sound_name` so future plays use fresh data.
+# `invalidate_cache`
+
+Removes any cached metadata for `filename` in `guild_id` so future plays use
+fresh data. The 1-arity form targets the default guild (back-compat).
 
 # `last_user_left`
 
@@ -20,9 +29,15 @@ Removes any cached metadata for the given `sound_name` so future plays use fresh
 
 # `playback_finished`
 
-# `set_voice_channel`
+# `server_pid`
 
-# `start_link`
+```elixir
+@spec server_pid(String.t()) :: pid() | nil
+```
+
+Pid of the player server for `guild_id`, if running.
+
+# `set_voice_channel`
 
 # `stop_sound`
 

@@ -2,6 +2,10 @@
 
 # `api`
 
+# `app_access`
+
+# `assign_controller_defaults`
+
 # `auth`
 
 # `auth_browser`
@@ -23,9 +27,15 @@ Callback invoked by Plug on every request.
 Callback required by Plug that initializes the router
 for serving web requests.
 
+# `remember_pending_slug`
+
 # `require_browser_basic_auth`
 
 # `require_role_check`
+
+# `require_stripe`
+
+# `stripe_webhook`
 
 # `verified_route?`
 

@@ -7,8 +7,10 @@ Sound schema.
 ```elixir
 @type t() :: %Soundboard.Sound{
   __meta__: term(),
+  byte_size: term(),
   description: term(),
   filename: term(),
+  guild_id: term(),
   id: term(),
   inserted_at: term(),
   source_type: term(),

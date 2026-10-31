@@ -2,6 +2,10 @@
 
 # `create`
 
+# `favorites`
+
+# `file`
+
 # `index`
 
 # `play`
