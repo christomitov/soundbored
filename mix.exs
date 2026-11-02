@@ -96,7 +96,7 @@ defmodule Soundboard.MixProject do
     [
       {:vibe_kit, "== 0.1.7"},
       {:phoenix, "~> 1.8.0"},
-      {:phoenix_ecto, "~> 4.6.5"},
+      {:phoenix_ecto, "~> 4.7.0"},
       {:ecto_sql, "~> 3.10"},
       {:phoenix_html, "~> 4.1"},
       {:phoenix_live_reload, "~> 1.6", only: :dev},
