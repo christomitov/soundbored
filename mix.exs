@@ -113,6 +113,7 @@ defmodule Soundboard.MixProject do
       {:jason, "~> 1.2"},
       {:bandit, "~> 1.8"},
       {:eda, "~> 0.2.0"},
+      {:httpoison, "~> 3.0", override: true},
       {:rustler, "~> 0.35", runtime: false},
       {:ecto_sqlite3, "~> 0.22"},
       {:ueberauth, "~> 0.10.5"},

@@ -251,7 +251,15 @@ defmodule SoundboardWeb.BillingWebTest do
       with_mock Stripe.Subscription,
         update: fn id, params, _ ->
           send(self(), {:sub_update, id, params})
-          {:ok, %Stripe.Subscription{id: id, current_period_end: DateTime.to_unix(period_end)}}
+
+          {:ok,
+           %Stripe.Subscription{
+             id: id,
+             cancel_at: nil,
+             items: %Stripe.List{
+               data: [%Stripe.SubscriptionItem{current_period_end: DateTime.to_unix(period_end)}]
+             }
+           }}
         end do
         conn = conn |> sign_in(owner, %{guild_id: @guild}) |> post("/billing/cancel")
 

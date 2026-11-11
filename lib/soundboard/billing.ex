@@ -422,8 +422,7 @@ defmodule Soundboard.Billing do
            Stripe.Subscription.update(subscription_id, %{cancel_at_period_end: true},
              api_key: cfg(:secret_key)
            ) do
-      {:ok,
-       %{cancel_at: field(subscription, :cancel_at) || field(subscription, :current_period_end)}}
+      {:ok, %{cancel_at: field(subscription, :cancel_at) || period_end(subscription)}}
     else
       {:configured, false} -> {:error, :not_configured}
       {:error, reason} -> {:error, reason}
@@ -445,6 +444,12 @@ defmodule Soundboard.Billing do
             list_subscription(%{status: :active, limit: 100}, guild_id)
         end
     end
+  end
+
+  defp period_end(subscription) do
+    subscription
+    |> subscription_items()
+    |> Enum.find_value(&field(&1, :current_period_end))
   end
 
   defp subscription_items(sub) do
