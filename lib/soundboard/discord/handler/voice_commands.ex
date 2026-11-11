@@ -103,6 +103,8 @@ defmodule Soundboard.Discord.Handler.VoiceCommands do
   rescue
     error in @boundary_exceptions ->
       {:error, Exception.message(error)}
+  catch
+    :exit, reason -> {:error, inspect(reason)}
   end
 
   defp rate_limited?(error_msg) do

@@ -197,6 +197,8 @@ defmodule Soundboard.Discord.HandlerTest do
         {"user is not in voice", "!join", not_in_voice, true, [],
          "You need to be in a voice channel!"},
         {"bot is not ready", "!join", in_voice, false, [], join_failed},
+        {"Discord does not answer", "!join", in_voice, true, [exit_on: [:join]], join_failed},
+        {"Discord does not answer", "!leave", in_voice, true, [exit_on: [:leave]], leave_failed},
         {"bot is not ready", "!leave", in_voice, false, [], leave_failed}
       ]
 

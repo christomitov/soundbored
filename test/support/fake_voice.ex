@@ -93,6 +93,7 @@ defmodule Soundboard.FakeVoice do
 
   def leave(guild_id) do
     notify(guild_id, :leave)
+    maybe_exit(guild_id, :leave)
     update(guild_id, &%{&1 | channel: nil, ready: false, playing: false})
     :ok
   end
