@@ -50,7 +50,6 @@ defmodule SoundboardWeb.SoundboardLive do
     |> assign(:uploaded_files, [])
     |> assign(:loading_sounds, true)
     |> assign(:search_query, "")
-    |> assign(:editing, nil)
     |> assign(:selected_tags, [])
     |> assign(:show_all_tags, false)
     |> UploadFlow.assign_defaults()
@@ -60,16 +59,9 @@ defmodule SoundboardWeb.SoundboardLive do
       max_entries: 1,
       max_file_size: Application.get_env(:soundboard, :max_upload_bytes, 10_000_000),
       auto_upload: false,
-      progress: &handle_progress/3,
-      accept_errors: [
-        too_large: "File is too large (max #{max_upload_mb()}MB)",
-        not_accepted: "Invalid file type. Please upload an MP3, WAV, OGG, or M4A file."
-      ]
+      progress: &handle_progress/3
     )
   end
-
-  @impl true
-  def handle_event("validate", _params, socket), do: {:noreply, socket}
 
   @impl true
   def handle_event("change_source_type", %{"source_type" => source_type}, socket) do
@@ -133,7 +125,7 @@ defmodule SoundboardWeb.SoundboardLive do
 
   @impl true
   def handle_event("save_upload", params, socket) do
-    UploadFlow.save(socket, params, &Phoenix.LiveView.consume_uploaded_entries/3)
+    UploadFlow.save(socket, params)
   end
 
   @impl true
@@ -152,11 +144,6 @@ defmodule SoundboardWeb.SoundboardLive do
   end
 
   @impl true
-  def handle_event("hide_upload_modal", _params, socket) do
-    UploadFlow.hide_modal(socket)
-  end
-
-  @impl true
   def handle_event("add_upload_tag", %{"key" => key, "value" => value}, socket) do
     UploadFlow.add_tag(socket, key, value)
   end
@@ -164,11 +151,6 @@ defmodule SoundboardWeb.SoundboardLive do
   @impl true
   def handle_event("remove_upload_tag", %{"tag" => tag_name}, socket) do
     UploadFlow.remove_tag(socket, tag_name)
-  end
-
-  @impl true
-  def handle_event("select_upload_tag_suggestion", %{"tag" => tag_name}, socket) do
-    UploadFlow.select_tag_suggestion(socket, tag_name)
   end
 
   @impl true
@@ -184,11 +166,6 @@ defmodule SoundboardWeb.SoundboardLive do
   @impl true
   def handle_event("remove_tag", %{"tag" => tag_name}, socket) do
     EditFlow.remove_tag(socket, tag_name)
-  end
-
-  @impl true
-  def handle_event("select_tag_suggestion", %{"tag" => tag_name}, socket) do
-    EditFlow.select_tag_suggestion(socket, tag_name)
   end
 
   @impl true
@@ -221,14 +198,7 @@ defmodule SoundboardWeb.SoundboardLive do
 
   @impl true
   def handle_event("close_modal_key", %{"key" => "Escape"}, socket) do
-    edit_open = socket.assigns[:edit_state] && socket.assigns.edit_state.show_modal
-    upload_open = socket.assigns[:upload_state] && socket.assigns.upload_state.show_upload_modal
-
-    if edit_open || upload_open do
-      handle_event("close_modal", %{}, socket)
-    else
-      {:noreply, socket}
-    end
+    handle_event("close_modal", %{}, socket)
   end
 
   @impl true
@@ -243,7 +213,7 @@ defmodule SoundboardWeb.SoundboardLive do
         {:noreply, put_flash(socket, :error, "You must be logged in to favorite sounds")}
 
       user ->
-        case Favorites.toggle_favorite(user.id, sound_id) do
+        case Favorites.toggle_favorite(user.id, sound_id, socket.assigns.guild_id) do
           {:ok, _favorite} ->
             {:noreply,
              socket
@@ -290,9 +260,6 @@ defmodule SoundboardWeb.SoundboardLive do
   def handle_event("update_volume", %{"volume" => volume, "target" => "upload"}, socket) do
     UploadFlow.update_volume(socket, volume)
   end
-
-  @impl true
-  def handle_event("update_volume", _params, socket), do: {:noreply, socket}
 
   @impl true
   def handle_event("play_random", _params, socket) do
@@ -356,7 +323,7 @@ defmodule SoundboardWeb.SoundboardLive do
   defp assign_favorites(socket, nil), do: assign(socket, :favorites, [])
 
   defp assign_favorites(socket, user) do
-    favorites = Favorites.list_favorites(user.id)
+    favorites = Favorites.list_favorites(user.id, socket.assigns.guild_id)
     assign(socket, :favorites, favorites)
   end
 
@@ -372,9 +339,5 @@ defmodule SoundboardWeb.SoundboardLive do
 
   defp handle_progress(:audio, _entry, socket) do
     {:noreply, socket}
-  end
-
-  defp max_upload_mb do
-    div(Application.get_env(:soundboard, :max_upload_bytes, 10_000_000), 1_000_000)
   end
 end

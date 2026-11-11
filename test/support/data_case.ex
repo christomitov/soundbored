@@ -16,8 +16,7 @@ defmodule Soundboard.DataCase do
   end
 
   setup tags do
-    pid = Sandbox.start_owner!(Soundboard.Repo, shared: not tags[:async])
-    on_exit(fn -> Sandbox.stop_owner(pid) end)
+    setup_sandbox(tags)
     :ok
   end
 

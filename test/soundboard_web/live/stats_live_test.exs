@@ -1,147 +1,196 @@
 defmodule SoundboardWeb.StatsLiveTest do
-  @moduledoc """
-  Test for the StatsLive component.
-  """
   use SoundboardWeb.ConnCase, async: false
-  import Phoenix.LiveViewTest
-  alias Soundboard.Accounts.User
-  alias Soundboard.{Favorites, Repo, Sound, Stats}
-  alias Soundboard.Stats.Play
-  alias SoundboardWeb.SoundHelpers
+
   import Mock
 
+  alias Soundboard.{Accounts.User, Favorites, PubSubTopics, Repo, Sound, Stats}
+
   setup %{conn: conn} do
-    Repo.delete_all(Play)
-    Repo.delete_all(Sound)
-    Repo.delete_all(User)
-
-    {:ok, user} =
-      %User{}
-      |> User.changeset(%{
-        username: "testuser",
-        discord_id: "123",
-        avatar: "test.jpg"
-      })
-      |> Repo.insert()
-
-    {:ok, sound} =
-      %Sound{}
-      |> Sound.changeset(%{
-        filename: "test_sound_#{System.unique_integer()}.mp3",
-        user_id: user.id,
-        source_type: "local"
-      })
-      |> Repo.insert()
-
+    user = Repo.insert!(%User{username: "testuser", discord_id: "123", avatar: "test.jpg"})
+    sound = insert_sound!(user, "stats_sound.mp3")
     {:ok, _play} = Stats.track_play(sound.filename, user.id)
-    Favorites.toggle_favorite(user.id, sound.id)
+    {:ok, _favorite} = Favorites.toggle_favorite(user.id, sound.id)
 
-    authed_conn =
-      conn
-      |> Map.replace!(:secret_key_base, SoundboardWeb.Endpoint.config(:secret_key_base))
-      |> init_test_session(%{user_id: user.id})
-
-    {:ok, conn: authed_conn, user: user, sound: sound}
+    {:ok, conn: init_test_session(conn, %{user_id: user.id}), user: user, sound: sound}
   end
 
-  test "mounts successfully with user session", %{conn: conn, user: user, sound: sound} do
-    {:ok, _view, html} = live(conn, "/stats")
-    assert html =~ "Stats"
-    assert html =~ "Top Users"
-    assert html =~ user.username
-    assert html =~ SoundHelpers.display_name(sound.filename)
+  defp insert_sound!(user, filename, attrs \\ %{}) do
+    %Sound{}
+    |> Sound.changeset(
+      Map.merge(%{filename: filename, source_type: "local", user_id: user.id}, attrs)
+    )
+    |> Repo.insert!()
   end
 
-  test "handles sound_played message", %{conn: conn, sound: sound} do
+  defp top_sound(filename), do: "[id='play-top-#{filename}']"
+
+  defp week_label({start_date, end_date}),
+    do: "#{Calendar.strftime(start_date, "%b %d")} - #{Calendar.strftime(end_date, "%b %d, %Y")}"
+
+  defp week_of(date) do
+    start_date = Date.add(date, 1 - Date.day_of_week(date, :monday))
+    {start_date, Date.add(start_date, 6)}
+  end
+
+  test "shows this week's top sounds and users, with avatars, and recent uploads", %{
+    conn: conn,
+    user: user,
+    sound: sound
+  } do
+    offline = Repo.insert!(%User{username: "offline", discord_id: "456", avatar: "off.jpg"})
+    {:ok, _play} = Stats.track_play(sound.filename, offline.id)
+    {:ok, _play} = Stats.track_play(sound.filename, user.id)
+
     {:ok, view, _html} = live(conn, "/stats")
 
-    send(view.pid, {:sound_played, %{filename: sound.filename, played_by: "testuser"}})
-    assert render(view) =~ "testuser played #{SoundHelpers.display_name(sound.filename)}"
+    assert has_element?(view, top_sound("stats_sound.mp3"), "3 plays")
+    assert has_element?(view, "#user-stat-testuser", "2 plays")
+    assert has_element?(view, "#user-stat-offline", "1 plays")
+    assert has_element?(view, "#user-stat-offline img[src='off.jpg']")
+    assert has_element?(view, "[id='play-upload-stats_sound.mp3']")
   end
 
-  test "handles stats_updated message", %{conn: conn, sound: sound} do
+  test "a guild with no plays or uploads shows empty lists", %{conn: conn, sound: sound} do
+    Repo.delete!(sound)
+    Repo.delete_all(Soundboard.Stats.Play)
+
     {:ok, view, _html} = live(conn, "/stats")
 
-    send(view.pid, {:stats_updated})
-    assert render(view) =~ SoundHelpers.display_name(sound.filename)
+    refute has_element?(view, "[id^='play-top-']")
+    refute has_element?(view, "[id^='user-stat-']")
+    refute has_element?(view, "[id^='play-upload-']")
   end
 
-  test "renders renamed sounds from historical plays", %{conn: conn, sound: sound} do
-    renamed = "renamed_#{System.unique_integer([:positive])}.mp3"
+  test "plays keep the name the sound had when it was played", %{conn: conn, sound: sound} do
+    sound |> Sound.changeset(%{filename: "renamed.mp3"}) |> Repo.update!()
 
-    sound
-    |> Sound.changeset(%{filename: renamed})
-    |> Repo.update!()
-
-    {:ok, _view, html} = live(conn, "/stats")
-
-    assert html =~ SoundHelpers.display_name(renamed)
-  end
-
-  test "handles error message", %{conn: conn} do
     {:ok, view, _html} = live(conn, "/stats")
 
-    send(view.pid, {:error, "Test error"})
+    assert has_element?(view, top_sound("stats_sound.mp3"), "1 plays")
+    assert has_element?(view, "#recent_plays", "stats_sound")
+    refute has_element?(view, "#recent_plays", "renamed")
+    assert has_element?(view, "[id='play-upload-renamed.mp3']")
+  end
+
+  test "a new play elsewhere updates the leaderboard and shows who played it", %{
+    conn: conn,
+    user: user
+  } do
+    {:ok, view, _html} = live(conn, "/stats")
+    insert_sound!(user, "fresh.mp3")
+
+    {:ok, _play} = Stats.track_play("fresh.mp3", user.id)
+    PubSubTopics.broadcast_sound_played("fresh.mp3", "pal")
+
+    assert has_element?(view, top_sound("fresh.mp3"), "1 plays")
+    assert has_element?(view, "#recent_plays", "fresh")
+    assert render(view) =~ "pal played fresh"
+  end
+
+  test "a playback error is shown", %{conn: conn} do
+    {:ok, view, _html} = live(conn, "/stats")
+
+    PubSubTopics.broadcast_error("Test error")
+
     assert render(view) =~ "Test error"
   end
 
-  test "handles presence_diff broadcast", %{conn: conn} do
+  test "clicking a top sound plays it", %{conn: conn, user: user} do
     {:ok, view, _html} = live(conn, "/stats")
 
-    send(view.pid, %Phoenix.Socket.Broadcast{
-      event: "presence_diff",
-      payload: %{joins: %{}, leaves: %{}}
-    })
-
-    assert render(view) =~ "Top Users"
-  end
-
-  test "handles play_sound event", %{conn: conn, user: user, sound: sound} do
-    {:ok, view, _html} = live_as_user(conn, user)
-
     with_mock Soundboard.AudioPlayer, play_sound: fn _, _, _ -> :ok end do
-      html = render_click(view, "play_sound", %{"sound" => sound.filename})
-      assert html =~ SoundHelpers.display_name(sound.filename)
+      view |> element(top_sound("stats_sound.mp3")) |> render_click()
+
+      assert_called(Soundboard.AudioPlayer.play_sound("stats_sound.mp3", user, "default"))
     end
   end
 
-  test "handles toggle_favorite event", %{conn: conn, user: user, sound: sound} do
-    {:ok, view, _html} = live_as_user(conn, user)
-
-    html = render_click(view, "toggle_favorite", %{"sound" => sound.filename})
-    assert html =~ SoundHelpers.display_name(sound.filename)
-  end
-
-  test "handles week navigation", %{conn: conn} do
+  test "the heart toggles the favorite", %{conn: conn, user: user, sound: sound} do
     {:ok, view, _html} = live(conn, "/stats")
 
-    html = render_click(view, "previous_week")
-    assert html =~ "Stats"
+    assert view |> element("[id='favorite-stats_sound.mp3']") |> render_click() =~
+             "Favorites updated!"
 
-    html = render_click(view, "next_week")
-    assert html =~ "Stats"
+    assert Favorites.list_favorites(user.id) == []
+
+    view |> element("[id='favorite-stats_sound.mp3']") |> render_click()
+    assert Favorites.list_favorites(user.id) == [sound.id]
   end
 
-  test "handles week picker input", %{conn: conn} do
-    {:ok, view, _html} = live(conn, "/stats")
+  describe "weeks" do
+    test "the arrows move between weeks, never past this one", %{conn: conn} do
+      this_week = week_of(Date.utc_today())
+      last_week = week_of(Date.add(Date.utc_today(), -7))
+      {:ok, view, _html} = live(conn, "/stats")
 
-    target_date = Date.add(Date.utc_today(), -7)
-    days_since_monday = Date.day_of_week(target_date, :monday) - 1
-    start_date = Date.add(target_date, -days_since_monday)
-    week_value = Date.to_iso8601(target_date)
+      assert render_click(view, "next_week") =~ week_label(this_week)
 
-    view
-    |> element("form[phx-change=\"select_week\"]")
-    |> render_change(%{"week" => week_value})
+      view |> element("[phx-click='previous_week']") |> render_click()
+      assert render(view) =~ week_label(last_week)
+      refute has_element?(view, top_sound("stats_sound.mp3"))
 
-    html = render(view)
-    assert html =~ Calendar.strftime(start_date, "%b %d")
+      view |> element("[phx-click='next_week']") |> render_click()
+      assert render(view) =~ week_label(this_week)
+      assert has_element?(view, top_sound("stats_sound.mp3"))
+    end
+
+    test "the week picker moves to the picked week", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/stats")
+      target = Date.add(Date.utc_today(), -7)
+
+      view
+      |> element("form[phx-change='select_week']")
+      |> render_change(%{"week" => Date.to_iso8601(target)})
+
+      assert render(view) =~ week_label(week_of(target))
+      refute has_element?(view, top_sound("stats_sound.mp3"))
+    end
+
+    test "the week picker ignores future, empty and malformed dates", %{conn: conn} do
+      this_week = week_of(Date.utc_today())
+      future = Date.to_iso8601(Date.add(Date.utc_today(), 14))
+      {:ok, view, _html} = live(conn, "/stats")
+
+      for week <- [future, "", "not-a-date"] do
+        html =
+          view |> element("form[phx-change='select_week']") |> render_change(%{"week" => week})
+
+        assert html =~ week_label(this_week)
+        assert has_element?(view, top_sound("stats_sound.mp3"))
+      end
+    end
+
+    test "the hourly week rollover check keeps the page running", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/stats")
+
+      send(view.pid, :check_week_rollover)
+
+      assert has_element?(view, top_sound("stats_sound.mp3"), "1 plays")
+    end
   end
 
-  defp live_as_user(conn, user) do
-    conn
-    |> Plug.Test.init_test_session(%{})
-    |> put_session(:user_id, user.id)
-    |> live("/stats")
+  test "plays and uploads from another guild never show, and favorites resolve here", %{
+    conn: conn,
+    user: user,
+    sound: sound
+  } do
+    outsider =
+      Repo.insert!(%User{username: "outsider", discord_id: "outsider-1", avatar: "o.jpg"})
+
+    elsewhere = insert_sound!(outsider, "elsewhere.mp3", %{guild_id: "other-guild"})
+    twin = insert_sound!(outsider, sound.filename, %{guild_id: "other-guild"})
+    {:ok, _play} = Stats.track_play(elsewhere.filename, outsider.id, "other-guild")
+    {:ok, _play} = Stats.track_play(twin.filename, outsider.id, "other-guild")
+
+    {:ok, view, html} = live(conn, "/stats")
+
+    refute html =~ "elsewhere"
+    refute html =~ "outsider"
+    assert has_element?(view, top_sound("stats_sound.mp3"), "1 plays")
+
+    view |> element("[id='favorite-stats_sound.mp3']") |> render_click()
+
+    assert Favorites.list_favorites(user.id) == []
+    refute Repo.get_by(Soundboard.Favorites.Favorite, sound_id: twin.id)
   end
 end

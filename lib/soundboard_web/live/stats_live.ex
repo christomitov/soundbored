@@ -29,7 +29,6 @@ defmodule SoundboardWeb.StatsLive do
      |> mount_presence(session)
      |> assign(:current_path, "/stats")
      |> assign(:current_user, get_user_from_session(session))
-     |> assign(:force_update, 0)
      |> assign(:selected_week, current_week)
      |> assign(:current_week, current_week)
      |> stream_configure(:recent_plays, dom_id: &recent_play_dom_id/1)
@@ -39,7 +38,7 @@ defmodule SoundboardWeb.StatsLive do
 
   @impl true
   def handle_info({:sound_played, %{filename: filename, played_by: username}}, socket) do
-    recent_plays = recent_plays()
+    recent_plays = recent_plays(socket.assigns.guild_id)
 
     {:noreply,
      socket
@@ -62,28 +61,38 @@ defmodule SoundboardWeb.StatsLive do
   end
 
   @impl true
+  def handle_info(:check_week_rollover, socket) do
+    {:noreply, roll_week(socket, get_week_range())}
+  end
+
+  @impl true
   def handle_info(:clear_flash, socket) do
     {:noreply, clear_flash(socket)}
   end
 
   defp assign_stats(socket) do
     {start_date, end_date} = socket.assigns.selected_week
-    top_users = Stats.get_top_users(start_date, end_date, limit: @recent_limit)
-    top_sounds = Stats.get_top_sounds(start_date, end_date, limit: @recent_limit)
+    guild_id = socket.assigns.guild_id
 
-    recent_plays = recent_plays()
+    top_users =
+      Stats.get_top_users(start_date, end_date, limit: @recent_limit, guild_id: guild_id)
+
+    top_sounds =
+      Stats.get_top_sounds(start_date, end_date, limit: @recent_limit, guild_id: guild_id)
+
+    recent_plays = recent_plays(guild_id)
 
     recent_uploads =
-      Sounds.get_recent_uploads(limit: @recent_limit, guild_id: socket.assigns[:guild_id])
+      Sounds.get_recent_uploads(limit: @recent_limit, guild_id: guild_id)
 
-    favorites = get_favorites(socket.assigns.current_user)
+    favorites = get_favorites(socket.assigns.current_user, guild_id)
 
     sound_ids_by_filename =
       load_sound_ids_by_filename(
         top_sounds,
         recent_plays,
         recent_uploads,
-        socket.assigns[:guild_id]
+        guild_id
       )
 
     avatars_by_username = load_avatars_by_username(top_users, recent_plays, recent_uploads)
@@ -98,8 +107,22 @@ defmodule SoundboardWeb.StatsLive do
     |> assign(:avatars_by_username, avatars_by_username)
   end
 
-  defp get_favorites(nil), do: []
-  defp get_favorites(user), do: Favorites.list_favorites(user.id)
+  defp roll_week(%{assigns: %{current_week: week}} = socket, week), do: socket
+
+  defp roll_week(%{assigns: %{current_week: old_week}} = socket, new_week) do
+    selected_week =
+      if socket.assigns.selected_week == old_week,
+        do: new_week,
+        else: socket.assigns.selected_week
+
+    socket
+    |> assign(:current_week, new_week)
+    |> assign(:selected_week, selected_week)
+    |> assign_stats()
+  end
+
+  defp get_favorites(nil, _guild_id), do: []
+  defp get_favorites(user, guild_id), do: Favorites.list_favorites(user.id, guild_id)
 
   defp format_timestamp(timestamp) do
     timestamp
@@ -144,17 +167,17 @@ defmodule SoundboardWeb.StatsLive do
   end
 
   defp handle_favorite_toggle(socket, user, sound_name) do
-    case Sounds.fetch_sound_id(sound_name) do
+    case Sounds.fetch_sound_id(sound_name, socket.assigns.guild_id) do
       {:ok, sound_id} -> update_favorite(socket, user, sound_id)
       :error -> {:noreply, put_flash(socket, :error, "Sound not found")}
     end
   end
 
   defp update_favorite(socket, user, sound_id) do
-    case Favorites.toggle_favorite(user.id, sound_id) do
+    case Favorites.toggle_favorite(user.id, sound_id, socket.assigns.guild_id) do
       {:ok, _favorite} ->
-        updated_favorites = Favorites.list_favorites(user.id)
-        recent_plays = recent_plays()
+        updated_favorites = Favorites.list_favorites(user.id, socket.assigns.guild_id)
+        recent_plays = recent_plays(socket.assigns.guild_id)
 
         {:noreply,
          socket
@@ -167,8 +190,8 @@ defmodule SoundboardWeb.StatsLive do
     end
   end
 
-  defp recent_plays do
-    Enum.map(Stats.get_recent_plays(limit: @recent_limit), &map_recent_play/1)
+  defp recent_plays(guild_id) do
+    Enum.map(Stats.get_recent_plays(limit: @recent_limit, guild_id: guild_id), &map_recent_play/1)
   end
 
   defp map_recent_play({id, filename, username, timestamp}) do
@@ -181,37 +204,21 @@ defmodule SoundboardWeb.StatsLive do
   end
 
   defp load_sound_ids_by_filename(top_sounds, recent_plays, recent_uploads, guild_id) do
-    filenames =
-      top_sounds
-      |> Enum.map(fn {filename, _count} -> filename end)
-      |> Kernel.++(Enum.map(recent_plays, & &1.filename))
-      |> Kernel.++(Enum.map(recent_uploads, fn {filename, _username, _timestamp} -> filename end))
-      |> Enum.uniq()
-
-    case filenames do
-      [] ->
-        %{}
-
-      _ ->
-        Sounds.ids_by_filename(filenames, guild_id)
-    end
+    top_sounds
+    |> Enum.map(fn {filename, _count} -> filename end)
+    |> Kernel.++(Enum.map(recent_plays, & &1.filename))
+    |> Kernel.++(Enum.map(recent_uploads, fn {filename, _username, _timestamp} -> filename end))
+    |> Enum.uniq()
+    |> Sounds.ids_by_filename(guild_id)
   end
 
   defp load_avatars_by_username(top_users, recent_plays, recent_uploads) do
-    usernames =
-      top_users
-      |> Enum.map(fn {username, _count} -> username end)
-      |> Kernel.++(Enum.map(recent_plays, & &1.username))
-      |> Kernel.++(Enum.map(recent_uploads, fn {_filename, username, _timestamp} -> username end))
-      |> Enum.uniq()
-
-    case usernames do
-      [] ->
-        %{}
-
-      _ ->
-        Accounts.avatars_by_usernames(usernames)
-    end
+    top_users
+    |> Enum.map(fn {username, _count} -> username end)
+    |> Kernel.++(Enum.map(recent_plays, & &1.username))
+    |> Kernel.++(Enum.map(recent_uploads, fn {_filename, username, _timestamp} -> username end))
+    |> Enum.uniq()
+    |> Accounts.avatars_by_usernames()
   end
 
   defp recent_play_dom_id(play) do

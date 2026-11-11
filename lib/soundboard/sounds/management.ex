@@ -8,13 +8,22 @@ defmodule Soundboard.Sounds.Management do
   sound ownership.
   """
 
-  alias Soundboard.{AudioPlayer, Repo, Sound, UploadsPath, Volume}
+  alias Soundboard.{AudioPlayer, PubSubTopics, Repo, Sound, UploadsPath, Volume}
   require Logger
 
   def update_sound(%Sound{} = sound, user_id, params) do
+    with {:ok, db_sound} <- fetch(sound),
+         {:ok, name} <- new_name(db_sound, params["filename"]),
+         {:ok, updated_sound} <-
+           update_in_transaction(db_sound, user_id, Map.put(params, "filename", name)) do
+      PubSubTopics.broadcast_files_updated()
+      {:ok, updated_sound}
+    end
+  end
+
+  defp update_in_transaction(db_sound, user_id, params) do
     Repo.transaction(fn ->
-      db_sound =
-        Repo.preload(Repo.get!(Sound, sound.id), :user_sound_settings)
+      db_sound = Repo.preload(db_sound, :user_sound_settings)
 
       new_filename = params["filename"] <> Path.extname(db_sound.filename)
 
@@ -41,16 +50,37 @@ defmodule Soundboard.Sounds.Management do
   end
 
   def delete_sound(%Sound{} = sound, user_id) do
-    db_sound = Repo.get!(Sound, sound.id)
-
-    with true <- db_sound.user_id == user_id,
+    with {:ok, db_sound} <- fetch(sound),
+         true <- db_sound.user_id == user_id,
          {:ok, _deleted_sound} <- Repo.delete(db_sound) do
       AudioPlayer.invalidate_cache(db_sound.guild_id, db_sound.filename)
       maybe_remove_local_file(db_sound)
+      PubSubTopics.broadcast_files_updated()
       :ok
     else
       false -> {:error, :forbidden}
-      {:error, changeset} -> {:error, changeset}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp new_name(db_sound, name) when is_binary(name) do
+    case String.trim(name) do
+      "" -> blank_name(db_sound)
+      trimmed -> {:ok, trimmed}
+    end
+  end
+
+  defp new_name(db_sound, _name), do: blank_name(db_sound)
+
+  defp blank_name(db_sound),
+    do:
+      {:error,
+       Ecto.Changeset.add_error(Ecto.Changeset.change(db_sound), :filename, "can't be blank")}
+
+  defp fetch(%Sound{id: id}) do
+    case Repo.get(Sound, id) do
+      nil -> {:error, :not_found}
+      db_sound -> {:ok, db_sound}
     end
   end
 

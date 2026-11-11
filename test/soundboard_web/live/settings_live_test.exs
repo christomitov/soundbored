@@ -49,15 +49,33 @@ defmodule SoundboardWeb.SettingsLiveTest do
     assert html =~ "Token values are shown"
   end
 
-  test "shows upload API documentation", %{conn: conn} do
-    {:ok, _view, html} = live(conn, "/settings")
+  test "the API examples use the address the page was opened on", %{conn: conn} do
+    {:ok, view, _html} = live(%{conn | host: "sounds.example.org"}, "/settings")
 
-    assert html =~ "POST /api/sounds"
-    assert html =~ "Upload local file (multipart/form-data)"
-    assert html =~ "Upload from URL (JSON)"
-    assert html =~ "tags[]"
-    assert html =~ "is_join_sound"
-    assert html =~ "is_leave_sound"
+    assert render(view) =~ "http://sounds.example.org/api/sounds"
+  end
+
+  test "a token without a label shows its value once", %{conn: conn, user: user} do
+    {:ok, view, _html} = live(conn, "/settings")
+
+    view |> element("form[phx-submit='create_token']") |> render_submit(%{"label" => "  "})
+
+    [raw] =
+      view
+      |> render()
+      |> LazyHTML.from_fragment()
+      |> LazyHTML.query("#copy-new-token")
+      |> LazyHTML.attribute("data-copy-text")
+
+    assert {:ok, %{id: user_id}, _token} = ApiTokens.verify_token(raw)
+    assert user_id == user.id
+    assert has_element?(view, "td", "(no label)")
+    assert render(view) =~ "Bearer #{raw}"
+
+    {:ok, reloaded, _html} = live(conn, "/settings")
+
+    refute has_element?(reloaded, "#copy-new-token")
+    refute render(reloaded) =~ raw
   end
 
   describe "plan card" do
@@ -104,17 +122,23 @@ defmodule SoundboardWeb.SettingsLiveTest do
       })
       |> Repo.insert()
 
-    {:ok, _raw, token} = ApiTokens.generate_token(other, %{label: "theirs"})
+    {:ok, raw, token} = ApiTokens.generate_token(other, %{label: "theirs"})
     {:ok, view, _html} = live(conn, "/settings")
 
     html = render_click(view, "revoke_token", %{"id" => to_string(token.id)})
 
     assert html =~ "Not allowed"
+    assert {:ok, _user, _token} = ApiTokens.verify_token(raw)
   end
 
-  test "revoking a token that doesn't exist says so", %{conn: conn} do
+  test "revoking a token that doesn't exist says so and keeps mine", %{conn: conn, user: user} do
+    {:ok, _raw, token} = ApiTokens.generate_token(user, %{label: "mine"})
     {:ok, view, _html} = live(conn, "/settings")
 
-    assert render_click(view, "revoke_token", %{"id" => "999999999"}) =~ "Token not found"
+    for id <- ["999999999", "not_an_int", "#{token.id}garbage"] do
+      assert render_click(view, "revoke_token", %{"id" => id}) =~ "Token not found"
+    end
+
+    assert has_element?(view, "td", "mine")
   end
 end
