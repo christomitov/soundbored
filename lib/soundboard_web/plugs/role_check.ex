@@ -1,5 +1,10 @@
 defmodule SoundboardWeb.Plugs.RoleCheck do
-  @moduledoc false
+  @moduledoc """
+  Re-checks a signed-in user's required Discord role at most every
+  `:role_recheck_interval_seconds` (default 15 minutes), and signs them out
+  when they no longer have it. Runs after `ensure_authenticated_user`, so
+  there is always a user.
+  """
   require Logger
   import Plug.Conn
   import Phoenix.Controller
@@ -9,11 +14,7 @@ defmodule SoundboardWeb.Plugs.RoleCheck do
   def init(opts), do: opts
 
   def call(conn, _opts) do
-    cond do
-      is_nil(conn.assigns[:current_user]) -> conn
-      not RoleChecker.feature_enabled?() -> conn
-      true -> check_role(conn)
-    end
+    if RoleChecker.feature_enabled?(), do: check_role(conn), else: conn
   end
 
   defp check_role(conn) do

@@ -18,8 +18,6 @@ defmodule SoundboardWeb.Live.Support.LiveTags do
   def count_sounds_with_tag(sounds, tag), do: Tags.count_sounds_with_tag(sounds, tag)
   def tag_selected?(tag, selected_tags), do: Tags.tag_selected?(tag, selected_tags)
   def update_sound_tags(sound, tags), do: Tags.update_sound_tags(sound, tags)
-  def find_or_create_tag(name), do: Tags.find_or_create(name)
-  def list_tags_for_sound(filename), do: Tags.list_for_sound(filename)
 
   def broadcast_update do
     PubSubTopics.broadcast_files_updated()

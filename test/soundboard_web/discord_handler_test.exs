@@ -1,407 +1,282 @@
 defmodule Soundboard.Discord.HandlerTest do
   @moduledoc """
-  Tests the DiscordHandler module.
+  Discord gateway events through `Soundboard.Discord.Handler.handle_event/1`.
   """
-  use Soundboard.DataCase
+  use Soundboard.DataCase, async: false
 
   import ExUnit.CaptureLog
   import Mock
 
-  alias Soundboard.{Accounts.User, Repo, Sound, UserSoundSetting}
-  alias Soundboard.Discord.Handler
-  alias Soundboard.Discord.Voice
+  alias Soundboard.{Accounts.User, AudioPlayer, FakeVoice, Repo, Sound, UserSoundSetting}
+  alias Soundboard.Discord.{BotIdentity, GuildCache, Handler, Message}
+
+  @bot_id "999"
 
   setup do
     Application.put_env(:soundboard, :bot_ready, true)
+    guild_id = "handler-#{System.unique_integer([:positive])}"
 
     on_exit(fn ->
       Application.delete_env(:soundboard, :bot_ready)
+      System.delete_env("AUTO_JOIN")
+      if pid = AudioPlayer.server_pid(guild_id), do: GenServer.stop(pid)
     end)
 
-    :ok
+    %{guild_id: guild_id}
   end
 
-  describe "handle_event/1" do
-    test "handles voice state updates" do
-      mock_guild = %{
-        id: "456",
-        voice_states: [
-          %{
-            user_id: "789",
-            channel_id: "123",
-            guild_id: "456",
-            session_id: "abc"
-          }
-        ]
-      }
+  describe "presence mode" do
+    setup do
+      System.put_env("AUTO_JOIN", "presence")
+      :ok
+    end
+
+    test "the bot joins the channel a user joins", %{guild_id: guild_id} do
+      FakeVoice.claim(guild_id, ready: false)
+      guild = %{id: guild_id, voice_states: [voice_state(guild_id, "789", "123")]}
+
+      capture_log(fn ->
+        with_mocks([cache(guild), bot()]) do
+          Handler.handle_event({:VOICE_STATE_UPDATE, payload(guild_id, "789", "123"), nil})
+        end
+      end)
+
+      assert_received {:fake_voice, ^guild_id, {:join, "123"}}
+      assert AudioPlayer.current_voice_channel(guild_id) == {:ok, {guild_id, "123"}}
+    end
+
+    test "the bot does not join when the guild cache is unavailable", %{guild_id: guild_id} do
+      FakeVoice.claim(guild_id, ready: false)
 
       capture_log(fn ->
         with_mocks([
-          {Soundboard.Discord.Handler.AutoJoinPolicy, [], [mode: fn -> :presence end]},
-          {Soundboard.Discord.Voice, [],
-           [
-             join_channel: fn _, _ -> :ok end,
-             ready?: fn _ -> false end
-           ]},
-          {Soundboard.Discord.GuildCache, [], [get: fn _guild_id -> {:ok, mock_guild} end]},
-          {Soundboard.Discord.BotIdentity, [], [fetch: fn -> {:ok, %{id: "999"}} end]}
+          {GuildCache, [], [all: fn -> [] end, get: fn _guild_id -> :error end]},
+          bot()
         ]) do
-          payload = %{
-            channel_id: "123",
-            guild_id: "456",
-            user_id: "789",
-            session_id: "abc"
-          }
-
-          Handler.handle_event({:VOICE_STATE_UPDATE, payload, nil})
-
-          assert_called(Voice.join_channel("456", "123"))
+          Handler.handle_event({:VOICE_STATE_UPDATE, payload(guild_id, "789", "123"), nil})
         end
       end)
+
+      refute_received {:fake_voice, ^guild_id, {:join, _}}
+      assert AudioPlayer.current_voice_channel(guild_id) == {:ok, nil}
     end
+  end
 
-    test "does not auto-join when guild cache is unavailable" do
-      {:ok, recorder} = Agent.start_link(fn -> [] end)
-
-      capture_log(fn ->
-        with_mocks([
-          {Soundboard.Discord.Voice, [],
-           [
-             join_channel: fn guild_id, channel_id ->
-               Agent.update(recorder, &(&1 ++ [{guild_id, channel_id}]))
-               :ok
-             end,
-             ready?: fn _ -> false end
-           ]},
-          {Soundboard.Discord.GuildCache, [],
-           [all: fn -> [] end, get: fn _guild_id -> :error end]},
-          {Soundboard.Discord.BotIdentity, [], [fetch: fn -> {:ok, %{id: "999"}} end]}
-        ]) do
-          payload = %{
-            channel_id: "123",
-            guild_id: "456",
-            user_id: "789",
-            session_id: "abc"
-          }
-
-          Handler.handle_event({:VOICE_STATE_UPDATE, payload, nil})
-
-          assert Agent.get(recorder, & &1) == []
-        end
-      end)
-    end
-
-    test "plays join sounds immediately without artificial delay" do
+  describe "join and leave sounds" do
+    test "plays the user's join sound on first join", %{guild_id: guild_id} do
       user = insert_user!(%{discord_id: "555", username: "joiner"})
-      sound = insert_sound!(user, %{filename: "join.mp3", guild_id: "456"})
-      insert_user_sound_setting!(user, sound, %{guild_id: "456", is_join_sound: true})
-
-      bot_id = "999"
-      guild_id = "456"
-      channel_id = "123"
+      join_sound!(user, guild_id)
 
       guild = %{
         id: guild_id,
         voice_states: [
-          %{user_id: bot_id, channel_id: channel_id, guild_id: guild_id, session_id: "bot"},
-          %{
-            user_id: user.discord_id,
-            channel_id: channel_id,
-            guild_id: guild_id,
-            session_id: "abc"
-          }
+          voice_state(guild_id, @bot_id, "123"),
+          voice_state(guild_id, user.discord_id, "123")
         ]
       }
 
-      {:ok, recorder} = Agent.start_link(fn -> [] end)
-
-      capture_log(fn ->
-        with_mocks([
-          {Soundboard.Discord.GuildCache, [], [all: fn -> [guild] end]},
-          {Soundboard.Discord.BotIdentity, [], [fetch: fn -> {:ok, %{id: bot_id}} end]},
-          {Soundboard.AudioPlayer, [],
-           [
-             play_sound: fn filename, played_by, _guild ->
-               Agent.update(recorder, &(&1 ++ [{:play_sound, filename, played_by}]))
-               :ok
-             end
-           ]}
-        ]) do
-          payload = %{
-            channel_id: channel_id,
-            guild_id: guild_id,
-            user_id: user.discord_id,
-            session_id: "abc"
-          }
-
-          Handler.handle_event({:VOICE_STATE_UPDATE, payload, nil})
-
-          assert Agent.get(recorder, & &1) == [{:play_sound, "join.mp3", "System"}]
-        end
-      end)
+      assert played_sounds(guild_id, [cache(guild)], fn ->
+               Handler.handle_event(
+                 {:VOICE_STATE_UPDATE, payload(guild_id, user.discord_id, "123"), nil}
+               )
+             end) == [{:play_sound, "join.mp3", "System"}]
     end
 
-    test "does not play join sounds when the user switches voice channels" do
+    test "does not play join sounds when the user switches voice channels",
+         %{guild_id: guild_id} do
       user = insert_user!(%{discord_id: "557", username: "switcher"})
-      sound = insert_sound!(user, %{filename: "join.mp3", guild_id: "456"})
-      insert_user_sound_setting!(user, sound, %{guild_id: "456", is_join_sound: true})
+      join_sound!(user, guild_id)
 
-      {:ok, recorder} = Agent.start_link(fn -> [] end)
+      assert played_sounds(guild_id, [], fn ->
+               Handler.State.update_state(user.discord_id, "ch-a", "session-1")
 
-      capture_log(fn ->
-        with_mocks([
-          {Soundboard.Discord.BotIdentity, [], [fetch: fn -> {:ok, %{id: "999"}} end]},
-          {Soundboard.Discord.Handler.AutoJoinPolicy, [], [mode: fn -> :play end]},
-          {Soundboard.AudioPlayer, [],
-           [
-             play_sound: fn filename, played_by, _guild ->
-               Agent.update(recorder, &(&1 ++ [{:play_sound, filename, played_by}]))
-               :ok
-             end
-           ]}
-        ]) do
-          # The handler already knows the user is in voice channel "ch-a".
-          Handler.State.update_state(user.discord_id, "ch-a", "session-1")
-
-          # The user moves to "ch-b" — a switch, not a join.
-          payload = %{
-            channel_id: "ch-b",
-            guild_id: "456",
-            user_id: user.discord_id,
-            session_id: "session-2"
-          }
-
-          Handler.handle_event({:VOICE_STATE_UPDATE, payload, nil})
-
-          assert Agent.get(recorder, & &1) == []
-        end
-      end)
+               Handler.handle_event(
+                 {:VOICE_STATE_UPDATE, payload(guild_id, user.discord_id, "ch-b", "session-2"),
+                  nil}
+               )
+             end) == []
     end
 
-    test "does not play join sounds on same-channel voice state updates" do
+    test "does not play join sounds on same-channel voice state updates", %{guild_id: guild_id} do
       user = insert_user!(%{discord_id: "558", username: "muter"})
-      sound = insert_sound!(user, %{filename: "join.mp3", guild_id: "456"})
-      insert_user_sound_setting!(user, sound, %{guild_id: "456", is_join_sound: true})
+      join_sound!(user, guild_id)
 
-      {:ok, recorder} = Agent.start_link(fn -> [] end)
+      assert played_sounds(guild_id, [], fn ->
+               Handler.State.update_state(user.discord_id, "ch-a", "session-1")
 
-      capture_log(fn ->
-        with_mocks([
-          {Soundboard.Discord.BotIdentity, [], [fetch: fn -> {:ok, %{id: "999"}} end]},
-          {Soundboard.Discord.Handler.AutoJoinPolicy, [], [mode: fn -> :play end]},
-          {Soundboard.AudioPlayer, [],
-           [
-             play_sound: fn filename, played_by, _guild ->
-               Agent.update(recorder, &(&1 ++ [{:play_sound, filename, played_by}]))
-               :ok
-             end
-           ]}
-        ]) do
-          Handler.State.update_state(user.discord_id, "ch-a", "session-1")
-
-          # Mute/deafen/self-stream changes re-send the same channel id.
-          payload = %{
-            channel_id: "ch-a",
-            guild_id: "456",
-            user_id: user.discord_id,
-            session_id: "session-1"
-          }
-
-          Handler.handle_event({:VOICE_STATE_UPDATE, payload, nil})
-
-          assert Agent.get(recorder, & &1) == []
-        end
-      end)
+               Handler.handle_event(
+                 {:VOICE_STATE_UPDATE, payload(guild_id, user.discord_id, "ch-a", "session-1"),
+                  nil}
+               )
+             end) == []
     end
 
-    test "still plays join sounds when a user rejoins after disconnecting" do
+    test "still plays join sounds when a user rejoins after disconnecting",
+         %{guild_id: guild_id} do
       user = insert_user!(%{discord_id: "559", username: "rejoiner"})
-      sound = insert_sound!(user, %{filename: "join.mp3", guild_id: "456"})
-      insert_user_sound_setting!(user, sound, %{guild_id: "456", is_join_sound: true})
-
-      bot_id = "999"
-      guild_id = "456"
-      channel_id = "ch-b"
+      join_sound!(user, guild_id)
 
       guild = %{
         id: guild_id,
         voice_states: [
-          %{user_id: bot_id, channel_id: channel_id, guild_id: guild_id, session_id: "bot"},
-          %{
-            user_id: user.discord_id,
-            channel_id: channel_id,
-            guild_id: guild_id,
-            session_id: "session-2"
-          }
+          voice_state(guild_id, @bot_id, "ch-b"),
+          voice_state(guild_id, user.discord_id, "ch-b")
         ]
       }
 
-      {:ok, recorder} = Agent.start_link(fn -> [] end)
+      assert played_sounds(guild_id, [cache(guild)], fn ->
+               Handler.State.update_state(user.discord_id, nil, "session-1")
 
-      capture_log(fn ->
-        with_mocks([
-          {Soundboard.Discord.GuildCache, [], [all: fn -> [guild] end]},
-          {Soundboard.Discord.BotIdentity, [], [fetch: fn -> {:ok, %{id: bot_id}} end]},
-          {Soundboard.Discord.Handler.AutoJoinPolicy, [], [mode: fn -> :play end]},
-          {Soundboard.AudioPlayer, [],
-           [
-             play_sound: fn filename, played_by, _guild ->
-               Agent.update(recorder, &(&1 ++ [{:play_sound, filename, played_by}]))
-               :ok
-             end
-           ]}
-        ]) do
-          # User's last known state is disconnected.
-          Handler.State.update_state(user.discord_id, nil, "session-1")
-
-          payload = %{
-            channel_id: channel_id,
-            guild_id: guild_id,
-            user_id: user.discord_id,
-            session_id: "session-2"
-          }
-
-          Handler.handle_event({:VOICE_STATE_UPDATE, payload, nil})
-
-          assert Agent.get(recorder, & &1) == [{:play_sound, "join.mp3", "System"}]
-        end
-      end)
+               Handler.handle_event(
+                 {:VOICE_STATE_UPDATE, payload(guild_id, user.discord_id, "ch-b", "session-2"),
+                  nil}
+               )
+             end) == [{:play_sound, "join.mp3", "System"}]
     end
 
-    test "plays leave sounds before auto-leaving the voice channel" do
+    test "plays leave sounds before auto-leaving the voice channel", %{guild_id: guild_id} do
       user = insert_user!(%{discord_id: "556", username: "leaver"})
-      sound = insert_sound!(user, %{filename: "leave.mp3", guild_id: "456"})
-      insert_user_sound_setting!(user, sound, %{guild_id: "456", is_leave_sound: true})
+      sound = insert_sound!(user, %{filename: "leave.mp3", guild_id: guild_id})
+      insert_user_sound_setting!(user, sound, %{guild_id: guild_id, is_leave_sound: true})
+      guild = %{id: guild_id, voice_states: [voice_state(guild_id, @bot_id, "123")]}
 
-      bot_id = "999"
-      guild_id = "456"
-      channel_id = "123"
+      assert played_sounds(guild_id, [cache(guild)], fn ->
+               Handler.handle_event(
+                 {:VOICE_STATE_UPDATE, payload(guild_id, user.discord_id, nil, "gone"), nil}
+               )
+             end) == [{:play_sound, "leave.mp3", "System"}, {:last_user_left, guild_id}]
+    end
+  end
 
-      guild = %{
-        id: guild_id,
-        voice_states: [
-          %{user_id: bot_id, channel_id: channel_id, guild_id: guild_id, session_id: "bot"}
-        ]
-      }
+  test "schedules runtime follow-up messages from the handler boundary" do
+    payload = %{channel_id: "123", guild_id: "456", user_id: @bot_id, session_id: "abc"}
 
-      {:ok, recorder} = Agent.start_link(fn -> [] end)
+    with_mocks([
+      {Soundboard.Discord.Handler.VoiceRuntime, [],
+       [
+         bot_user?: fn _ -> true end,
+         handle_connect: fn ^payload -> [{:schedule_recheck_alone, "456", "123", 0}] end
+       ]}
+    ]) do
+      assert {:noreply, nil} =
+               Handler.handle_cast({:eda_event, {:VOICE_STATE_UPDATE, payload, nil}}, nil)
+
+      assert_receive {:recheck_alone, "456", "123"}
+    end
+  end
+
+  describe "voice commands" do
+    test "!join and !leave move the bot and confirm in chat", %{guild_id: guild_id} do
+      FakeVoice.claim(guild_id)
+      guild = %{id: guild_id, voice_states: [voice_state(guild_id, "777", "123")]}
 
       capture_log(fn ->
-        with_mocks([
-          {Soundboard.Discord.GuildCache, [],
-           [
-             all: fn -> [guild] end,
-             get: fn ^guild_id -> {:ok, guild} end
-           ]},
-          {Soundboard.Discord.BotIdentity, [], [fetch: fn -> {:ok, %{id: bot_id}} end]},
-          {Soundboard.AudioPlayer, [],
-           [
-             play_sound: fn filename, played_by, _guild ->
-               Agent.update(recorder, &(&1 ++ [{:play_sound, filename, played_by}]))
-               :ok
-             end,
-             last_user_left: fn guild ->
-               Agent.update(recorder, &(&1 ++ [{:last_user_left, guild}]))
-               :ok
-             end
-           ]}
-        ]) do
-          payload = %{
-            channel_id: nil,
-            guild_id: guild_id,
-            user_id: user.discord_id,
-            session_id: "gone"
-          }
+        with_mocks([cache(guild), bot(), chat()]) do
+          Handler.handle_event({:MESSAGE_CREATE, command(guild_id, "!join"), nil})
 
-          Handler.handle_event({:VOICE_STATE_UPDATE, payload, nil})
+          assert_received {:fake_voice, ^guild_id, {:join, "123"}}
+          assert_received {:chat, "text", "Joined your voice channel!" <> _}
+          assert AudioPlayer.current_voice_channel(guild_id) == {:ok, {guild_id, "123"}}
 
-          assert Agent.get(recorder, & &1) == [
-                   {:play_sound, "leave.mp3", "System"},
-                   {:last_user_left, guild_id}
-                 ]
+          Handler.handle_event({:MESSAGE_CREATE, command(guild_id, "!leave"), nil})
+
+          assert_received {:fake_voice, ^guild_id, :leave}
+          assert_received {:chat, "text", "Left the voice channel!"}
+          assert AudioPlayer.current_voice_channel(guild_id) == {:ok, nil}
         end
       end)
     end
 
-    test "schedules runtime follow-up messages from the handler boundary" do
-      payload = %{channel_id: "123", guild_id: "456", user_id: "999", session_id: "abc"}
+    test "!join and !leave say so when the bot could not move", %{guild_id: guild_id} do
+      in_voice = %{id: guild_id, voice_states: [voice_state(guild_id, "777", "123")]}
+      not_in_voice = %{id: guild_id, voice_states: []}
+      join_failed = "I couldn't join your voice channel. Try again in a moment."
+      leave_failed = "I couldn't leave the voice channel. Try again in a moment."
 
-      with_mocks([
-        {Soundboard.Discord.Handler.VoiceRuntime, [],
-         [
-           bot_user?: fn _ -> true end,
-           handle_connect: fn ^payload ->
-             [{:schedule_recheck_alone, "456", "123", 0}]
-           end
-         ]}
-      ]) do
-        assert {:noreply, nil} =
-                 Handler.handle_cast({:eda_event, {:VOICE_STATE_UPDATE, payload, nil}}, nil)
+      table = [
+        {"user is not in voice", "!join", not_in_voice, true, [],
+         "You need to be in a voice channel!"},
+        {"bot is not ready", "!join", in_voice, false, [], join_failed},
+        {"Discord does not answer", "!join", in_voice, true, [exit_on: [:join]], join_failed},
+        {"Discord does not answer", "!leave", in_voice, true, [exit_on: [:leave]], leave_failed},
+        {"bot is not ready", "!leave", in_voice, false, [], leave_failed}
+      ]
 
-        assert_receive {:recheck_alone, "456", "123"}
+      for {label, content, guild, ready?, voice, reply} <- table do
+        FakeVoice.claim(guild_id, voice)
+        Application.put_env(:soundboard, :bot_ready, ready?)
+
+        capture_log(fn ->
+          with_mocks([cache(guild), bot(), chat()]) do
+            Handler.handle_event({:MESSAGE_CREATE, command(guild_id, content), nil})
+          end
+        end)
+
+        assert_received {:chat, "text", ^reply}, "#{content}: #{label}"
+        assert AudioPlayer.current_voice_channel(guild_id) == {:ok, nil}, label
       end
     end
+  end
 
-    test "voice commands update the audio player once after the Discord call succeeds" do
-      guild_id = "456"
-      channel_id = "123"
-      user_id = "777"
+  defp played_sounds(guild_id, mocks, fun) do
+    test_pid = self()
 
-      guild = %{
-        id: guild_id,
-        voice_states: [
-          %{user_id: user_id, channel_id: channel_id, guild_id: guild_id, session_id: "voice"}
-        ]
-      }
+    player =
+      {AudioPlayer, [],
+       [
+         play_sound: fn filename, played_by, ^guild_id ->
+           send(test_pid, {:player, {:play_sound, filename, played_by}})
+           :ok
+         end,
+         last_user_left: fn guild ->
+           send(test_pid, {:player, {:last_user_left, guild}})
+           :ok
+         end
+       ]}
 
-      {:ok, recorder} = Agent.start_link(fn -> [] end)
+    capture_log(fn -> with_mocks([player, bot() | mocks], do: fun.()) end)
+    collect_player_calls()
+  end
 
-      capture_log(fn ->
-        with_mocks([
-          {Soundboard.Discord.GuildCache, [],
-           [get!: fn ^guild_id -> guild end, get: fn ^guild_id -> {:ok, guild} end]},
-          {Soundboard.Discord.BotIdentity, [], [fetch: fn -> {:ok, %{id: "999"}} end]},
-          {Soundboard.Discord.Message, [], [create: fn _, _ -> :ok end]},
-          {Soundboard.Discord.Voice, [],
-           [
-             join_channel: fn ^guild_id, ^channel_id ->
-               Agent.update(recorder, &(&1 ++ [{:join_channel, guild_id, channel_id}]))
-               :ok
-             end,
-             leave_channel: fn ^guild_id ->
-               Agent.update(recorder, &(&1 ++ [{:leave_channel, guild_id}]))
-               :ok
-             end
-           ]},
-          {Soundboard.AudioPlayer, [],
-           [
-             set_voice_channel: fn guild, channel ->
-               Agent.update(recorder, &(&1 ++ [{:set_voice_channel, guild, channel}]))
-               :ok
-             end
-           ]}
-        ]) do
-          Handler.handle_event({
-            :MESSAGE_CREATE,
-            %{content: "!join", guild_id: guild_id, channel_id: "text", author: %{id: user_id}},
-            nil
-          })
-
-          Handler.handle_event({
-            :MESSAGE_CREATE,
-            %{content: "!leave", guild_id: guild_id, channel_id: "text", author: %{id: user_id}},
-            nil
-          })
-
-          assert Agent.get(recorder, & &1) == [
-                   {:join_channel, guild_id, channel_id},
-                   {:set_voice_channel, guild_id, channel_id},
-                   {:leave_channel, guild_id},
-                   {:set_voice_channel, guild_id, nil}
-                 ]
-        end
-      end)
+  defp collect_player_calls do
+    receive do
+      {:player, call} -> [call | collect_player_calls()]
+    after
+      0 -> []
     end
+  end
+
+  defp cache(guild) do
+    guild_id = guild.id
+    {GuildCache, [], [all: fn -> [guild] end, get: fn ^guild_id -> {:ok, guild} end]}
+  end
+
+  defp bot, do: {BotIdentity, [], [fetch: fn -> {:ok, %{id: @bot_id}} end]}
+
+  defp chat do
+    test_pid = self()
+
+    {Message, [],
+     [
+       create: fn channel_id, body ->
+         send(test_pid, {:chat, channel_id, body})
+         :ok
+       end
+     ]}
+  end
+
+  defp command(guild_id, content),
+    do: %{content: content, guild_id: guild_id, channel_id: "text", author: %{id: "777"}}
+
+  defp payload(guild_id, user_id, channel_id, session_id \\ "abc"),
+    do: %{channel_id: channel_id, guild_id: guild_id, user_id: user_id, session_id: session_id}
+
+  defp voice_state(guild_id, user_id, channel_id),
+    do: %{user_id: user_id, channel_id: channel_id, guild_id: guild_id, session_id: "s"}
+
+  defp join_sound!(user, guild_id) do
+    sound = insert_sound!(user, %{filename: "join.mp3", guild_id: guild_id})
+    insert_user_sound_setting!(user, sound, %{guild_id: guild_id, is_join_sound: true})
   end
 
   defp insert_user!(attrs) do

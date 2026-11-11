@@ -3,15 +3,11 @@ defmodule SoundboardWeb.SoundHelpers do
   Shared helpers for formatting sound metadata for UI rendering.
   """
 
-  def display_name(nil), do: ""
-
   def display_name(filename) when is_binary(filename) do
     filename
     |> Path.basename()
     |> Path.rootname()
   end
-
-  def display_name(other), do: to_string(other)
 
   def slugify(name) do
     name

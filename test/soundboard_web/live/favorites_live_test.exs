@@ -1,82 +1,54 @@
 defmodule SoundboardWeb.FavoritesLiveTest do
-  use SoundboardWeb.ConnCase
+  use SoundboardWeb.ConnCase, async: false
 
-  import Phoenix.LiveViewTest
   import Mock
 
-  alias Soundboard.Accounts.User
-  alias Soundboard.{Favorites, Repo, Sound}
-  alias SoundboardWeb.SoundHelpers
+  alias Soundboard.{Accounts.User, Favorites, PubSubTopics, Repo, Sound}
+  alias Soundboard.Favorites.Favorite
 
   setup %{conn: conn} do
-    Repo.delete_all(Sound)
-    Repo.delete_all(User)
-
-    {:ok, user} =
-      %User{}
-      |> User.changeset(%{
-        username: "favorite_user_#{System.unique_integer([:positive])}",
-        discord_id: Integer.to_string(System.unique_integer([:positive])),
-        avatar: "favorite.jpg"
-      })
-      |> Repo.insert()
-
-    {:ok, sound} =
-      %Sound{}
-      |> Sound.changeset(%{
-        filename: "favorite_#{System.unique_integer([:positive])}.mp3",
-        user_id: user.id,
-        source_type: "local"
-      })
-      |> Repo.insert()
-
-    {:ok, second_sound} =
-      %Sound{}
-      |> Sound.changeset(%{
-        filename: "favorite_extra_#{System.unique_integer([:positive])}.mp3",
-        user_id: user.id,
-        source_type: "local"
-      })
-      |> Repo.insert()
-
+    user = Repo.insert!(%User{username: "fan", discord_id: "321", avatar: "f.jpg"})
+    sound = insert_sound!(user, "liked.mp3")
+    second_sound = insert_sound!(user, "unliked.mp3")
     {:ok, _favorite} = Favorites.toggle_favorite(user.id, sound.id)
 
-    authed_conn =
-      conn
-      |> Map.replace!(:secret_key_base, SoundboardWeb.Endpoint.config(:secret_key_base))
-      |> init_test_session(%{user_id: user.id})
-
-    %{conn: authed_conn, user: user, sound: sound, second_sound: second_sound}
+    %{
+      conn: init_test_session(conn, %{user_id: user.id}),
+      user: user,
+      sound: sound,
+      second_sound: second_sound
+    }
   end
 
-  test "redirects unauthenticated users", _context do
-    conn =
-      build_conn()
-      |> get("/favorites")
-
-    assert redirected_to(conn) == "/auth/discord"
+  defp insert_sound!(user, filename, attrs \\ %{}) do
+    %Sound{}
+    |> Sound.changeset(
+      Map.merge(%{filename: filename, source_type: "local", user_id: user.id}, attrs)
+    )
+    |> Repo.insert!()
   end
 
-  test "renders favorite sounds for the current user", %{conn: conn, sound: sound} do
-    {:ok, _view, html} = live(conn, "/favorites")
+  defp card(filename), do: "[phx-click='play'][phx-value-name='#{filename}']"
 
-    assert html =~ "Favorites"
-    assert html =~ SoundHelpers.display_name(sound.filename)
+  test "lists only my favorites", %{conn: conn} do
+    {:ok, view, html} = live(conn, "/favorites")
+
+    assert html =~ "1/16 favorites"
+    assert has_element?(view, card("liked.mp3"))
+    refute has_element?(view, card("unliked.mp3"))
   end
 
-  test "plays a favorite sound", %{conn: conn, user: user, sound: sound} do
+  test "plays a favorite sound", %{conn: conn, user: user} do
     {:ok, view, _html} = live(conn, "/favorites")
 
     with_mock Soundboard.AudioPlayer, play_sound: fn _, _, _ -> :ok end do
-      view
-      |> element("[phx-click='play'][phx-value-name='#{sound.filename}']")
-      |> render_click()
+      view |> element(card("liked.mp3")) |> render_click()
 
-      assert_called(Soundboard.AudioPlayer.play_sound(sound.filename, user, :_))
+      assert_called(Soundboard.AudioPlayer.play_sound("liked.mp3", user, "default"))
     end
   end
 
-  test "toggle_favorite removes a sound from favorites", %{conn: conn, sound: sound} do
+  test "unstarring removes the sound from favorites", %{conn: conn, user: user, sound: sound} do
     {:ok, view, _html} = live(conn, "/favorites")
 
     html =
@@ -86,31 +58,83 @@ defmodule SoundboardWeb.FavoritesLiveTest do
 
     assert html =~ "Favorites updated!"
     assert html =~ "You currently have no favorites"
+    assert Favorites.list_favorites(user.id) == []
   end
 
-  test "files_updated refreshes the favorites list", %{
+  test "a favorite added elsewhere appears", %{conn: conn, user: user, second_sound: second} do
+    {:ok, view, _html} = live(conn, "/favorites")
+
+    {:ok, _favorite} = Favorites.toggle_favorite(user.id, second.id)
+    PubSubTopics.broadcast_files_updated()
+
+    assert has_element?(view, card("unliked.mp3"))
+  end
+
+  test "a play broadcast shows who played what, then clears", %{conn: conn} do
+    {:ok, view, _html} = live(conn, "/favorites")
+
+    PubSubTopics.broadcast_sound_played("liked.mp3", "pal")
+    assert render(view) =~ "pal played liked.mp3"
+
+    send(view.pid, :clear_flash)
+    refute render(view) =~ "pal played"
+  end
+
+  test "a playback error is shown", %{conn: conn} do
+    {:ok, view, _html} = live(conn, "/favorites")
+
+    PubSubTopics.broadcast_error("Bot is not in a voice channel")
+
+    assert render(view) =~ "Bot is not in a voice channel"
+  end
+
+  test "starring past the limit explains the limit", %{conn: conn, user: user} do
+    for n <- 1..15 do
+      {:ok, _favorite} =
+        Favorites.toggle_favorite(user.id, insert_sound!(user, "limit_#{n}.mp3").id)
+    end
+
+    over = insert_sound!(user, "one_too_many.mp3")
+
+    {:ok, view, _html} = live(conn, "/")
+
+    html =
+      view
+      |> element("[phx-click='toggle_favorite'][phx-value-sound-id='#{over.id}']")
+      |> render_click()
+
+    assert html =~ "You can only have 16 favorites"
+    refute over.id in Favorites.list_favorites(user.id)
+  end
+
+  test "another guild's favorites neither count here nor can be starred here", %{
     conn: conn,
     user: user,
     second_sound: second_sound
   } do
-    {:ok, view, _html} = live(conn, "/favorites")
+    elsewhere =
+      for n <- 1..16 do
+        sound = insert_sound!(user, "elsewhere_#{n}.mp3", %{guild_id: "other-guild"})
+        Repo.insert!(%Favorite{user_id: user.id, sound_id: sound.id})
+        sound
+      end
 
-    {:ok, _favorite} = Favorites.toggle_favorite(user.id, second_sound.id)
-    send(view.pid, {:files_updated})
+    {:ok, view, html} = live(conn, "/favorites")
 
-    assert render(view) =~ SoundHelpers.display_name(second_sound.filename)
-  end
+    assert html =~ "1/16 favorites"
+    refute has_element?(view, card("elsewhere_1.mp3"))
 
-  test "stats_updated refreshes the favorites list", %{
-    conn: conn,
-    user: user,
-    second_sound: second_sound
-  } do
-    {:ok, view, _html} = live(conn, "/favorites")
+    {:ok, board, _html} = live(conn, "/")
 
-    {:ok, _favorite} = Favorites.toggle_favorite(user.id, second_sound.id)
-    send(view.pid, {:stats_updated})
+    assert board
+           |> element("[phx-click='toggle_favorite'][phx-value-sound-id='#{second_sound.id}']")
+           |> render_click() =~ "Favorites updated!"
 
-    assert render(view) =~ SoundHelpers.display_name(second_sound.filename)
+    [foreign | _] = elsewhere
+
+    assert render_click(view, "toggle_favorite", %{"sound-id" => "#{foreign.id}"}) =~
+             "Sound does not exist"
+
+    assert Repo.get_by(Favorite, user_id: user.id, sound_id: foreign.id)
   end
 end

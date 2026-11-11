@@ -4,7 +4,8 @@ defmodule Soundboard.AudioPlayer.PlaybackEngine do
   require Logger
 
   alias Soundboard.Accounts.User
-  alias Soundboard.{AudioPlayer, AudioPlayer.Notifier, AudioPlayer.SoundLibrary, Discord.Voice}
+  alias Soundboard.{AudioPlayer, AudioPlayer.Notifier, Discord.Voice}
+  alias Soundboard.AudioPlayer.PlaybackEngine.Retry
   @boundary_exceptions Soundboard.Boundary.exceptions()
 
   @system_users ["System"]
@@ -17,11 +18,6 @@ defmodule Soundboard.AudioPlayer.PlaybackEngine do
   @voice_settle_ms 120
   @rejoin_retry_threshold 3
   @max_play_attempts 20
-
-  defmodule Retry do
-    @moduledoc false
-    defstruct [:log, :sleep_ms, :stop_first?, :force_refresh?]
-  end
 
   def play(guild_id, channel_id, sound_name, path_or_url, volume, actor) do
     join_state = ensure_joined_channel(guild_id, channel_id)
@@ -41,12 +37,10 @@ defmodule Soundboard.AudioPlayer.PlaybackEngine do
       broadcast_error(guild_id, "ffmpeg is not installed on this host")
       :error
     else
-      {play_input, play_type} = SoundLibrary.prepare_play_input(guild_id, sound_name, path_or_url)
-
       play_request = %{
         guild_id: guild_id,
-        play_input: play_input,
-        play_type: play_type,
+        play_input: path_or_url,
+        play_type: :url,
         play_options: [volume: clamp_volume(volume)],
         sound_name: sound_name,
         actor: actor
@@ -58,7 +52,7 @@ defmodule Soundboard.AudioPlayer.PlaybackEngine do
 
   defp play_with_retries(play_request, attempt, refresh_attempted)
        when attempt < @max_play_attempts do
-    case voice_play(play_request) |> classify_play_attempt() do
+    case classify_play_attempt(voice_play(play_request)) do
       :ok ->
         maybe_probe_first_rtp(play_request.guild_id, play_request.sound_name, attempt + 1)
         track_play_if_needed(play_request.guild_id, play_request.sound_name, play_request.actor)
@@ -327,6 +321,8 @@ defmodule Soundboard.AudioPlayer.PlaybackEngine do
   rescue
     error in @boundary_exceptions ->
       {:error, {:voice_state_unavailable, Exception.message(error)}}
+  catch
+    :exit, reason -> {:error, {:voice_state_unavailable, reason}}
   end
 
   defp safe_voice_status(guild_id) do
@@ -341,6 +337,8 @@ defmodule Soundboard.AudioPlayer.PlaybackEngine do
   rescue
     error in @boundary_exceptions ->
       {:error, {:voice_not_ready, Exception.message(error)}}
+  catch
+    :exit, reason -> {:error, {:voice_not_ready, reason}}
   end
 
   defp safe_voice_channel(guild_id) do
@@ -348,6 +346,8 @@ defmodule Soundboard.AudioPlayer.PlaybackEngine do
   rescue
     error in @boundary_exceptions ->
       {:error, {:voice_channel_unavailable, Exception.message(error)}}
+  catch
+    :exit, reason -> {:error, {:voice_channel_unavailable, reason}}
   end
 
   defp safe_voice_playing(guild_id) do
@@ -355,6 +355,8 @@ defmodule Soundboard.AudioPlayer.PlaybackEngine do
   rescue
     error in @boundary_exceptions ->
       {:error, {:voice_playback_unavailable, Exception.message(error)}}
+  catch
+    :exit, reason -> {:error, {:voice_playback_unavailable, reason}}
   end
 
   defp track_play_if_needed(guild_id, sound_name, actor) do

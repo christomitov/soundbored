@@ -4,21 +4,13 @@ defmodule Soundboard.Discord.GuildCache do
   alias EDA.Cache
 
   def all do
-    Cache.guilds()
-    |> Enum.map(&normalize_guild/1)
+    Enum.map(Cache.guilds(), &normalize_guild/1)
   end
 
   def get(guild_id) do
     case Cache.get_guild(to_id(guild_id)) do
       nil -> :error
       guild -> {:ok, normalize_guild(guild)}
-    end
-  end
-
-  def get!(guild_id) do
-    case get(guild_id) do
-      {:ok, guild} -> guild
-      _ -> raise "guild #{guild_id} not found in cache"
     end
   end
 

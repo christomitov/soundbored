@@ -76,15 +76,10 @@ defmodule Soundboard.AudioPlayer do
 
   @doc """
   Removes any cached metadata for `filename` in `guild_id` so future plays use
-  fresh data. The 1-arity form targets the default guild (back-compat).
+  fresh data.
   """
   def invalidate_cache(guild_id, filename) when is_binary(filename),
     do: SoundLibrary.invalidate_cache(Tenants.scope_guild_id(guild_id), filename)
-
-  def invalidate_cache(filename) when is_binary(filename),
-    do: SoundLibrary.invalidate_cache(Tenants.default_guild_id(), filename)
-
-  def invalidate_cache(_), do: :ok
 
   defp cast(guild_id, message) do
     guild_id = Tenants.scope_guild_id(guild_id)

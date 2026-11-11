@@ -16,15 +16,6 @@ defmodule Soundboard.Sounds do
     user_sound_settings: [user: []]
   ]
 
-  @spec list_files(String.t() | nil) :: [Sound.t()]
-  def list_files(guild_id \\ nil) do
-    Sound
-    |> Sound.with_tags()
-    |> where(guild_id: ^Tenants.scope_guild_id(guild_id))
-    |> preload(:user_sound_settings)
-    |> Repo.all()
-  end
-
   @spec list_detailed(String.t() | nil) :: [Sound.t()]
   def list_detailed(guild_id \\ nil) do
     Sound
@@ -56,140 +47,66 @@ defmodule Soundboard.Sounds do
     |> Map.new()
   end
 
-  @spec filename_taken?(String.t(), String.t() | nil) :: boolean()
-  def filename_taken?(filename, guild_id \\ nil) when is_binary(filename) do
-    Repo.exists?(
-      from s in Sound,
-        where: s.filename == ^filename and s.guild_id == ^Tenants.scope_guild_id(guild_id)
-    )
-  end
-
   @spec filename_taken_excluding?(String.t(), integer() | String.t(), String.t() | nil) ::
           boolean()
   def filename_taken_excluding?(filename, sound_id, guild_id \\ nil) do
-    from(s in Sound,
-      where:
-        s.filename == ^filename and s.id != ^sound_id and
-          s.guild_id == ^Tenants.scope_guild_id(guild_id)
+    Repo.exists?(
+      from(s in Sound,
+        where:
+          s.filename == ^filename and s.id != ^sound_id and
+            s.guild_id == ^Tenants.scope_guild_id(guild_id)
+      )
     )
-    |> Repo.exists?()
-  end
-
-  @spec filename_conflicts_across_extensions?(String.t(), [String.t()], String.t() | nil) ::
-          boolean()
-  def filename_conflicts_across_extensions?(base_name, extensions, guild_id \\ nil)
-      when is_list(extensions) do
-    names = Enum.map(extensions, &(base_name <> &1))
-
-    from(s in Sound,
-      where: s.filename in ^names and s.guild_id == ^Tenants.scope_guild_id(guild_id)
-    )
-    |> Repo.exists?()
-  end
-
-  @spec fetch_filename_extension(term()) :: {:ok, String.t()} | :error
-  def fetch_filename_extension(sound_id) do
-    case Repo.get(Sound, sound_id) do
-      %Sound{filename: filename} -> {:ok, Path.extname(filename)}
-      _ -> :error
-    end
   end
 
   @spec get_recent_uploads(keyword()) :: [{String.t(), String.t(), NaiveDateTime.t()}]
   def get_recent_uploads(opts \\ []) do
     limit = Keyword.get(opts, :limit, 10)
 
-    from(s in Sound,
-      join: u in User,
-      on: s.user_id == u.id,
-      select: {s.filename, u.username, s.inserted_at},
-      order_by: [desc: s.inserted_at],
-      limit: ^limit
-    )
-    |> Repo.all()
-  end
-
-  @spec get_user_join_sound(integer(), String.t() | nil) :: String.t() | nil
-  def get_user_join_sound(user_id, guild_id \\ nil) do
-    Repo.one(
-      from uss in Soundboard.UserSoundSetting,
-        join: s in Sound,
-        on: uss.sound_id == s.id,
-        where:
-          uss.user_id == ^user_id and uss.is_join_sound == true and
-            s.guild_id == ^Tenants.scope_guild_id(guild_id),
-        select: s.filename
-    )
-  end
-
-  @spec get_user_leave_sound(integer(), String.t() | nil) :: String.t() | nil
-  def get_user_leave_sound(user_id, guild_id \\ nil) do
-    Repo.one(
-      from uss in Soundboard.UserSoundSetting,
-        join: s in Sound,
-        on: uss.sound_id == s.id,
-        where:
-          uss.user_id == ^user_id and uss.is_leave_sound == true and
-            s.guild_id == ^Tenants.scope_guild_id(guild_id),
-        select: s.filename
+    Repo.all(
+      from(s in Sound,
+        join: u in User,
+        on: s.user_id == u.id,
+        where: s.guild_id == ^Tenants.scope_guild_id(Keyword.get(opts, :guild_id)),
+        select: {s.filename, u.username, s.inserted_at},
+        order_by: [desc: s.inserted_at, desc: s.id],
+        limit: ^limit
+      )
     )
   end
 
   @spec get_user_join_sound_by_discord_id(term(), String.t() | nil) :: String.t() | nil
-  def get_user_join_sound_by_discord_id(discord_id, guild_id \\ nil) do
-    Repo.one(
-      from u in User,
-        where: u.discord_id == ^to_string(discord_id),
-        left_join: uss in Soundboard.UserSoundSetting,
-        on: uss.user_id == u.id and uss.is_join_sound == true,
-        left_join: s in Sound,
-        on: s.id == uss.sound_id and s.guild_id == ^Tenants.scope_guild_id(guild_id),
-        select: s.filename,
-        limit: 1
-    )
-  end
+  def get_user_join_sound_by_discord_id(discord_id, guild_id \\ nil),
+    do: sound_by_discord_id(discord_id, guild_id, :is_join_sound)
 
   @spec get_user_leave_sound_by_discord_id(term(), String.t() | nil) :: String.t() | nil
-  def get_user_leave_sound_by_discord_id(discord_id, guild_id \\ nil) do
+  def get_user_leave_sound_by_discord_id(discord_id, guild_id \\ nil),
+    do: sound_by_discord_id(discord_id, guild_id, :is_leave_sound)
+
+  defp sound_by_discord_id(discord_id, guild_id, flag) do
     Repo.one(
       from u in User,
-        where: u.discord_id == ^to_string(discord_id),
-        left_join: uss in Soundboard.UserSoundSetting,
-        on: uss.user_id == u.id and uss.is_leave_sound == true,
-        left_join: s in Sound,
-        on: s.id == uss.sound_id and s.guild_id == ^Tenants.scope_guild_id(guild_id),
+        join: uss in Soundboard.UserSoundSetting,
+        on: uss.user_id == u.id and field(uss, ^flag) == true,
+        join: s in Sound,
+        on: s.id == uss.sound_id,
+        where:
+          u.discord_id == ^to_string(discord_id) and
+            s.guild_id == ^Tenants.scope_guild_id(guild_id),
         select: s.filename,
         limit: 1
     )
   end
 
-  @spec get_user_sound_preferences_by_discord_id(term(), String.t() | nil) :: map() | nil
-  def get_user_sound_preferences_by_discord_id(discord_id, guild_id \\ nil) do
-    case Repo.get_by(User, discord_id: to_string(discord_id)) do
-      nil ->
-        nil
-
-      user ->
-        %{
-          user_id: user.id,
-          join_sound: get_user_join_sound(user.id, guild_id),
-          leave_sound: get_user_leave_sound(user.id, guild_id)
-        }
+  @spec fetch_sound(term(), String.t() | nil) :: {:ok, Sound.t()} | :error
+  def fetch_sound(id, guild_id) do
+    with {:ok, id} <- Ecto.Type.cast(:id, id),
+         %Sound{} = sound <-
+           Repo.get_by(Sound, id: id, guild_id: Tenants.scope_guild_id(guild_id)) do
+      {:ok, Repo.preload(sound, @detailed_preloads)}
+    else
+      _ -> :error
     end
-  end
-
-  @spec get_sound!(term()) :: Sound.t()
-  def get_sound!(id) do
-    Sound
-    |> Repo.get!(id)
-    |> Repo.preload(@detailed_preloads)
-  end
-
-  @spec update_sound(Sound.t(), map()) :: {:ok, Sound.t()} | {:error, Ecto.Changeset.t()}
-  def update_sound(sound, attrs) do
-    sound
-    |> Sound.changeset(attrs)
-    |> Repo.update()
   end
 
   @spec update_sound(Sound.t(), integer(), map()) :: {:ok, Sound.t()} | {:error, term()}

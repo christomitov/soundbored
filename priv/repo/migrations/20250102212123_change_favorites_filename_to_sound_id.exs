@@ -14,7 +14,6 @@ defmodule Soundboard.Repo.Migrations.ChangeFavoritesFilenameToSoundId do
     )
     """
 
-    # Create a new table with the desired schema
     create table(:favorites_new) do
       add :user_id, references(:users, on_delete: :delete_all), null: false
       add :sound_id, :integer, null: false
@@ -32,12 +31,10 @@ defmodule Soundboard.Repo.Migrations.ChangeFavoritesFilenameToSoundId do
     drop table(:favorites)
     execute "ALTER TABLE favorites_new RENAME TO favorites"
 
-    # Create the new index
     create unique_index(:favorites, [:user_id, :sound_id])
   end
 
   def down do
-    # Create a new table with the old schema
     create table(:favorites_new) do
       add :user_id, references(:users, on_delete: :delete_all), null: false
       add :filename, :string, null: false

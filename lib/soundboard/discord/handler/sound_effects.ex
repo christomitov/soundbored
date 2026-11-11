@@ -1,5 +1,9 @@
 defmodule Soundboard.Discord.Handler.SoundEffects do
-  @moduledoc false
+  @moduledoc """
+  Join and leave sounds. A join is a voice state with no tracked previous one
+  (a first join, or state lost on restart) or one after a disconnect; a
+  channel switch or a mute/deafen update is not.
+  """
 
   require Logger
 
@@ -7,25 +11,7 @@ defmodule Soundboard.Discord.Handler.SoundEffects do
   alias Soundboard.Discord.Handler.{AutoJoinPolicy, VoiceRuntime}
 
   def handle_join(user_id, previous_state, guild_id, channel_id) do
-    is_join_event =
-      case previous_state do
-        # No tracked voice state: genuine first join (or state lost on restart).
-        nil ->
-          true
-
-        # Previously disconnected from voice, now joining again.
-        {nil, _} ->
-          true
-
-        # Already in a channel: a channel switch or same-channel state update
-        # (mute/deafen/etc.), never a fresh join.
-        {prev_channel, _} ->
-          Logger.debug(
-            "User #{user_id} moved channels #{prev_channel} -> #{channel_id}; not a join"
-          )
-
-          false
-      end
+    is_join_event = fresh_join?(previous_state)
 
     Logger.info(
       "Join sound check - User: #{user_id}, Previous: #{inspect(previous_state)}, New channel: #{channel_id}, Is join: #{is_join_event}"
@@ -37,6 +23,10 @@ defmodule Soundboard.Discord.Handler.SoundEffects do
       :noop
     end
   end
+
+  defp fresh_join?(nil), do: true
+  defp fresh_join?({nil, _session_id}), do: true
+  defp fresh_join?({_channel_id, _session_id}), do: false
 
   def handle_leave(user_id, guild_id \\ nil) do
     case Sounds.get_user_leave_sound_by_discord_id(user_id, guild_id) do

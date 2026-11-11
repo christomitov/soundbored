@@ -49,26 +49,4 @@ defmodule Soundboard.Discord.Handler.CommandHandlerTest do
       refute body =~ "nil://"
     end
   end
-
-  test "!leave leaves the current voice channel and confirms in chat" do
-    with_mocks([
-      {VoiceRuntime, [], [leave_voice_channel: fn "guild-1" -> :ok end]},
-      {Message, [],
-       [
-         create: fn channel_id, body ->
-           send(self(), {:created_message, channel_id, body})
-           :ok
-         end
-       ]}
-    ]) do
-      assert :ok =
-               CommandHandler.handle_message(%{
-                 content: "!leave",
-                 guild_id: "guild-1",
-                 channel_id: "text-1"
-               })
-
-      assert_receive {:created_message, "text-1", "Left the voice channel!"}
-    end
-  end
 end

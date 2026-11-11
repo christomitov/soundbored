@@ -11,7 +11,6 @@ defmodule Soundboard.Sound do
 
   @spec changeset(t(), map()) :: Ecto.Changeset.t()
   @spec with_tags(Ecto.Queryable.t()) :: Ecto.Query.t()
-  @spec by_tag(Ecto.Queryable.t(), String.t()) :: Ecto.Query.t()
 
   schema "sounds" do
     field :filename, :string
@@ -66,12 +65,6 @@ defmodule Soundboard.Sound do
   def with_tags(query \\ __MODULE__) do
     from s in query,
       preload: [:tags]
-  end
-
-  def by_tag(query \\ __MODULE__, tag_name) do
-    from s in query,
-      join: t in assoc(s, :tags),
-      where: t.name == ^tag_name
   end
 
   defp validate_source_type(changeset) do

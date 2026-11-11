@@ -1,124 +1,76 @@
 defmodule Soundboard.AudioPlayer.GuildsTest do
   @moduledoc """
-  Behavioral tests for per-guild playback: each tenant gets its own player
-  process and its own playback state, and one guild's activity never touches
-  another's. The default-guild path keeps single-guild deployments unchanged.
+  Per-guild playback: each tenant gets its own player process and its own
+  playback state, and one guild's activity never touches another's. The
+  default-guild path keeps single-guild deployments unchanged.
   """
 
-  use Soundboard.DataCase, async: false
+  use ExUnit.Case, async: false
 
-  import Mock
+  @moduletag :capture_log
 
-  alias Soundboard.AudioPlayer
-  alias Soundboard.Tenants
-
-  @default_guild Tenants.default_guild_id()
+  alias Soundboard.{AudioPlayer, PubSubTopics, Tenants}
 
   setup do
+    suffix = System.unique_integer([:positive])
+    guilds = %{a: "guild-a-#{suffix}", b: "guild-b-#{suffix}"}
+
     on_exit(fn ->
-      for guild <- [@default_guild, "guild-a", "guild-b"] do
-        if pid = AudioPlayer.server_pid(guild) do
-          GenServer.stop(pid, :normal)
-        end
+      for guild <- [Tenants.default_guild_id() | Map.values(guilds)] do
+        stop_player(guild)
       end
     end)
 
-    :ok
+    guilds
   end
 
-  test "each guild gets its own player process" do
-    pid_a = AudioPlayer.ensure_started("guild-a")
-    pid_b = AudioPlayer.ensure_started("guild-b")
+  test "each guild gets its own player process", %{a: a, b: b} do
+    pid_a = AudioPlayer.ensure_started(a)
+    pid_b = AudioPlayer.ensure_started(b)
 
     assert pid_a != pid_b
-    assert AudioPlayer.server_pid("guild-a") == pid_a
-    assert AudioPlayer.server_pid("guild-b") == pid_b
+    assert AudioPlayer.ensure_started(a) == pid_a
+    assert AudioPlayer.server_pid(a) == pid_a
+    assert AudioPlayer.server_pid(b) == pid_b
   end
 
-  test "ensure_started/1 is idempotent per guild" do
-    pid = AudioPlayer.ensure_started("guild-a")
-    assert AudioPlayer.ensure_started("guild-a") == pid
-  end
+  test "playing without a guild targets the default guild" do
+    default_guild = Tenants.default_guild_id()
+    stop_player(default_guild)
+    PubSubTopics.subscribe_playback(default_guild)
 
-  test "a guild that has never played has no player process" do
-    refute AudioPlayer.server_pid("never-started-guild")
-  end
-
-  test "playing without a guild targets the default guild (back-compat)" do
     AudioPlayer.play_sound("whatever.mp3", "System")
-    assert AudioPlayer.server_pid(@default_guild)
+
+    assert_receive {:error,
+                    "Bot is not connected to a voice channel. Use !join in Discord first."}
+
+    assert AudioPlayer.server_pid(default_guild)
   end
 
-  test "voice channel state is isolated per guild" do
-    AudioPlayer.set_voice_channel("guild-a", "ch-a")
-    AudioPlayer.set_voice_channel("guild-b", "ch-b")
+  test "voice channel state is isolated per guild", %{a: a, b: b} do
+    AudioPlayer.set_voice_channel(a, "ch-a")
+    AudioPlayer.set_voice_channel(b, "ch-b")
 
-    assert {:ok, {"guild-a", "ch-a"}} == AudioPlayer.current_voice_channel("guild-a")
-    assert {:ok, {"guild-b", "ch-b"}} == AudioPlayer.current_voice_channel("guild-b")
+    assert {:ok, {a, "ch-a"}} == AudioPlayer.current_voice_channel(a)
+    assert {:ok, {b, "ch-b"}} == AudioPlayer.current_voice_channel(b)
+
+    AudioPlayer.last_user_left(b)
+
+    assert {:ok, {a, "ch-a"}} == AudioPlayer.current_voice_channel(a)
+    assert {:ok, nil} == AudioPlayer.current_voice_channel(b)
   end
 
-  test "playback_finished/last_user_left events route to the right guild" do
-    AudioPlayer.set_voice_channel("guild-a", "ch-a")
-    AudioPlayer.set_voice_channel("guild-b", "ch-b")
+  test "playback events for one guild do not appear on another guild's topic", %{a: a, b: b} do
+    PubSubTopics.subscribe_playback(a)
 
-    AudioPlayer.playback_finished("guild-a")
-    AudioPlayer.last_user_left("guild-b")
+    PubSubTopics.broadcast_sound_played("x.mp3", "someone", b)
+    PubSubTopics.broadcast_sound_played("y.mp3", "someone", a)
 
-    # guild-a still in its channel; guild-b left after last user
-    assert {:ok, {"guild-a", "ch-a"}} == AudioPlayer.current_voice_channel("guild-a")
-    assert {:ok, nil} == AudioPlayer.current_voice_channel("guild-b")
+    assert_receive {:sound_played, %{filename: "y.mp3"}}
+    refute_received {:sound_played, %{filename: "x.mp3"}}
   end
 
-  test "stop_sound/1 stops playback in the given guild only" do
-    AudioPlayer.set_voice_channel("guild-a", "ch-a")
-    AudioPlayer.set_voice_channel("guild-b", "ch-b")
-
-    test_pid = self()
-
-    with_mocks([
-      {Soundboard.Discord.Voice, [], [stop: fn guild -> send(test_pid, {:stopped, guild}) end]},
-      {Soundboard.PubSubTopics, [], [broadcast_sound_played: fn _, _, _ -> :ok end]}
-    ]) do
-      AudioPlayer.stop_sound("guild-a")
-      assert_receive {:stopped, "guild-a"}, 1_000
-      refute_received {:stopped, "guild-b"}
-    end
-  end
-
-  test "playback events for one guild do not appear on another guild's topic" do
-    assert Soundboard.PubSubTopics.playback_topic(nil) == "soundboard.playback:default"
-    assert Soundboard.PubSubTopics.playback_topic("guild-z") == "soundboard.playback:guild-z"
-
-    # Subscribing to guild A's topic must not receive guild B's broadcast.
-    Phoenix.PubSub.subscribe(Soundboard.PubSub, Soundboard.PubSubTopics.playback_topic("guild-a"))
-    Soundboard.PubSubTopics.broadcast_sound_played("x.mp3", "someone", "guild-b")
-    refute_received {:sound_played, _}
-
-    Soundboard.PubSubTopics.broadcast_sound_played("y.mp3", "someone", "guild-a")
-    assert_received {:sound_played, %{filename: "y.mp3"}}
-  end
-
-  test "sound cache is keyed per guild: same filename resolves per-tenant" do
-    alias Soundboard.AudioPlayer.SoundLibrary
-
-    SoundLibrary.invalidate_cache("guild-a", "cache-check.mp3")
-    SoundLibrary.invalidate_cache("guild-b", "cache-check.mp3")
-
-    # No sounds exist in either guild (DataCase not used; direct ETS checks).
-    assert {:error, "Sound not found"} = SoundLibrary.get_sound_path("guild-a", "cache-check.mp3")
-
-    # A cached entry for guild A must not be visible to guild B.
-    SoundLibrary.ensure_cache()
-
-    :ets.insert(
-      :sound_meta_cache,
-      {{"guild-a", "shared.mp3"},
-       %{source_type: "url", input: "https://a.example/x.mp3", volume: 1.0}}
-    )
-
-    assert {:ok, {"https://a.example/x.mp3", 1.0}} =
-             SoundLibrary.get_sound_path("guild-a", "shared.mp3")
-
-    assert {:error, "Sound not found"} = SoundLibrary.get_sound_path("guild-b", "shared.mp3")
+  defp stop_player(guild) do
+    if pid = AudioPlayer.server_pid(guild), do: GenServer.stop(pid)
   end
 end

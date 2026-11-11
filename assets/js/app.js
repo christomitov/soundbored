@@ -272,6 +272,13 @@ Hooks.VolumeControl = {
 
     this.handleSliderInput = this.handleSliderInput.bind(this)
     this.handlePreviewClick = this.handlePreviewClick.bind(this)
+    this.pickedFile = null
+    this.handleFilePicked = (e) => {
+      if (this.fileInputId && e.target.id === this.fileInputId && e.target.files?.[0]) {
+        this.pickedFile = e.target.files[0]
+      }
+    }
+    document.addEventListener("change", this.handleFilePicked, true)
 
     this.syncDataset()
     this.bindElements()
@@ -293,6 +300,7 @@ Hooks.VolumeControl = {
     }
   },
   destroyed() {
+    document.removeEventListener("change", this.handleFilePicked, true)
     if (this.slider) {
       this.slider.removeEventListener("input", this.handleSliderInput)
     }
@@ -528,7 +536,8 @@ Hooks.VolumeControl = {
   getPreviewSource() {
     if (this.previewKind === "local-upload" && this.fileInputId) {
       const input = document.getElementById(this.fileInputId)
-      const file = input && input.files && input.files[0]
+      const selected = input && input.getAttribute("data-phx-active-refs")
+      const file = selected ? input.files?.[0] || this.pickedFile : null
 
       if (!file) {
         return null

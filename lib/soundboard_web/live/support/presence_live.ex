@@ -1,7 +1,7 @@
 defmodule SoundboardWeb.Live.Support.PresenceLive do
   defmacro __using__(_opts) do
     quote do
-      alias SoundboardWeb.{Presence, PresenceHandler}
+      alias SoundboardWeb.Presence
       require Logger
 
       @presence_topic "soundboard:presence"
@@ -27,9 +27,7 @@ defmodule SoundboardWeb.Live.Support.PresenceLive do
           end
         end
 
-        socket
-        |> assign(:presences, Presence.list(@presence_topic))
-        |> assign(:presence_count, map_size(Presence.list(@presence_topic)))
+        assign(socket, :presences, Presence.list(@presence_topic))
       end
 
       defp get_user_from_session(%{"user_id" => user_id}),
@@ -38,33 +36,8 @@ defmodule SoundboardWeb.Live.Support.PresenceLive do
       defp get_user_from_session(_), do: nil
 
       @impl true
-      def handle_info({:presence_update, presences}, socket) do
-        {:noreply, assign(socket, :presences, presences)}
-      end
-
-      @impl true
-      def handle_info({:presence_diff, diff}, socket) do
-        {:noreply,
-         assign(socket,
-           presence_count:
-             PresenceHandler.handle_presence_diff(
-               diff,
-               socket.assigns.presence_count
-             )
-         )}
-      end
-
-      @impl true
-      def handle_info(%Phoenix.Socket.Broadcast{event: "presence_diff", payload: diff}, socket) do
-        presences = Presence.list(@presence_topic)
-
-        {:noreply,
-         socket
-         |> assign(:presences, presences)
-         |> assign(
-           :presence_count,
-           PresenceHandler.handle_presence_diff(diff, socket.assigns.presence_count)
-         )}
+      def handle_info(%Phoenix.Socket.Broadcast{event: "presence_diff"}, socket) do
+        {:noreply, assign(socket, :presences, Presence.list(@presence_topic))}
       end
     end
   end

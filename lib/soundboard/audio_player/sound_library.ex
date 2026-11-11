@@ -8,25 +8,13 @@ defmodule Soundboard.AudioPlayer.SoundLibrary do
 
   @cache_table :sound_meta_cache
 
-  def ensure_cache do
-    case :ets.info(@cache_table) do
-      :undefined ->
-        :ets.new(@cache_table, [:set, :named_table, :public, read_concurrency: true])
-        :ok
-
-      _ ->
-        :ok
-    end
-  end
+  def ensure_cache, do: Soundboard.TableOwner.ensure_tables([@cache_table])
 
   @doc """
   Resolves a sound to `{input, volume}` for playback, scoped to `guild_id`.
   Cache keys are `{guild_id, sound_name}` so tenants cannot read each other's
   sounds by name.
   """
-  def get_sound_path(sound_name) when is_binary(sound_name),
-    do: get_sound_path(Tenants.default_guild_id(), sound_name)
-
   def get_sound_path(guild_id, sound_name) do
     guild_id = Tenants.scope_guild_id(guild_id)
     ensure_cache()
@@ -37,45 +25,15 @@ defmodule Soundboard.AudioPlayer.SoundLibrary do
     end
   end
 
-  def prepare_play_input(sound_name, path_or_url) when is_binary(sound_name),
-    do: prepare_play_input(Tenants.default_guild_id(), sound_name, path_or_url)
-
-  def prepare_play_input(guild_id, sound_name, path_or_url) do
-    guild_id = Tenants.scope_guild_id(guild_id)
-    ensure_cache()
-
-    case :ets.lookup(@cache_table, {guild_id, sound_name}) do
-      [{{^guild_id, ^sound_name}, %{source_type: source_type}}]
-      when source_type in ["url", "local"] ->
-        {path_or_url, :url}
-
-      _ ->
-        case Soundboard.Repo.get_by(Sound, filename: sound_name, guild_id: guild_id) do
-          %{source_type: source_type} when source_type in ["url", "local"] ->
-            {path_or_url, :url}
-
-          _ ->
-            Logger.warning("Unknown source type for #{sound_name}; defaulting to direct playback")
-            {path_or_url, :url}
-        end
-    end
-  end
-
   @doc """
   Removes any cached metadata for the given `{guild_id, sound_name}` so future
-  plays use fresh data. The 1-arity form targets the default guild (compat).
+  plays use fresh data.
   """
   def invalidate_cache(guild_id, sound_name) when is_binary(sound_name) do
     ensure_cache()
     :ets.delete(@cache_table, {Tenants.scope_guild_id(guild_id), sound_name})
     :ok
   end
-
-  def invalidate_cache(sound_name) when is_binary(sound_name) do
-    invalidate_cache(Tenants.default_guild_id(), sound_name)
-  end
-
-  def invalidate_cache(_), do: :ok
 
   defp lookup_cached_sound(guild_id, sound_name) do
     case :ets.lookup(@cache_table, {guild_id, sound_name}) do

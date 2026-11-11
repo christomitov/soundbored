@@ -7,7 +7,7 @@ defmodule Soundboard.Discord.Handler.VoicePresence do
   alias Soundboard.Discord.{BotIdentity, GuildCache}
   @boundary_exceptions Soundboard.Boundary.exceptions()
 
-  def current_voice_channel(guild_id \\ nil) do
+  def current_voice_channel(guild_id) do
     with {:ok, bot_id} <- bot_id() do
       case find_bot_voice_channel(bot_id, guild_id) do
         nil -> :not_found
@@ -32,24 +32,25 @@ defmodule Soundboard.Discord.Handler.VoicePresence do
 
   def bot_id do
     case BotIdentity.fetch() do
-      {:ok, %{id: id}} when not is_nil(id) -> {:ok, id}
+      {:ok, %{id: nil}} -> {:error, :bot_identity_missing}
+      {:ok, %{id: id}} -> {:ok, id}
       {:ok, _} -> {:error, :bot_identity_missing}
       {:error, reason} -> {:error, {:bot_identity_unavailable, reason}}
     end
   end
 
   def cached_guilds do
-    {:ok, GuildCache.all() |> Enum.to_list()}
+    {:ok, Enum.to_list(GuildCache.all())}
   rescue
     error in @boundary_exceptions ->
       {:error, {:guild_cache_unavailable, Exception.message(error)}}
   end
 
   @doc """
-  Finds the voice channel of `discord_id`, optionally restricted to `guild_id`
-  so a tenant's playback can never auto-join another tenant's channel.
+  Finds the voice channel of `discord_id` in `guild_id` only, so a tenant's
+  playback can never auto-join another tenant's channel.
   """
-  def find_user_voice_channel(discord_id, guild_id \\ nil) do
+  def find_user_voice_channel(discord_id, guild_id) do
     case cached_guilds() do
       {:ok, guilds} ->
         guilds
@@ -62,8 +63,6 @@ defmodule Soundboard.Discord.Handler.VoicePresence do
     end
   end
 
-  defp filter_guilds(guilds, nil), do: guilds
-
   defp filter_guilds(guilds, guild_id) do
     Enum.filter(guilds, &(&1.id == to_string(guild_id)))
   end
@@ -72,7 +71,8 @@ defmodule Soundboard.Discord.Handler.VoicePresence do
     target = to_string(discord_id)
 
     case Enum.find(guild.voice_states, fn vs -> to_string(vs.user_id) == target end) do
-      %{channel_id: channel_id} when not is_nil(channel_id) -> {:ok, {guild.id, channel_id}}
+      %{channel_id: nil} -> nil
+      %{channel_id: channel_id} -> {:ok, {guild.id, channel_id}}
       _ -> nil
     end
   end
@@ -97,8 +97,9 @@ defmodule Soundboard.Discord.Handler.VoicePresence do
         voice_states = List.wrap(guild.voice_states)
 
         users_in_channel =
-          voice_states
-          |> Enum.count(fn vs -> vs.channel_id == channel_id && vs.user_id != bot_id end)
+          Enum.count(voice_states, fn vs ->
+            vs.channel_id == channel_id && vs.user_id != bot_id
+          end)
 
         log_voice_state_snapshot(channel_id, users_in_channel, bot_id, voice_states)
         {:ok, users_in_channel}
@@ -154,7 +155,10 @@ defmodule Soundboard.Discord.Handler.VoicePresence do
     guild.voice_states
     |> List.wrap()
     |> Enum.find_value(fn
-      %{user_id: ^bot_id, channel_id: channel_id} when not is_nil(channel_id) ->
+      %{user_id: ^bot_id, channel_id: nil} ->
+        nil
+
+      %{user_id: ^bot_id, channel_id: channel_id} ->
         {guild.id, channel_id}
 
       _ ->
@@ -164,7 +168,13 @@ defmodule Soundboard.Discord.Handler.VoicePresence do
 
   defp fallback_voice_channel(guild_id) do
     case AudioPlayer.current_voice_channel(guild_id) do
-      {:ok, {gid, cid}} when not is_nil(gid) and not is_nil(cid) ->
+      {:ok, {nil, _cid}} ->
+        nil
+
+      {:ok, {_gid, nil}} ->
+        nil
+
+      {:ok, {gid, cid}} ->
         {gid, cid}
 
       {:ok, _} ->

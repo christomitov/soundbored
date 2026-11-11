@@ -61,10 +61,6 @@ defmodule Soundboard.Sounds.Uploads.Source do
     end
   end
 
-  def prepare(_params, _mode) do
-    {:error, add_error(change(%Sound{}), :source_type, "must be either 'local' or 'url'")}
-  end
-
   @spec cleanup_local_file(String.t() | nil) :: :ok
   def cleanup_local_file(path) when is_binary(path) do
     case File.rm(path) do
@@ -80,14 +76,24 @@ defmodule Soundboard.Sounds.Uploads.Source do
   def cleanup_local_file(_path), do: :ok
 
   defp validate_url(url) when is_binary(url) do
-    if blank?(url) do
-      {:error, add_error(change(%Sound{}), :url, "can't be blank")}
-    else
-      {:ok, url}
+    cond do
+      blank?(url) -> {:error, add_error(change(%Sound{}), :url, "can't be blank")}
+      web_url?(url) -> {:ok, url}
+      true -> {:error, add_error(change(%Sound{}), :url, "must be an http or https URL")}
     end
   end
 
   defp validate_url(_url), do: {:error, add_error(change(%Sound{}), :url, "can't be blank")}
+
+  defp web_url?(url) do
+    case URI.parse(url) do
+      %URI{scheme: scheme, host: host} when scheme in ["http", "https"] ->
+        is_binary(host) and host != ""
+
+      _ ->
+        false
+    end
+  end
 
   defp validate_local_upload(nil, _mode),
     do: {:error, add_error(change(%Sound{}), :file, "Please select a file")}
@@ -131,16 +137,16 @@ defmodule Soundboard.Sounds.Uploads.Source do
       {:ok, mime} when mime in @allowed_audio_mime_types ->
         :ok
 
-      {:ok, _mime} ->
+      {:error, :unreadable} ->
+        {:error, add_error(change(%Sound{}), :file, "Could not read uploaded file")}
+
+      _not_audio ->
         {:error,
          add_error(
            change(%Sound{}),
            :file,
            "Invalid file type. Please upload an MP3, WAV, OGG, or M4A file."
          )}
-
-      {:error, _} ->
-        {:error, add_error(change(%Sound{}), :file, "Could not read uploaded file")}
     end
   end
 
@@ -173,11 +179,12 @@ defmodule Soundboard.Sounds.Uploads.Source do
   end
 
   defp filename_taken?(filename, guild_id) do
-    from(s in Sound,
-      where:
-        s.filename == ^filename and s.guild_id == ^Soundboard.Tenants.scope_guild_id(guild_id)
+    Repo.exists?(
+      from(s in Sound,
+        where:
+          s.filename == ^filename and s.guild_id == ^Soundboard.Tenants.scope_guild_id(guild_id)
+      )
     )
-    |> Repo.exists?()
   end
 
   defp url_file_extension(url) when is_binary(url) do

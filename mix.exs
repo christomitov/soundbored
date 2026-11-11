@@ -19,7 +19,7 @@ defmodule Soundboard.MixProject do
       deps: deps(),
       usage_rules: usage_rules(),
       dialyzer: [
-        plt_add_apps: [:ex_unit]
+        plt_add_apps: [:mix, :ex_unit, :credence]
       ],
       test_coverage: [
         tool: ExCoveralls,
@@ -96,7 +96,7 @@ defmodule Soundboard.MixProject do
     [
       {:vibe_kit, "== 0.1.7"},
       {:phoenix, "~> 1.8.0"},
-      {:phoenix_ecto, "~> 4.6.5"},
+      {:phoenix_ecto, "~> 4.7.0"},
       {:ecto_sql, "~> 3.10"},
       {:phoenix_html, "~> 4.1"},
       {:phoenix_live_reload, "~> 1.6", only: :dev},
@@ -113,6 +113,7 @@ defmodule Soundboard.MixProject do
       {:jason, "~> 1.2"},
       {:bandit, "~> 1.8"},
       {:eda, "~> 0.2.0"},
+      {:httpoison, "~> 3.0", override: true},
       {:rustler, "~> 0.35", runtime: false},
       {:ecto_sqlite3, "~> 0.22"},
       {:ueberauth, "~> 0.10.5"},
@@ -128,6 +129,7 @@ defmodule Soundboard.MixProject do
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:reach, "~> 2.8", only: [:dev, :test], runtime: false},
       {:ex_slop, "~> 0.4", only: [:dev, :test], runtime: false},
+      {:credence, "~> 0.8", only: [:dev, :test], runtime: false},
       {:usage_rules, "~> 1.2", only: :dev}
     ]
   end
@@ -149,6 +151,7 @@ defmodule Soundboard.MixProject do
         "deps.unlock --unused",
         "format",
         "credo --strict",
+        "credence",
         "cmd env MIX_ENV=test mix do compile --warnings-as-errors + test --warnings-as-errors",
         "ex_dna"
       ],
@@ -157,6 +160,7 @@ defmodule Soundboard.MixProject do
         "format --check-formatted",
         "cmd ./scripts/check-coverage.sh",
         "credo --strict",
+        "credence --check",
         "dialyzer",
         "ex_dna --max-clones 0",
         "reach.check --arch --smells --strict"

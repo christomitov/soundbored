@@ -2,31 +2,13 @@ defmodule SoundboardWeb.SoundHelpersTest do
   use ExUnit.Case, async: true
   alias SoundboardWeb.SoundHelpers
 
-  describe "display_name/1" do
-    test "strips extension and directories" do
-      assert SoundHelpers.display_name("priv/static/uploads/beep.mp3") == "beep"
-    end
-
-    test "handles values without extension" do
-      assert SoundHelpers.display_name("wow") == "wow"
-    end
-
-    test "handles nil" do
-      assert SoundHelpers.display_name(nil) == ""
-    end
-
-    test "stringifies non-binary values" do
-      assert SoundHelpers.display_name(123) == "123"
-    end
+  test "display_name/1 drops directories and the extension" do
+    assert SoundHelpers.display_name("priv/static/uploads/beep.mp3") == "beep"
+    assert SoundHelpers.display_name("wow") == "wow"
   end
 
-  describe "slugify/1" do
-    test "converts filename to lower-case slug" do
-      assert SoundHelpers.slugify("Wow Sound.MP3") == "wow-sound"
-    end
-
-    test "falls back to default" do
-      assert SoundHelpers.slugify(nil) == "sound"
-    end
+  test "slugify/1 makes a lower-case DOM-safe slug, or \"sound\" when nothing is left" do
+    assert SoundHelpers.slugify("Wow Sound.MP3") == "wow-sound"
+    assert SoundHelpers.slugify("日本.mp3") == "sound"
   end
 end

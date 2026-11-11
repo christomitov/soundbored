@@ -1,0 +1,15 @@
+<%= if String.trim(@tag_input || "") != "" and @tag_suggestions != [] do %>
+  <div class={@wrapper_class}>
+    <%= for tag <- @tag_suggestions do %>
+      <% tag_name = tag_value(tag, @tag_key) %>
+      <button
+        type="button"
+        phx-click={@select_event}
+        phx-value-tag={tag_name}
+        class={@suggestion_class}
+      >
+        {tag_name}
+      </button>
+    <% end %>
+  </div>
+<% end %>

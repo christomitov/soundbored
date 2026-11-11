@@ -1,512 +1,376 @@
 defmodule SoundboardWeb.BillingWebTest do
   @moduledoc """
-  Web tests for SB-3 billing: webhook signature rejection, the auth gate on
-  billing routes, checkout session contents (guild id in client_reference_id
-  and metadata), route dormancy when Stripe is unconfigured, and the guild
-  switch paywall gate.
+  Billing over HTTP, through the endpoint and router: the Stripe webhook
+  (raw-body signature check, idempotency), the billing page, and the owner's
+  checkout, portal, plan change and cancel. Only Stripe's modules and the
+  Discord cache are mocked; state is seeded with signed webhooks.
   """
 
   use SoundboardWeb.ConnCase, async: false
 
   import Mock
 
-  alias EDA.Cache
-  alias Soundboard.Accounts.User
-  alias Soundboard.Billing
-  alias Soundboard.Repo
-  alias Soundboard.Tenants
+  alias Soundboard.{Billing, Tenants}
 
-  @stripe_env [
-    secret_key: "sk_test_key",
-    webhook_secret: "whsec_test",
-    price_pro_monthly: "price_pro_m",
-    price_pro_yearly: "price_pro_y",
-    price_studio_monthly: "price_studio_m",
-    price_studio_yearly: "price_studio_y"
-  ]
+  @guild "bill-guild"
 
-  setup do
-    Billing.reset_memory()
-
-    on_exit(fn ->
-      Billing.reset_memory()
-      Application.put_env(:soundboard, Billing, [])
-    end)
-
+  setup_with_mocks([{EDA.Cache, [:passthrough], fetch_member: fn _, _ -> {:ok, %{}} end}]) do
     :ok
   end
 
-  defp conn!(conn),
-    do:
-      conn
-      |> init_test_session(%{})
-      |> fetch_query_params()
-      |> fetch_flash()
-      |> Map.update!(:params, &Map.put(&1, "_format", "html"))
-
-  defp call!(conn, action, params \\ %{}) do
-    conn = Map.update!(conn, :params, &Map.merge(&1, params))
-    SoundboardWeb.BillingController.call(conn, action)
-  end
-
-  defp call_guild!(conn, action, params) do
-    conn = Map.update!(conn, :params, &Map.merge(&1, params))
-    SoundboardWeb.GuildController.call(conn, action)
+  setup do
+    enable_billing()
+    owner = user_fixture()
+    {:ok, _} = Tenants.get_or_create_guild(@guild, %{owner_discord_id: owner.discord_id})
+    %{owner: owner}
   end
 
   describe "POST /billing/webhook" do
-    test "a bad signature is rejected with 400", %{conn: conn} do
-      Application.put_env(:soundboard, Billing, @stripe_env)
-      payload = Jason.encode!(%{"id" => "evt_bad", "type" => "ping"})
+    test "a signed event is applied once and acknowledged twice" do
+      event = checkout_event("evt_web_1", @guild, "price_studio_m", "cus_web")
+
+      assert %{"received" => true, "event" => "evt_web_1"} =
+               json_response(deliver_stripe_event(event), 200)
+
+      assert %{"event" => "duplicate"} = json_response(deliver_stripe_event(event), 200)
+      assert Tenants.get_guild(@guild).max_storage_bytes == Billing.plan_cap("price_studio_m")
+    end
+
+    test "an event type billing does not handle is acknowledged, so Stripe stops retrying" do
+      event = %{
+        "id" => "evt_web_other",
+        "type" => "customer.created",
+        "data" => %{"object" => %{}}
+      }
+
+      assert json_response(deliver_stripe_event(event), 200) == %{
+               "received" => true,
+               "event" => "evt_web_other"
+             }
+    end
+
+    test "the signature is checked over the exact bytes Stripe sent", %{conn: conn} do
+      event = checkout_event("evt_web_pretty", @guild, "price_pro_m", "cus_web")
+      payload = Jason.encode!(event, pretty: true)
 
       conn =
         conn
-        |> assign(:raw_body, [payload])
-        |> put_req_header(
-          "stripe-signature",
-          "t=#{System.system_time(:second)},v1=notthesignature"
-        )
-        |> call!(:webhook)
+        |> put_req_header("content-type", "application/json")
+        |> put_req_header("stripe-signature", stripe_signature(payload))
+        |> post("/billing/webhook", payload)
 
-      assert response(conn, 400)
+      assert %{"event" => "evt_web_pretty"} = json_response(conn, 200)
+      assert Tenants.get_guild(@guild).max_storage_bytes == Billing.plan_cap("price_pro_m")
     end
 
-    test "a valid signature with an unhandled type is accepted", %{conn: conn} do
-      Application.put_env(:soundboard, Billing, @stripe_env)
-
-      payload =
-        Jason.encode!(%{
-          "id" => "evt_other",
-          "type" => "customer.created",
-          "data" => %{"object" => %{}}
-        })
-
-      header = webhook_header(payload)
+    test "a signature over different bytes is rejected with 400", %{conn: conn} do
+      payload = Jason.encode!(checkout_event("evt_web_2", @guild, "price_studio_m", "cus_web"))
+      other = Jason.encode!(checkout_event("evt_web_2", @guild, "price_pro_m", "cus_web"))
 
       conn =
         conn
-        |> assign(:raw_body, [payload])
-        |> put_req_header("stripe-signature", header)
-        |> call!(:webhook)
+        |> put_req_header("content-type", "application/json")
+        |> put_req_header("stripe-signature", stripe_signature(other))
+        |> post("/billing/webhook", payload)
 
-      assert response(conn, 200)
-    end
-  end
-
-  describe "POST /billing/checkout" do
-    test "the session carries the guild id in client_reference_id and metadata", %{conn: conn} do
-      Application.put_env(:soundboard, Billing, @stripe_env)
-
-      with_mock Stripe.Checkout.Session, [],
-        create: fn params, _opts ->
-          send(self(), {:stripe_checkout_params, params})
-          {:ok, %{id: "cs_test_1", url: "https://checkout.stripe.com/test"}}
-        end,
-        create: fn params ->
-          send(self(), {:stripe_checkout_params, params})
-          {:ok, %{id: "cs_test_1", url: "https://checkout.stripe.com/test"}}
-        end do
-        conn =
-          conn!(conn)
-          |> assign(:current_user, %{discord_id: "owner-1"})
-          |> assign(:current_guild_id, "checkout-guild")
-          |> call!(:checkout, %{"price_id" => "price_pro_m"})
-
-        assert redirected_to(conn) == "https://checkout.stripe.com/test"
-
-        assert_received {:stripe_checkout_params, params}
-        assert params.client_reference_id == "checkout-guild"
-        assert params.mode == :subscription
-        assert params.metadata["guild_id"] == "checkout-guild"
-        assert params.metadata["price_id"] == "price_pro_m"
-        assert params.metadata["owner_discord_id"] == "owner-1"
-        assert params.subscription_data.metadata["guild_id"] == "checkout-guild"
-        assert [%{price: "price_pro_m", quantity: 1}] = params.line_items
-      end
+      assert json_response(conn, 400) == %{"error" => ":invalid_signature"}
+      assert Tenants.get_guild(@guild).max_storage_bytes == nil
     end
 
-    test "the pending billing guild (from a gated switch) wins over the current guild", %{
-      conn: conn
-    } do
-      Application.put_env(:soundboard, Billing, @stripe_env)
-
-      with_mock Stripe.Checkout.Session, [],
-        create: fn params, _opts ->
-          send(self(), {:stripe_checkout_params, params})
-          {:ok, %{id: "cs_test_2", url: "https://checkout.stripe.com/test"}}
-        end,
-        create: fn params ->
-          send(self(), {:stripe_checkout_params, params})
-          {:ok, %{id: "cs_test_2", url: "https://checkout.stripe.com/test"}}
-        end do
-        conn =
-          conn!(conn)
-          |> put_session(:billing_guild_id, "switch-target")
-          |> assign(:current_user, %{discord_id: "owner-1"})
-          |> assign(:current_guild_id, "current-guild")
-          |> call!(:checkout, %{"price_id" => "price_studio_y"})
-
-        assert redirected_to(conn) == "https://checkout.stripe.com/test"
-
-        assert_received {:stripe_checkout_params, params}
-        assert params.client_reference_id == "switch-target"
-      end
-    end
-  end
-
-  describe "auth gating on the billing scope" do
-    test "an unauthenticated request to /billing is redirected to auth", %{conn: conn} do
-      Application.put_env(:soundboard, Billing, @stripe_env)
-
-      conn = conn |> init_test_session(%{}) |> get("/billing")
-
-      assert redirected_to(conn) == "/auth/discord"
-    end
-  end
-
-  describe "route dormancy when Stripe is unconfigured" do
-    test "GET /billing is a 404 when Stripe is not configured", %{conn: conn} do
-      Application.put_env(:soundboard, Billing, [])
-      user = insert_user!()
-
-      conn =
+    test "malformed JSON is a 400 and changes nothing", %{conn: conn} do
+      assert_error_sent 400, fn ->
         conn
-        |> init_test_session(%{user_id: user.id})
-        |> get("/billing")
-
-      assert response(conn, 404)
-    end
-  end
-
-  describe "POST /guilds/switch paywall gate" do
-    @guild %{"id" => "unpaid-guild", "name" => "Unpaid"}
-
-    test "an unpaid guild redirects to /billing and creates no tenant row", %{conn: conn} do
-      Application.put_env(:soundboard, Billing, @stripe_env)
-
-      with_mock Cache, [],
-        get_guild: fn _ -> @guild end,
-        channels_for_guild: fn _ -> [] end,
-        voice_states: fn _ -> [] end do
-        conn =
-          call_guild!(conn!(conn), :switch, %{"discord_guild_id" => @guild["id"]})
-
-        assert redirected_to(conn) == "/billing"
-        # no flash: the billing page itself communicates the paywall
-        assert Phoenix.Flash.get(conn.assigns.flash, :info) == nil
-        refute Tenants.get_guild(@guild["id"])
-        assert get_session(conn, :billing_guild_id) == @guild["id"]
+        |> put_req_header("content-type", "application/json")
+        |> put_req_header("stripe-signature", stripe_signature("{"))
+        |> post("/billing/webhook", "{")
       end
+
+      assert Tenants.get_guild(@guild).max_storage_bytes == nil
     end
-
-    test "with Stripe unconfigured, switching behaves exactly as before", %{conn: conn} do
-      Application.put_env(:soundboard, Billing, [])
-
-      with_mock Cache, [],
-        get_guild: fn _ -> @guild end,
-        channels_for_guild: fn _ -> [] end,
-        voice_states: fn _ -> [] end do
-        conn =
-          call_guild!(conn!(conn), :switch, %{"discord_guild_id" => @guild["id"]})
-
-        assert redirected_to(conn) == "/"
-        assert %Tenants.Guild{} = Tenants.get_guild(@guild["id"])
-      end
-    end
-  end
-
-  defp webhook_header(payload, secret \\ "whsec_test") do
-    ts = Integer.to_string(System.system_time(:second))
-    mac = :crypto.mac(:hmac, :sha256, secret, ts <> "." <> payload) |> Base.encode16(case: :lower)
-    "t=#{ts},v1=#{mac}"
-  end
-
-  defp insert_user! do
-    %User{}
-    |> User.changeset(%{discord_id: "discord-bill-web", username: "billweb"})
-    |> Repo.insert!()
   end
 
   describe "GET /billing" do
-    test "renders the plan cards with the current plan state", %{conn: conn} do
-      Application.put_env(:soundboard, Billing, @stripe_env)
+    test "is a 404 when Stripe is not configured", %{conn: conn, owner: owner} do
+      Application.put_env(:soundboard, Billing, [])
 
-      {:ok, guild} = Tenants.get_or_create_guild("billing-render-guild", %{name: "Render"})
-
-      guild
-      |> Tenants.Guild.changeset(%{
-        max_storage_bytes: Billing.plan_cap(@stripe_env[:price_pro_monthly])
-      })
-      |> Repo.update!()
-
-      conn =
-        conn!(conn)
-        |> assign(:current_user, nil)
-        |> assign(:current_path, "/billing")
-        |> assign(:presences, [])
-        |> assign(:current_guild_id, guild.discord_guild_id)
-        |> call!(:index)
-
-      html = response(conn, 200)
-      assert html =~ "Pick a plan"
-      assert html =~ "$3.99"
-      assert html =~ "$9.99"
-      assert html =~ "Cancel subscription" == false
+      assert conn |> sign_in(owner, %{guild_id: @guild}) |> get("/billing") |> response(404)
     end
 
-    test "a guild with a remembered subscription hides the subscribe CTA and shows cancel", %{
-      conn: conn
+    test "offers the plans to a guild without a subscription", %{conn: conn, owner: owner} do
+      with_mock Stripe.Subscription, list: fn _, _ -> {:ok, %Stripe.List{data: []}} end do
+        html =
+          conn |> sign_in(owner, %{guild_id: @guild}) |> get("/billing") |> html_response(200)
+
+        assert html =~ ~s(action="/billing/checkout")
+        assert html =~ ~s(name="price_id" value="price_pro_m")
+        refute html =~ ~s(action="/billing/change")
+        refute html =~ ~s(action="/billing/cancel")
+        refute html =~ "Your plan"
+      end
+    end
+
+    test "offers plan changes and cancel instead of checkout once subscribed", %{
+      conn: conn,
+      owner: owner
     } do
-      Application.put_env(:soundboard, Billing, @stripe_env)
+      deliver_stripe_event(sub_event("evt_page_sub", @guild, "price_pro_m", "si_1"))
 
-      {:ok, guild} = Tenants.get_or_create_guild("billing-render-sub", %{name: "Render Sub"})
+      html = conn |> sign_in(owner, %{guild_id: @guild}) |> get("/billing") |> html_response(200)
 
-      guild
-      |> Tenants.Guild.changeset(%{
-        max_storage_bytes: Billing.plan_cap(@stripe_env[:price_pro_monthly])
-      })
-      |> Repo.update!()
-
-      Billing.remember_subscription("billing-render-sub", %Billing.SubscriptionSnapshot{
-        id: "sub_1",
-        item_id: nil,
-        price_id: @stripe_env[:price_pro_monthly]
-      })
-
-      html =
-        conn!(conn)
-        |> assign(:current_user, nil)
-        |> assign(:current_path, "/billing")
-        |> assign(:presences, [])
-        |> assign(:current_guild_id, guild.discord_guild_id)
-        |> call!(:index)
-        |> response(200)
-
-      assert html =~ "Current plan"
-      assert html =~ "Cancel subscription"
+      assert html =~ ~s(action="/billing/change")
+      assert html =~ ~s(action="/billing/cancel")
+      refute html =~ ~s(action="/billing/checkout")
       assert html =~ "Your plan"
     end
   end
 
-  describe "checkout fallbacks" do
-    test "no guild id in session or assigns redirects to /guilds with a flash", %{conn: conn} do
-      Application.put_env(:soundboard, Billing, @stripe_env)
-
-      conn =
-        conn!(conn)
-        |> assign(:current_user, nil)
-        |> assign(:current_guild_id, nil)
-        |> call!(:checkout, %{"price_id" => "price_pro_m"})
-
-      assert redirected_to(conn) == "/guilds"
-      assert Phoenix.Flash.get(conn.assigns.flash, :error) == "Pick a soundboard first"
-    end
-
-    test "a checkout error redirects back to /billing with the reason", %{conn: conn} do
-      Application.put_env(:soundboard, Billing, @stripe_env)
-
-      with_mock Billing, [:passthrough],
-        create_checkout_session: fn _g, _p, _o, _opts -> {:error, :stripe_down} end do
+  describe "POST /billing/checkout" do
+    test "sends the owner to Stripe with the guild in the session metadata", %{
+      conn: conn,
+      owner: owner
+    } do
+      with_mock Stripe.Checkout.Session, create: &checkout_session/2 do
         conn =
-          conn!(conn)
-          |> assign(:current_user, nil)
-          |> assign(:current_guild_id, "some-guild")
-          |> call!(:checkout, %{"price_id" => "price_pro_m"})
+          conn
+          |> sign_in(owner, %{guild_id: @guild})
+          |> post("https://www.example.com:8443/billing/checkout", %{"price_id" => "price_pro_m"})
 
-        assert redirected_to(conn) == "/billing"
-        assert Phoenix.Flash.get(conn.assigns.flash, :error) =~ "Could not start checkout"
+        assert redirected_to(conn) == "https://checkout.stripe.com/test"
+        assert_received {:stripe_checkout_params, params}
+        assert params.mode == :subscription
+        assert params.client_reference_id == @guild
+        assert params.metadata["guild_id"] == @guild
+        assert params.metadata["price_id"] == "price_pro_m"
+        assert params.metadata["owner_discord_id"] == owner.discord_id
+        assert params.subscription_data.metadata["guild_id"] == @guild
+        assert [%{price: "price_pro_m", quantity: 1}] = params.line_items
+        assert params.success_url == "https://www.example.com:8443/guilds"
+        assert params.cancel_url == "https://www.example.com:8443/guilds"
       end
     end
 
-    test "a session without a URL redirects back to /billing", %{conn: conn} do
-      Application.put_env(:soundboard, Billing, @stripe_env)
+    test "checks out the unpaid guild a switch was gated on", %{conn: conn, owner: owner} do
+      with_mocks([
+        {EDA.Cache, [:passthrough],
+         get_guild: fn _ -> %{"id" => "new-guild", "name" => "New"} end,
+         fetch_member: fn _, _ -> {:ok, %{}} end},
+        {Stripe.Checkout.Session, [], create: &checkout_session/2}
+      ]) do
+        switched =
+          conn
+          |> sign_in(owner, %{guild_id: @guild})
+          |> post("/guilds/switch", %{"discord_guild_id" => "new-guild"})
 
-      with_mock Billing, [:passthrough],
-        create_checkout_session: fn _g, _p, _o, _opts -> {:ok, %{id: "cs_1"}} end do
+        assert redirected_to(switched) == "/billing"
+
         conn =
-          conn!(conn)
-          |> assign(:current_user, nil)
-          |> assign(:current_guild_id, "some-guild")
-          |> call!(:checkout, %{"price_id" => "price_pro_m"})
+          switched
+          |> recycle()
+          |> post("/billing/checkout", %{"price_id" => "price_studio_y"})
 
-        assert redirected_to(conn) == "/billing"
-
-        assert Phoenix.Flash.get(conn.assigns.flash, :error) ==
-                 "Checkout session did not return a URL"
+        assert redirected_to(conn) == "https://checkout.stripe.com/test"
+        assert_received {:stripe_checkout_params, %{client_reference_id: "new-guild"}}
+        assert get_session(conn, :billing_guild_id) == nil
       end
     end
 
-    test "a checkout with no price_id redirects to /billing", %{conn: conn} do
-      conn =
-        conn!(conn)
-        |> assign(:current_guild_id, "some-guild")
-        |> call!(:checkout, %{})
+    test "without a picked soundboard asks for one before Stripe", %{conn: conn, owner: owner} do
+      with_mock Stripe.Checkout.Session,
+        create: fn _, _ -> flunk("Stripe must not be called") end do
+        conn = conn |> sign_in(owner) |> post("/billing/checkout", %{"price_id" => "price_pro_m"})
 
-      assert redirected_to(conn) == "/billing"
-      assert Phoenix.Flash.get(conn.assigns.flash, :error) == "Pick a plan first"
+        assert redirected_to(conn) == "/guilds"
+        assert Phoenix.Flash.get(conn.assigns.flash, :error) == "Pick a soundboard first"
+      end
+    end
+
+    test "returns to /billing when Stripe fails or gives no URL", %{conn: conn, owner: owner} do
+      for {result, flash} <- [
+            {{:error, :stripe_down}, "Could not start checkout: :stripe_down"},
+            {{:ok, %{id: "cs_1", url: nil}}, "Checkout session did not return a URL"}
+          ] do
+        with_mock Stripe.Checkout.Session, create: fn _, _ -> result end do
+          conn =
+            conn
+            |> sign_in(owner, %{guild_id: @guild})
+            |> post("/billing/checkout", %{"price_id" => "price_pro_m"})
+
+          assert redirected_to(conn) == "/billing"
+          assert Phoenix.Flash.get(conn.assigns.flash, :error) == flash
+        end
+      end
     end
   end
 
-  describe "portal" do
-    test "redirects to the portal URL", %{conn: conn} do
-      Application.put_env(:soundboard, Billing, @stripe_env)
+  describe "POST /billing/portal" do
+    test "opens the Stripe portal for the guild's customer", %{conn: conn, owner: owner} do
+      deliver_stripe_event(checkout_event("evt_portal", @guild, "price_pro_m", "cus_portal"))
 
-      with_mock Billing, [:passthrough],
-        create_portal_session: fn _g, _opts ->
+      with_mock Stripe.BillingPortal.Session,
+        create: fn params, _ ->
+          send(self(), {:portal_params, params})
           {:ok, %{url: "https://billing.stripe.com/session"}}
         end do
-        conn =
-          conn!(conn)
-          |> assign(:current_guild_id, "some-guild")
-          |> call!(:portal)
+        conn = conn |> sign_in(owner, %{guild_id: @guild}) |> post("/billing/portal")
 
         assert redirected_to(conn) == "https://billing.stripe.com/session"
+        assert_received {:portal_params, %{customer: "cus_portal"}}
       end
     end
 
-    test "an error redirects back to /billing", %{conn: conn} do
-      Application.put_env(:soundboard, Billing, @stripe_env)
+    test "says so when the guild has no Stripe customer yet", %{conn: conn, owner: owner} do
+      conn = conn |> sign_in(owner, %{guild_id: @guild}) |> post("/billing/portal")
 
-      with_mock Billing, [:passthrough],
-        create_portal_session: fn _g, _opts -> {:error, :no_customer} end do
-        conn =
-          conn!(conn)
-          |> assign(:current_guild_id, "some-guild")
-          |> call!(:portal)
+      assert redirected_to(conn) == "/billing"
 
-        assert redirected_to(conn) == "/billing"
-        assert Phoenix.Flash.get(conn.assigns.flash, :error) =~ "Could not open billing portal"
-      end
+      assert Phoenix.Flash.get(conn.assigns.flash, :error) ==
+               "Could not open billing portal: :no_customer"
     end
   end
 
-  describe "change" do
-    test "a successful change flashes and redirects", %{conn: conn} do
-      Application.put_env(:soundboard, Billing, @stripe_env)
+  describe "POST /billing/change" do
+    test "moves the subscription item to the new price", %{conn: conn, owner: owner} do
+      deliver_stripe_event(sub_event("evt_change_sub", @guild, "price_pro_m", "si_change"))
 
-      with_mock Billing, [:passthrough],
-        change_subscription_price: fn _g, _p -> {:ok, :updated} end do
+      with_mock Stripe.SubscriptionItem,
+        update: fn item_id, params, _ ->
+          send(self(), {:item_update, item_id, params})
+          {:ok, %{}}
+        end do
         conn =
-          conn!(conn)
-          |> assign(:current_guild_id, "some-guild")
-          |> call!(:change, %{"price_id" => "price_pro_y"})
+          conn
+          |> sign_in(owner, %{guild_id: @guild})
+          |> post("/billing/change", %{"price_id" => "price_studio_y"})
 
         assert redirected_to(conn) == "/billing"
         assert Phoenix.Flash.get(conn.assigns.flash, :info) =~ "Your plan has been updated"
+
+        assert_received {:item_update, "si_change",
+                         %{price: "price_studio_y", proration_behavior: :create_prorations}}
       end
     end
 
-    test "no subscription redirects with an error", %{conn: conn} do
-      Application.put_env(:soundboard, Billing, @stripe_env)
-
-      with_mock Billing, [:passthrough],
-        change_subscription_price: fn _g, _p -> {:error, :no_subscription} end do
+    test "says so when Stripe has no active subscription", %{conn: conn, owner: owner} do
+      with_mock Stripe.Subscription, list: fn _, _ -> {:ok, %Stripe.List{data: []}} end do
         conn =
-          conn!(conn)
-          |> assign(:current_guild_id, "some-guild")
-          |> call!(:change, %{"price_id" => "price_pro_y"})
+          conn
+          |> sign_in(owner, %{guild_id: @guild})
+          |> post("/billing/change", %{"price_id" => "price_studio_y"})
 
         assert redirected_to(conn) == "/billing"
-        assert Phoenix.Flash.get(conn.assigns.flash, :error) =~ "No active subscription"
+        assert Phoenix.Flash.get(conn.assigns.flash, :error) =~ "No active subscription found"
       end
     end
 
-    test "an invalid price redirects with an error", %{conn: conn} do
-      Application.put_env(:soundboard, Billing, @stripe_env)
-
-      with_mock Billing, [:passthrough],
-        change_subscription_price: fn _g, _p -> {:error, :invalid_price} end do
-        conn =
-          conn!(conn)
-          |> assign(:current_guild_id, "some-guild")
-          |> call!(:change, %{"price_id" => "price_bogus"})
+    test "asks for a plan when the price is missing or unknown", %{conn: conn, owner: owner} do
+      for params <- [%{"price_id" => "price_bogus"}, %{}] do
+        conn = conn |> sign_in(owner, %{guild_id: @guild}) |> post("/billing/change", params)
 
         assert redirected_to(conn) == "/billing"
         assert Phoenix.Flash.get(conn.assigns.flash, :error) == "Pick a plan first"
       end
     end
-
-    test "a change with no price_id redirects to /billing", %{conn: conn} do
-      conn =
-        conn!(conn)
-        |> assign(:current_guild_id, "some-guild")
-        |> call!(:change, %{})
-
-      assert redirected_to(conn) == "/billing"
-      assert Phoenix.Flash.get(conn.assigns.flash, :error) == "Pick a plan first"
-    end
   end
 
-  describe "cancel" do
-    test "a successful cancel flashes the period end date", %{conn: conn} do
-      Application.put_env(:soundboard, Billing, @stripe_env)
-      period_end = DateTime.to_unix(DateTime.utc_now() |> DateTime.add(86_400))
+  describe "POST /billing/cancel" do
+    test "cancels at period end and says until when", %{conn: conn, owner: owner} do
+      deliver_stripe_event(sub_event("evt_cancel_sub", @guild, "price_pro_m", "si_cancel"))
+      period_end = ~U[2031-05-17 12:00:00Z]
 
-      with_mock Billing, [:passthrough],
-        cancel_subscription: fn _g -> {:ok, %{cancel_at: period_end}} end do
-        conn =
-          conn!(conn)
-          |> assign(:current_guild_id, "some-guild")
-          |> call!(:cancel)
+      with_mock Stripe.Subscription,
+        update: fn id, params, _ ->
+          send(self(), {:sub_update, id, params})
+
+          {:ok,
+           %Stripe.Subscription{
+             id: id,
+             cancel_at: nil,
+             items: %Stripe.List{
+               data: [%Stripe.SubscriptionItem{current_period_end: DateTime.to_unix(period_end)}]
+             }
+           }}
+        end do
+        conn = conn |> sign_in(owner, %{guild_id: @guild}) |> post("/billing/cancel")
 
         assert redirected_to(conn) == "/billing"
-        assert Phoenix.Flash.get(conn.assigns.flash, :info) =~ "will end on"
-        assert Phoenix.Flash.get(conn.assigns.flash, :info) =~ "You keep your plan until then"
+
+        assert Phoenix.Flash.get(conn.assigns.flash, :info) ==
+                 "Your subscription will end on 2031-05-17. You keep your plan until then."
+
+        assert_received {:sub_update, "sub_evt_cancel_sub", %{cancel_at_period_end: true}}
       end
     end
 
-    test "a cancel with no period end just redirects", %{conn: conn} do
-      Application.put_env(:soundboard, Billing, @stripe_env)
-
-      with_mock Billing, [:passthrough],
-        cancel_subscription: fn _g -> {:ok, %{cancel_at: nil}} end do
-        conn =
-          conn!(conn)
-          |> assign(:current_guild_id, "some-guild")
-          |> call!(:cancel)
+    test "says so when Stripe has no active subscription", %{conn: conn, owner: owner} do
+      with_mock Stripe.Subscription, list: fn _, _ -> {:ok, %Stripe.List{data: []}} end do
+        conn = conn |> sign_in(owner, %{guild_id: @guild}) |> post("/billing/cancel")
 
         assert redirected_to(conn) == "/billing"
-      end
-    end
 
-    test "no subscription redirects with an error", %{conn: conn} do
-      Application.put_env(:soundboard, Billing, @stripe_env)
-
-      with_mock Billing, [:passthrough],
-        cancel_subscription: fn _g -> {:error, :no_subscription} end do
-        conn =
-          conn!(conn)
-          |> assign(:current_guild_id, "some-guild")
-          |> call!(:cancel)
-
-        assert redirected_to(conn) == "/billing"
-        assert Phoenix.Flash.get(conn.assigns.flash, :error) =~ "No active subscription"
+        assert Phoenix.Flash.get(conn.assigns.flash, :error) ==
+                 "No active subscription found to cancel"
       end
     end
   end
 
-  describe "webhook raw body fallback" do
-    test "reads the body when no parser cached it", %{conn: _conn} do
-      Application.put_env(:soundboard, Billing, @stripe_env)
+  test "a member who is not the owner cannot run the guild's billing", %{conn: conn} do
+    member = user_fixture()
+    refuse = fn _, _ -> flunk("Stripe must not be called") end
+    refuse3 = fn _, _, _ -> flunk("Stripe must not be called") end
 
-      payload =
-        Jason.encode!(%{
-          "id" => "evt_fb",
-          "type" => "customer.created",
-          "data" => %{"object" => %{}}
-        })
+    with_mocks([
+      {Stripe.Subscription, [], list: refuse, update: refuse3},
+      {Stripe.SubscriptionItem, [], update: refuse3},
+      {Stripe.BillingPortal.Session, [], create: refuse},
+      {Stripe.Checkout.Session, [], create: refuse}
+    ]) do
+      for {path, params} <- [
+            {"/billing/cancel", %{}},
+            {"/billing/change", %{"price_id" => "price_studio_m"}},
+            {"/billing/portal", %{}},
+            {"/billing/checkout", %{"price_id" => "price_studio_m"}}
+          ] do
+        conn = conn |> sign_in(member, %{guild_id: @guild}) |> post(path, params)
 
-      conn =
-        Plug.Test.conn(:post, "/billing/webhook", payload)
-        |> init_test_session(%{})
-        |> put_req_header("content-type", "application/json")
-        |> put_req_header("stripe-signature", "missing")
+        assert redirected_to(conn) == "/billing", path
 
-      conn = Map.update!(conn, :params, &Map.put(&1, "_format", "html"))
-      conn = Map.update!(conn, :params, &Map.merge(&1, %{}))
-      conn = SoundboardWeb.BillingController.call(conn, :webhook)
-
-      assert response(conn, 400)
+        assert Phoenix.Flash.get(conn.assigns.flash, :error) ==
+                 "Only the soundboard's owner can manage its billing"
+      end
     end
+  end
+
+  defp checkout_session(params, _opts) do
+    send(self(), {:stripe_checkout_params, params})
+    {:ok, %{id: "cs_test", url: "https://checkout.stripe.com/test"}}
+  end
+
+  defp checkout_event(id, guild_id, price_id, customer_id) do
+    %{
+      "id" => id,
+      "type" => "checkout.session.completed",
+      "data" => %{
+        "object" => %{
+          "client_reference_id" => guild_id,
+          "customer" => customer_id,
+          "metadata" => %{"guild_id" => guild_id, "price_id" => price_id}
+        }
+      }
+    }
+  end
+
+  defp sub_event(id, guild_id, price_id, item_id) do
+    %{
+      "id" => id,
+      "type" => "customer.subscription.updated",
+      "data" => %{
+        "object" => %{
+          "id" => "sub_#{id}",
+          "status" => "active",
+          "metadata" => %{"guild_id" => guild_id},
+          "items" => %{"data" => [%{"id" => item_id, "price" => %{"id" => price_id}}]}
+        }
+      }
+    }
   end
 end

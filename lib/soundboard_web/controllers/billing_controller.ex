@@ -3,14 +3,22 @@ defmodule SoundboardWeb.BillingController do
   Stripe subscriptions: plan options, checkout, customer portal, and the
   public webhook receiver (signature-verified, no session auth).
 
-  Checkout/portal delegate to `Soundboard.Billing` so tests can stub at that
-  seam instead of Stripe internals.
+  Only a guild's owner (`Soundboard.Tenants.Membership.owner?/2`) may open
+  its portal, change or cancel its plan, or start a checkout for it once it
+  has an owner; a new guild can be subscribed by the member who picked it.
+
+  The webhook signature is computed over the raw request bytes, so the
+  webhook reads the untouched JSON body that `SoundboardWeb.RawBodyReader`
+  kept in `:raw_body`, never re-encoded JSON.
   """
 
   use SoundboardWeb, :controller
 
   alias Soundboard.Billing
   alias Soundboard.Tenants
+  alias Soundboard.Tenants.Membership
+
+  plug :require_owner when action in [:portal, :change, :cancel]
 
   def index(conn, _params) do
     guild_id = conn.assigns.current_guild_id
@@ -38,13 +46,20 @@ defmodule SoundboardWeb.BillingController do
   @doc """
   Starts Stripe Checkout. The guild id comes from the session's pending
   billing guild (set when a switch to an unpaid guild was gated) or the
-  session's current guild; `Billing` puts it into `client_reference_id` and
-  metadata so the webhook can provision the right tenant.
+  picked soundboard (a tenant row, not the default-guild fallback); with
+  neither, the user is sent to pick one. `Billing` puts it into
+  `client_reference_id` and metadata so the webhook can provision the right
+  tenant.
   """
   def checkout(conn, %{"price_id" => price_id}) do
     case pending_or_current_guild_id(conn) do
-      nil -> no_guild_selected(conn)
-      guild_id -> start_checkout(conn, guild_id, price_id)
+      nil ->
+        no_guild_selected(conn)
+
+      guild_id ->
+        if may_subscribe?(conn, guild_id),
+          do: start_checkout(conn, guild_id, price_id),
+          else: not_owner(conn)
     end
   end
 
@@ -55,14 +70,15 @@ defmodule SoundboardWeb.BillingController do
   end
 
   defp pending_or_current_guild_id(conn) do
-    case get_session(conn, :billing_guild_id) || conn.assigns.current_guild_id do
-      id when is_binary(id) and id != "" -> id
+    case {get_session(conn, :billing_guild_id), conn.assigns.current_guild} do
+      {pending, _current} when is_binary(pending) and pending != "" -> pending
+      {_pending, %Tenants.Guild{discord_guild_id: id}} -> id
       _ -> nil
     end
   end
 
   defp start_checkout(conn, guild_id, price_id) do
-    owner = conn.assigns.current_user && conn.assigns.current_user.discord_id
+    owner = conn.assigns.current_user.discord_id
 
     case Billing.create_checkout_session(guild_id, price_id, owner, base_url: request_base(conn)) do
       {:ok, %{url: url}} when is_binary(url) ->
@@ -80,6 +96,23 @@ defmodule SoundboardWeb.BillingController do
         |> put_flash(:error, "Could not start checkout: #{inspect(reason)}")
         |> redirect(to: "/billing")
     end
+  end
+
+  defp may_subscribe?(conn, guild_id) do
+    Tenants.get_guild(guild_id) == nil or
+      Membership.owner?(guild_id, conn.assigns.current_user.discord_id)
+  end
+
+  defp require_owner(conn, _opts) do
+    if Membership.owner?(conn.assigns.current_guild_id, conn.assigns.current_user.discord_id),
+      do: conn,
+      else: conn |> not_owner() |> halt()
+  end
+
+  defp not_owner(conn) do
+    conn
+    |> put_flash(:error, "Only the soundboard's owner can manage its billing")
+    |> redirect(to: "/billing")
   end
 
   defp no_guild_selected(conn) do
@@ -172,11 +205,11 @@ defmodule SoundboardWeb.BillingController do
   duplicates get a 200 so Stripe stops retrying.
   """
   def webhook(conn, _params) do
-    signature = get_req_header(conn, "stripe-signature") |> List.first()
+    signature = List.first(get_req_header(conn, "stripe-signature"))
 
     case Billing.handle_webhook(raw_body(conn), signature) do
       {:ok, result} ->
-        conn |> json(%{received: true, event: result})
+        json(conn, %{received: true, event: result})
 
       {:error, reason} ->
         conn
@@ -185,23 +218,13 @@ defmodule SoundboardWeb.BillingController do
     end
   end
 
-  # Phoenix stores the untouched body in :raw_body when a JSON body parser
-  # runs; fall back to a manual read otherwise. The signature is computed over
-  # the raw bytes, so this must never see re-encoded JSON.
   defp raw_body(conn) do
     case conn.assigns[:raw_body] do
-      [body | _] ->
-        body
-
-      _ ->
-        case Plug.Conn.read_body(conn) do
-          {:ok, body, _conn} -> body
-          _ -> ""
-        end
+      [body | _] -> body
+      _ -> ""
     end
   end
 
-  # scheme://host[:port] from the incoming request, no path/query.
   defp request_base(conn) do
     %{scheme: scheme, host: host, port: port} = conn
     default = if scheme == :https, do: 443, else: 80

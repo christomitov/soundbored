@@ -15,13 +15,9 @@ defmodule SoundboardWeb.BillingHTML do
   end
 
   @doc "Checkout button label by relationship to the current plan."
-  def cta_label(state) do
-    case state do
-      :upgrade -> "Upgrade"
-      :downgrade -> "Downgrade"
-      _ -> "Subscribe"
-    end
-  end
+  def cta_label(:upgrade), do: "Upgrade"
+  def cta_label(:downgrade), do: "Downgrade"
+  def cta_label(_), do: "Subscribe"
 
   @doc "Label for change-plan (existing subscription) buttons, per billing interval."
   def form_label(state, interval) do

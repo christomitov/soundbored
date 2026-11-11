@@ -39,16 +39,18 @@ defmodule Soundboard.UserSoundSetting do
   end
 
   defp maybe_clear_join_sound(user_id, sound_id, true, guild_id) do
-    from(uss in __MODULE__,
-      join: s in Soundboard.Sound,
-      on: uss.sound_id == s.id,
-      where:
-        uss.user_id == ^user_id and
-          uss.sound_id != ^sound_id and
-          uss.is_join_sound == true and
-          s.guild_id == ^guild_id
+    Repo.update_all(
+      from(uss in __MODULE__,
+        join: s in Soundboard.Sound,
+        on: uss.sound_id == s.id,
+        where:
+          uss.user_id == ^user_id and
+            uss.sound_id != ^sound_id and
+            uss.is_join_sound == true and
+            s.guild_id == ^guild_id
+      ),
+      set: [is_join_sound: false]
     )
-    |> Repo.update_all(set: [is_join_sound: false])
 
     :ok
   end
@@ -56,16 +58,18 @@ defmodule Soundboard.UserSoundSetting do
   defp maybe_clear_join_sound(_user_id, _sound_id, _is_join_sound, _guild_id), do: :ok
 
   defp maybe_clear_leave_sound(user_id, sound_id, true, guild_id) do
-    from(uss in __MODULE__,
-      join: s in Soundboard.Sound,
-      on: uss.sound_id == s.id,
-      where:
-        uss.user_id == ^user_id and
-          uss.sound_id != ^sound_id and
-          uss.is_leave_sound == true and
-          s.guild_id == ^guild_id
+    Repo.update_all(
+      from(uss in __MODULE__,
+        join: s in Soundboard.Sound,
+        on: uss.sound_id == s.id,
+        where:
+          uss.user_id == ^user_id and
+            uss.sound_id != ^sound_id and
+            uss.is_leave_sound == true and
+            s.guild_id == ^guild_id
+      ),
+      set: [is_leave_sound: false]
     )
-    |> Repo.update_all(set: [is_leave_sound: false])
 
     :ok
   end

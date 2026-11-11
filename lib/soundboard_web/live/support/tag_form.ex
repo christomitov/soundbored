@@ -8,13 +8,14 @@ defmodule SoundboardWeb.Live.Support.TagForm do
 
   @type config :: %{required(:input_key) => atom(), required(:suggestions_key) => atom()}
 
-  def handle_key(socket, key, value, current_tags, apply_tag_fun, config)
+  def handle_key(socket, "Enter", value, current_tags, apply_tag_fun, config)
+      when is_function(apply_tag_fun, 3) and is_map(config) and value != "" do
+    select_tag(socket, value, current_tags, apply_tag_fun, config)
+  end
+
+  def handle_key(socket, _key, value, _current_tags, apply_tag_fun, config)
       when is_function(apply_tag_fun, 3) and is_map(config) do
-    if key == "Enter" and value != "" do
-      select_tag(socket, value, current_tags, apply_tag_fun, config)
-    else
-      update_input(socket, value, config)
-    end
+    update_input(socket, value, config)
   end
 
   def select_tag(socket, tag_name, current_tags, apply_tag_fun, config)

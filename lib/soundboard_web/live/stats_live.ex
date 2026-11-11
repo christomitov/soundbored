@@ -29,7 +29,6 @@ defmodule SoundboardWeb.StatsLive do
      |> mount_presence(session)
      |> assign(:current_path, "/stats")
      |> assign(:current_user, get_user_from_session(session))
-     |> assign(:force_update, 0)
      |> assign(:selected_week, current_week)
      |> assign(:current_week, current_week)
      |> stream_configure(:recent_plays, dom_id: &recent_play_dom_id/1)
@@ -39,7 +38,7 @@ defmodule SoundboardWeb.StatsLive do
 
   @impl true
   def handle_info({:sound_played, %{filename: filename, played_by: username}}, socket) do
-    recent_plays = recent_plays()
+    recent_plays = recent_plays(socket.assigns.guild_id)
 
     {:noreply,
      socket
@@ -62,28 +61,38 @@ defmodule SoundboardWeb.StatsLive do
   end
 
   @impl true
+  def handle_info(:check_week_rollover, socket) do
+    {:noreply, roll_week(socket, get_week_range())}
+  end
+
+  @impl true
   def handle_info(:clear_flash, socket) do
     {:noreply, clear_flash(socket)}
   end
 
   defp assign_stats(socket) do
     {start_date, end_date} = socket.assigns.selected_week
-    top_users = Stats.get_top_users(start_date, end_date, limit: @recent_limit)
-    top_sounds = Stats.get_top_sounds(start_date, end_date, limit: @recent_limit)
+    guild_id = socket.assigns.guild_id
 
-    recent_plays = recent_plays()
+    top_users =
+      Stats.get_top_users(start_date, end_date, limit: @recent_limit, guild_id: guild_id)
+
+    top_sounds =
+      Stats.get_top_sounds(start_date, end_date, limit: @recent_limit, guild_id: guild_id)
+
+    recent_plays = recent_plays(guild_id)
 
     recent_uploads =
-      Sounds.get_recent_uploads(limit: @recent_limit, guild_id: socket.assigns[:guild_id])
+      Sounds.get_recent_uploads(limit: @recent_limit, guild_id: guild_id)
 
-    favorites = get_favorites(socket.assigns.current_user)
+    favorites = get_favorites(socket.assigns.current_user, guild_id)
 
     sound_ids_by_filename =
       load_sound_ids_by_filename(
         top_sounds,
         recent_plays,
         recent_uploads,
-        socket.assigns[:guild_id]
+        guild_id
       )
 
     avatars_by_username = load_avatars_by_username(top_users, recent_plays, recent_uploads)
@@ -98,8 +107,22 @@ defmodule SoundboardWeb.StatsLive do
     |> assign(:avatars_by_username, avatars_by_username)
   end
 
-  defp get_favorites(nil), do: []
-  defp get_favorites(user), do: Favorites.list_favorites(user.id)
+  defp roll_week(%{assigns: %{current_week: week}} = socket, week), do: socket
+
+  defp roll_week(%{assigns: %{current_week: old_week}} = socket, new_week) do
+    selected_week =
+      if socket.assigns.selected_week == old_week,
+        do: new_week,
+        else: socket.assigns.selected_week
+
+    socket
+    |> assign(:current_week, new_week)
+    |> assign(:selected_week, selected_week)
+    |> assign_stats()
+  end
+
+  defp get_favorites(nil, _guild_id), do: []
+  defp get_favorites(user, guild_id), do: Favorites.list_favorites(user.id, guild_id)
 
   defp format_timestamp(timestamp) do
     timestamp
@@ -132,228 +155,8 @@ defmodule SoundboardWeb.StatsLive do
     end
   end
 
-  @impl true
-  def render(assigns) do
-    ~H"""
-    <div id="stats" class="max-w-6xl mx-auto px-4 py-8">
-      <div class="flex justify-between items-center mb-8">
-        <h1 class="text-3xl font-bold text-gray-800 dark:text-gray-100">Stats</h1>
-        <div class="flex items-center gap-4">
-          <button
-            phx-click="previous_week"
-            class="text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
-          >
-            <.icon name="hero-chevron-left-solid" class="h-5 w-5" />
-          </button>
-          <div class="flex flex-col items-start gap-1">
-            <form
-              phx-change="select_week"
-              phx-submit="select_week"
-              class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400"
-            >
-              <label for="week-picker" class="whitespace-nowrap">
-                Week of
-              </label>
-              <input
-                type="date"
-                id="week-picker"
-                name="week"
-                value={date_input_value(@selected_week)}
-                max={date_input_value(@current_week)}
-                phx-debounce="blur"
-                class="border border-gray-300 dark:border-gray-600 rounded-md px-2 py-1 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            </form>
-            <span class="text-xs text-gray-500 dark:text-gray-400">
-              {format_date_range(@selected_week)}
-            </span>
-          </div>
-          <button
-            phx-click="next_week"
-            disabled={@selected_week == @current_week}
-            class={[
-              "text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200",
-              @selected_week == @current_week && "opacity-50 cursor-not-allowed"
-            ]}
-          >
-            <.icon name="hero-chevron-right-solid" class="h-5 w-5" />
-          </button>
-        </div>
-      </div>
-
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-          <h2 class="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-4">Top Users</h2>
-          <div class="space-y-2">
-            <%= for {username, count} <- @top_users do %>
-              <div class="flex justify-between items-center" id={"user-stat-#{username}"}>
-                <span class={[
-                  "px-2 py-1 rounded-full text-sm flex items-center gap-1",
-                  get_user_color_from_presence(username, @presences)
-                ]}>
-                  <img
-                    :if={get_user_avatar(username, @presences, @avatars_by_username)}
-                    src={get_user_avatar(username, @presences, @avatars_by_username)}
-                    class="w-4 h-4 rounded-full"
-                    alt={"#{username}'s avatar"}
-                  />
-                  {username}
-                </span>
-                <span class="text-gray-600 dark:text-gray-400">{count} plays</span>
-              </div>
-            <% end %>
-          </div>
-        </div>
-
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
-          <h2 class="text-xl font-semibold text-gray-800 dark:text-gray-200 mb-4">Top Sounds</h2>
-          <div class="space-y-3">
-            <%= for {sound_name, count} <- @top_sounds do %>
-              <div
-                class="flex items-center justify-between p-2 px-6 rounded-lg bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer group"
-                id={"play-top-#{sound_name}"}
-                phx-click="play_sound"
-                phx-value-sound={sound_name}
-              >
-                <div class="flex items-center gap-3 min-w-0">
-                  <div class="min-w-0">
-                    <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
-                      {display_name(sound_name)}
-                    </p>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">
-                      {count} plays
-                    </p>
-                  </div>
-                </div>
-                <div class="flex items-center gap-2">
-                  <button
-                    phx-click="toggle_favorite"
-                    phx-value-sound={sound_name}
-                    phx-stop
-                    id={"favorite-#{sound_name}"}
-                    class="text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-500 mr-2"
-                  >
-                    <%= if favorite?(@favorites, sound_name, @sound_ids_by_filename) do %>
-                      <.icon name="hero-heart-solid" class="h-5 w-5 text-red-500" />
-                    <% else %>
-                      <.icon name="hero-heart" class="h-5 w-5" />
-                    <% end %>
-                  </button>
-                </div>
-              </div>
-            <% end %>
-          </div>
-        </div>
-      </div>
-
-      <div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-8">
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
-          <h2 class="text-xl font-semibold text-gray-800 dark:text-gray-200 mb-4">Recent Plays</h2>
-          <div class="space-y-3" id="recent_plays" phx-update="stream">
-            <%= for {dom_id, play} <- @streams.recent_plays do %>
-              <div
-                class="flex items-center justify-between p-2 rounded-lg bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer group"
-                id={dom_id}
-                phx-click="play_sound"
-                phx-value-sound={play.filename}
-              >
-                <div class="flex items-center gap-3 min-w-0">
-                  <div class="flex-shrink-0">
-                    <img
-                      src={get_user_avatar(play.username, @presences, @avatars_by_username)}
-                      class="w-8 h-8 rounded-full"
-                      alt={play.username}
-                    />
-                  </div>
-                  <div class="min-w-0">
-                    <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
-                      {display_name(play.filename)}
-                    </p>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">
-                      {play.username}
-                    </p>
-                  </div>
-                </div>
-                <div class="flex items-center gap-2">
-                  <span class="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
-                    {format_timestamp(play.timestamp)}
-                  </span>
-                  <button
-                    phx-click="toggle_favorite"
-                    phx-value-sound={play.filename}
-                    phx-stop
-                    class="text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-500 mr-2"
-                  >
-                    <%= if favorite?(@favorites, play.filename, @sound_ids_by_filename) do %>
-                      <.icon name="hero-heart-solid" class="h-5 w-5 text-red-500" />
-                    <% else %>
-                      <.icon name="hero-heart" class="h-5 w-5" />
-                    <% end %>
-                  </button>
-                </div>
-              </div>
-            <% end %>
-          </div>
-        </div>
-
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
-          <h2 class="text-xl font-semibold text-gray-800 dark:text-gray-200 mb-4">
-            Recently Uploaded
-          </h2>
-          <div class="space-y-3">
-            <%= for {sound_name, username, timestamp} <- @recent_uploads do %>
-              <div
-                class="flex items-center justify-between p-2 px-6 rounded-lg bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer group"
-                id={"play-upload-#{sound_name}"}
-                phx-click="play_sound"
-                phx-value-sound={sound_name}
-              >
-                <div class="flex items-center gap-3 min-w-0">
-                  <div class="flex-shrink-0">
-                    <img
-                      src={get_user_avatar(username, @presences, @avatars_by_username)}
-                      class="w-8 h-8 rounded-full"
-                      alt={username}
-                    />
-                  </div>
-                  <div class="min-w-0">
-                    <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
-                      {display_name(sound_name)}
-                    </p>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">
-                      {username}
-                    </p>
-                  </div>
-                </div>
-                <div class="flex items-center gap-2">
-                  <span class="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
-                    {format_timestamp(timestamp)}
-                  </span>
-                  <button
-                    phx-click="toggle_favorite"
-                    phx-value-sound={sound_name}
-                    phx-stop
-                    class="text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-500 mr-2"
-                  >
-                    <%= if favorite?(@favorites, sound_name, @sound_ids_by_filename) do %>
-                      <.icon name="hero-heart-solid" class="h-5 w-5 text-red-500" />
-                    <% else %>
-                      <.icon name="hero-heart" class="h-5 w-5" />
-                    <% end %>
-                  </button>
-                </div>
-              </div>
-            <% end %>
-          </div>
-        </div>
-      </div>
-    </div>
-    """
-  end
-
   defp get_user_color_from_presence(username, presences) do
-    presences
-    |> Enum.find_value(fn {_id, presence} ->
+    Enum.find_value(presences, fn {_id, presence} ->
       meta = List.first(presence.metas)
 
       if get_in(meta, [:user, :username]) == username do
@@ -364,17 +167,17 @@ defmodule SoundboardWeb.StatsLive do
   end
 
   defp handle_favorite_toggle(socket, user, sound_name) do
-    case Sounds.fetch_sound_id(sound_name) do
+    case Sounds.fetch_sound_id(sound_name, socket.assigns.guild_id) do
       {:ok, sound_id} -> update_favorite(socket, user, sound_id)
       :error -> {:noreply, put_flash(socket, :error, "Sound not found")}
     end
   end
 
   defp update_favorite(socket, user, sound_id) do
-    case Favorites.toggle_favorite(user.id, sound_id) do
+    case Favorites.toggle_favorite(user.id, sound_id, socket.assigns.guild_id) do
       {:ok, _favorite} ->
-        updated_favorites = Favorites.list_favorites(user.id)
-        recent_plays = recent_plays()
+        updated_favorites = Favorites.list_favorites(user.id, socket.assigns.guild_id)
+        recent_plays = recent_plays(socket.assigns.guild_id)
 
         {:noreply,
          socket
@@ -387,9 +190,8 @@ defmodule SoundboardWeb.StatsLive do
     end
   end
 
-  defp recent_plays do
-    Stats.get_recent_plays(limit: @recent_limit)
-    |> Enum.map(&map_recent_play/1)
+  defp recent_plays(guild_id) do
+    Enum.map(Stats.get_recent_plays(limit: @recent_limit, guild_id: guild_id), &map_recent_play/1)
   end
 
   defp map_recent_play({id, filename, username, timestamp}) do
@@ -402,37 +204,21 @@ defmodule SoundboardWeb.StatsLive do
   end
 
   defp load_sound_ids_by_filename(top_sounds, recent_plays, recent_uploads, guild_id) do
-    filenames =
-      top_sounds
-      |> Enum.map(fn {filename, _count} -> filename end)
-      |> Kernel.++(Enum.map(recent_plays, & &1.filename))
-      |> Kernel.++(Enum.map(recent_uploads, fn {filename, _username, _timestamp} -> filename end))
-      |> Enum.uniq()
-
-    case filenames do
-      [] ->
-        %{}
-
-      _ ->
-        Sounds.ids_by_filename(filenames, guild_id)
-    end
+    top_sounds
+    |> Enum.map(fn {filename, _count} -> filename end)
+    |> Kernel.++(Enum.map(recent_plays, & &1.filename))
+    |> Kernel.++(Enum.map(recent_uploads, fn {filename, _username, _timestamp} -> filename end))
+    |> Enum.uniq()
+    |> Sounds.ids_by_filename(guild_id)
   end
 
   defp load_avatars_by_username(top_users, recent_plays, recent_uploads) do
-    usernames =
-      top_users
-      |> Enum.map(fn {username, _count} -> username end)
-      |> Kernel.++(Enum.map(recent_plays, & &1.username))
-      |> Kernel.++(Enum.map(recent_uploads, fn {_filename, username, _timestamp} -> username end))
-      |> Enum.uniq()
-
-    case usernames do
-      [] ->
-        %{}
-
-      _ ->
-        Accounts.avatars_by_usernames(usernames)
-    end
+    top_users
+    |> Enum.map(fn {username, _count} -> username end)
+    |> Kernel.++(Enum.map(recent_plays, & &1.username))
+    |> Kernel.++(Enum.map(recent_uploads, fn {_filename, username, _timestamp} -> username end))
+    |> Enum.uniq()
+    |> Accounts.avatars_by_usernames()
   end
 
   defp recent_play_dom_id(play) do
@@ -506,8 +292,7 @@ defmodule SoundboardWeb.StatsLive do
   end
 
   defp get_user_avatar(username, presences, avatars_by_username) do
-    presences
-    |> Enum.find_value(fn {_id, presence} ->
+    Enum.find_value(presences, fn {_id, presence} ->
       meta = List.first(presence.metas)
       if get_in(meta, [:user, :username]) == username, do: get_in(meta, [:user, :avatar])
     end) || Map.get(avatars_by_username, username)

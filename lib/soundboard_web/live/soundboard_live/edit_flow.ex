@@ -3,48 +3,25 @@ defmodule SoundboardWeb.Live.SoundboardLive.EditFlow do
 
   import Phoenix.Component, only: [assign: 3]
 
-  alias Soundboard.{Sound, Sounds, Volume}
+  alias Soundboard.{Sounds, Volume}
+  alias SoundboardWeb.Live.SoundboardLive.EditFlow.State
   alias SoundboardWeb.Live.Support.{LiveTags, TagForm}
 
   @tag_form %{input_key: :tag_input, suggestions_key: :tag_suggestions}
 
-  defmodule State do
-    @moduledoc false
-
-    defstruct show_modal: false,
-              current_sound: nil,
-              tag_input: "",
-              tag_suggestions: [],
-              show_delete_confirm: false,
-              edit_name_error: nil,
-              current_user_id: nil
-
-    @type t :: %__MODULE__{
-            show_modal: boolean(),
-            current_sound: Sound.t() | nil,
-            tag_input: String.t(),
-            tag_suggestions: list(),
-            show_delete_confirm: boolean(),
-            edit_name_error: String.t() | nil,
-            current_user_id: integer() | nil
-          }
-  end
-
   def assign_defaults(socket), do: put_state(socket, default_state())
 
   def validate_sound(socket, %{"_target" => ["filename"]} = params) do
-    current_sound_id = params["sound_id"]
-
     error =
-      case Sounds.fetch_filename_extension(current_sound_id) do
-        {:ok, extension} ->
-          filename = String.trim(params["filename"] || "") <> extension
+      case state(socket).current_sound do
+        %{id: id, filename: current} ->
+          filename = String.trim(params["filename"] || "") <> Path.extname(current)
 
-          if Sounds.filename_taken_excluding?(filename, current_sound_id, socket.assigns.guild_id) do
+          if Sounds.filename_taken_excluding?(filename, id, socket.assigns.guild_id) do
             "A sound with that name already exists"
           end
 
-        :error ->
+        nil ->
           nil
       end
 
@@ -54,13 +31,17 @@ defmodule SoundboardWeb.Live.SoundboardLive.EditFlow do
   def validate_sound(socket, _params), do: {:noreply, socket}
 
   def open_modal(socket, id) do
-    sound = Sounds.get_sound!(id)
+    case Sounds.fetch_sound(id, socket.assigns.guild_id) do
+      {:ok, sound} ->
+        {:noreply,
+         update_state(
+           socket,
+           &%{&1 | current_sound: sound, show_modal: true, edit_name_error: nil}
+         )}
 
-    {:noreply,
-     socket
-     |> update_state(fn state ->
-       %{state | current_sound: sound, show_modal: true, edit_name_error: nil}
-     end)}
+      :error ->
+        {:noreply, Phoenix.LiveView.put_flash(socket, :error, "Sound not found")}
+    end
   end
 
   def close_modal(socket), do: put_state(socket, default_state())
@@ -84,8 +65,6 @@ defmodule SoundboardWeb.Live.SoundboardLive.EditFlow do
      |> assign(:uploaded_files, Sounds.list_detailed(socket.assigns.guild_id))}
   end
 
-  def select_tag_suggestion(socket, tag_name), do: select_tag(socket, tag_name)
-
   def update_tag_input(socket, value), do: TagForm.update_input(socket, value, @tag_form)
 
   def select_tag(socket, tag_name) do
@@ -99,8 +78,6 @@ defmodule SoundboardWeb.Live.SoundboardLive.EditFlow do
 
     case Sounds.update_sound(edit.current_sound, edit.current_user_id, params) do
       {:ok, _updated_sound} ->
-        LiveTags.broadcast_update()
-
         {:noreply,
          socket
          |> Phoenix.LiveView.put_flash(:info, "Sound updated successfully")

@@ -1,9 +1,4 @@
 defmodule Soundboard.RuntimeConfigTest do
-  # Regression test for issue #79 in prod: the advertised URL must not carry
-  # the internal bind port. Phoenix falls back to the listener port when
-  # url[:port] is nil, so prod publishes the explicit scheme default (443/80).
-  # Dev intentionally advertises the bind port: it talks straight to the
-  # server, there is no reverse proxy in front of it.
   use ExUnit.Case, async: false
 
   @env %{
@@ -50,6 +45,23 @@ defmodule Soundboard.RuntimeConfigTest do
       url = config[:soundboard][SoundboardWeb.Endpoint][:url]
 
       assert url[:host] == "soundboard.example:8443"
+    end
+  end
+
+  test "required role ids are trimmed around commas" do
+    original = System.get_env("DISCORD_REQUIRED_ROLE_IDS")
+    System.put_env("DISCORD_REQUIRED_ROLE_IDS", "111, 222 ,,333")
+
+    on_exit(fn ->
+      if original,
+        do: System.put_env("DISCORD_REQUIRED_ROLE_IDS", original),
+        else: System.delete_env("DISCORD_REQUIRED_ROLE_IDS")
+    end)
+
+    for env <- [:dev, :prod] do
+      config = Config.Reader.read!("config/runtime.exs", env: env, imports: [])
+
+      assert config[:soundboard][:required_role_ids] == ["111", "222", "333"]
     end
   end
 end

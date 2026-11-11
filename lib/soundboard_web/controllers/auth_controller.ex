@@ -1,4 +1,8 @@
 defmodule SoundboardWeb.AuthController do
+  @moduledoc """
+  Discord sign-in. A signed-out visitor who opened `/g/:slug` has that slug
+  kept in the session (`:pending_slug`), and lands on it after signing in.
+  """
   use SoundboardWeb, :controller
 
   plug Ueberauth
@@ -7,12 +11,10 @@ defmodule SoundboardWeb.AuthController do
   alias Soundboard.Discord.RoleChecker
   alias Soundboard.Repo
 
-  def request(conn, %{"provider" => "discord"} = _params) do
-    conn
-    |> put_session(:session_id, System.unique_integer())
-    |> configure_session(renew: true)
-  end
-
+  @doc """
+  Only reached for providers Ueberauth does not handle: the Ueberauth plug
+  answers `/auth/discord` itself by redirecting to Discord.
+  """
   def request(conn, _params) do
     conn
     |> put_status(:not_found)
@@ -49,8 +51,6 @@ defmodule SoundboardWeb.AuthController do
     |> redirect(to: "/")
   end
 
-  # SB-2 slug claim: a signed-out visitor who hit /g/:slug stashed the desired
-  # slug in the session; land them on it after sign-in.
   defp redirect_after_sign_in(conn) do
     case get_session(conn, :pending_slug) do
       nil ->
@@ -107,14 +107,5 @@ defmodule SoundboardWeb.AuthController do
     conn
     |> clear_session()
     |> redirect(to: "/")
-  end
-
-  def debug_session(conn, _params) do
-    json(conn, %{
-      session: %{
-        session_id: get_session(conn, :session_id),
-        user_id: get_session(conn, :user_id)
-      }
-    })
   end
 end

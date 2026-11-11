@@ -1,155 +1,70 @@
 defmodule Soundboard.AudioPlayer.SoundLibraryTest do
-  use Soundboard.DataCase
+  use Soundboard.DataCase, async: false
+
+  @moduletag :capture_log
 
   alias Soundboard.Accounts.User
   alias Soundboard.AudioPlayer.SoundLibrary
-  alias Soundboard.{Repo, Sound}
+  alias Soundboard.Sound
 
   setup do
-    clear_sound_cache()
-
-    on_exit(fn ->
-      clear_sound_cache()
-    end)
-
-    {:ok, user} =
+    user =
       %User{}
       |> User.changeset(%{
         username: "library_user_#{System.unique_integer([:positive])}",
         discord_id: Integer.to_string(System.unique_integer([:positive])),
         avatar: "avatar.png"
       })
-      |> Repo.insert()
+      |> Repo.insert!()
 
-    %{user: user}
+    %{user: user, guild: "library-#{System.unique_integer([:positive])}"}
   end
 
-  test "ensure_cache/0 creates the cache table and is idempotent" do
-    assert :undefined == :ets.whereis(:sound_meta_cache)
+  test "URL sounds are cached per guild until invalidated", %{user: user, guild: guild} do
+    other_guild = "#{guild}-other"
+    sound = insert_sound!(user, guild, %{source_type: "url", url: "https://a.example/1.mp3"})
 
-    assert :ok = SoundLibrary.ensure_cache()
-    refute :undefined == :ets.whereis(:sound_meta_cache)
+    assert {:ok, {"https://a.example/1.mp3", 0.8}} =
+             SoundLibrary.get_sound_path(guild, sound.filename)
 
-    assert :ok = SoundLibrary.ensure_cache()
+    assert {:error, "Sound not found"} = SoundLibrary.get_sound_path(other_guild, sound.filename)
+
+    Repo.update!(Ecto.Changeset.change(sound, url: "https://a.example/2.mp3"))
+
+    assert {:ok, {"https://a.example/1.mp3", 0.8}} =
+             SoundLibrary.get_sound_path(guild, sound.filename)
+
+    assert :ok = SoundLibrary.invalidate_cache(guild, sound.filename)
+
+    assert {:ok, {"https://a.example/2.mp3", 0.8}} =
+             SoundLibrary.get_sound_path(guild, sound.filename)
   end
 
-  test "get_sound_path/1 resolves and caches URL sounds", %{user: user} do
-    sound =
-      insert_sound!(user, %{
-        filename: unique_filename("remote", ".mp3"),
-        source_type: "url",
-        url: "https://example.com/wow.mp3",
-        volume: 0.8
-      })
+  test "local sounds resolve to their uploaded file", %{user: user, guild: guild} do
+    sound = insert_sound!(user, guild, %{source_type: "local", volume: 1.2})
 
-    assert {:ok, {"https://example.com/wow.mp3", 0.8}} =
-             SoundLibrary.get_sound_path(sound.filename)
-
-    Repo.delete!(sound)
-
-    assert {:ok, {"https://example.com/wow.mp3", 0.8}} =
-             SoundLibrary.get_sound_path(sound.filename)
-  end
-
-  test "get_sound_path/1 resolves local sounds when the file exists", %{user: user} do
-    filename = unique_filename("local", ".wav")
-    sound = insert_sound!(user, %{filename: filename, source_type: "local", volume: 1.2})
-
-    # File lives at storage_key path, not display filename path
     storage_path = Soundboard.UploadsPath.file_path(sound.storage_key)
     File.mkdir_p!(Path.dirname(storage_path))
     File.write!(storage_path, "audio")
     on_exit(fn -> File.rm(storage_path) end)
 
-    assert {:ok, {^storage_path, 1.2}} = SoundLibrary.get_sound_path(sound.filename)
+    assert {:ok, {^storage_path, 1.2}} = SoundLibrary.get_sound_path(guild, sound.filename)
   end
 
-  test "get_sound_path/1 returns helpful errors for missing local files", %{user: user} do
-    filename = unique_filename("missing", ".mp3")
-    sound = insert_sound!(user, %{filename: filename, source_type: "local"})
-
-    assert {:error, message} = SoundLibrary.get_sound_path(sound.filename)
-
-    assert message ==
-             "Sound file not found at #{Soundboard.UploadsPath.file_path(sound.storage_key)}"
-  end
-
-  test "get_sound_path/1 returns error when the sound is missing" do
-    assert {:error, "Sound not found"} = SoundLibrary.get_sound_path("missing.mp3")
-  end
-
-  test "prepare_play_input/2 prefers cached source metadata", %{user: user} do
-    sound =
-      insert_sound!(user, %{
-        filename: unique_filename("cached", ".mp3"),
-        source_type: "url",
-        url: "https://example.com/cached.mp3"
-      })
-
-    assert {:ok, {"https://example.com/cached.mp3", 1.0}} =
-             SoundLibrary.get_sound_path(sound.filename)
-
-    assert {"play-this", :url} = SoundLibrary.prepare_play_input(sound.filename, "play-this")
-  end
-
-  test "prepare_play_input/2 falls back to the database when cache is empty", %{user: user} do
-    sound =
-      insert_sound!(user, %{
-        filename: unique_filename("db", ".mp3"),
-        source_type: "url",
-        url: "https://example.com/db.mp3"
-      })
-
-    assert {"from-db", :url} = SoundLibrary.prepare_play_input(sound.filename, "from-db")
-  end
-
-  test "invalidate_cache/1 deletes cached entries and ignores non-binary input", %{user: user} do
-    sound =
-      insert_sound!(user, %{
-        filename: unique_filename("invalidate", ".mp3"),
-        source_type: "url",
-        url: "https://example.com/invalidate.mp3"
-      })
-
-    assert {:ok, {"https://example.com/invalidate.mp3", 1.0}} =
-             SoundLibrary.get_sound_path(sound.filename)
-
-    assert [{_, _}] =
-             :ets.lookup(
-               :sound_meta_cache,
-               {Soundboard.Tenants.default_guild_id(), sound.filename}
-             )
-
-    assert :ok = SoundLibrary.invalidate_cache(sound.filename)
-
-    assert [] ==
-             :ets.lookup(
-               :sound_meta_cache,
-               {Soundboard.Tenants.default_guild_id(), sound.filename}
-             )
-
-    assert :ok = SoundLibrary.invalidate_cache(nil)
-  end
-
-  defp insert_sound!(user, attrs) do
+  defp insert_sound!(user, guild, attrs) do
     attrs =
-      attrs
-      |> Map.put_new(:user_id, user.id)
-      |> Map.put_new(:volume, 1.0)
+      Map.merge(
+        %{
+          filename: "sound_#{System.unique_integer([:positive])}.mp3",
+          user_id: user.id,
+          guild_id: guild,
+          volume: 0.8
+        },
+        attrs
+      )
 
     %Sound{}
     |> Sound.changeset(attrs)
     |> Repo.insert!()
-  end
-
-  defp unique_filename(prefix, ext) do
-    "#{prefix}_#{System.unique_integer([:positive])}#{ext}"
-  end
-
-  defp clear_sound_cache do
-    case :ets.whereis(:sound_meta_cache) do
-      :undefined -> :ok
-      _table -> :ets.delete(:sound_meta_cache)
-    end
   end
 end

@@ -4,46 +4,10 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
   import Phoenix.Component, only: [assign: 3]
 
   alias Soundboard.{Sounds, Volume}
+  alias SoundboardWeb.Live.SoundboardLive.UploadFlow.State
   alias SoundboardWeb.Live.Support.TagForm
 
   @tag_form %{input_key: :upload_tag_input, suggestions_key: :upload_tag_suggestions}
-
-  defmodule State do
-    @moduledoc false
-
-    defstruct show_upload_modal: false,
-              guild_id: nil,
-              source_type: "local",
-              upload_name: "",
-              url: "",
-              upload_tags: [],
-              upload_tag_input: "",
-              upload_tag_suggestions: [],
-              is_join_sound: false,
-              is_leave_sound: false,
-              upload_error: nil,
-              upload_volume: 100,
-              current_user: nil,
-              audio_entries: [],
-              current_upload: nil
-
-    @type t :: %__MODULE__{
-            show_upload_modal: boolean(),
-            source_type: String.t(),
-            upload_name: String.t(),
-            url: String.t(),
-            upload_tags: list(),
-            upload_tag_input: String.t(),
-            upload_tag_suggestions: list(),
-            is_join_sound: boolean(),
-            is_leave_sound: boolean(),
-            upload_error: String.t() | nil,
-            upload_volume: number(),
-            current_user: term(),
-            audio_entries: list(),
-            current_upload: map() | nil
-          }
-  end
 
   def assign_defaults(socket),
     do: put_state(socket, %{default_state() | guild_id: socket.assigns[:guild_id]})
@@ -52,7 +16,7 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
     {:noreply, update_state(socket, &%{&1 | source_type: source_type})}
   end
 
-  def save(socket, params, consume_uploaded_entries_fn) do
+  def save(socket, params) do
     upload = state(socket)
 
     case upload.source_type do
@@ -72,7 +36,7 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
 
       _ ->
         results =
-          consume_uploaded_entries_fn.(socket, :audio, fn meta, entry ->
+          Phoenix.LiveView.consume_uploaded_entries(socket, :audio, fn meta, entry ->
             request =
               upload
               |> build_request(params)
@@ -98,6 +62,13 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
       {:error, changeset} ->
         {:noreply, assign_params(socket, upload, params, Sounds.create_error_message(changeset))}
     end
+  end
+
+  def cancel_entry(socket, ref) do
+    {:noreply,
+     socket
+     |> Phoenix.LiveView.cancel_upload(:audio, ref)
+     |> update_state(&%{&1 | upload_error: nil})}
   end
 
   def show_modal(socket) do
@@ -127,8 +98,6 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
        %{upload | upload_tags: Enum.reject(upload.upload_tags, &(&1.name == tag_name))}
      end)}
   end
-
-  def select_tag_suggestion(socket, tag_name), do: select_tag(socket, tag_name)
 
   def update_tag_input(socket, value), do: TagForm.update_input(socket, value, @tag_form)
 

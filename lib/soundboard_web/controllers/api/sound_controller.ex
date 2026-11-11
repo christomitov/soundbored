@@ -1,4 +1,10 @@
 defmodule SoundboardWeb.API.SoundController do
+  @moduledoc """
+  The JSON API. `SoundboardWeb.Plugs.APIAuth` has already authenticated the
+  token's user and `SoundboardWeb.Plugs.Tenant` resolved the guild, so every
+  action acts as `:current_user` in `:current_guild_id`.
+  """
+
   use SoundboardWeb, :controller
 
   import Ecto.Query, only: [where: 2]
@@ -17,32 +23,25 @@ defmodule SoundboardWeb.API.SoundController do
   end
 
   def favorites(conn, _params) do
-    case conn.assigns[:current_user] do
-      %Soundboard.Accounts.User{} = user ->
-        sounds =
-          Soundboard.Favorites.list_favorite_sounds_with_tags(user.id, guild_id(conn))
-          |> Enum.map(&format_sound(&1, user))
+    user = conn.assigns.current_user
 
-        json(conn, %{data: sounds})
+    sounds =
+      Enum.map(
+        Soundboard.Favorites.list_favorite_sounds_with_tags(user.id, guild_id(conn)),
+        &format_sound(&1, user)
+      )
 
-      _ ->
-        conn
-        |> put_status(:forbidden)
-        |> json(%{error: "Favorites require a user API token"})
-    end
+    json(conn, %{data: sounds})
   end
 
   def create(conn, params) do
-    with {:ok, user} <- require_upload_user(conn),
-         {:ok, sound} <- create_sound(user, params, guild_id(conn)) do
-      conn
-      |> put_status(:created)
-      |> json(%{data: format_sound(sound, user)})
-    else
-      {:error, :forbidden_auth_state} ->
+    user = conn.assigns.current_user
+
+    case create_sound(user, params, guild_id(conn)) do
+      {:ok, sound} ->
         conn
-        |> put_status(:forbidden)
-        |> json(%{error: "Uploads require a user API token"})
+        |> put_status(:created)
+        |> json(%{data: format_sound(sound, user)})
 
       {:error, %Ecto.Changeset{} = changeset} ->
         conn
@@ -59,26 +58,19 @@ defmodule SoundboardWeb.API.SoundController do
         |> json(%{error: "Sound not found"})
 
       sound ->
-        case require_play_user(conn) do
-          {:ok, user} ->
-            Soundboard.AudioPlayer.play_sound(sound.filename, user, guild_id(conn))
+        user = conn.assigns.current_user
+        Soundboard.AudioPlayer.play_sound(sound.filename, user, guild_id(conn))
 
-            conn
-            |> put_status(:accepted)
-            |> json(%{
-              data: %{
-                status: "accepted",
-                message: "Playback request accepted for #{sound.filename}",
-                requested_by: user.username,
-                sound: %{id: sound.id, filename: sound.filename}
-              }
-            })
-
-          {:error, :forbidden_auth_state} ->
-            conn
-            |> put_status(:forbidden)
-            |> json(%{error: "Playback requires a user API token"})
-        end
+        conn
+        |> put_status(:accepted)
+        |> json(%{
+          data: %{
+            status: "accepted",
+            message: "Playback request accepted for #{sound.filename}",
+            requested_by: user.username,
+            sound: %{id: sound.id, filename: sound.filename}
+          }
+        })
     end
   end
 
@@ -124,21 +116,7 @@ defmodule SoundboardWeb.API.SoundController do
     |> Sounds.create_sound()
   end
 
-  defp guild_id(conn) do
-    case conn.assigns[:current_guild_id] do
-      nil -> Soundboard.Tenants.default_guild_id()
-      guild_id -> guild_id
-    end
-  end
-
-  defp require_upload_user(conn) do
-    case conn.assigns[:current_user] do
-      %Soundboard.Accounts.User{} = user -> {:ok, user}
-      _ -> {:error, :forbidden_auth_state}
-    end
-  end
-
-  defp require_play_user(conn), do: require_upload_user(conn)
+  defp guild_id(conn), do: conn.assigns.current_guild_id
 
   defp format_sound(sound, current_user) do
     user_setting = find_user_setting(sound, current_user)
@@ -158,8 +136,6 @@ defmodule SoundboardWeb.API.SoundController do
     }
   end
 
-  defp find_user_setting(_sound, nil), do: nil
-
   defp find_user_setting(sound, user) do
     settings =
       if Ecto.assoc_loaded?(sound.user_sound_settings) do
@@ -175,11 +151,11 @@ defmodule SoundboardWeb.API.SoundController do
 
   defp changeset_errors(changeset) do
     Ecto.Changeset.traverse_errors(changeset, fn {message, opts} ->
-      Regex.replace(~r"%{(\w+)}", message, fn _, key ->
-        opts
-        |> Keyword.get(String.to_existing_atom(key), key)
-        |> to_string()
-      end)
+      Regex.replace(~r"%{(\w+)}", message, fn _, key -> interpolation(opts, key) end)
     end)
+  end
+
+  defp interpolation(opts, key) do
+    Enum.find_value(opts, key, fn {name, value} -> to_string(name) == key && to_string(value) end)
   end
 end

@@ -7,18 +7,7 @@ defmodule Soundboard.Sounds.Uploads.Creator do
 
   @spec create(map(), map()) :: {:ok, Sound.t()} | {:error, term()}
   def create(params, source) do
-    Repo.transaction(fn ->
-      with :ok <- ensure_storage_capacity(params, source),
-           {:ok, tags} <- Tags.resolve_many(params.tags),
-           {:ok, sound} <- insert_sound(params, source, tags),
-           {:ok, _setting} <- insert_user_setting(sound, params),
-           sound <- Repo.preload(sound, [:tags, :user, :user_sound_settings]) do
-        sound
-      else
-        {:error, reason} -> Repo.rollback(reason)
-      end
-    end)
-    |> case do
+    case Repo.transaction(fn -> insert_all(params, source) end) do
       {:ok, sound} ->
         broadcast_updates()
         {:ok, sound}
@@ -29,14 +18,30 @@ defmodule Soundboard.Sounds.Uploads.Creator do
     end
   end
 
+  defp insert_all(params, source) do
+    with :ok <- ensure_storage_capacity(params, source),
+         {:ok, tags} <- Tags.resolve_many(params.tags),
+         {:ok, sound} <- insert_sound(params, source, tags),
+         {:ok, _setting} <- insert_user_setting(sound, params) do
+      Repo.preload(sound, [:tags, :user, :user_sound_settings])
+    else
+      {:error, reason} -> Repo.rollback(reason)
+    end
+  end
+
   defp ensure_storage_capacity(params, source) do
     incoming = byte_size_of(source)
 
-    if Tenants.within_storage_limit?(params.guild_id, incoming) do
-      :ok
-    else
-      {:error,
-       "Storage limit reached for this soundboard (#{Soundboard.Billing.format_bytes(Tenants.storage_cap(params.guild_id))} cap). Remove some sounds or upgrade your plan."}
+    cond do
+      Tenants.within_storage_limit?(params.guild_id, incoming) ->
+        :ok
+
+      Tenants.storage_cap(params.guild_id) == 0 ->
+        {:error, "This soundboard has no active plan. Subscribe to add sounds."}
+
+      true ->
+        {:error,
+         "Storage limit reached for this soundboard (#{Soundboard.Billing.format_bytes(Tenants.storage_cap(params.guild_id))} cap). Remove some sounds or upgrade your plan."}
     end
   end
 
@@ -80,7 +85,8 @@ defmodule Soundboard.Sounds.Uploads.Creator do
       params.user.id,
       sound.id,
       params.is_join_sound,
-      params.is_leave_sound
+      params.is_leave_sound,
+      params.guild_id
     )
 
     %UserSoundSetting{}

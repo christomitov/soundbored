@@ -8,8 +8,7 @@ defmodule Soundboard.Sounds.Tags do
   alias Soundboard.{Repo, Sound, Tag}
 
   def search(query) do
-    Tag.search(query)
-    |> Repo.all()
+    Repo.all(Tag.search(query))
   end
 
   def all_for_sounds(sounds) do
@@ -47,7 +46,7 @@ defmodule Soundboard.Sounds.Tags do
       end
     end)
     |> case do
-      {:ok, tag_list} -> {:ok, Enum.reverse(tag_list) |> Enum.uniq_by(& &1.id)}
+      {:ok, tag_list} -> {:ok, Enum.uniq_by(Enum.reverse(tag_list), & &1.id)}
       error -> error
     end
   end
@@ -77,13 +76,6 @@ defmodule Soundboard.Sounds.Tags do
     case Repo.get_by(Tag, name: normalized) do
       %Tag{} = tag -> {:ok, tag}
       nil -> insert_or_get(normalized)
-    end
-  end
-
-  def list_for_sound(filename) do
-    case Repo.get_by(Sound, filename: filename) do
-      nil -> []
-      sound -> sound |> Repo.preload(:tags) |> Map.get(:tags)
     end
   end
 

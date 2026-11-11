@@ -8,6 +8,12 @@ defmodule SoundboardWeb.Plugs.Tenant do
   2. Session — `guild_id` set by the guild switcher.
   3. Default guild — keeps zero-config single-guild deployments unchanged.
 
+  A signed-in user (browser session or API token) must be a member of the
+  resolved guild (`Soundboard.Tenants.Membership`): a subdomain they are not
+  in is a 403, and a session guild they are not in falls back to the default
+  guild. Signed-out requests resolve normally; the routes that need a user
+  redirect them to sign in afterwards.
+
   Assigns `:current_guild_id` (string) and `:current_guild` (row or nil), and
   mirrors the id into the session so LiveViews receive it on mount.
   """
@@ -16,6 +22,7 @@ defmodule SoundboardWeb.Plugs.Tenant do
   import Plug.Conn, only: [get_session: 2]
   alias Plug.Conn
   alias Soundboard.Tenants
+  alias Soundboard.Tenants.{Guild, Membership}
 
   def init(opts), do: opts
 
@@ -24,18 +31,24 @@ defmodule SoundboardWeb.Plugs.Tenant do
 
     case resolve_from_subdomain(conn) do
       {:ok, guild} ->
-        assign_tenant(conn, guild)
+        if allowed?(conn, guild.discord_guild_id),
+          do: assign_tenant(conn, guild),
+          else: halt_with(conn, :forbidden, "You are not a member of this soundboard")
 
       :no_subdomain ->
         assign_default_tenant(conn)
 
       :unknown_subdomain ->
-        conn
-        |> Conn.put_status(:not_found)
-        |> put_view(SoundboardWeb.ErrorHTML)
-        |> Conn.send_resp(:not_found, "Unknown soundboard")
-        |> Conn.halt()
+        halt_with(conn, :not_found, "Unknown soundboard")
     end
+  end
+
+  defp halt_with(conn, status, message) do
+    conn
+    |> Conn.put_status(status)
+    |> put_view(SoundboardWeb.ErrorHTML)
+    |> Conn.send_resp(status, message)
+    |> Conn.halt()
   end
 
   defp resolve_from_subdomain(conn) do
@@ -45,7 +58,7 @@ defmodule SoundboardWeb.Plugs.Tenant do
 
       slug ->
         case Tenants.get_by_slug(slug) do
-          %Soundboard.Tenants.Guild{} = guild -> {:ok, guild}
+          %Guild{} = guild -> {:ok, guild}
           nil -> :unknown_subdomain
         end
     end
@@ -72,12 +85,19 @@ defmodule SoundboardWeb.Plugs.Tenant do
 
     guild =
       case guild_id && Tenants.get_guild(guild_id) do
-        %Soundboard.Tenants.Guild{} = guild -> guild
+        %Guild{} = guild -> if allowed?(conn, guild.discord_guild_id), do: guild
         _ -> nil
       end
 
     resolved = guild || %{discord_guild_id: Tenants.default_guild_id(), slug: nil, name: nil}
     assign_tenant(conn, resolved)
+  end
+
+  defp allowed?(conn, guild_id) do
+    case conn.assigns[:current_user] do
+      %{discord_id: discord_id} -> Membership.member?(guild_id, discord_id)
+      _ -> true
+    end
   end
 
   defp assign_tenant(conn, guild) do

@@ -1,203 +1,208 @@
 defmodule Soundboard.Discord.Handler.VoiceRuntimeTest do
   use ExUnit.Case, async: false
 
-  import ExUnit.CaptureLog
+  @moduletag :capture_log
+
   import Mock
 
-  alias Soundboard.AudioPlayer
-  alias Soundboard.Discord.Handler.{AutoJoinPolicy, VoicePresence, VoiceRuntime}
+  alias Soundboard.{AudioPlayer, FakeVoice}
+  alias Soundboard.Discord.BotIdentity
+  alias Soundboard.Discord.Handler.{VoicePresence, VoiceRuntime}
 
-  test "handle_disconnect returns a recheck action instead of scheduling directly" do
-    payload = %{guild_id: "guild-1", user_id: "user-1"}
+  @channel "channel-1"
 
-    with_mocks([
-      {AutoJoinPolicy, [], [mode: fn -> :presence end]},
-      {VoicePresence, [],
-       [
-         bot_user?: fn "user-1" -> false end,
-         current_voice_channel: fn _guild -> {:ok, {"guild-1", "channel-1"}} end,
-         users_in_channel: fn "guild-1", "channel-1" -> {:ok, 2} end
-       ]}
-    ]) do
+  setup do
+    guild = "runtime-#{System.unique_integer([:positive])}"
+    Application.put_env(:soundboard, :bot_ready, true)
+
+    on_exit(fn ->
+      System.delete_env("AUTO_JOIN")
+      Application.delete_env(:soundboard, :bot_ready)
+      if pid = AudioPlayer.server_pid(guild), do: GenServer.stop(pid)
+    end)
+
+    %{guild: guild}
+  end
+
+  test "handle_disconnect schedules a recheck while other users remain", %{guild: guild} do
+    payload = %{guild_id: guild, user_id: "user-1"}
+
+    with_mocks(presence(guild, 2)) do
       assert VoiceRuntime.handle_disconnect(payload) == [
-               {:schedule_recheck_alone, "guild-1", "channel-1", 1_500}
+               {:schedule_recheck_alone, guild, @channel, 1_500}
              ]
     end
   end
 
-  test "handle_connect returns a recheck action when the bot is still sharing another channel" do
-    payload = %{guild_id: "guild-1", channel_id: "channel-2", user_id: "user-1"}
+  test "handle_connect in presence mode rechecks the channel the bot still shares",
+       %{guild: guild} do
+    auto_join(:presence)
+    payload = %{guild_id: guild, channel_id: "channel-2", user_id: "user-1"}
 
-    with_mocks([
-      {AutoJoinPolicy, [], [mode: fn -> :presence end]},
-      {VoicePresence, [],
-       [
-         bot_user?: fn "user-1" -> false end,
-         current_voice_channel: fn _guild -> {:ok, {"guild-1", "channel-1"}} end,
-         users_in_channel: fn "guild-1", "channel-1" -> {:ok, 3} end
-       ]}
-    ]) do
+    with_mocks(presence(guild, 3)) do
       assert VoiceRuntime.handle_connect(payload) == [
-               {:schedule_recheck_alone, "guild-1", "channel-1", 1_500}
+               {:schedule_recheck_alone, guild, @channel, 1_500}
              ]
     end
   end
 
-  test "recheck_alone logs and returns no actions when voice state is unavailable" do
-    log =
-      capture_log(fn ->
-        with_mocks([
-          {VoicePresence, [],
-           [
-             current_voice_channel: fn _guild -> {:ok, {"guild-1", "channel-1"}} end,
-             users_in_channel: fn "guild-1", "channel-1" -> {:error, :unavailable} end
-           ]}
-        ]) do
-          assert VoiceRuntime.recheck_alone("guild-1", "channel-1") == []
-        end
-      end)
+  test "the bot leaves once it is alone, in every mode that leaves", %{guild: guild} do
+    FakeVoice.claim(guild, channel: @channel)
+    payload = %{guild_id: guild, user_id: "user-1"}
 
-    assert log =~ "Recheck skipped because voice state was unavailable"
+    for mode <- [:play, :presence] do
+      auto_join(mode)
+      AudioPlayer.set_voice_channel(guild, @channel)
+
+      with_mocks(presence(guild, 0)) do
+        assert VoiceRuntime.handle_disconnect(payload) == []
+      end
+
+      assert_receive {:fake_voice, ^guild, :leave}, 500, "#{mode} mode did not leave"
+      assert AudioPlayer.current_voice_channel(guild) == {:ok, nil}
+    end
   end
 
-  test "bootstrap scans cached guilds and joins an active voice channel" do
-    test_pid = self()
+  test "in false mode the bot stays when it is left alone", %{guild: guild} do
+    FakeVoice.claim(guild, channel: @channel)
+    auto_join(false)
+    AudioPlayer.set_voice_channel(guild, @channel)
 
-    guild = %{
-      id: "guild-1",
+    with_mocks(presence(guild, 0)) do
+      assert VoiceRuntime.handle_disconnect(%{guild_id: guild, user_id: "user-1"}) == []
+    end
+
+    assert AudioPlayer.current_voice_channel(guild) == {:ok, {guild, @channel}}
+    assert armed?(guild)
+    refute_received {:fake_voice, ^guild, :leave}
+  end
+
+  test "in play mode a user's voice update neither joins nor leaves", %{guild: guild} do
+    FakeVoice.claim(guild, channel: @channel)
+    AudioPlayer.set_voice_channel(guild, @channel)
+    payload = %{guild_id: guild, channel_id: "channel-2", user_id: "user-1"}
+
+    with_mocks(presence(guild, 0)) do
+      assert VoiceRuntime.handle_connect(payload) == []
+    end
+
+    assert AudioPlayer.current_voice_channel(guild) == {:ok, {guild, @channel}}
+    refute_received {:fake_voice, ^guild, _}
+  end
+
+  test "presence mode leaves when a user moves away and the bot is alone", %{guild: guild} do
+    FakeVoice.claim(guild, channel: @channel)
+    auto_join(:presence)
+    AudioPlayer.set_voice_channel(guild, @channel)
+    payload = %{guild_id: guild, channel_id: "channel-2", user_id: "user-1"}
+
+    with_mocks(presence(guild, 0)) do
+      assert VoiceRuntime.handle_connect(payload) == []
+    end
+
+    assert_receive {:fake_voice, ^guild, :leave}
+    assert AudioPlayer.current_voice_channel(guild) == {:ok, nil}
+  end
+
+  test "recheck_alone leaves only when the channel is confirmed empty", %{guild: guild} do
+    FakeVoice.claim(guild, channel: @channel)
+    AudioPlayer.set_voice_channel(guild, @channel)
+
+    for users <- [2, {:error, :unavailable}] do
+      with_mocks(presence(guild, users)) do
+        assert VoiceRuntime.recheck_alone(guild, @channel) == []
+      end
+
+      assert AudioPlayer.current_voice_channel(guild) == {:ok, {guild, @channel}}
+      refute_received {:fake_voice, ^guild, :leave}
+    end
+
+    with_mocks(presence(guild, 0)) do
+      assert VoiceRuntime.recheck_alone(guild, @channel) == []
+    end
+
+    assert_receive {:fake_voice, ^guild, :leave}
+    assert AudioPlayer.current_voice_channel(guild) == {:ok, nil}
+  end
+
+  test "bootstrap in presence mode joins a cached channel that has users", %{guild: guild} do
+    auto_join(:presence)
+    FakeVoice.claim(guild)
+
+    cached = %{
+      id: guild,
       voice_states: [
+        %{user_id: "bot-1", channel_id: "bot-channel"},
         %{user_id: "user-1", channel_id: nil},
         %{user_id: "user-2", channel_id: "channel-9"}
       ]
     }
 
-    with_mocks([
-      {AutoJoinPolicy, [], [mode: fn -> :presence end]},
-      {VoicePresence, [],
-       [cached_guilds: fn -> {:ok, [guild]} end, bot_id: fn -> {:ok, "bot-1"} end]},
-      {Soundboard.Discord.Voice, [],
-       [join_channel: fn "guild-1", "channel-9" -> send(test_pid, :joined_bootstrap_channel) end]},
-      {AudioPlayer, [],
-       [set_voice_channel: fn "guild-1", "channel-9" -> send(test_pid, :set_bootstrap_voice) end]}
-    ]) do
+    with_mock VoicePresence, [:passthrough],
+      cached_guilds: fn -> {:ok, [cached]} end,
+      bot_id: fn -> {:ok, "bot-1"} end do
       assert :ok = VoiceRuntime.bootstrap()
-      assert_receive :joined_bootstrap_channel, 6_000
-      assert_receive :set_bootstrap_voice, 1_000
+      assert_receive {:fake_voice, ^guild, {:join, "channel-9"}}, 6_000
+    end
+
+    assert eventually(fn -> AudioPlayer.current_voice_channel(guild) end) ==
+             {:ok, {guild, "channel-9"}}
+  end
+
+  test "handle_connect in false mode cancels the idle timer only for the bot's channel",
+       %{guild: guild} do
+    auto_join(false)
+    AudioPlayer.set_voice_channel(guild, @channel)
+    AudioPlayer.last_user_left(guild)
+    assert armed?(guild)
+
+    with_mocks(presence(guild, 1)) do
+      VoiceRuntime.handle_connect(%{guild_id: guild, channel_id: "channel-2", user_id: "u"})
+      assert armed?(guild)
+
+      VoiceRuntime.handle_connect(%{guild_id: guild, channel_id: @channel, user_id: "u"})
+      refute armed?(guild)
     end
   end
 
-  test "bootstrap skips guild check in play mode" do
-    with_mock AutoJoinPolicy, mode: fn -> :play end do
-      assert :ok = VoiceRuntime.bootstrap()
-      # No Task spawned, nothing to assert — just verify it returns :ok without hanging
+  test "handle_disconnect ignores the bot's own voice disconnect", %{guild: guild} do
+    FakeVoice.claim(guild, channel: @channel)
+    AudioPlayer.set_voice_channel(guild, @channel)
+
+    with_mocks(presence(guild, 0, true)) do
+      assert VoiceRuntime.handle_disconnect(%{guild_id: guild, user_id: "bot-1"}) == []
     end
+
+    assert AudioPlayer.current_voice_channel(guild) == {:ok, {guild, @channel}}
+    refute_received {:fake_voice, ^guild, :leave}
   end
 
-  test "handle_disconnect notifies AudioPlayer when bot is alone in play mode" do
-    test_pid = self()
-    payload = %{guild_id: "guild-1", user_id: "user-1"}
-
-    with_mocks([
-      {AutoJoinPolicy, [], [mode: fn -> :play end]},
-      {VoicePresence, [],
+  defp presence(guild, users, bot? \\ false) do
+    [
+      {VoicePresence, [:passthrough],
        [
-         bot_user?: fn "user-1" -> false end,
-         current_voice_channel: fn _guild -> {:ok, {"guild-1", "channel-1"}} end,
-         users_in_channel: fn "guild-1", "channel-1" -> {:ok, 0} end
-       ]},
-      {AudioPlayer, [],
-       [
-         last_user_left: fn "guild-1" ->
-           send(test_pid, :last_user_left_called)
+         bot_user?: fn _ -> bot? end,
+         current_voice_channel: fn ^guild -> {:ok, {guild, @channel}} end,
+         users_in_channel: fn ^guild, _channel ->
+           if is_integer(users), do: {:ok, users}, else: users
          end
-       ]}
-    ]) do
-      VoiceRuntime.handle_disconnect(payload)
-      assert_receive :last_user_left_called, 1_000
-    end
-  end
-
-  test "handle_disconnect notifies AudioPlayer when bot is alone in false mode" do
-    test_pid = self()
-    payload = %{guild_id: "guild-1", user_id: "user-1"}
-
-    with_mocks([
-      {AutoJoinPolicy, [], [mode: fn -> false end]},
-      {VoicePresence, [],
-       [
-         bot_user?: fn "user-1" -> false end,
-         current_voice_channel: fn _guild -> {:ok, {"guild-1", "channel-1"}} end,
-         users_in_channel: fn "guild-1", "channel-1" -> {:ok, 0} end
        ]},
-      {AudioPlayer, [],
-       [
-         last_user_left: fn "guild-1" ->
-           send(test_pid, :last_user_left_called)
-         end
-       ]}
-    ]) do
-      VoiceRuntime.handle_disconnect(payload)
-      assert_receive :last_user_left_called, 1_000
+      {BotIdentity, [], [fetch: fn -> {:ok, %{id: "bot-1"}} end]}
+    ]
+  end
+
+  defp eventually(fun, attempts \\ 50) do
+    case fun.() do
+      {:ok, nil} when attempts > 0 ->
+        receive after: (20 -> eventually(fun, attempts - 1))
+
+      result ->
+        result
     end
   end
 
-  test "handle_connect in false mode cancels idle timer when user joins bot's channel" do
-    test_pid = self()
-    payload = %{guild_id: "guild-1", channel_id: "channel-1", user_id: "user-1"}
+  defp auto_join(:play), do: System.delete_env("AUTO_JOIN")
+  defp auto_join(mode), do: System.put_env("AUTO_JOIN", to_string(mode))
 
-    with_mocks([
-      {AutoJoinPolicy, [], [mode: fn -> false end]},
-      {VoicePresence, [],
-       [
-         bot_user?: fn "user-1" -> false end,
-         current_voice_channel: fn _guild -> {:ok, {"guild-1", "channel-1"}} end
-       ]},
-      {AudioPlayer, [],
-       [
-         user_joined_channel: fn "guild-1" ->
-           send(test_pid, :user_joined_called)
-         end
-       ]}
-    ]) do
-      VoiceRuntime.handle_connect(payload)
-      assert_receive :user_joined_called, 1_000
-    end
-  end
-
-  test "handle_connect in false mode ignores joins to other channels" do
-    payload = %{guild_id: "guild-1", channel_id: "channel-2", user_id: "user-1"}
-
-    with_mocks([
-      {AutoJoinPolicy, [], [mode: fn -> false end]},
-      {VoicePresence, [],
-       [
-         bot_user?: fn "user-1" -> false end,
-         current_voice_channel: fn _guild -> {:ok, {"guild-1", "channel-1"}} end
-       ]},
-      {AudioPlayer, [], [user_joined_channel: fn _ -> :ok end]}
-    ]) do
-      VoiceRuntime.handle_connect(payload)
-      refute called(AudioPlayer.user_joined_channel(:_))
-    end
-  end
-
-  test "handle_disconnect ignores the bot's own voice disconnect" do
-    payload = %{guild_id: "guild-1", user_id: "bot-999"}
-
-    with_mocks([
-      {VoicePresence, [], [bot_user?: fn "bot-999" -> true end]},
-      {AudioPlayer, [], [last_user_left: fn _ -> :ok end]}
-    ]) do
-      assert VoiceRuntime.handle_disconnect(payload) == []
-      refute called(AudioPlayer.last_user_left(:_))
-    end
-  end
-
-  test "handle_connect returns [] in play mode" do
-    payload = %{guild_id: "guild-1", channel_id: "channel-1", user_id: "user-1"}
-
-    with_mock AutoJoinPolicy, mode: fn -> :play end do
-      assert VoiceRuntime.handle_connect(payload) == []
-    end
-  end
+  defp armed?(guild), do: :sys.get_state(AudioPlayer.server_pid(guild)).idle_timeout_ref != nil
 end

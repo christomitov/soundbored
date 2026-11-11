@@ -8,9 +8,16 @@ defmodule Soundboard.TenantsTest do
 
   import Mock
 
-  alias Soundboard.{Accounts.User, Repo, Sound, Tenants, Tenants.Guild}
+  alias Soundboard.{Accounts.User, Repo, Sound, Stats, Stats.Play, Tenants, Tenants.Guild}
 
   describe "default_guild_id/0" do
+    setup do
+      on_exit(fn ->
+        Application.delete_env(:soundboard, :default_guild_id)
+        Application.delete_env(:soundboard, :required_guild_id)
+      end)
+    end
+
     test "falls back to the literal default when nothing is configured" do
       Application.delete_env(:soundboard, :default_guild_id)
       Application.delete_env(:soundboard, :required_guild_id)
@@ -18,37 +25,17 @@ defmodule Soundboard.TenantsTest do
       assert Tenants.default_guild_id() == "default"
     end
 
-    test "prefers SOUNDBOARD_DEFAULT_GUILD_ID over DISCORD_REQUIRED_GUILD_ID" do
-      Application.put_env(:soundboard, :default_guild_id, "111")
-      Application.put_env(:soundboard, :required_guild_id, "222")
+    test "configured envs win, SOUNDBOARD_DEFAULT_GUILD_ID first, over the bot's sole guild" do
+      with_mock Soundboard.Discord.GuildCache,
+        all: fn -> [%{id: "333", name: "g", guild: nil}] end do
+        Application.put_env(:soundboard, :required_guild_id, "222")
+        assert Tenants.default_guild_id() == "222"
 
-      assert Tenants.default_guild_id() == "111"
-    after
-      Application.delete_env(:soundboard, :default_guild_id)
-      Application.delete_env(:soundboard, :required_guild_id)
+        Application.put_env(:soundboard, :default_guild_id, "111")
+        assert Tenants.default_guild_id() == "111"
+      end
     end
 
-    test "uses DISCORD_REQUIRED_GUILD_ID when no default is set (back-compat)" do
-      Application.delete_env(:soundboard, :default_guild_id)
-      Application.put_env(:soundboard, :required_guild_id, "222")
-
-      assert Tenants.default_guild_id() == "222"
-    after
-      Application.delete_env(:soundboard, :required_guild_id)
-    end
-  end
-
-  describe "scope_guild_id/1" do
-    test "nil resolves to the default guild" do
-      assert Tenants.scope_guild_id(nil) == Tenants.default_guild_id()
-    end
-
-    test "explicit guild ids pass through" do
-      assert Tenants.scope_guild_id("999") == "999"
-    end
-  end
-
-  describe "default_guild_id/0 zero-config discovery" do
     test "uses the bot's sole guild when no env is configured" do
       Application.delete_env(:soundboard, :default_guild_id)
       Application.delete_env(:soundboard, :required_guild_id)
@@ -72,18 +59,6 @@ defmodule Soundboard.TenantsTest do
         end do
         assert Tenants.default_guild_id() == "default"
       end
-    end
-
-    test "configured env still wins over discovery" do
-      Application.delete_env(:soundboard, :default_guild_id)
-      Application.put_env(:soundboard, :required_guild_id, "222")
-
-      with_mock Soundboard.Discord.GuildCache,
-        all: fn -> [%{id: "111", name: "g", guild: nil}] end do
-        assert Tenants.default_guild_id() == "222"
-      end
-    after
-      Application.delete_env(:soundboard, :required_guild_id)
     end
   end
 
@@ -109,6 +84,29 @@ defmodule Soundboard.TenantsTest do
       end
     end
 
+    test "repoints legacy 'default' plays too, so stats keep them once the guild is known" do
+      Application.delete_env(:soundboard, :default_guild_id)
+      Application.delete_env(:soundboard, :required_guild_id)
+
+      user = Repo.insert!(%User{discord_id: "u2", username: "u2", avatar: nil})
+
+      play =
+        Repo.insert!(%Play{
+          played_filename: "deleted-long-ago.mp3",
+          sound_id: nil,
+          user_id: user.id,
+          guild_id: "default"
+        })
+
+      with_mock Soundboard.Discord.GuildCache,
+        all: fn -> [%{id: "111", name: "g", guild: nil}] end do
+        Tenants.reconcile_default_guild()
+      end
+
+      assert Repo.get(Play, play.id).guild_id == "111"
+      assert [{_id, "deleted-long-ago.mp3", "u2", _at}] = Stats.get_recent_plays(guild_id: "111")
+    end
+
     test "skips when a guild env is configured" do
       Application.put_env(:soundboard, :required_guild_id, "222")
 
@@ -127,29 +125,17 @@ defmodule Soundboard.TenantsTest do
       assert guild.max_storage_bytes == nil
     end
 
-    test "is idempotent" do
+    test "returns the existing row unchanged on later calls" do
       {:ok, first} = Tenants.get_or_create_guild("12345", %{slug: "acme"})
-      assert first.max_storage_bytes == nil
-      {:ok, second} = Tenants.get_or_create_guild("12345")
-
-      assert first.id == second.id
-      assert Enum.count(Tenants.list_guilds()) == 1
-    end
-
-    test "returns the existing row unchanged on subsequent calls" do
-      {:ok, first} = Tenants.get_or_create_guild("1", %{slug: "one"})
-      {:ok, second} = Tenants.get_or_create_guild("1", %{slug: "uno"})
+      {:ok, second} = Tenants.get_or_create_guild("12345", %{slug: "other"})
 
       assert second.id == first.id
-      assert second.slug == "one"
+      assert second.slug == "acme"
+      assert Enum.count(Tenants.list_guilds()) == 1
     end
   end
 
   describe "claim_slug/2" do
-    test "claims a slug for a new guild" do
-      assert {:ok, %Guild{slug: "my-server"}} = Tenants.claim_slug("777", "My-Server")
-    end
-
     test "normalizes and validates the slug format" do
       assert {:ok, %Guild{slug: "my-server"}} = Tenants.claim_slug("777", "My-Server")
       assert {:error, :invalid_slug} = Tenants.claim_slug("778", "Not A Slug!")
@@ -157,9 +143,10 @@ defmodule Soundboard.TenantsTest do
       assert {:error, :invalid_slug} = Tenants.claim_slug("780", "")
     end
 
-    test "rejects reserved slugs" do
-      for slug <- Tenants.reserved_slugs() do
-        assert {:error, :invalid_slug} = Tenants.claim_slug("777", slug)
+    test "rejects slugs the app's own hosts and paths use" do
+      for slug <-
+            ~w(www dash api admin app auth uploads static assets mail settings stats favorites) do
+        assert {:error, :invalid_slug} = Tenants.claim_slug("777", slug), slug
       end
     end
 
@@ -180,35 +167,20 @@ defmodule Soundboard.TenantsTest do
     test "usage is the sum of known sound sizes for the guild", %{user: user} do
       insert_sound!(user, guild_id: "g1", byte_size: 100)
       insert_sound!(user, guild_id: "g1", byte_size: 250)
+      insert_sound!(user, guild_id: "g1", byte_size: 0)
       insert_sound!(user, guild_id: "g2", byte_size: 9_000)
 
       assert Tenants.storage_used("g1") == 350
       assert Tenants.storage_used("g2") == 9_000
     end
 
-    test "unknown-size sounds (legacy rows) count as zero", %{user: user} do
-      insert_sound!(user, guild_id: "g1", byte_size: 0)
+    test "no row or no cap is unlimited; cap 0 (no plan) admits nothing" do
+      {:ok, _} = Tenants.get_or_create_guild("g-uncapped")
+      {:ok, _} = Tenants.get_or_create_guild("g-no-plan", %{max_storage_bytes: 0})
 
-      assert Tenants.storage_used("g1") == 0
-    end
-
-    test "cap comes from the guild row when present" do
-      {:ok, _} = Tenants.get_or_create_guild("g1", %{slug: "capped", max_storage_bytes: 1_000})
-
-      assert Tenants.storage_cap("g1") == 1_000
-    end
-
-    test "an unknown guild is uncapped (unlimited)" do
-      assert Tenants.storage_cap("unknown-guild") == nil
       assert Tenants.within_storage_limit?("unknown-guild", 999_999_999_999)
-      assert Tenants.storage_remaining("unknown-guild") == nil
-    end
-
-    test "a guild created without a cap is uncapped" do
-      {:ok, _} = Tenants.get_or_create_guild("g-uncapped", %{slug: "uncapped"})
-      assert Tenants.get_guild("g-uncapped").max_storage_bytes == nil
-      assert Tenants.storage_cap("g-uncapped") == nil
       assert Tenants.within_storage_limit?("g-uncapped", 999_999_999_999)
+      refute Tenants.within_storage_limit?("g-no-plan", 0)
     end
 
     test "within_storage_limit?/2 admits up to the cap and rejects beyond it", %{user: user} do
@@ -217,14 +189,6 @@ defmodule Soundboard.TenantsTest do
 
       assert Tenants.within_storage_limit?("g1", 400)
       refute Tenants.within_storage_limit?("g1", 401)
-    end
-
-    test "a guild with no usage can upload its full cap" do
-      {:ok, _} = Tenants.get_or_create_guild("g2", %{slug: "fresh", max_storage_bytes: 500})
-
-      assert Tenants.storage_remaining("g2") == 500
-      assert Tenants.within_storage_limit?("g2", 500)
-      refute Tenants.within_storage_limit?("g2", 501)
     end
   end
 

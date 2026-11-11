@@ -8,17 +8,16 @@ defmodule Soundboard.AudioPlayer.VoiceSession do
   @boundary_exceptions Soundboard.Boundary.exceptions()
 
   @spec normalize_channel(term(), term()) :: {String.t(), String.t()} | nil
-  def normalize_channel(guild_id, channel_id) do
-    if is_nil(guild_id) or is_nil(channel_id) do
-      nil
-    else
-      {guild_id, channel_id}
-    end
-  end
+  def normalize_channel(guild_id, channel_id) when is_nil(guild_id) or is_nil(channel_id),
+    do: nil
+
+  def normalize_channel(guild_id, channel_id), do: {guild_id, channel_id}
 
   @spec maintain_connection(State.t()) :: State.t()
-  def maintain_connection(%State{voice_channel: {guild_id, channel_id}} = state)
-      when not is_nil(guild_id) and not is_nil(channel_id) do
+  def maintain_connection(%State{voice_channel: {nil, _channel_id}} = state), do: state
+  def maintain_connection(%State{voice_channel: {_guild_id, nil}} = state), do: state
+
+  def maintain_connection(%State{voice_channel: {guild_id, channel_id}} = state) do
     guild_id
     |> maintenance_status(channel_id)
     |> perform_maintenance(state)
@@ -108,6 +107,8 @@ defmodule Soundboard.AudioPlayer.VoiceSession do
   rescue
     error in @boundary_exceptions ->
       {:error, {:voice_not_ready, Exception.message(error)}}
+  catch
+    :exit, reason -> {:error, {:voice_not_ready, reason}}
   end
 
   defp safe_voice_playing(guild_id) do
@@ -115,6 +116,8 @@ defmodule Soundboard.AudioPlayer.VoiceSession do
   rescue
     error in @boundary_exceptions ->
       {:error, {:voice_playing_unavailable, Exception.message(error)}}
+  catch
+    :exit, reason -> {:error, {:voice_playing_unavailable, reason}}
   end
 
   defp safe_join_voice_channel(guild_id, channel_id) do

@@ -4,11 +4,6 @@ defmodule SoundboardWeb.PresenceHandler do
   """
   use GenServer
 
-  import Phoenix.LiveView, only: [connected?: 1]
-  alias SoundboardWeb.Presence
-
-  @presence_topic "soundboard:presence"
-
   @colors [
     "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
     "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
@@ -38,22 +33,6 @@ defmodule SoundboardWeb.PresenceHandler do
     {:ok, %{}}
   end
 
-  def track_presence(socket, user) do
-    if connected?(socket) do
-      username = if user, do: user.username, else: "Anonymous #{socket.id |> String.slice(0..5)}"
-      color = get_random_unique_color(username)
-
-      Presence.track(self(), @presence_topic, socket.id, %{
-        online_at: System.system_time(:second),
-        user: %{
-          username: username,
-          avatar: if(user, do: user.avatar, else: nil),
-          color: color
-        }
-      })
-    end
-  end
-
   @spec get_user_color(String.t()) :: String.t()
   def get_user_color(username) do
     colors = :persistent_term.get(@colors_key, %{})
@@ -68,7 +47,6 @@ defmodule SoundboardWeb.PresenceHandler do
 
     color =
       if Enum.empty?(available_colors) do
-        # If all colors are used, pick a random one
         Enum.random(@colors)
       else
         Enum.random(available_colors)
@@ -77,35 +55,5 @@ defmodule SoundboardWeb.PresenceHandler do
     :persistent_term.put(@colors_key, Map.put(colors, username, color))
 
     color
-  end
-
-  def get_presence_count do
-    @presence_topic
-    |> Presence.list()
-    |> count_active_presences()
-  end
-
-  def handle_presence_diff(%{joins: joins, leaves: leaves}, current_count) do
-    now = System.system_time(:second)
-
-    active_joins = count_active_presences(joins, now)
-    active_leaves = count_active_presences(leaves, now)
-
-    max(current_count + (active_joins - active_leaves), 0)
-  end
-
-  defp count_active_presences(presences) do
-    now = System.system_time(:second)
-    count_active_presences(presences, now)
-  end
-
-  defp count_active_presences(presences, now) do
-    Enum.count(presences, fn {_id, presence} ->
-      metas = presence.metas || []
-
-      Enum.any?(metas, fn %{online_at: online_at} ->
-        now - online_at < 60
-      end)
-    end)
   end
 end

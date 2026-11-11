@@ -1,6 +1,4 @@
 defmodule Soundboard.Application do
-  # See https://hexdocs.pm/elixir/Application.html
-  # for more information on OTP Applications
   @moduledoc false
 
   use Application
@@ -11,11 +9,11 @@ defmodule Soundboard.Application do
   def start(_type, _args) do
     Logger.info("Starting Soundboard Application")
 
-    # Bot is not connected until the gateway READY event flips this.
     Application.put_env(:soundboard, :bot_ready, false)
 
     children = [
       Soundboard.Repo,
+      Soundboard.TableOwner,
       {Task.Supervisor, name: Soundboard.AudioTaskSupervisor},
       {Registry, keys: :unique, name: Soundboard.AudioPlayer.Registry},
       {DynamicSupervisor, name: Soundboard.AudioPlayer.Supervisor, strategy: :one_for_one},
@@ -41,8 +39,6 @@ defmodule Soundboard.Application do
     end
   end
 
-  # Tell Phoenix to update the endpoint configuration
-  # whenever the application is updated.
   @impl true
   def config_change(changed, _new, removed) do
     SoundboardWeb.Endpoint.config_change(changed, removed)

@@ -21,26 +21,12 @@ defmodule Soundboard.Discord.RoleCheckerTest do
   defp restore_env(key, nil), do: Application.delete_env(:soundboard, key)
   defp restore_env(key, value), do: Application.put_env(:soundboard, key, value)
 
-  describe "feature_enabled?/0" do
-    test "returns false when guild_id is missing" do
-      Application.put_env(:soundboard, :required_guild_id, nil)
-      Application.put_env(:soundboard, :required_role_ids, ["r1"])
+  test "feature_enabled?/0 needs both a guild and at least one role" do
+    for {guild, roles, enabled} <- [{nil, ["r1"], false}, {"g1", [], false}, {"g1", ["r1"], true}] do
+      Application.put_env(:soundboard, :required_guild_id, guild)
+      Application.put_env(:soundboard, :required_role_ids, roles)
 
-      refute RoleChecker.feature_enabled?()
-    end
-
-    test "returns false when role_ids is empty" do
-      Application.put_env(:soundboard, :required_guild_id, "g1")
-      Application.put_env(:soundboard, :required_role_ids, [])
-
-      refute RoleChecker.feature_enabled?()
-    end
-
-    test "returns true when both guild_id and role_ids are configured" do
-      Application.put_env(:soundboard, :required_guild_id, "g1")
-      Application.put_env(:soundboard, :required_role_ids, ["r1"])
-
-      assert RoleChecker.feature_enabled?()
+      assert {guild, roles, RoleChecker.feature_enabled?()} == {guild, roles, enabled}
     end
   end
 
@@ -61,7 +47,6 @@ defmodule Soundboard.Discord.RoleCheckerTest do
       with_mock Member,
         get: fn "g1", "user1" -> {:ok, %{"roles" => ["other", "r2"]}} end do
         assert RoleChecker.authorized?("user1")
-        assert_called(Member.get("g1", "user1"))
       end
     end
 

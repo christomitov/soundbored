@@ -17,11 +17,12 @@ defmodule Soundboard.Accounts.ApiTokens do
 
   @spec list_tokens(User.t()) :: [ApiToken.t()]
   def list_tokens(%User{id: user_id}) do
-    from(t in ApiToken,
-      where: t.user_id == ^user_id and is_nil(t.revoked_at),
-      order_by: [desc: t.inserted_at]
+    Repo.all(
+      from(t in ApiToken,
+        where: t.user_id == ^user_id and is_nil(t.revoked_at),
+        order_by: [desc: t.inserted_at]
+      )
     )
-    |> Repo.all()
   end
 
   @spec generate_token(User.t(), map()) ::
@@ -31,8 +32,7 @@ defmodule Soundboard.Accounts.ApiTokens do
     hash = hash_token(raw)
 
     changeset =
-      %ApiToken{}
-      |> ApiToken.changeset(%{
+      ApiToken.changeset(%ApiToken{}, %{
         user_id: user_id,
         token_hash: hash,
         label: normalize_label(attrs)
@@ -75,9 +75,7 @@ defmodule Soundboard.Accounts.ApiTokens do
     case Repo.get(ApiToken, token_id) do
       %ApiToken{user_id: ^user_id} = token ->
         token
-        |> Ecto.Changeset.change(
-          revoked_at: NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
-        )
+        |> Ecto.Changeset.change(revoked_at: NaiveDateTime.utc_now(:second))
         |> Repo.update()
 
       %ApiToken{} ->
@@ -90,9 +88,7 @@ defmodule Soundboard.Accounts.ApiTokens do
 
   defp update_last_used_at(%ApiToken{} = token) do
     token
-    |> Ecto.Changeset.change(
-      last_used_at: NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
-    )
+    |> Ecto.Changeset.change(last_used_at: NaiveDateTime.utc_now(:second))
     |> Repo.update()
   end
 
@@ -101,7 +97,7 @@ defmodule Soundboard.Accounts.ApiTokens do
   end
 
   defp hash_token(raw) do
-    :crypto.hash(:sha256, raw) |> Base.encode16(case: :lower)
+    Base.encode16(:crypto.hash(:sha256, raw), case: :lower)
   end
 
   defp normalize_id(id) when is_integer(id), do: id

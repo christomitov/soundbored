@@ -106,9 +106,6 @@ defmodule Soundboard.AudioPlayer.PlaybackQueue do
         interrupt_watchdog_ms
       ) do
     cond do
-      state.current_playback == nil ->
-        state |> reset_interrupt_state() |> maybe_start_pending()
-
       attempt >= max_attempts ->
         Logger.warning(
           "Interrupt watchdog timed out for guild #{guild_id}; forcing latest request"
@@ -136,19 +133,12 @@ defmodule Soundboard.AudioPlayer.PlaybackQueue do
 
   @spec handle_playback_finished(State.t(), String.t()) :: State.t()
   def handle_playback_finished(%State{} = state, guild_id) do
-    cond do
-      match?(%{guild_id: ^guild_id}, state.current_playback) ->
-        state
-        |> clear_current_playback()
-        |> maybe_start_pending()
-
-      state.interrupting and match?({^guild_id, _}, state.voice_channel) ->
-        state
-        |> reset_interrupt_state()
-        |> maybe_start_pending()
-
-      true ->
-        state
+    if match?(%{guild_id: ^guild_id}, state.current_playback) do
+      state
+      |> clear_current_playback()
+      |> maybe_start_pending()
+    else
+      state
     end
   end
 
@@ -219,12 +209,6 @@ defmodule Soundboard.AudioPlayer.PlaybackQueue do
     })
   end
 
-  defp reset_interrupt_state(%State{} = state) do
-    state
-    |> cancel_interrupt_watchdog()
-    |> Map.merge(%{interrupting: false, interrupt_watchdog_attempt: 0})
-  end
-
   defp schedule_interrupt_watchdog(%State{} = state, guild_id, attempt, delay_ms) do
     state = cancel_interrupt_watchdog(state)
 
@@ -259,5 +243,7 @@ defmodule Soundboard.AudioPlayer.PlaybackQueue do
   rescue
     error in @boundary_exceptions ->
       {:error, {:voice_playing_unavailable, Exception.message(error)}}
+  catch
+    :exit, reason -> {:error, {:voice_playing_unavailable, reason}}
   end
 end

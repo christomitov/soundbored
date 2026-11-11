@@ -1,8 +1,10 @@
 defmodule SoundboardWeb.SettingsLiveTest do
-  use SoundboardWeb.ConnCase
+  use SoundboardWeb.ConnCase, async: false
+  import Mock
   import Phoenix.LiveViewTest
   alias Soundboard.Accounts.{ApiTokens, User}
-  alias Soundboard.Repo
+  alias Soundboard.{Billing, Repo}
+  alias Soundboard.Tenants.Guild
 
   setup %{conn: conn} do
     {:ok, user} =
@@ -25,21 +27,17 @@ defmodule SoundboardWeb.SettingsLiveTest do
   test "can create and revoke tokens via live view", %{conn: conn} do
     {:ok, view, _html} = live(conn, "/settings")
 
-    # Create token
     view
     |> element("form[phx-submit=\"create_token\"]")
     |> render_submit(%{"label" => "CI Bot"})
 
-    # Ensure it appears in the table
     html = render(view)
     assert html =~ "CI Bot"
 
-    # Revoke the first token button
     view
     |> element("button", "Revoke")
     |> render_click()
 
-    # Should disappear from the table
     refute has_element?(view, "td", "CI Bot")
   end
 
@@ -48,19 +46,104 @@ defmodule SoundboardWeb.SettingsLiveTest do
 
     {:ok, _view, html} = live(conn, "/settings")
 
-    # Token label is always visible; raw value is not shown after the creation session
     assert html =~ "Saved token"
     assert html =~ "Token values are shown"
   end
 
-  test "shows upload API documentation", %{conn: conn} do
-    {:ok, _view, html} = live(conn, "/settings")
+  test "the API examples use the address the page was opened on", %{conn: conn} do
+    {:ok, view, _html} = live(%{conn | host: "sounds.example.org"}, "/settings")
 
-    assert html =~ "POST /api/sounds"
-    assert html =~ "Upload local file (multipart/form-data)"
-    assert html =~ "Upload from URL (JSON)"
-    assert html =~ "tags[]"
-    assert html =~ "is_join_sound"
-    assert html =~ "is_leave_sound"
+    assert render(view) =~ "http://sounds.example.org/api/sounds"
+  end
+
+  test "a token without a label shows its value once", %{conn: conn, user: user} do
+    {:ok, view, _html} = live(conn, "/settings")
+
+    view |> element("form[phx-submit='create_token']") |> render_submit(%{"label" => "  "})
+
+    [raw] =
+      view
+      |> render()
+      |> LazyHTML.from_fragment()
+      |> LazyHTML.query("#copy-new-token")
+      |> LazyHTML.attribute("data-copy-text")
+
+    assert {:ok, %{id: user_id}, _token} = ApiTokens.verify_token(raw)
+    assert user_id == user.id
+    assert has_element?(view, "td", "(no label)")
+    assert render(view) =~ "Bearer #{raw}"
+
+    {:ok, reloaded, _html} = live(conn, "/settings")
+
+    refute has_element?(reloaded, "#copy-new-token")
+    refute render(reloaded) =~ raw
+  end
+
+  describe "plan card" do
+    setup_with_mocks([{EDA.Cache, [:passthrough], fetch_member: fn _, _ -> {:ok, %{}} end}]) do
+      :ok
+    end
+
+    setup %{conn: conn, user: user} do
+      Application.put_env(:soundboard, Billing, secret_key: "sk_test_key")
+      on_exit(fn -> Application.put_env(:soundboard, Billing, []) end)
+
+      guild =
+        %Guild{}
+        |> Guild.changeset(%{
+          discord_guild_id: "9#{System.unique_integer([:positive])}",
+          slug: "plan-#{System.unique_integer([:positive])}",
+          owner_discord_id: user.discord_id,
+          max_storage_bytes: 1_073_741_824
+        })
+        |> Repo.insert!()
+
+      %{conn: init_test_session(conn, %{guild_id: guild.discord_guild_id}), guild: guild}
+    end
+
+    test "the guild's owner sees their plan and storage", %{conn: conn} do
+      {:ok, _view, html} = live(conn, "/settings")
+
+      assert html =~ "Manage plan"
+      assert html =~ "Pro"
+      assert html =~ "0 B of 1 GB used"
+    end
+
+    test "anyone else sees no plan card", %{conn: conn, guild: guild} do
+      guild |> Ecto.Changeset.change(owner_discord_id: "someone-else") |> Repo.update!()
+
+      {:ok, _view, html} = live(conn, "/settings")
+
+      refute html =~ "Manage plan"
+    end
+  end
+
+  test "revoking another user's token is refused", %{conn: conn} do
+    {:ok, other} =
+      %User{}
+      |> User.changeset(%{
+        username: "other_#{System.unique_integer([:positive])}",
+        discord_id: "5#{System.unique_integer([:positive])}"
+      })
+      |> Repo.insert()
+
+    {:ok, raw, token} = ApiTokens.generate_token(other, %{label: "theirs"})
+    {:ok, view, _html} = live(conn, "/settings")
+
+    html = render_click(view, "revoke_token", %{"id" => to_string(token.id)})
+
+    assert html =~ "Not allowed"
+    assert {:ok, _user, _token} = ApiTokens.verify_token(raw)
+  end
+
+  test "revoking a token that doesn't exist says so and keeps mine", %{conn: conn, user: user} do
+    {:ok, _raw, token} = ApiTokens.generate_token(user, %{label: "mine"})
+    {:ok, view, _html} = live(conn, "/settings")
+
+    for id <- ["999999999", "not_an_int", "#{token.id}garbage"] do
+      assert render_click(view, "revoke_token", %{"id" => id}) =~ "Token not found"
+    end
+
+    assert has_element?(view, "td", "mine")
   end
 end

@@ -12,14 +12,12 @@ defmodule Soundboard.Tenants do
 
   import Ecto.Query
 
-  alias Soundboard.{Repo, Sound, Tenants.Guild, UserSoundSetting}
+  alias Soundboard.{Repo, Sound, Stats.Play, Tenants.Guild, UserSoundSetting}
   require Logger
   @boundary_exceptions Soundboard.Boundary.exceptions()
 
   @fallback_guild_id "default"
   @reserved_slugs ~w(www dash api admin app auth uploads static assets mail settings stats favorites)
-
-  # -- Guild resolution -------------------------------------------------------
 
   @doc """
   The guild used when no tenant is specified.
@@ -29,6 +27,12 @@ defmodule Soundboard.Tenants do
   (configured as `:required_guild_id`), the bot's sole guild (discovered via
   `GuildCache` for zero-config single-guild deployments that never set the
   legacy envs), then the literal `"default"`.
+
+  The sole-guild step keeps deployments from before multi-tenancy
+  zero-config on upgrade: the migration backfills `"default"`, and
+  `reconcile_default_guild/0` repoints those rows once the guild cache is
+  populated. A bot in several guilds has no sole guild: those hosts configure
+  a guild or claim a slug.
   """
   @spec default_guild_id() :: String.t()
   def default_guild_id do
@@ -38,12 +42,6 @@ defmodule Soundboard.Tenants do
       @fallback_guild_id
   end
 
-  # The deployment's guild for bots in exactly one Discord server. This keeps
-  # pre-multi-tenant deployments zero-config on upgrade: the migration
-  # backfills the literal "default", then reconcile_default_guild/0 repoints
-  # those rows once the guild cache is populated.
-  # ponytail: sole-guild discovery only; multi-guild hosts must configure an
-  # env or claim a slug (guild switcher) since "default" is ambiguous there.
   defp sole_bot_guild_id do
     case cached_bot_guilds() do
       [%{id: id} | []] -> to_string(id)
@@ -97,8 +95,13 @@ defmodule Soundboard.Tenants do
       |> Repo.update_all(set: [guild_id: guild_id])
       |> elem(0)
 
-    from(uss in UserSoundSetting, where: uss.guild_id == @fallback_guild_id)
-    |> Repo.update_all(set: [guild_id: guild_id])
+    Repo.update_all(from(uss in UserSoundSetting, where: uss.guild_id == @fallback_guild_id),
+      set: [guild_id: guild_id]
+    )
+
+    Repo.update_all(from(p in Play, where: p.guild_id == @fallback_guild_id),
+      set: [guild_id: guild_id]
+    )
 
     if moved > 0 do
       Logger.info("Reconciled #{moved} legacy sound rows to bot guild #{guild_id}")
@@ -136,8 +139,6 @@ defmodule Soundboard.Tenants do
     Map.get(map, key) || Map.get(map, to_string(key))
   end
 
-  # -- Guild CRUD -------------------------------------------------------------
-
   @spec list_guilds() :: [Guild.t()]
   def list_guilds, do: Repo.all(Guild)
 
@@ -148,6 +149,11 @@ defmodule Soundboard.Tenants do
   @spec get_by_slug(String.t()) :: Guild.t() | nil
   def get_by_slug(slug), do: Repo.get_by(Guild, slug: slug)
 
+  @doc """
+  The guild's tenant row, created when missing with the provisional slug
+  `guild-<id>` (unique by construction) until someone claims a subdomain
+  (`claim_slug/2`).
+  """
   @spec get_or_create_guild(String.t() | term(), map()) :: {:ok, Guild.t()} | {:error, term()}
   def get_or_create_guild(discord_guild_id, attrs \\ %{}) do
     case get_guild(discord_guild_id) do
@@ -157,8 +163,6 @@ defmodule Soundboard.Tenants do
       nil ->
         discord_guild_id = to_string(discord_guild_id)
 
-        # ponytail: provisional slug "guild-<id>" — unique by construction;
-        # claim_slug/2 renames it when someone claims a real subdomain
         attrs = Map.put_new(attrs, :slug, "guild-#{discord_guild_id}")
 
         %Guild{}
@@ -243,8 +247,6 @@ defmodule Soundboard.Tenants do
     end
   end
 
-  # -- Storage caps -----------------------------------------------------------
-
   @doc """
   Bytes of uploaded storage used by a guild. Sounds with unknown size
   (`byte_size = 0`, e.g. rows created before guild scoping) count as zero, so
@@ -264,34 +266,29 @@ defmodule Soundboard.Tenants do
 
   @doc """
   The storage cap for a guild: its own `max_storage_bytes`, or nil when the
-  guild has no cap — which means unlimited. Caps exist only where subscriptions
-  put them: on hosted, the billing webhook writes exact plan caps; self-hosted
-  installs have no cap at all.
+  guild has no cap, which means unlimited. Caps exist only where
+  subscriptions put them: on hosted, the billing webhook writes exact plan
+  caps and 0 once the subscription ends (no plan: nothing can be added);
+  self-hosted installs have no cap at all.
   """
-  @spec storage_cap(String.t() | term()) :: pos_integer() | nil
+  @spec storage_cap(String.t() | term()) :: non_neg_integer() | nil
   def storage_cap(guild_id) do
     case get_guild(guild_id) do
-      %Guild{max_storage_bytes: bytes} when is_integer(bytes) and bytes > 0 -> bytes
+      %Guild{max_storage_bytes: bytes} when is_integer(bytes) and bytes >= 0 -> bytes
       _ -> nil
     end
   end
 
-  @spec storage_remaining(String.t() | term()) :: non_neg_integer() | nil
-  def storage_remaining(guild_id) do
-    case storage_cap(guild_id) do
-      nil -> nil
-      cap -> max(cap - storage_used(guild_id), 0)
-    end
-  end
-
   @doc """
-  Whether uploading `incoming_bytes` more would stay within the guild's cap.
-  An uncapped guild (self-hosted) is always within its limit.
+  Whether adding a sound of `incoming_bytes` stays within the guild's cap.
+  An uncapped guild (self-hosted) is always within its limit; a guild with
+  no plan (cap 0) cannot add anything, not even a URL sound.
   """
   @spec within_storage_limit?(String.t() | term(), non_neg_integer()) :: boolean()
   def within_storage_limit?(guild_id, incoming_bytes) do
     case storage_cap(guild_id) do
       nil -> true
+      0 -> false
       cap -> storage_used(guild_id) + incoming_bytes <= cap
     end
   end

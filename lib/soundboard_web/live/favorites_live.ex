@@ -37,7 +37,7 @@ defmodule SoundboardWeb.FavoritesLive do
         {:noreply, put_flash(socket, :error, "You must be logged in to favorite sounds")}
 
       user ->
-        case Favorites.toggle_favorite(user.id, sound_id) do
+        case Favorites.toggle_favorite(user.id, sound_id, socket.assigns.guild_id) do
           {:ok, _favorite} ->
             {:noreply,
              socket
@@ -53,20 +53,6 @@ defmodule SoundboardWeb.FavoritesLive do
   @impl true
   def handle_info({:sound_played, %{filename: _, played_by: _} = event}, socket) do
     {:noreply, flash_sound_played(socket, event)}
-  end
-
-  @impl true
-  def handle_info({:sound_played, filename}, socket) when is_binary(filename) do
-    username =
-      case SoundPlayback.current_username(socket) do
-        {:ok, current_username} -> current_username
-        :error -> "Someone"
-      end
-
-    {:noreply,
-     socket
-     |> put_flash(:info, "#{username} played #{filename}")
-     |> clear_flash_after_timeout()}
   end
 
   @impl true
@@ -87,17 +73,12 @@ defmodule SoundboardWeb.FavoritesLive do
     {:noreply, clear_flash(socket)}
   end
 
-  @impl true
-  def handle_info({:stats_updated}, socket) do
-    {:noreply, assign_favorites_state(socket, socket.assigns[:current_user])}
-  end
-
   defp assign_favorites_state(socket, nil) do
     assign(socket, favorites: [], sounds_with_tags: [])
   end
 
   defp assign_favorites_state(socket, user) do
-    favorites = Favorites.list_favorites(user.id)
+    favorites = Favorites.list_favorites(user.id, socket.assigns.guild_id)
 
     assign(socket,
       favorites: favorites,
