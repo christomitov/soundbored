@@ -19,7 +19,7 @@ defmodule SoundboardWeb.GuildClaimTest do
 
       conn =
         call!(
-          conn!(conn) |> assign(:current_guild_id, "claim-success"),
+          assign(conn!(conn), :current_guild_id, "claim-success"),
           :claim,
           %{"slug" => "My-Server"}
         )
@@ -36,7 +36,7 @@ defmodule SoundboardWeb.GuildClaimTest do
 
       conn =
         call!(
-          conn!(conn) |> assign(:current_guild_id, "owner-b"),
+          assign(conn!(conn), :current_guild_id, "owner-b"),
           :claim,
           %{"slug" => "taken-slug"}
         )
@@ -48,11 +48,7 @@ defmodule SoundboardWeb.GuildClaimTest do
 
     test "a reserved slug is rejected without mutating anything", %{conn: conn} do
       conn =
-        call!(
-          conn!(conn) |> assign(:current_guild_id, "owner-c"),
-          :claim,
-          %{"slug" => "admin"}
-        )
+        call!(assign(conn!(conn), :current_guild_id, "owner-c"), :claim, %{"slug" => "admin"})
 
       assert Phoenix.Flash.get(conn.assigns.flash, :error) =~ "not available"
       refute Tenants.get_by_slug("admin")
@@ -84,7 +80,6 @@ defmodule SoundboardWeb.GuildClaimTest do
       assert redirected_to(conn) == "/"
       assert get_session(conn, :guild_id) == "g-resolved"
 
-      # A follow-up request is scoped to the resolved tenant by the plug.
       with_mock(EDA.Cache, [],
         guilds: fn -> [%{"id" => "g-resolved", "name" => "Resolved"}] end,
         channels_for_guild: fn _ -> [] end,
@@ -136,8 +131,6 @@ defmodule SoundboardWeb.GuildClaimTest do
     end
   end
 
-  # -- helpers ----------------------------------------------------------------
-
   defp conn!(conn),
     do:
       conn
@@ -161,10 +154,6 @@ defmodule SoundboardWeb.GuildClaimTest do
     |> Repo.insert!()
   end
 
-  # Session-bound CSRF state for router-level POSTs: Plug.CSRFProtection keeps
-  # its unmasked token in the process dictionary; the masked variant is what a
-  # form would carry as the `_csrf_token` param. Same process, so this works
-  # under Phoenix.ConnTest dispatch.
   defp put_csrf_token(conn) do
     Plug.CSRFProtection.get_csrf_token()
     put_session(conn, "_csrf_token", Process.get(:plug_unmasked_csrf_token))

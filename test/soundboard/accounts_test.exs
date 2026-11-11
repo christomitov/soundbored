@@ -1,5 +1,5 @@
 defmodule Soundboard.AccountsTest do
-  use Soundboard.DataCase
+  use Soundboard.DataCase, async: false
 
   alias Soundboard.Accounts
   alias Soundboard.Accounts.User

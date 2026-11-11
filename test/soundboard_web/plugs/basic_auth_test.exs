@@ -23,10 +23,8 @@ defmodule SoundboardWeb.BasicAuthPlugTest do
   defp restore_env(key, nil), do: System.delete_env(key)
   defp restore_env(key, value), do: System.put_env(key, value)
 
-  # -- No credentials configured: auth disabled --
-
   test "bypasses auth when both credentials are missing" do
-    conn = conn(:get, "/") |> BasicAuth.call(%{})
+    conn = BasicAuth.call(conn(:get, "/"), %{})
     refute conn.halted
   end
 
@@ -34,17 +32,15 @@ defmodule SoundboardWeb.BasicAuthPlugTest do
     System.put_env("BASIC_AUTH_USERNAME", "  ")
     System.put_env("BASIC_AUTH_PASSWORD", "")
 
-    conn = conn(:get, "/") |> BasicAuth.call(%{})
+    conn = BasicAuth.call(conn(:get, "/"), %{})
     refute conn.halted
   end
-
-  # -- Partial credentials: fail closed --
 
   test "fails closed when only username is configured" do
     System.put_env("BASIC_AUTH_USERNAME", "u")
     System.delete_env("BASIC_AUTH_PASSWORD")
 
-    conn = conn(:get, "/") |> BasicAuth.call(%{})
+    conn = BasicAuth.call(conn(:get, "/"), %{})
     assert conn.halted
     assert conn.status == 401
   end
@@ -53,12 +49,10 @@ defmodule SoundboardWeb.BasicAuthPlugTest do
     System.delete_env("BASIC_AUTH_USERNAME")
     System.put_env("BASIC_AUTH_PASSWORD", "p")
 
-    conn = conn(:get, "/") |> BasicAuth.call(%{})
+    conn = BasicAuth.call(conn(:get, "/"), %{})
     assert conn.halted
     assert conn.status == 401
   end
-
-  # -- Both credentials configured: authenticate --
 
   test "authorizes with valid Basic header" do
     System.put_env("BASIC_AUTH_USERNAME", "u")
@@ -92,7 +86,7 @@ defmodule SoundboardWeb.BasicAuthPlugTest do
     System.put_env("BASIC_AUTH_USERNAME", "u")
     System.put_env("BASIC_AUTH_PASSWORD", "p")
 
-    conn = conn(:get, "/") |> BasicAuth.call(%{})
+    conn = BasicAuth.call(conn(:get, "/"), %{})
     assert conn.halted
     assert conn.status == 401
     assert get_resp_header(conn, "www-authenticate") == [~s(Basic realm="Soundboard")]

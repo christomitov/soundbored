@@ -184,14 +184,15 @@ defmodule Soundboard.AudioPlayer.PlaybackQueueTest do
     timer_ref = Process.send_after(self(), :unused_watchdog, 5_000)
 
     state =
-      base_state(
-        current_playback: %{guild_id: "guild-1", sound_name: "old.mp3"},
-        pending_request: request(%{sound_name: "next.mp3"}),
-        interrupting: true,
-        interrupt_watchdog_ref: timer_ref,
-        interrupt_watchdog_attempt: 4
+      PlaybackQueue.clear_all(
+        base_state(
+          current_playback: %{guild_id: "guild-1", sound_name: "old.mp3"},
+          pending_request: request(%{sound_name: "next.mp3"}),
+          interrupting: true,
+          interrupt_watchdog_ref: timer_ref,
+          interrupt_watchdog_attempt: 4
+        )
       )
-      |> PlaybackQueue.clear_all()
 
     assert state.current_playback == nil
     assert state.pending_request == nil
@@ -209,8 +210,7 @@ defmodule Soundboard.AudioPlayer.PlaybackQueueTest do
     }
 
     state =
-      base_state(current_playback: current)
-      |> PlaybackQueue.handle_task_result(:ok)
+      PlaybackQueue.handle_task_result(base_state(current_playback: current), :ok)
 
     assert %{sound_name: "intro.mp3", task_pid: nil, task_ref: nil} = state.current_playback
   end
@@ -226,12 +226,14 @@ defmodule Soundboard.AudioPlayer.PlaybackQueueTest do
         :ok
       end do
       state =
-        base_state(
-          current_playback: current,
-          pending_request:
-            request(%{sound_name: "next.mp3", path_or_url: "/tmp/next.mp3", volume: 0.6})
+        PlaybackQueue.handle_task_result(
+          base_state(
+            current_playback: current,
+            pending_request:
+              request(%{sound_name: "next.mp3", path_or_url: "/tmp/next.mp3", volume: 0.6})
+          ),
+          :error
         )
-        |> PlaybackQueue.handle_task_result(:error)
 
       assert_receive :play_started
       assert %{sound_name: "next.mp3"} = state.current_playback
@@ -243,12 +245,14 @@ defmodule Soundboard.AudioPlayer.PlaybackQueueTest do
 
   test "handle_task_result drops pending playback when the voice channel no longer matches" do
     state =
-      base_state(
-        voice_channel: {"guild-1", "other-channel"},
-        current_playback: %{guild_id: "guild-1", sound_name: "old.mp3"},
-        pending_request: request(%{sound_name: "next.mp3"})
+      PlaybackQueue.handle_task_result(
+        base_state(
+          voice_channel: {"guild-1", "other-channel"},
+          current_playback: %{guild_id: "guild-1", sound_name: "old.mp3"},
+          pending_request: request(%{sound_name: "next.mp3"})
+        ),
+        :error
       )
-      |> PlaybackQueue.handle_task_result(:error)
 
     assert state.current_playback == nil
     assert state.pending_request == nil
@@ -263,12 +267,14 @@ defmodule Soundboard.AudioPlayer.PlaybackQueueTest do
         :ok
       end do
       state =
-        base_state(
-          current_playback: %{guild_id: "guild-1", sound_name: "old.mp3"},
-          pending_request:
-            request(%{sound_name: "next.mp3", path_or_url: "/tmp/next.mp3", volume: 0.6})
+        PlaybackQueue.handle_task_down(
+          base_state(
+            current_playback: %{guild_id: "guild-1", sound_name: "old.mp3"},
+            pending_request:
+              request(%{sound_name: "next.mp3", path_or_url: "/tmp/next.mp3", volume: 0.6})
+          ),
+          :boom
         )
-        |> PlaybackQueue.handle_task_down(:boom)
 
       assert_receive :play_started
       assert %{sound_name: "next.mp3"} = state.current_playback
@@ -286,14 +292,19 @@ defmodule Soundboard.AudioPlayer.PlaybackQueueTest do
         :ok
       end do
       state =
-        base_state(
-          interrupting: true,
-          interrupt_watchdog_attempt: 1,
-          current_playback: nil,
-          pending_request:
-            request(%{sound_name: "next.mp3", path_or_url: "/tmp/next.mp3", volume: 0.6})
+        PlaybackQueue.handle_interrupt_watchdog(
+          base_state(
+            interrupting: true,
+            interrupt_watchdog_attempt: 1,
+            current_playback: nil,
+            pending_request:
+              request(%{sound_name: "next.mp3", path_or_url: "/tmp/next.mp3", volume: 0.6})
+          ),
+          "guild-1",
+          1,
+          3,
+          35
         )
-        |> PlaybackQueue.handle_interrupt_watchdog("guild-1", 1, 3, 35)
 
       assert_receive :play_started
       assert %{sound_name: "next.mp3"} = state.current_playback
@@ -311,13 +322,18 @@ defmodule Soundboard.AudioPlayer.PlaybackQueueTest do
       stop: fn "guild-1" -> send(test_pid, :stopped_voice) end,
       playing?: fn "guild-1" -> true end do
       state =
-        base_state(
-          interrupting: true,
-          interrupt_watchdog_attempt: 1,
-          current_playback: %{guild_id: "guild-1", sound_name: "old.mp3"},
-          pending_request: request()
+        PlaybackQueue.handle_interrupt_watchdog(
+          base_state(
+            interrupting: true,
+            interrupt_watchdog_attempt: 1,
+            current_playback: %{guild_id: "guild-1", sound_name: "old.mp3"},
+            pending_request: request()
+          ),
+          "guild-1",
+          1,
+          3,
+          35
         )
-        |> PlaybackQueue.handle_interrupt_watchdog("guild-1", 1, 3, 35)
 
       assert_receive :stopped_voice
       assert state.current_playback.sound_name == "old.mp3"
@@ -342,14 +358,19 @@ defmodule Soundboard.AudioPlayer.PlaybackQueueTest do
        ]}
     ]) do
       state =
-        base_state(
-          interrupting: true,
-          interrupt_watchdog_attempt: 1,
-          current_playback: %{guild_id: "guild-1", sound_name: "old.mp3"},
-          pending_request:
-            request(%{sound_name: "next.mp3", path_or_url: "/tmp/next.mp3", volume: 0.6})
+        PlaybackQueue.handle_interrupt_watchdog(
+          base_state(
+            interrupting: true,
+            interrupt_watchdog_attempt: 1,
+            current_playback: %{guild_id: "guild-1", sound_name: "old.mp3"},
+            pending_request:
+              request(%{sound_name: "next.mp3", path_or_url: "/tmp/next.mp3", volume: 0.6})
+          ),
+          "guild-1",
+          1,
+          3,
+          35
         )
-        |> PlaybackQueue.handle_interrupt_watchdog("guild-1", 1, 3, 35)
 
       assert_receive :play_started
       assert %{sound_name: "next.mp3"} = state.current_playback
@@ -374,14 +395,19 @@ defmodule Soundboard.AudioPlayer.PlaybackQueueTest do
        ]}
     ]) do
       state =
-        base_state(
-          interrupting: true,
-          interrupt_watchdog_attempt: 3,
-          current_playback: %{guild_id: "guild-1", sound_name: "old.mp3"},
-          pending_request:
-            request(%{sound_name: "next.mp3", path_or_url: "/tmp/next.mp3", volume: 0.6})
+        PlaybackQueue.handle_interrupt_watchdog(
+          base_state(
+            interrupting: true,
+            interrupt_watchdog_attempt: 3,
+            current_playback: %{guild_id: "guild-1", sound_name: "old.mp3"},
+            pending_request:
+              request(%{sound_name: "next.mp3", path_or_url: "/tmp/next.mp3", volume: 0.6})
+          ),
+          "guild-1",
+          3,
+          3,
+          35
         )
-        |> PlaybackQueue.handle_interrupt_watchdog("guild-1", 3, 3, 35)
 
       assert_receive :stopped_voice
       assert_receive :play_started
@@ -394,7 +420,7 @@ defmodule Soundboard.AudioPlayer.PlaybackQueueTest do
   end
 
   test "handle_interrupt_watchdog is a no-op when not interrupting" do
-    state = base_state() |> PlaybackQueue.handle_interrupt_watchdog("guild-1", 1, 3, 35)
+    state = PlaybackQueue.handle_interrupt_watchdog(base_state(), "guild-1", 1, 3, 35)
 
     assert state == base_state()
   end
@@ -408,12 +434,14 @@ defmodule Soundboard.AudioPlayer.PlaybackQueueTest do
         :ok
       end do
       state =
-        base_state(
-          current_playback: %{guild_id: "guild-1", sound_name: "old.mp3"},
-          pending_request:
-            request(%{sound_name: "next.mp3", path_or_url: "/tmp/next.mp3", volume: 0.6})
+        PlaybackQueue.handle_playback_finished(
+          base_state(
+            current_playback: %{guild_id: "guild-1", sound_name: "old.mp3"},
+            pending_request:
+              request(%{sound_name: "next.mp3", path_or_url: "/tmp/next.mp3", volume: 0.6})
+          ),
+          "guild-1"
         )
-        |> PlaybackQueue.handle_playback_finished("guild-1")
 
       assert_receive :play_started
       assert %{sound_name: "next.mp3"} = state.current_playback
@@ -432,14 +460,16 @@ defmodule Soundboard.AudioPlayer.PlaybackQueueTest do
         :ok
       end do
       state =
-        base_state(
-          voice_channel: {"guild-1", "channel-9"},
-          current_playback: %{guild_id: "other-guild", sound_name: "other.mp3"},
-          interrupting: true,
-          pending_request:
-            request(%{sound_name: "next.mp3", path_or_url: "/tmp/next.mp3", volume: 0.6})
+        PlaybackQueue.handle_playback_finished(
+          base_state(
+            voice_channel: {"guild-1", "channel-9"},
+            current_playback: %{guild_id: "other-guild", sound_name: "other.mp3"},
+            interrupting: true,
+            pending_request:
+              request(%{sound_name: "next.mp3", path_or_url: "/tmp/next.mp3", volume: 0.6})
+          ),
+          "guild-1"
         )
-        |> PlaybackQueue.handle_playback_finished("guild-1")
 
       assert_receive :play_started
       assert %{sound_name: "next.mp3"} = state.current_playback
@@ -451,8 +481,10 @@ defmodule Soundboard.AudioPlayer.PlaybackQueueTest do
 
   test "handle_playback_finished ignores unrelated guilds" do
     state =
-      base_state(current_playback: %{guild_id: "guild-1", sound_name: "intro.mp3"})
-      |> PlaybackQueue.handle_playback_finished("other-guild")
+      PlaybackQueue.handle_playback_finished(
+        base_state(current_playback: %{guild_id: "guild-1", sound_name: "intro.mp3"}),
+        "other-guild"
+      )
 
     assert state.current_playback.sound_name == "intro.mp3"
   end

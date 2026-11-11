@@ -1,10 +1,11 @@
 defmodule Soundboard.Boundary do
-  @moduledoc false
+  @moduledoc """
+  The exception types that can realistically escape across a process or API
+  boundary here: the Discord gateway (EDA), voice, HTTP, the file system and
+  SQLite. Code rescues `e in @boundary_exceptions` rather than everything;
+  exits and throws are caught separately.
+  """
 
-  # Exception types that can realistically escape across process/API boundaries
-  # in this app (Discord gateway via EDA, voice, HTTP, file system, SQLite).
-  # Used with `rescue e in @boundary_exceptions` instead of bare `rescue`;
-  # exits and throws are handled separately with `catch`.
   @exceptions [
     RuntimeError,
     ArgumentError,

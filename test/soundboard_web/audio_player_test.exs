@@ -9,9 +9,6 @@ defmodule Soundboard.AudioPlayerTest do
   alias Soundboard.Discord.Handler.{AutoJoinPolicy, VoicePresence}
   alias Soundboard.Discord.Voice
 
-  # All player interactions in this suite target one guild: the default guild.
-  # The facade routes casts there, and `player/0` gives the same server process
-  # for state inspection.
   @guild Soundboard.Tenants.default_guild_id()
 
   defp player, do: Soundboard.AudioPlayer.ensure_started(@guild)
@@ -76,7 +73,6 @@ defmodule Soundboard.AudioPlayerTest do
       end do
       send(player(), :check_voice_connection)
 
-      # leave→rejoin includes a 1s sleep between leave and join
       assert_receive :join_attempted, 2_000
     end
   end
@@ -88,7 +84,6 @@ defmodule Soundboard.AudioPlayerTest do
       end)
 
       AudioPlayer.set_voice_channel(@guild, "ch-1")
-      # Sync: the call queues after the cast, ensuring the cast is processed first
       AudioPlayer.current_voice_channel()
 
       state = :sys.get_state(player())
@@ -167,7 +162,6 @@ defmodule Soundboard.AudioPlayerTest do
         AudioPlayer.current_voice_channel()
 
         state = :sys.get_state(player())
-        # A new token means the timer was reset
         {_ref, new_token} = state.idle_timeout_ref
         assert new_token != token
       end
@@ -250,7 +244,6 @@ defmodule Soundboard.AudioPlayerTest do
           :ok
         end do
         send(player(), {:idle_timeout, stale_token})
-        # Sync, then verify nothing happened
         AudioPlayer.current_voice_channel()
         refute_receive :leave_called, 100
 

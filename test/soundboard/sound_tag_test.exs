@@ -2,7 +2,7 @@ defmodule Soundboard.SoundTagTest do
   @moduledoc """
   Test for the SoundTag module.
   """
-  use Soundboard.DataCase
+  use Soundboard.DataCase, async: false
   alias Soundboard.Accounts.User
   alias Soundboard.{Sound, SoundTag, Tag}
 
@@ -28,7 +28,6 @@ defmodule Soundboard.SoundTagTest do
       tag = insert_tag()
       attrs = %{sound_id: sound.id, tag_id: tag.id}
 
-      # First insert succeeds
       {:ok, _} = Repo.insert(SoundTag.changeset(%SoundTag{}, attrs))
 
       changeset = SoundTag.changeset(%SoundTag{}, attrs)
@@ -45,7 +44,6 @@ defmodule Soundboard.SoundTagTest do
     end
   end
 
-  # Helper functions
   defp insert_sound do
     {:ok, sound} =
       %Sound{}

@@ -58,7 +58,6 @@ defmodule Soundboard.Favorites do
          Ecto.Changeset.add_error(Ecto.Changeset.change(%Favorite{}), :sound, "does not exist")}
 
       _sound ->
-        # Check if user has reached max favorites
         count = Repo.one(from f in Favorite, where: f.user_id == ^user_id, select: count())
 
         if count >= @max_favorites do

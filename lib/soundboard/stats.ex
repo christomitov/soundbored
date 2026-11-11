@@ -42,52 +42,53 @@ defmodule Soundboard.Stats do
   def get_top_users(start_date, end_date, opts \\ []) do
     limit = Keyword.get(opts, :limit, 10)
 
-    from(p in Play,
-      join: u in assoc(p, :user),
-      where: fragment("DATE(?) BETWEEN ? AND ?", p.inserted_at, ^start_date, ^end_date),
-      group_by: u.username,
-      select: {u.username, count(p.id)},
-      order_by: [desc: count(p.id)],
-      limit: ^limit
+    Repo.all(
+      from(p in Play,
+        join: u in assoc(p, :user),
+        where: fragment("DATE(?) BETWEEN ? AND ?", p.inserted_at, ^start_date, ^end_date),
+        group_by: u.username,
+        select: {u.username, count(p.id)},
+        order_by: [desc: count(p.id)],
+        limit: ^limit
+      )
     )
-    |> Repo.all()
   end
 
   @spec get_top_sounds(Date.t(), Date.t(), keyword()) :: [leaderboard_entry()]
   def get_top_sounds(start_date, end_date, opts \\ []) do
     limit = Keyword.get(opts, :limit, 10)
 
-    from(p in Play,
-      where: fragment("DATE(?) BETWEEN ? AND ?", p.inserted_at, ^start_date, ^end_date),
-      group_by: p.played_filename,
-      select: {p.played_filename, count(p.id)},
-      order_by: [desc: count(p.id)],
-      limit: ^limit
+    Repo.all(
+      from(p in Play,
+        where: fragment("DATE(?) BETWEEN ? AND ?", p.inserted_at, ^start_date, ^end_date),
+        group_by: p.played_filename,
+        select: {p.played_filename, count(p.id)},
+        order_by: [desc: count(p.id)],
+        limit: ^limit
+      )
     )
-    |> Repo.all()
   end
 
   @spec get_recent_plays(keyword()) :: [recent_play_entry()]
   def get_recent_plays(opts \\ []) do
     limit = Keyword.get(opts, :limit, 5)
 
-    from(p in Play,
-      join: u in User,
-      on: p.user_id == u.id,
-      select: {p.id, p.played_filename, u.username, p.inserted_at},
-      order_by: [desc: p.inserted_at, desc: p.id],
-      limit: ^limit
+    Repo.all(
+      from(p in Play,
+        join: u in User,
+        on: p.user_id == u.id,
+        select: {p.id, p.played_filename, u.username, p.inserted_at},
+        order_by: [desc: p.inserted_at, desc: p.id],
+        limit: ^limit
+      )
     )
-    |> Repo.all()
   end
 
   @spec reset_weekly_stats() :: :ok | {:error, term()}
   def reset_weekly_stats do
     {week_start, _week_end} = get_week_range()
 
-    from(p in Play, where: p.inserted_at < ^week_start)
-    |> Repo.delete_all()
-
+    Repo.delete_all(from(p in Play, where: p.inserted_at < ^week_start))
     broadcast_stats_update()
   end
 

@@ -30,31 +30,23 @@ defmodule Soundboard.Billing do
   write (set the cap to the plan's cap, not an increment), so replays are
   no-ops; the ETS set just avoids redundant work in the common case.
 
+  The guild's subscription (its id and line item id) is cached in memory too.
+  After a restart it is recovered from Stripe: by the remembered customer
+  when there is one, otherwise by the `guild_id` metadata on the
+  subscription. Stripe API results are structs and webhook payloads plain
+  maps; `field/2` reads either.
+
   Stripe customer ids seen on events are kept in a second ETS table
   (`:billing_stripe_customers`) so the customer portal can be opened without
   a `stripe_customer_id` column on `guilds`. Also in-memory: after a restart
   the portal is unavailable until the next event repopulates it.
   """
 
+  alias Soundboard.Billing.SubscriptionSnapshot
   alias Soundboard.Repo
   alias Soundboard.Tenants
   alias Soundboard.Tenants.Guild
   require Logger
-
-  defmodule SubscriptionSnapshot do
-    @moduledoc """
-    The guild's live Stripe subscription state cached in memory between
-    webhooks: the subscription id, its line item id, and the price id.
-    """
-
-    defstruct [:id, :item_id, :price_id]
-
-    @type t :: %__MODULE__{
-            id: String.t(),
-            item_id: String.t() | nil,
-            price_id: String.t() | nil
-          }
-  end
 
   @events_ets :billing_processed_events
   @customers_ets :billing_stripe_customers
@@ -62,8 +54,6 @@ defmodule Soundboard.Billing do
   @signature_tolerance_seconds 300
 
   @cap_by_tier %{pro: 1_073_741_824, studio: 5_368_709_120}
-
-  # -- Configuration ----------------------------------------------------------
 
   @doc """
   Billing configuration (set in `config/runtime.exs` from STRIPE_* env vars).
@@ -150,13 +140,15 @@ defmodule Soundboard.Billing do
     "$" <> :erlang.float_to_binary(cents / 100, decimals: 2)
   end
 
-  @doc "The plan a storage cap belongs to: :studio, :pro, or nil."
+  @doc """
+  The plan a storage cap belongs to: :studio, :pro, or nil. A cap that
+  matches no plan exactly (a legacy or self-hosted row) has none: the webhook
+  only ever writes exact plan caps.
+  """
   @spec plan_for_cap(non_neg_integer() | nil) :: :studio | :pro | nil
   def plan_for_cap(nil), do: nil
   def plan_for_cap(cap) when cap == @cap_by_tier.studio, do: :studio
   def plan_for_cap(cap) when cap == @cap_by_tier.pro, do: :pro
-  # Caps that don't match a plan exactly are legacy/self-hosted rows — the
-  # webhook only ever writes exact plan caps.
   def plan_for_cap(_), do: nil
 
   @doc "Human plan name for a cap value."
@@ -174,21 +166,19 @@ defmodule Soundboard.Billing do
   @doc "Bytes formatted for display: MB up to 1000 MB, then GB."
   @spec format_bytes(non_neg_integer()) :: String.t()
   def format_bytes(bytes) when is_integer(bytes) and bytes >= 100 * 1_048_576,
-    do: "#{Float.round(bytes / 1_073_741_824, 1) |> trim_float()} GB"
+    do: "#{trim_float(Float.round(bytes / 1_073_741_824, 1))} GB"
 
   def format_bytes(bytes) when is_integer(bytes) and bytes >= 1_048_576,
-    do: "#{Float.round(bytes / 1_048_576, 1) |> trim_float()} MB"
+    do: "#{trim_float(Float.round(bytes / 1_048_576, 1))} MB"
 
   def format_bytes(bytes) when is_integer(bytes) and bytes >= 1_024,
-    do: "#{Float.round(bytes / 1_024, 1) |> trim_float()} KB"
+    do: "#{trim_float(Float.round(bytes / 1_024, 1))} KB"
 
   def format_bytes(bytes) when is_integer(bytes), do: "#{bytes} B"
 
   defp trim_float(float) do
-    :erlang.float_to_binary(float, decimals: 1) |> String.replace_suffix(".0", "")
+    String.replace_suffix(:erlang.float_to_binary(float, decimals: 1), ".0", "")
   end
-
-  # -- Subscription state -----------------------------------------------------
 
   @doc """
   Whether a guild has an active subscription: a tenant row whose storage cap
@@ -205,8 +195,6 @@ defmodule Soundboard.Billing do
     end
   end
 
-  # -- Checkout / portal ------------------------------------------------------
-
   @doc """
   Creates a Stripe Checkout Session for `guild_id` at `price_id`.
 
@@ -214,6 +202,10 @@ defmodule Soundboard.Billing do
   reconciliation key) and in metadata (read back by the webhook). The price id
   is also mirrored into metadata because checkout session payloads do not
   include line items unless they are expanded.
+
+  Stripe returns the user to `opts[:base_url]` when given (the host they came
+  in on, which behind a proxy or on a local test domain differs from
+  PHX_HOST), otherwise to the configured URL.
 
   Returns `{:ok, %{id: id, url: url}}` or `{:error, :not_configured |
   :invalid_price | term()}`.
@@ -231,8 +223,6 @@ defmodule Soundboard.Billing do
         {:error, :invalid_price}
 
       true ->
-        # Redirect back to the host the user actually came in on; a configured
-        # PHX_HOST can differ (proxies, local test domains).
         base = Keyword.get(opts, :base_url) || base_url()
 
         case Stripe.Checkout.Session.create(
@@ -446,9 +436,6 @@ defmodule Soundboard.Billing do
     end
   end
 
-  # In-memory subscription state can be lost across restarts; recover the
-  # subscription (and its item id) from Stripe using the remembered customer.
-  # API results arrive as structs; webhook payloads as raw maps — read both.
   defp resolve_subscription(guild_id) do
     case subscription_state_for_guild(guild_id) do
       %SubscriptionSnapshot{id: id, item_id: item_id} = snapshot
@@ -460,7 +447,6 @@ defmodule Soundboard.Billing do
           customer_id when is_binary(customer_id) ->
             list_subscription(%{customer: customer_id, status: :active}, guild_id)
 
-          # No customer remembered: find the subscription by its guild metadata.
           _ ->
             list_subscription(%{status: :active, limit: 100}, guild_id)
         end
@@ -481,13 +467,13 @@ defmodule Soundboard.Billing do
       {:ok, %Stripe.List{data: subs}} ->
         sub =
           Enum.find(subs, fn sub ->
-            field(sub, :metadata) |> field(:guild_id) == to_string(guild_id) or
+            field(field(sub, :metadata), :guild_id) == to_string(guild_id) or
               field(sub, :customer) == customer_id_for_guild(guild_id)
           end)
 
         case sub do
           %{} = sub ->
-            item = subscription_items(sub) |> List.first()
+            item = List.first(subscription_items(sub))
             item_id = item && field(item, :id)
             price_id = item && item |> field(:price) |> field(:id)
 
@@ -510,7 +496,6 @@ defmodule Soundboard.Billing do
     end
   end
 
-  # Reads a field from either a struct (atom keys) or a raw JSON map (string keys).
   defp field(obj, key) do
     cond do
       is_struct(obj) -> Map.get(obj, key)
@@ -518,8 +503,6 @@ defmodule Soundboard.Billing do
       true -> nil
     end
   end
-
-  # -- Webhooks ---------------------------------------------------------------
 
   @doc """
   Verifies the Stripe signature header, then dispatches the event.
@@ -579,8 +562,9 @@ defmodule Soundboard.Billing do
          {timestamp, v1_values} when is_binary(timestamp) <-
            parse_signature_header(signature_header) do
       expected =
-        :crypto.mac(:hmac, :sha256, secret, timestamp <> "." <> payload)
-        |> Base.encode16(case: :lower)
+        Base.encode16(:crypto.mac(:hmac, :sha256, secret, timestamp <> "." <> payload),
+          case: :lower
+        )
 
       timestamp_fresh? = fresh_timestamp?(timestamp, tolerance)
       signature_match? = Enum.any?(v1_values, &secure_equals?(&1, expected))
@@ -630,8 +614,6 @@ defmodule Soundboard.Billing do
 
   defp secure_equals?(_, _), do: false
 
-  # -- Event handling ---------------------------------------------------------
-
   @doc "Handles a decoded Stripe event map. Public for direct unit testing."
   @spec handle_event(map()) :: :ok | {:error, term()}
   def handle_event(%{"type" => type, "data" => %{"object" => object}}) do
@@ -645,8 +627,6 @@ defmodule Soundboard.Billing do
 
   def handle_event(_), do: :ok
 
-  # The webhook is the only hosted provisioning path: it creates the tenant
-  # row (if the guild never switched) and writes the plan cap.
   defp handle_checkout_completed(session) do
     guild_id =
       get_in(session, ["metadata", "guild_id"]) ||
@@ -723,9 +703,6 @@ defmodule Soundboard.Billing do
     end
   end
 
-  # Idempotent by construction: writing the absolute cap (never an increment)
-  # means replayed events converge to the same state even if the ETS set was
-  # lost across a restart.
   defp apply_cap(guild_id, cap, owner_discord_id) when is_binary(guild_id) do
     owner_attrs =
       if is_binary(owner_discord_id) and owner_discord_id != "",
@@ -749,8 +726,6 @@ defmodule Soundboard.Billing do
 
   defp apply_cap(_, _, _), do: :ok
 
-  # -- ETS bookkeeping --------------------------------------------------------
-
   defp ensure_not_processed(event_id) when is_binary(event_id) do
     ensure_ets(@events_ets)
 
@@ -772,7 +747,6 @@ defmodule Soundboard.Billing do
 
   defp ensure_ets(table) do
     if :ets.whereis(table) == :undefined do
-      # Race-safe: another process may have created the table since the check.
       try do
         :ets.new(table, [:set, :public, :named_table, read_concurrency: true])
       rescue
@@ -796,8 +770,6 @@ defmodule Soundboard.Billing do
 
     :ok
   end
-
-  # -- Helpers ----------------------------------------------------------------
 
   defp base_url, do: SoundboardWeb.Endpoint.url()
 end

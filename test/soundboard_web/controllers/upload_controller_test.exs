@@ -1,5 +1,5 @@
 defmodule SoundboardWeb.UploadControllerTest do
-  use SoundboardWeb.ConnCase
+  use SoundboardWeb.ConnCase, async: false
 
   alias Soundboard.Accounts.User
   alias Soundboard.Repo

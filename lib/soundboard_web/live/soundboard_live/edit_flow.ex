@@ -3,32 +3,11 @@ defmodule SoundboardWeb.Live.SoundboardLive.EditFlow do
 
   import Phoenix.Component, only: [assign: 3]
 
-  alias Soundboard.{Sound, Sounds, Volume}
+  alias Soundboard.{Sounds, Volume}
+  alias SoundboardWeb.Live.SoundboardLive.EditFlow.State
   alias SoundboardWeb.Live.Support.{LiveTags, TagForm}
 
   @tag_form %{input_key: :tag_input, suggestions_key: :tag_suggestions}
-
-  defmodule State do
-    @moduledoc false
-
-    defstruct show_modal: false,
-              current_sound: nil,
-              tag_input: "",
-              tag_suggestions: [],
-              show_delete_confirm: false,
-              edit_name_error: nil,
-              current_user_id: nil
-
-    @type t :: %__MODULE__{
-            show_modal: boolean(),
-            current_sound: Sound.t() | nil,
-            tag_input: String.t(),
-            tag_suggestions: list(),
-            show_delete_confirm: boolean(),
-            edit_name_error: String.t() | nil,
-            current_user_id: integer() | nil
-          }
-  end
 
   def assign_defaults(socket), do: put_state(socket, default_state())
 
@@ -57,10 +36,12 @@ defmodule SoundboardWeb.Live.SoundboardLive.EditFlow do
     sound = Sounds.get_sound!(id)
 
     {:noreply,
-     socket
-     |> update_state(fn state ->
-       %{state | current_sound: sound, show_modal: true, edit_name_error: nil}
-     end)}
+     update_state(
+       socket,
+       fn state ->
+         %{state | current_sound: sound, show_modal: true, edit_name_error: nil}
+       end
+     )}
   end
 
   def close_modal(socket), do: put_state(socket, default_state())

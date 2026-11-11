@@ -15,7 +15,6 @@ defmodule SoundboardWeb.ConnCase do
 
       alias SoundboardWeb.Router.Helpers, as: Routes
 
-      # The default endpoint for testing
       @endpoint SoundboardWeb.Endpoint
 
       use SoundboardWeb, :verified_routes

@@ -5,6 +5,10 @@ defmodule SoundboardWeb.BillingController do
 
   Checkout/portal delegate to `Soundboard.Billing` so tests can stub at that
   seam instead of Stripe internals.
+
+  The webhook signature is computed over the raw request bytes, so the
+  webhook reads the untouched body (`:raw_body`, kept by the JSON parser, or
+  read directly), never re-encoded JSON.
   """
 
   use SoundboardWeb, :controller
@@ -172,11 +176,11 @@ defmodule SoundboardWeb.BillingController do
   duplicates get a 200 so Stripe stops retrying.
   """
   def webhook(conn, _params) do
-    signature = get_req_header(conn, "stripe-signature") |> List.first()
+    signature = List.first(get_req_header(conn, "stripe-signature"))
 
     case Billing.handle_webhook(raw_body(conn), signature) do
       {:ok, result} ->
-        conn |> json(%{received: true, event: result})
+        json(conn, %{received: true, event: result})
 
       {:error, reason} ->
         conn
@@ -185,9 +189,6 @@ defmodule SoundboardWeb.BillingController do
     end
   end
 
-  # Phoenix stores the untouched body in :raw_body when a JSON body parser
-  # runs; fall back to a manual read otherwise. The signature is computed over
-  # the raw bytes, so this must never see re-encoded JSON.
   defp raw_body(conn) do
     case conn.assigns[:raw_body] do
       [body | _] ->
@@ -201,7 +202,6 @@ defmodule SoundboardWeb.BillingController do
     end
   end
 
-  # scheme://host[:port] from the incoming request, no path/query.
   defp request_base(conn) do
     %{scheme: scheme, host: host, port: port} = conn
     default = if scheme == :https, do: 443, else: 80

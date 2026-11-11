@@ -41,12 +41,11 @@ defmodule Soundboard.Tenants.GuildScopingTest do
       guild_a_sound: a,
       guild_b_sound: b
     } do
-      # ensure sounds exist in both guilds before scoping assertions
       assert a.guild_id == "guild-a"
       assert b.guild_id == "guild-b"
 
-      filenames_a = Sounds.list_detailed("guild-a") |> Enum.map(& &1.filename)
-      filenames_b = Sounds.list_detailed("guild-b") |> Enum.map(& &1.filename)
+      filenames_a = Enum.map(Sounds.list_detailed("guild-a"), & &1.filename)
+      filenames_b = Enum.map(Sounds.list_detailed("guild-b"), & &1.filename)
 
       assert "airhorn.mp3" in filenames_a
       assert "airhorn.mp3" in filenames_b
@@ -55,7 +54,7 @@ defmodule Soundboard.Tenants.GuildScopingTest do
     end
 
     test "list_detailed/0 (no guild) targets the default guild only", %{default_sound: d} do
-      filenames = Sounds.list_detailed() |> Enum.map(& &1.filename)
+      filenames = Enum.map(Sounds.list_detailed(), & &1.filename)
 
       assert filenames == [d.filename]
     end
@@ -104,8 +103,6 @@ defmodule Soundboard.Tenants.GuildScopingTest do
       insert_setting!(user, guild_a_sound, is_join_sound: true)
       insert_setting!(user, guild_b_sound, is_join_sound: true)
 
-      # Re-point guild A's join sound at guild B's sound via conflict clearing
-      # for a third sound in guild A.
       other_a = insert_sound!(user, filename: "join-a2.mp3", guild_id: "guild-a")
 
       Soundboard.UserSoundSetting.clear_conflicting_settings(
@@ -116,9 +113,7 @@ defmodule Soundboard.Tenants.GuildScopingTest do
         "guild-a"
       )
 
-      # Guild B's join sound must survive.
       assert Sounds.get_user_join_sound(user.id, "guild-b") == "join-b.mp3"
-      # Guild A's original join sound was cleared within guild A only.
       assert Sounds.get_user_join_sound(user.id, "guild-a") == nil
     end
 
@@ -144,7 +139,6 @@ defmodule Soundboard.Tenants.GuildScopingTest do
         })
 
       assert sound.guild_id == "capped"
-      # URL sounds have no local bytes.
       assert Tenants.storage_used("capped") == 0
     end
 
@@ -199,8 +193,6 @@ defmodule Soundboard.Tenants.GuildScopingTest do
     end
   end
 
-  # -- helpers ----------------------------------------------------------------
-
   defp create_sound(user, params) do
     user
     |> Sounds.new_create_request(params)
@@ -208,7 +200,6 @@ defmodule Soundboard.Tenants.GuildScopingTest do
   end
 
   defp local_sound_path(bytes) do
-    # Minimal MP3-ish file: ID3 header passes magic-byte validation.
     path = Path.join(System.tmp_dir!(), "soundbored-cap-test-#{System.unique_integer()}.mp3")
     File.write!(path, "ID3" <> :binary.copy(<<0>>, bytes - 3))
     on_exit(fn -> File.rm(path) end)
@@ -232,10 +223,7 @@ defmodule Soundboard.Tenants.GuildScopingTest do
   defp insert_setting!(user, sound, attrs) do
     %Soundboard.UserSoundSetting{}
     |> Soundboard.UserSoundSetting.changeset(
-      Map.merge(
-        %{user_id: user.id, sound_id: sound.id, guild_id: sound.guild_id},
-        Map.new(attrs)
-      )
+      Map.merge(%{user_id: user.id, sound_id: sound.id, guild_id: sound.guild_id}, Map.new(attrs))
     )
     |> Repo.insert!()
   end

@@ -67,12 +67,13 @@ defmodule Soundboard.Sounds do
   @spec filename_taken_excluding?(String.t(), integer() | String.t(), String.t() | nil) ::
           boolean()
   def filename_taken_excluding?(filename, sound_id, guild_id \\ nil) do
-    from(s in Sound,
-      where:
-        s.filename == ^filename and s.id != ^sound_id and
-          s.guild_id == ^Tenants.scope_guild_id(guild_id)
+    Repo.exists?(
+      from(s in Sound,
+        where:
+          s.filename == ^filename and s.id != ^sound_id and
+            s.guild_id == ^Tenants.scope_guild_id(guild_id)
+      )
     )
-    |> Repo.exists?()
   end
 
   @spec filename_conflicts_across_extensions?(String.t(), [String.t()], String.t() | nil) ::
@@ -81,10 +82,11 @@ defmodule Soundboard.Sounds do
       when is_list(extensions) do
     names = Enum.map(extensions, &(base_name <> &1))
 
-    from(s in Sound,
-      where: s.filename in ^names and s.guild_id == ^Tenants.scope_guild_id(guild_id)
+    Repo.exists?(
+      from(s in Sound,
+        where: s.filename in ^names and s.guild_id == ^Tenants.scope_guild_id(guild_id)
+      )
     )
-    |> Repo.exists?()
   end
 
   @spec fetch_filename_extension(term()) :: {:ok, String.t()} | :error
@@ -99,14 +101,15 @@ defmodule Soundboard.Sounds do
   def get_recent_uploads(opts \\ []) do
     limit = Keyword.get(opts, :limit, 10)
 
-    from(s in Sound,
-      join: u in User,
-      on: s.user_id == u.id,
-      select: {s.filename, u.username, s.inserted_at},
-      order_by: [desc: s.inserted_at],
-      limit: ^limit
+    Repo.all(
+      from(s in Sound,
+        join: u in User,
+        on: s.user_id == u.id,
+        select: {s.filename, u.username, s.inserted_at},
+        order_by: [desc: s.inserted_at],
+        limit: ^limit
+      )
     )
-    |> Repo.all()
   end
 
   @spec get_user_join_sound(integer(), String.t() | nil) :: String.t() | nil

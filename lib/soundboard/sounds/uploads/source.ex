@@ -173,11 +173,12 @@ defmodule Soundboard.Sounds.Uploads.Source do
   end
 
   defp filename_taken?(filename, guild_id) do
-    from(s in Sound,
-      where:
-        s.filename == ^filename and s.guild_id == ^Soundboard.Tenants.scope_guild_id(guild_id)
+    Repo.exists?(
+      from(s in Sound,
+        where:
+          s.filename == ^filename and s.guild_id == ^Soundboard.Tenants.scope_guild_id(guild_id)
+      )
     )
-    |> Repo.exists?()
   end
 
   defp url_file_extension(url) when is_binary(url) do

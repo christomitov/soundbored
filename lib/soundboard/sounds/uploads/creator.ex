@@ -7,18 +7,7 @@ defmodule Soundboard.Sounds.Uploads.Creator do
 
   @spec create(map(), map()) :: {:ok, Sound.t()} | {:error, term()}
   def create(params, source) do
-    Repo.transaction(fn ->
-      with :ok <- ensure_storage_capacity(params, source),
-           {:ok, tags} <- Tags.resolve_many(params.tags),
-           {:ok, sound} <- insert_sound(params, source, tags),
-           {:ok, _setting} <- insert_user_setting(sound, params),
-           sound <- Repo.preload(sound, [:tags, :user, :user_sound_settings]) do
-        sound
-      else
-        {:error, reason} -> Repo.rollback(reason)
-      end
-    end)
-    |> case do
+    case Repo.transaction(fn -> insert_all(params, source) end) do
       {:ok, sound} ->
         broadcast_updates()
         {:ok, sound}
@@ -26,6 +15,17 @@ defmodule Soundboard.Sounds.Uploads.Creator do
       {:error, reason} ->
         Source.cleanup_local_file(source.copied_file_path)
         {:error, reason}
+    end
+  end
+
+  defp insert_all(params, source) do
+    with :ok <- ensure_storage_capacity(params, source),
+         {:ok, tags} <- Tags.resolve_many(params.tags),
+         {:ok, sound} <- insert_sound(params, source, tags),
+         {:ok, _setting} <- insert_user_setting(sound, params) do
+      Repo.preload(sound, [:tags, :user, :user_sound_settings])
+    else
+      {:error, reason} -> Repo.rollback(reason)
     end
   end
 

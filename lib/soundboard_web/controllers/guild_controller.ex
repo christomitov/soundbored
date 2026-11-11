@@ -3,6 +3,11 @@ defmodule SoundboardWeb.GuildController do
   Tenant onboarding: list the guilds the shared bot is a member of and let the
   signed-in user switch their active soundboard (creating the tenant row on
   first use — that is the whole "provisioning" step).
+
+  With billing configured, switching to a guild without an active
+  subscription goes to checkout instead, remembering the guild: the Stripe
+  webhook is the only hosted provisioning path, so no tenant row is created
+  here.
   """
 
   use SoundboardWeb, :controller
@@ -25,9 +30,6 @@ defmodule SoundboardWeb.GuildController do
 
   def switch(conn, %{"discord_guild_id" => discord_guild_id}) do
     if Billing.configured?() and not Billing.subscription_active?(discord_guild_id) do
-      # Paywall: the guild has no active subscription. Remember the intended
-      # guild so checkout can provision it (the webhook is the only hosted
-      # provisioning path); no tenant row is created here.
       conn
       |> put_session(:billing_guild_id, to_string(discord_guild_id))
       |> redirect(to: "/billing")
@@ -75,7 +77,6 @@ defmodule SoundboardWeb.GuildController do
     normalized = slug |> String.trim() |> String.downcase()
 
     cond do
-      # Re-submitting the current slug is a no-op, not a duplicate.
       current_guild && current_guild.slug == normalized ->
         already_claimed(conn, normalized)
 

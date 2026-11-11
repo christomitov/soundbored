@@ -35,7 +35,6 @@ defmodule Soundboard.BillingTest do
 
   describe "plan_cap/1" do
     test "maps each configured price id to its tier cap" do
-      # 1 GB / 5 GB, same cap for monthly and yearly of a tier
       assert Billing.plan_cap("price_pro_monthly") == 1_073_741_824
       assert Billing.plan_cap("price_pro_yearly") == 1_073_741_824
       assert Billing.plan_cap("price_studio_monthly") == 5_368_709_120
@@ -142,8 +141,6 @@ defmodule Soundboard.BillingTest do
       assert {:ok, "evt_dup_1"} = Billing.handle_webhook(payload, header)
       assert {:ok, :duplicate} = Billing.handle_webhook(payload, header)
 
-      # Even with the in-memory set lost (node restart), the absolute-cap
-      # write converges: a replay is still a no-op state-wise.
       Billing.reset_memory()
       assert {:ok, "evt_dup_1"} = Billing.handle_webhook(payload, header)
       assert Tenants.get_guild("bill-dup").max_storage_bytes == 1_073_741_824
@@ -155,7 +152,6 @@ defmodule Soundboard.BillingTest do
     test "only exact plan caps are active; legacy/default, cap 0, or no row are not" do
       refute Billing.subscription_active?("bill-none")
 
-      # legacy row: default self-host cap, no plan matches
       {:ok, _} = Tenants.get_or_create_guild("bill-legacy")
       refute Billing.subscription_active?("bill-legacy")
 
@@ -171,11 +167,9 @@ defmodule Soundboard.BillingTest do
     end
   end
 
-  # -- Helpers ---------------------------------------------------------------
-
   defp signed(payload, secret \\ @secret) do
     ts = Integer.to_string(System.system_time(:second))
-    mac = :crypto.mac(:hmac, :sha256, secret, ts <> "." <> payload) |> Base.encode16(case: :lower)
+    mac = Base.encode16(:crypto.mac(:hmac, :sha256, secret, ts <> "." <> payload), case: :lower)
     {payload, "t=#{ts},v1=#{mac}"}
   end
 

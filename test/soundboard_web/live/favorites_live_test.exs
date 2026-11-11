@@ -1,5 +1,5 @@
 defmodule SoundboardWeb.FavoritesLiveTest do
-  use SoundboardWeb.ConnCase
+  use SoundboardWeb.ConnCase, async: false
 
   import Phoenix.LiveViewTest
   import Mock
@@ -51,8 +51,7 @@ defmodule SoundboardWeb.FavoritesLiveTest do
 
   test "redirects unauthenticated users", _context do
     conn =
-      build_conn()
-      |> get("/favorites")
+      get(build_conn(), "/favorites")
 
     assert redirected_to(conn) == "/auth/discord"
   end
@@ -112,5 +111,56 @@ defmodule SoundboardWeb.FavoritesLiveTest do
     send(view.pid, {:stats_updated})
 
     assert render(view) =~ SoundHelpers.display_name(second_sound.filename)
+  end
+
+  test "a play broadcast shows who played what, then clears", %{conn: conn, sound: sound} do
+    {:ok, view, _html} = live(conn, "/favorites")
+
+    send(view.pid, {:sound_played, %{filename: sound.filename, played_by: "pal"}})
+    assert render(view) =~ "pal played #{sound.filename}"
+
+    send(view.pid, :clear_flash)
+    refute render(view) =~ "pal played"
+  end
+
+  test "a bare play broadcast credits the current user", %{conn: conn, user: user} do
+    {:ok, view, _html} = live(conn, "/favorites")
+
+    send(view.pid, {:sound_played, "boom.mp3"})
+
+    assert render(view) =~ "#{user.username} played boom.mp3"
+  end
+
+  test "a playback error is shown", %{conn: conn} do
+    {:ok, view, _html} = live(conn, "/favorites")
+
+    send(view.pid, {:error, "Bot is not in a voice channel"})
+
+    assert render(view) =~ "Bot is not in a voice channel"
+  end
+
+  test "starring past the limit explains the limit", %{conn: conn, user: user} do
+    for n <- 1..(Favorites.max_favorites() - 1) do
+      extra =
+        %Sound{}
+        |> Sound.changeset(%{filename: "limit_#{n}.mp3", user_id: user.id, source_type: "local"})
+        |> Repo.insert!()
+
+      {:ok, _favorite} = Favorites.toggle_favorite(user.id, extra.id)
+    end
+
+    over =
+      %Sound{}
+      |> Sound.changeset(%{filename: "one_too_many.mp3", user_id: user.id, source_type: "local"})
+      |> Repo.insert!()
+
+    {:ok, view, _html} = live(conn, "/")
+
+    html =
+      view
+      |> element("[phx-click='toggle_favorite'][phx-value-sound-id='#{over.id}']")
+      |> render_click()
+
+    assert html =~ "You can only have #{Favorites.max_favorites()} favorites"
   end
 end

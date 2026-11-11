@@ -2,7 +2,7 @@ defmodule Soundboard.StatsTest do
   @moduledoc """
   Test for the Stats module.
   """
-  use Soundboard.DataCase
+  use Soundboard.DataCase, async: false
   alias Soundboard.{Accounts.User, PubSubTopics, Sound, Stats, Stats.Play}
 
   describe "stats" do
@@ -113,7 +113,6 @@ defmodule Soundboard.StatsTest do
       Stats.reset_weekly_stats()
       final_count = length(Repo.all(Play))
 
-      # Should have at least one less play after reset
       assert final_count < initial_count
     end
 
@@ -139,7 +138,6 @@ defmodule Soundboard.StatsTest do
     end
   end
 
-  # Helper functions
   defp insert_sound(user) do
     {:ok, sound} =
       %Sound{}

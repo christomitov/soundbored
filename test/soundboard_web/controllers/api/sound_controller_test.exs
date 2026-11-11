@@ -2,7 +2,7 @@ defmodule SoundboardWeb.API.SoundControllerTest do
   @moduledoc """
   Test for the SoundController.
   """
-  use SoundboardWeb.ConnCase
+  use SoundboardWeb.ConnCase, async: false
 
   import Mock
 
@@ -19,8 +19,7 @@ defmodule SoundboardWeb.API.SoundControllerTest do
     insert_sound_tag(sound, tag)
 
     conn =
-      conn
-      |> put_req_header("authorization", "Bearer " <> raw_token)
+      put_req_header(conn, "authorization", "Bearer " <> raw_token)
 
     %{conn: conn, sound: sound, user: user}
   end
@@ -92,7 +91,7 @@ defmodule SoundboardWeb.API.SoundControllerTest do
       assert data["url"] == "https://example.com/wow.mp3"
       assert data["is_join_sound"] == true
 
-      sound = Repo.get_by!(Sound, filename: "#{name}.mp3") |> Repo.preload(:tags)
+      sound = Repo.preload(Repo.get_by!(Sound, filename: "#{name}.mp3"), :tags)
       assert Enum.sort(Enum.map(sound.tags, & &1.name)) == ["meme", "reaction"]
       assert_in_delta sound.volume, 0.35, 0.0001
 

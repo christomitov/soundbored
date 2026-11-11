@@ -2,7 +2,7 @@ defmodule SoundboardWeb.StatsLiveTest do
   @moduledoc """
   Test for the StatsLive component.
   """
-  use SoundboardWeb.ConnCase
+  use SoundboardWeb.ConnCase, async: false
   import Phoenix.LiveViewTest
   alias Soundboard.Accounts.User
   alias Soundboard.{Favorites, Repo, Sound, Stats}

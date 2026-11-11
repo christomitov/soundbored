@@ -1,5 +1,5 @@
 defmodule Soundboard.Accounts.ApiTokensTest do
-  use Soundboard.DataCase
+  use Soundboard.DataCase, async: false
 
   import Mock
 
@@ -25,24 +25,19 @@ defmodule Soundboard.Accounts.ApiTokensTest do
     assert token_rec.user_id == user.id
     assert token_rec.token_hash != nil
 
-    # verify returns user and updates last_used_at
     assert {:ok, ^user, verified_token} = ApiTokens.verify_token(raw)
-    # Reload to ensure last_used_at persisted
     reloaded = Repo.get(Soundboard.Accounts.ApiToken, verified_token.id)
     assert reloaded.last_used_at != nil
 
-    # list_tokens includes it while active
     assert [listed] = ApiTokens.list_tokens(user)
     assert listed.id == token_rec.id
 
-    # revoke and ensure it's hidden and cannot verify
     assert {:ok, _} = ApiTokens.revoke_token(user, token_rec.id)
     assert [] == ApiTokens.list_tokens(user)
     assert {:error, :invalid} == ApiTokens.verify_token(raw)
   end
 
   test "verify_token returns error for invalid token", %{user: _user} do
-    # ensure user created to avoid false positives
     assert {:error, :invalid} == ApiTokens.verify_token("sb_invalid_token")
   end
 
@@ -87,9 +82,7 @@ defmodule Soundboard.Accounts.ApiTokensTest do
       |> Repo.insert()
 
     assert [] == ApiTokens.list_tokens(user)
-    # Passing string id should be normalized but not found
     assert {:error, :not_found} == ApiTokens.revoke_token(user, "999999")
-    # Passing invalid string normalizes to -1 and should still be not_found
     assert {:error, :not_found} == ApiTokens.revoke_token(user, "not_an_int")
   end
 

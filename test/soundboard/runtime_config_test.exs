@@ -1,9 +1,4 @@
 defmodule Soundboard.RuntimeConfigTest do
-  # Regression test for issue #79 in prod: the advertised URL must not carry
-  # the internal bind port. Phoenix falls back to the listener port when
-  # url[:port] is nil, so prod publishes the explicit scheme default (443/80).
-  # Dev intentionally advertises the bind port: it talks straight to the
-  # server, there is no reverse proxy in front of it.
   use ExUnit.Case, async: false
 
   @env %{

@@ -2,7 +2,7 @@ defmodule Soundboard.SoundTest do
   @moduledoc """
   Tests the Sound module.
   """
-  use Soundboard.DataCase
+  use Soundboard.DataCase, async: false
   alias Soundboard.Accounts.User
   alias Soundboard.{Repo, Sound, Sounds, Tag, UserSoundSetting}
 
@@ -107,9 +107,8 @@ defmodule Soundboard.SoundTest do
         |> Sound.changeset(attrs)
         |> Repo.insert()
 
-      now = NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
+      now = NaiveDateTime.utc_now(:second)
 
-      # Insert directly into join table with timestamps
       Repo.query!(
         "INSERT INTO sound_tags (sound_id, tag_id, inserted_at, updated_at) VALUES (?, ?, ?, ?)",
         [sound.id, tag.id, now, now]
@@ -122,9 +121,8 @@ defmodule Soundboard.SoundTest do
 
   describe "queries" do
     test "with_tags/1 preloads tags", %{sound: sound, tag: tag} do
-      now = NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
+      now = NaiveDateTime.utc_now(:second)
 
-      # Insert directly into join table with timestamps
       Repo.query!(
         "INSERT INTO sound_tags (sound_id, tag_id, inserted_at, updated_at) VALUES (?, ?, ?, ?)",
         [sound.id, tag.id, now, now]
@@ -135,37 +133,34 @@ defmodule Soundboard.SoundTest do
     end
 
     test "by_tag/2 filters sounds by tag name", %{sound: sound, tag: tag} do
-      now = NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
+      now = NaiveDateTime.utc_now(:second)
 
-      # Insert directly into join table with timestamps
       Repo.query!(
         "INSERT INTO sound_tags (sound_id, tag_id, inserted_at, updated_at) VALUES (?, ?, ?, ?)",
         [sound.id, tag.id, now, now]
       )
 
-      results = Sound.by_tag("test_tag") |> Repo.all()
+      results = Repo.all(Sound.by_tag("test_tag"))
       assert Enum.count(results) == 1
       assert hd(results).id == sound.id
     end
 
     test "list_files/0 returns all sounds with tags and settings", %{sound: sound, tag: tag} do
-      now = NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
+      now = NaiveDateTime.utc_now(:second)
 
-      # Insert directly into join table with timestamps
       Repo.query!(
         "INSERT INTO sound_tags (sound_id, tag_id, inserted_at, updated_at) VALUES (?, ?, ?, ?)",
         [sound.id, tag.id, now, now]
       )
 
-      result = Sounds.list_files() |> Enum.find(&(&1.id == sound.id))
+      result = Enum.find(Sounds.list_files(), &(&1.id == sound.id))
       assert result.id == sound.id
       assert [%{name: "test_tag"}] = result.tags
     end
 
     test "get_sound!/1 loads all associations", %{sound: sound, tag: tag} do
-      now = NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
+      now = NaiveDateTime.utc_now(:second)
 
-      # Insert directly into join table with timestamps
       Repo.query!(
         "INSERT INTO sound_tags (sound_id, tag_id, inserted_at, updated_at) VALUES (?, ?, ?, ?)",
         [sound.id, tag.id, now, now]
@@ -179,93 +174,85 @@ defmodule Soundboard.SoundTest do
 
   describe "user sound settings" do
     test "can set join sound without affecting leave sound", %{user: user} do
-      # Create two sounds
       {:ok, sound1} = insert_sound(user)
       {:ok, sound2} = insert_sound(user)
 
-      # Set sound1 as both join and leave sound
       {:ok, setting1} =
-        UserSoundSetting.changeset(
-          %UserSoundSetting{},
-          %{
-            user_id: user.id,
-            sound_id: sound1.id,
-            is_join_sound: true,
-            is_leave_sound: true
-          }
+        Repo.insert(
+          UserSoundSetting.changeset(
+            %UserSoundSetting{},
+            %{
+              user_id: user.id,
+              sound_id: sound1.id,
+              is_join_sound: true,
+              is_leave_sound: true
+            }
+          )
         )
-        |> Repo.insert()
 
-      # Set sound2 as join sound (should only unset sound1's join sound)
       :ok = UserSoundSetting.clear_conflicting_settings(user.id, sound2.id, true, false)
 
       {:ok, setting2} =
-        UserSoundSetting.changeset(
-          %UserSoundSetting{},
-          %{
-            user_id: user.id,
-            sound_id: sound2.id,
-            is_join_sound: true,
-            is_leave_sound: false
-          }
+        Repo.insert(
+          UserSoundSetting.changeset(
+            %UserSoundSetting{},
+            %{
+              user_id: user.id,
+              sound_id: sound2.id,
+              is_join_sound: true,
+              is_leave_sound: false
+            }
+          )
         )
-        |> Repo.insert()
 
-      # Reload settings to verify state
       setting1 = Repo.get(UserSoundSetting, setting1.id)
       setting2 = Repo.get(UserSoundSetting, setting2.id)
 
-      # Original sound should keep leave sound but lose join sound
       assert setting1.is_join_sound == false
       assert setting1.is_leave_sound == true
 
-      # New sound should be join sound only
       assert setting2.is_join_sound == true
       assert setting2.is_leave_sound == false
     end
 
     test "can set leave sound without affecting join sound", %{user: user} do
-      # Create two sounds
       {:ok, sound1} = insert_sound(user)
       {:ok, sound2} = insert_sound(user)
 
-      # Set sound1 as both join and leave sound
       {:ok, setting1} =
-        UserSoundSetting.changeset(
-          %UserSoundSetting{},
-          %{
-            user_id: user.id,
-            sound_id: sound1.id,
-            is_join_sound: true,
-            is_leave_sound: true
-          }
+        Repo.insert(
+          UserSoundSetting.changeset(
+            %UserSoundSetting{},
+            %{
+              user_id: user.id,
+              sound_id: sound1.id,
+              is_join_sound: true,
+              is_leave_sound: true
+            }
+          )
         )
-        |> Repo.insert()
 
-      # Set sound2 as leave sound (should only unset sound1's leave sound)
       :ok = UserSoundSetting.clear_conflicting_settings(user.id, sound2.id, false, true)
 
       {:ok, setting2} =
-        UserSoundSetting.changeset(
-          %UserSoundSetting{},
-          %{
-            user_id: user.id,
-            sound_id: sound2.id,
-            is_join_sound: false,
-            is_leave_sound: true
-          }
+        Repo.insert(
+          UserSoundSetting.changeset(
+            %UserSoundSetting{},
+            %{
+              user_id: user.id,
+              sound_id: sound2.id,
+              is_join_sound: false,
+              is_leave_sound: true
+            }
+          )
         )
-        |> Repo.insert()
 
-      # Reload settings to verify state
       setting1 = Repo.get(UserSoundSetting, setting1.id)
       setting2 = Repo.get(UserSoundSetting, setting2.id)
 
-      # Original sound should keep join sound but lose leave sound
       assert setting1.is_join_sound == true
       assert setting1.is_leave_sound == false
 
-      # New sound should be leave sound only
       assert setting2.is_join_sound == false
       assert setting2.is_leave_sound == true
     end
@@ -274,26 +261,21 @@ defmodule Soundboard.SoundTest do
       {:ok, sound} = insert_sound(user)
 
       {:ok, setting} =
-        UserSoundSetting.changeset(
-          %UserSoundSetting{},
-          %{
-            user_id: user.id,
-            sound_id: sound.id,
-            is_join_sound: true,
-            is_leave_sound: true
-          }
+        Repo.insert(
+          UserSoundSetting.changeset(
+            %UserSoundSetting{},
+            %{
+              user_id: user.id,
+              sound_id: sound.id,
+              is_join_sound: true,
+              is_leave_sound: true
+            }
+          )
         )
-        |> Repo.insert()
 
-      # Unset join sound only
       {:ok, updated_setting} =
-        UserSoundSetting.changeset(
-          setting,
-          %{is_join_sound: false}
-        )
-        |> Repo.update()
+        Repo.update(UserSoundSetting.changeset(setting, %{is_join_sound: false}))
 
-      # Verify leave sound remains set
       assert updated_setting.is_join_sound == false
       assert updated_setting.is_leave_sound == true
     end
@@ -321,7 +303,6 @@ defmodule Soundboard.SoundTest do
 
   describe "get_recent_uploads/1" do
     test "returns recent uploads with default limit", %{user: user} do
-      # Create multiple sounds
       _sounds =
         for _i <- 1..12 do
           {:ok, sound} = insert_sound(user)
@@ -342,7 +323,6 @@ defmodule Soundboard.SoundTest do
     end
 
     test "returns recent uploads with custom limit", %{user: user} do
-      # Create 5 sounds
       for _ <- 1..5, do: insert_sound(user)
 
       results = Sounds.get_recent_uploads(limit: 3)
@@ -350,7 +330,6 @@ defmodule Soundboard.SoundTest do
     end
 
     test "returns empty list when no sounds exist" do
-      # Delete all sounds
       Repo.delete_all(Sound)
 
       results = Sounds.get_recent_uploads()
@@ -360,7 +339,6 @@ defmodule Soundboard.SoundTest do
 
   describe "update_sound/2" do
     test "updates sound attributes", %{sound: sound, tag: tag} do
-      # Preload tags to avoid association error
       sound = Repo.preload(sound, :tags)
 
       attrs = %{
@@ -385,18 +363,18 @@ defmodule Soundboard.SoundTest do
 
   describe "user join/leave sounds" do
     test "get_user_join_sound/1 returns join sound filename", %{user: user, sound: sound} do
-      # Create join sound setting
       {:ok, _} =
-        UserSoundSetting.changeset(
-          %UserSoundSetting{},
-          %{
-            user_id: user.id,
-            sound_id: sound.id,
-            is_join_sound: true,
-            is_leave_sound: false
-          }
+        Repo.insert(
+          UserSoundSetting.changeset(
+            %UserSoundSetting{},
+            %{
+              user_id: user.id,
+              sound_id: sound.id,
+              is_join_sound: true,
+              is_leave_sound: false
+            }
+          )
         )
-        |> Repo.insert()
 
       assert Sounds.get_user_join_sound(user.id) == sound.filename
     end
@@ -406,18 +384,18 @@ defmodule Soundboard.SoundTest do
     end
 
     test "get_user_leave_sound/1 returns leave sound filename", %{user: user, sound: sound} do
-      # Create leave sound setting
       {:ok, _} =
-        UserSoundSetting.changeset(
-          %UserSoundSetting{},
-          %{
-            user_id: user.id,
-            sound_id: sound.id,
-            is_join_sound: false,
-            is_leave_sound: true
-          }
+        Repo.insert(
+          UserSoundSetting.changeset(
+            %UserSoundSetting{},
+            %{
+              user_id: user.id,
+              sound_id: sound.id,
+              is_join_sound: false,
+              is_leave_sound: true
+            }
+          )
         )
-        |> Repo.insert()
 
       assert Sounds.get_user_leave_sound(user.id) == sound.filename
     end
@@ -526,8 +504,7 @@ defmodule Soundboard.SoundTest do
   describe "repo persistence" do
     test "can rename sound", %{sound: sound} do
       {:ok, updated_sound} =
-        Sound.changeset(sound, %{filename: "renamed_sound.mp3"})
-        |> Repo.update()
+        Repo.update(Sound.changeset(sound, %{filename: "renamed_sound.mp3"}))
 
       assert updated_sound.filename == "renamed_sound.mp3"
       assert updated_sound.id == sound.id
@@ -539,7 +516,6 @@ defmodule Soundboard.SoundTest do
     end
   end
 
-  # Helper functions
   defp insert_user do
     {:ok, user} =
       %Soundboard.Accounts.User{}

@@ -20,8 +20,10 @@ defmodule SoundboardWeb.API.SoundController do
     case conn.assigns[:current_user] do
       %Soundboard.Accounts.User{} = user ->
         sounds =
-          Soundboard.Favorites.list_favorite_sounds_with_tags(user.id, guild_id(conn))
-          |> Enum.map(&format_sound(&1, user))
+          Enum.map(
+            Soundboard.Favorites.list_favorite_sounds_with_tags(user.id, guild_id(conn)),
+            &format_sound(&1, user)
+          )
 
         json(conn, %{data: sounds})
 
@@ -175,11 +177,11 @@ defmodule SoundboardWeb.API.SoundController do
 
   defp changeset_errors(changeset) do
     Ecto.Changeset.traverse_errors(changeset, fn {message, opts} ->
-      Regex.replace(~r"%{(\w+)}", message, fn _, key ->
-        opts
-        |> Keyword.get(String.to_existing_atom(key), key)
-        |> to_string()
-      end)
+      Regex.replace(~r"%{(\w+)}", message, fn _, key -> interpolation(opts, key) end)
     end)
+  end
+
+  defp interpolation(opts, key) do
+    Enum.find_value(opts, key, fn {name, value} -> to_string(name) == key && to_string(value) end)
   end
 end

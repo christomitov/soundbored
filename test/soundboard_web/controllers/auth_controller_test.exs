@@ -1,22 +1,19 @@
 defmodule SoundboardWeb.AuthControllerTest do
-  use SoundboardWeb.ConnCase
+  use SoundboardWeb.ConnCase, async: false
   alias Soundboard.{Accounts.User, Repo}
   import ExUnit.CaptureLog
   import Mock
   alias EDA.API.Member
 
   setup %{conn: conn} do
-    # Clean up users before each test
     Repo.delete_all(User)
 
-    # Initialize session and CSRF token for all tests
     conn =
       conn
       |> init_test_session(%{})
       |> fetch_session()
       |> fetch_flash()
 
-    # Mock Discord OAuth config for tests
     Application.put_env(:ueberauth, Ueberauth.Strategy.Discord.OAuth,
       client_id: "test_client_id",
       client_secret: "test_client_secret"
@@ -33,7 +30,6 @@ defmodule SoundboardWeb.AuthControllerTest do
     test "request/2 initiates Discord auth and sets session", %{conn: conn} do
       conn = get(conn, ~p"/auth/discord")
 
-      # Redirect status
       assert conn.status == 302
 
       assert String.starts_with?(
@@ -72,10 +68,8 @@ defmodule SoundboardWeb.AuthControllerTest do
     end
 
     test "callback/2 uses existing user if found", %{conn: conn} do
-      # Get initial user count
       initial_count = Repo.aggregate(User, :count)
 
-      # Create existing user
       {:ok, existing_user} =
         %User{}
         |> User.changeset(%{
@@ -102,7 +96,6 @@ defmodule SoundboardWeb.AuthControllerTest do
 
       assert redirected_to(conn) == "/"
       assert get_session(conn, :user_id) == existing_user.id
-      # Only increased by the one we created
       assert final_count == initial_count + 1
     end
 
@@ -151,8 +144,6 @@ defmodule SoundboardWeb.AuthControllerTest do
 
   describe "role-gated access" do
     test "callback/2 sets roles_verified_at session key on successful auth", %{conn: conn} do
-      # Feature is disabled in test env (no guild_id/role_ids configured),
-      # so RoleChecker.authorized?/1 returns true without any mocking.
       auth_data = %{
         uid: "99999",
         info: %{
@@ -215,7 +206,6 @@ defmodule SoundboardWeb.AuthControllerTest do
     end
   end
 
-  # Helper function
   defp insert_user do
     {:ok, user} =
       %User{}

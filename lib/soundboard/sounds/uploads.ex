@@ -47,7 +47,6 @@ defmodule Soundboard.Sounds.Uploads do
   defp normalize_create_error(_reason), do: add_base_error("An unexpected error occurred")
 
   defp add_base_error(message) do
-    change(%Sound{})
-    |> add_error(:base, message)
+    add_error(change(%Sound{}), :base, message)
   end
 end

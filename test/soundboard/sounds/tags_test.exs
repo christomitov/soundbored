@@ -1,5 +1,5 @@
 defmodule Soundboard.Sounds.TagsTest do
-  use Soundboard.DataCase
+  use Soundboard.DataCase, async: false
 
   alias Soundboard.Accounts.User
   alias Soundboard.{Repo, Sound, Tag}

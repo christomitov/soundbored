@@ -36,7 +36,6 @@ defmodule SoundboardWeb.Components.Layouts.NavbarTest do
     assert html =~ "user-alice"
     assert html =~ "user-bob"
 
-    # Duplicated presence entries for the same user should only render once per menu section.
     assert Enum.count(Regex.scan(~r/user-alice/, html)) == 2
   end
 end

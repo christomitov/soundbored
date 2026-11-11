@@ -1,4 +1,22 @@
 defmodule SoundboardWeb.Router do
+  @moduledoc """
+  Routes. The app pages (Sounds, Stats, Favorites, Settings) need an active
+  subscription on hosted deployments (`:app_access`); self-hosted is always
+  unlocked. Setup pages (pick a guild, claim a subdomain, subscribe) stay
+  reachable while locked, since they are the way to unlock it; `:auth` only
+  tells the navbar whether to show the app's links.
+
+  Controller-rendered pages get the `@current_path` and `@presences` the app
+  layout reads from `assign_controller_defaults/2`; LiveViews assign their own.
+
+  Billing routes are compiled in unless `:enable_billing` is false, and
+  `:require_stripe` 404s them whenever `STRIPE_SECRET_KEY` is unset. The
+  Stripe webhook is public: its signature header is the credential, and it
+  carries no CSRF token.
+
+  `/g/:slug` scopes the app to the tenant with that slug; a signed-out
+  visitor keeps the slug across sign-in (`:pending_slug`).
+  """
   use SoundboardWeb, :router
 
   pipeline :browser do
@@ -23,20 +41,13 @@ defmodule SoundboardWeb.Router do
     plug :fetch_current_user
     plug SoundboardWeb.Plugs.Tenant
     plug :assign_controller_defaults
-    # Used by the navbar: setup pages stay reachable while locked, but the app
-    # navigation stays hidden until the gate opens.
     plug SoundboardWeb.Plugs.AppGate, :assign_only
   end
 
-  # The soundboard app pages (Sounds, Stats, Favorites, Settings). On hosted,
-  # these require an active subscription; self-hosted is always unlocked.
   pipeline :app_access do
     plug SoundboardWeb.Plugs.AppGate
   end
 
-  # The shared app layout reads @current_path and @presences. LiveViews assign
-  # these on the socket, but controller-rendered pages render from conn, so the
-  # pipeline supplies the defaults here.
   def assign_controller_defaults(conn, _opts) do
     conn
     |> Plug.Conn.assign(:current_path, conn.request_path)
@@ -58,16 +69,10 @@ defmodule SoundboardWeb.Router do
     plug SoundboardWeb.Plugs.Tenant
   end
 
-  # Stripe webhook: public (no session auth) - the Stripe signature header is
-  # the credential. No CSRF token is expected on this POST.
   pipeline :stripe_webhook do
     plug :accepts, ["json"]
   end
 
-  # Billing routes are mounted unless billing is explicitly disabled via the
-  # compile-time :enable_billing kill switch; the :require_stripe plug then
-  # 404s them at runtime whenever STRIPE_SECRET_KEY is unset, so an
-  # unconfigured deployment behaves as if the routes do not exist.
   if Application.compile_env(:soundboard, :enable_billing, true) do
     scope "/billing", SoundboardWeb do
       pipe_through([
@@ -104,7 +109,6 @@ defmodule SoundboardWeb.Router do
     end
   end
 
-  # Discord OAuth routes - must come before protected routes
   scope "/auth", SoundboardWeb do
     pipe_through [:browser]
 
@@ -117,7 +121,6 @@ defmodule SoundboardWeb.Router do
     delete "/logout", AuthController, :logout
   end
 
-  # Protected routes
   scope "/", SoundboardWeb do
     pipe_through [
       :browser,
@@ -133,8 +136,6 @@ defmodule SoundboardWeb.Router do
     live "/settings", SettingsLive
   end
 
-  # Setup pages: reachable while the app is locked — they are the path to
-  # unlocking it (pick a guild, claim a subdomain, subscribe).
   scope "/", SoundboardWeb do
     pipe_through([
       :browser,
@@ -150,9 +151,6 @@ defmodule SoundboardWeb.Router do
     get "/onboarding", OnboardingController, :show
   end
 
-  # Slug entry point: /g/:slug resolves the tenant by slug and scopes the app
-  # to it. Signed-out visitors keep the desired slug across the auth redirect
-  # via the :pending_slug session key (see remember_pending_slug/2 below).
   scope "/g", SoundboardWeb do
     pipe_through([
       :browser,
@@ -186,7 +184,6 @@ defmodule SoundboardWeb.Router do
     end
   end
 
-  # Add this new scope for API routes before your other scopes
   scope "/api", SoundboardWeb.API do
     pipe_through :api
 
@@ -239,8 +236,7 @@ defmodule SoundboardWeb.Router do
   end
 
   defp put_session_opts(conn, _opts) do
-    conn
-    |> put_resp_cookie("_soundboard_key", "",
+    put_resp_cookie(conn, "_soundboard_key", "",
       max_age: 86_400 * 30,
       same_site: "Lax",
       secure: Application.get_env(:soundboard, :env) == :prod,

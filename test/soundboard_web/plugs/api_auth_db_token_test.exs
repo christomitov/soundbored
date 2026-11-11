@@ -1,5 +1,5 @@
 defmodule SoundboardWeb.APIAuthDBTokenTest do
-  use SoundboardWeb.ConnCase
+  use SoundboardWeb.ConnCase, async: false
   import Phoenix.ConnTest
   import Mock
 
@@ -33,7 +33,7 @@ defmodule SoundboardWeb.APIAuthDBTokenTest do
 
   test "GET /api/sounds authorized via DB token", %{conn: conn} do
     conn = get(conn, ~p"/api/sounds")
-    assert json_response(conn, 200)["data"] |> is_list()
+    assert is_list(json_response(conn, 200)["data"])
   end
 
   test "POST /api/sounds/:id/play authorized via DB token", %{
@@ -41,7 +41,6 @@ defmodule SoundboardWeb.APIAuthDBTokenTest do
     sound: sound,
     user: user
   } do
-    # Mock the audio player so we don't actually attempt voice playback
     with_mock Soundboard.AudioPlayer, play_sound: fn _, _, _ -> :ok end do
       conn = post(conn, ~p"/api/sounds/#{sound.id}/play")
 
@@ -66,7 +65,7 @@ defmodule SoundboardWeb.APIAuthDBTokenTest do
   end
 
   test "unauthorized when token invalid", %{conn: _conn} do
-    conn = build_conn() |> put_req_header("authorization", "Bearer badtoken")
+    conn = put_req_header(build_conn(), "authorization", "Bearer badtoken")
     conn = get(conn, ~p"/api/sounds")
     assert json_response(conn, 401)
   end

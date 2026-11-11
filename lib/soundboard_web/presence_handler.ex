@@ -40,7 +40,7 @@ defmodule SoundboardWeb.PresenceHandler do
 
   def track_presence(socket, user) do
     if connected?(socket) do
-      username = if user, do: user.username, else: "Anonymous #{socket.id |> String.slice(0..5)}"
+      username = if user, do: user.username, else: "Anonymous #{String.slice(socket.id, 0..5)}"
       color = get_random_unique_color(username)
 
       Presence.track(self(), @presence_topic, socket.id, %{
@@ -68,7 +68,6 @@ defmodule SoundboardWeb.PresenceHandler do
 
     color =
       if Enum.empty?(available_colors) do
-        # If all colors are used, pick a random one
         Enum.random(@colors)
       else
         Enum.random(available_colors)

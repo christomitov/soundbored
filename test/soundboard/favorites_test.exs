@@ -2,7 +2,7 @@ defmodule Soundboard.FavoritesTest do
   @moduledoc """
   Test for the Favorites module.
   """
-  use Soundboard.DataCase
+  use Soundboard.DataCase, async: false
   alias Soundboard.{Accounts.User, Favorites, Sound}
 
   describe "favorites" do
@@ -41,15 +41,12 @@ defmodule Soundboard.FavoritesTest do
     end
 
     test "cannot add more favorites than max_favorites", %{user: user} do
-      # Create max_favorites + 1 number of sounds
       sounds = Enum.map(1..(Favorites.max_favorites() + 1), fn _ -> insert_sound(user) end)
 
-      # Add max_favorites successfully
       Enum.each(Enum.take(sounds, Favorites.max_favorites()), fn sound ->
         assert {:ok, _} = Favorites.toggle_favorite(user.id, sound.id)
       end)
 
-      # Try to add one more favorite - should fail
       last_sound = List.last(sounds)
 
       assert {:error, changeset} = Favorites.toggle_favorite(user.id, last_sound.id)
@@ -62,7 +59,6 @@ defmodule Soundboard.FavoritesTest do
     end
   end
 
-  # Helper functions
   defp insert_user(attrs \\ %{}) do
     {:ok, user} =
       %User{}

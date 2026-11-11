@@ -71,3 +71,5 @@ config :eda,
   token: nil,
   consumer: nil,
   dave: false
+
+config :credence, assumptions: :strict

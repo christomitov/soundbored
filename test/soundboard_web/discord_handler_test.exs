@@ -2,7 +2,7 @@ defmodule Soundboard.Discord.HandlerTest do
   @moduledoc """
   Tests the DiscordHandler module.
   """
-  use Soundboard.DataCase
+  use Soundboard.DataCase, async: false
 
   import ExUnit.CaptureLog
   import Mock
@@ -68,7 +68,7 @@ defmodule Soundboard.Discord.HandlerTest do
           {Soundboard.Discord.Voice, [],
            [
              join_channel: fn guild_id, channel_id ->
-               Agent.update(recorder, &(&1 ++ [{guild_id, channel_id}]))
+               Agent.update(recorder, &[{guild_id, channel_id} | &1])
                :ok
              end,
              ready?: fn _ -> false end
@@ -86,7 +86,7 @@ defmodule Soundboard.Discord.HandlerTest do
 
           Handler.handle_event({:VOICE_STATE_UPDATE, payload, nil})
 
-          assert Agent.get(recorder, & &1) == []
+          assert Agent.get(recorder, &Enum.reverse/1) == []
         end
       end)
     end
@@ -122,7 +122,7 @@ defmodule Soundboard.Discord.HandlerTest do
           {Soundboard.AudioPlayer, [],
            [
              play_sound: fn filename, played_by, _guild ->
-               Agent.update(recorder, &(&1 ++ [{:play_sound, filename, played_by}]))
+               Agent.update(recorder, &[{:play_sound, filename, played_by} | &1])
                :ok
              end
            ]}
@@ -136,7 +136,7 @@ defmodule Soundboard.Discord.HandlerTest do
 
           Handler.handle_event({:VOICE_STATE_UPDATE, payload, nil})
 
-          assert Agent.get(recorder, & &1) == [{:play_sound, "join.mp3", "System"}]
+          assert Agent.get(recorder, &Enum.reverse/1) == [{:play_sound, "join.mp3", "System"}]
         end
       end)
     end
@@ -155,15 +155,13 @@ defmodule Soundboard.Discord.HandlerTest do
           {Soundboard.AudioPlayer, [],
            [
              play_sound: fn filename, played_by, _guild ->
-               Agent.update(recorder, &(&1 ++ [{:play_sound, filename, played_by}]))
+               Agent.update(recorder, &[{:play_sound, filename, played_by} | &1])
                :ok
              end
            ]}
         ]) do
-          # The handler already knows the user is in voice channel "ch-a".
           Handler.State.update_state(user.discord_id, "ch-a", "session-1")
 
-          # The user moves to "ch-b" — a switch, not a join.
           payload = %{
             channel_id: "ch-b",
             guild_id: "456",
@@ -173,7 +171,7 @@ defmodule Soundboard.Discord.HandlerTest do
 
           Handler.handle_event({:VOICE_STATE_UPDATE, payload, nil})
 
-          assert Agent.get(recorder, & &1) == []
+          assert Agent.get(recorder, &Enum.reverse/1) == []
         end
       end)
     end
@@ -192,14 +190,13 @@ defmodule Soundboard.Discord.HandlerTest do
           {Soundboard.AudioPlayer, [],
            [
              play_sound: fn filename, played_by, _guild ->
-               Agent.update(recorder, &(&1 ++ [{:play_sound, filename, played_by}]))
+               Agent.update(recorder, &[{:play_sound, filename, played_by} | &1])
                :ok
              end
            ]}
         ]) do
           Handler.State.update_state(user.discord_id, "ch-a", "session-1")
 
-          # Mute/deafen/self-stream changes re-send the same channel id.
           payload = %{
             channel_id: "ch-a",
             guild_id: "456",
@@ -209,7 +206,7 @@ defmodule Soundboard.Discord.HandlerTest do
 
           Handler.handle_event({:VOICE_STATE_UPDATE, payload, nil})
 
-          assert Agent.get(recorder, & &1) == []
+          assert Agent.get(recorder, &Enum.reverse/1) == []
         end
       end)
     end
@@ -246,12 +243,11 @@ defmodule Soundboard.Discord.HandlerTest do
           {Soundboard.AudioPlayer, [],
            [
              play_sound: fn filename, played_by, _guild ->
-               Agent.update(recorder, &(&1 ++ [{:play_sound, filename, played_by}]))
+               Agent.update(recorder, &[{:play_sound, filename, played_by} | &1])
                :ok
              end
            ]}
         ]) do
-          # User's last known state is disconnected.
           Handler.State.update_state(user.discord_id, nil, "session-1")
 
           payload = %{
@@ -263,7 +259,7 @@ defmodule Soundboard.Discord.HandlerTest do
 
           Handler.handle_event({:VOICE_STATE_UPDATE, payload, nil})
 
-          assert Agent.get(recorder, & &1) == [{:play_sound, "join.mp3", "System"}]
+          assert Agent.get(recorder, &Enum.reverse/1) == [{:play_sound, "join.mp3", "System"}]
         end
       end)
     end
@@ -297,11 +293,11 @@ defmodule Soundboard.Discord.HandlerTest do
           {Soundboard.AudioPlayer, [],
            [
              play_sound: fn filename, played_by, _guild ->
-               Agent.update(recorder, &(&1 ++ [{:play_sound, filename, played_by}]))
+               Agent.update(recorder, &[{:play_sound, filename, played_by} | &1])
                :ok
              end,
              last_user_left: fn guild ->
-               Agent.update(recorder, &(&1 ++ [{:last_user_left, guild}]))
+               Agent.update(recorder, &[{:last_user_left, guild} | &1])
                :ok
              end
            ]}
@@ -315,7 +311,7 @@ defmodule Soundboard.Discord.HandlerTest do
 
           Handler.handle_event({:VOICE_STATE_UPDATE, payload, nil})
 
-          assert Agent.get(recorder, & &1) == [
+          assert Agent.get(recorder, &Enum.reverse/1) == [
                    {:play_sound, "leave.mp3", "System"},
                    {:last_user_left, guild_id}
                  ]
@@ -365,18 +361,18 @@ defmodule Soundboard.Discord.HandlerTest do
           {Soundboard.Discord.Voice, [],
            [
              join_channel: fn ^guild_id, ^channel_id ->
-               Agent.update(recorder, &(&1 ++ [{:join_channel, guild_id, channel_id}]))
+               Agent.update(recorder, &[{:join_channel, guild_id, channel_id} | &1])
                :ok
              end,
              leave_channel: fn ^guild_id ->
-               Agent.update(recorder, &(&1 ++ [{:leave_channel, guild_id}]))
+               Agent.update(recorder, &[{:leave_channel, guild_id} | &1])
                :ok
              end
            ]},
           {Soundboard.AudioPlayer, [],
            [
              set_voice_channel: fn guild, channel ->
-               Agent.update(recorder, &(&1 ++ [{:set_voice_channel, guild, channel}]))
+               Agent.update(recorder, &[{:set_voice_channel, guild, channel} | &1])
                :ok
              end
            ]}
@@ -393,7 +389,7 @@ defmodule Soundboard.Discord.HandlerTest do
             nil
           })
 
-          assert Agent.get(recorder, & &1) == [
+          assert Agent.get(recorder, &Enum.reverse/1) == [
                    {:join_channel, guild_id, channel_id},
                    {:set_voice_channel, guild_id, channel_id},
                    {:leave_channel, guild_id},

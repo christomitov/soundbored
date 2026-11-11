@@ -14,8 +14,7 @@ defmodule Soundboard.Sounds.Management do
   def update_sound(%Sound{} = sound, user_id, params) do
     Repo.transaction(fn ->
       db_sound =
-        Repo.get!(Sound, sound.id)
-        |> Repo.preload(:user_sound_settings)
+        Repo.preload(Repo.get!(Sound, sound.id), :user_sound_settings)
 
       new_filename = params["filename"] <> Path.extname(db_sound.filename)
 
@@ -25,11 +24,10 @@ defmodule Soundboard.Sounds.Management do
         url: params["url"],
         user_id: db_sound.user_id || user_id,
         volume:
-          params["volume"]
-          |> Volume.percent_to_decimal(Volume.decimal_to_percent(db_sound.volume))
+          Volume.percent_to_decimal(params["volume"], Volume.decimal_to_percent(db_sound.volume))
       }
 
-      case Sound.changeset(db_sound, sound_params) |> Repo.update() do
+      case Repo.update(Sound.changeset(db_sound, sound_params)) do
         {:ok, updated_sound} ->
           updated_sound = update_user_settings(db_sound, user_id, updated_sound, params)
           AudioPlayer.invalidate_cache(db_sound.guild_id, db_sound.filename)

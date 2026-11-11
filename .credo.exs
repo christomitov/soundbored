@@ -11,12 +11,13 @@
           "apps/*/lib/",
           "apps/*/src/",
           "apps/*/test/",
-          "apps/*/web/"
+          "apps/*/web/",
+          "priv/repo/migrations/"
         ],
         excluded: [~r"/_build/", ~r"/deps/", ~r"/node_modules/"]
       },
       plugins: [{ExSlop, []}],
-      requires: [],
+      requires: ["credo/**/*.ex"],
       strict: false,
       parse_timeout: 5000,
       color: true,
@@ -33,7 +34,8 @@
           {Credo.Check.Readability.AliasOrder, []},
           {Credo.Check.Readability.FunctionNames, []},
           {Credo.Check.Readability.LargeNumbers, []},
-          {Credo.Check.Readability.MaxLineLength, [priority: :low, max_length: 120]},
+          {Credo.Check.Readability.MaxLineLength,
+           [priority: :low, max_length: 120, files: %{excluded: ["priv/repo/migrations/"]}]},
           {Credo.Check.Readability.ModuleAttributeNames, []},
           {Credo.Check.Readability.ModuleDoc, []},
           {Credo.Check.Readability.ModuleNames, []},
@@ -88,6 +90,40 @@
           {Credo.Check.Warning.UnusedStringOperation, []},
           {Credo.Check.Warning.UnusedTupleOperation, []},
           {Credo.Check.Warning.WrongTestFileExtension, []},
+          {Credo.Check.Refactor.AppendSingleItem, []},
+          {Credo.Check.Refactor.CaseTrivialMatches, []},
+          {Credo.Check.Refactor.DoubleBooleanNegation, []},
+          {Credo.Check.Refactor.FilterReject, []},
+          {Credo.Check.Refactor.IoPuts, []},
+          {Credo.Check.Refactor.MapInto, []},
+          {Credo.Check.Refactor.MapMap, []},
+          {Credo.Check.Refactor.NegatedIsNil, []},
+          {Credo.Check.Refactor.PassAsyncInTestCases, []},
+          {Credo.Check.Refactor.PerceivedComplexity, []},
+          {Credo.Check.Refactor.RejectFilter, []},
+          {Credo.Check.Refactor.UtcNowTruncate, []},
+          {Credo.Check.Readability.SinglePipe, []},
+
+          # Project checks (credo/), ported from nectarpay
+          {Soundboard.Credo.NoEscapeHatches, [files: %{included: ["lib/"]}]},
+          {Soundboard.Credo.NoPhxValueValue, []},
+          {Soundboard.Credo.NoAtomsFromClient, []},
+          {Soundboard.Credo.MigrationCarriesData, []},
+          {Soundboard.Credo.BannedApis,
+           [
+             files: %{
+               included: ["lib/", "test/"],
+               excluded: [
+                 # Rescues HTTPoison.Error raised inside the eda dependency; nothing here calls HTTPoison.
+                 "lib/soundboard/boundary.ex"
+               ]
+             }
+           ]},
+          {Soundboard.Credo.OneModulePerFile, [files: %{included: ["lib/"]}]},
+          {Soundboard.Credo.FileMatchesModule,
+           [files: %{included: ["lib/"], excluded: ["lib/mix/tasks/"]}]},
+          {Soundboard.Credo.ColocatedTemplates, [files: %{included: ["lib/soundboard_web/"]}]},
+          {Soundboard.Credo.NoComments, [files: %{included: ["lib/", "test/"]}]},
 
           # ExSlop recommended checks (added by VibeKit)
           {ExSlop.Check.Warning.PathExpandPriv, []},
@@ -134,7 +170,6 @@
         disabled: [
           {Credo.Check.Design.AliasUsage, false},
           {ExSlop.Check.Readability.NarratorDoc, false},
-          {Credo.Check.Refactor.UtcNowTruncate, []},
           {Credo.Check.Consistency.MultiAliasImportRequireUse, []},
           {Credo.Check.Consistency.UnusedVariableNames, []},
           {Credo.Check.Design.DuplicatedCode, []},
@@ -148,21 +183,12 @@
           {Credo.Check.Readability.OnePipePerLine, []},
           {Credo.Check.Readability.SeparateAliasRequire, []},
           {Credo.Check.Readability.SingleFunctionToBlockPipe, []},
-          {Credo.Check.Readability.SinglePipe, []},
           {Credo.Check.Readability.Specs, []},
           {Credo.Check.Readability.StrictModuleLayout, []},
           {Credo.Check.Readability.WithCustomTaggedTuple, []},
           {Credo.Check.Refactor.ABCSize, []},
-          {Credo.Check.Refactor.AppendSingleItem, []},
-          {Credo.Check.Refactor.DoubleBooleanNegation, []},
-          {Credo.Check.Refactor.FilterReject, []},
-          {Credo.Check.Refactor.IoPuts, []},
-          {Credo.Check.Refactor.MapMap, []},
           {Credo.Check.Refactor.ModuleDependencies, []},
-          {Credo.Check.Refactor.NegatedIsNil, []},
-          {Credo.Check.Refactor.PassAsyncInTestCases, []},
           {Credo.Check.Refactor.PipeChainStart, []},
-          {Credo.Check.Refactor.RejectFilter, []},
           {Credo.Check.Refactor.VariableRebinding, []},
           {Credo.Check.Warning.LazyLogging, []},
           {Credo.Check.Warning.LeakyEnvironment, []},

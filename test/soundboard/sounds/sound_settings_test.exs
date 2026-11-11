@@ -2,7 +2,7 @@ defmodule Soundboard.Sounds.SoundSettingsTest do
   @moduledoc """
   The SoundSettingsTest module.
   """
-  use Soundboard.DataCase
+  use Soundboard.DataCase, async: false
   alias Soundboard.{Accounts.User, Repo, Sound, UserSoundSetting}
   import Ecto.Changeset
 
@@ -108,7 +108,6 @@ defmodule Soundboard.Sounds.SoundSettingsTest do
 
   describe "unique constraints" do
     test "enforces unique join sound per user", %{user: user, sound: sound} do
-      # First insert succeeds
       {:ok, _} =
         %UserSoundSetting{}
         |> UserSoundSetting.changeset(%{
@@ -118,7 +117,6 @@ defmodule Soundboard.Sounds.SoundSettingsTest do
         })
         |> Repo.insert()
 
-      # Second insert should fail with constraint error (same guild)
       changeset =
         %UserSoundSetting{}
         |> UserSoundSetting.changeset(%{
@@ -136,7 +134,6 @@ defmodule Soundboard.Sounds.SoundSettingsTest do
     end
 
     test "enforces unique leave sound per user", %{user: user, sound: sound} do
-      # First insert succeeds
       {:ok, _} =
         %UserSoundSetting{}
         |> UserSoundSetting.changeset(%{
@@ -146,7 +143,6 @@ defmodule Soundboard.Sounds.SoundSettingsTest do
         })
         |> Repo.insert()
 
-      # Second insert should fail with constraint error
       changeset =
         %UserSoundSetting{}
         |> UserSoundSetting.changeset(%{
@@ -164,7 +160,6 @@ defmodule Soundboard.Sounds.SoundSettingsTest do
     end
   end
 
-  # Helper functions
   defp insert_user do
     {:ok, user} =
       %User{}
@@ -179,8 +174,7 @@ defmodule Soundboard.Sounds.SoundSettingsTest do
   end
 
   defp insert_sound(user) do
-    insert_sound!(user, "test_sound#{System.unique_integer()}.mp3")
-    |> then(&{:ok, &1})
+    {:ok, insert_sound!(user, "test_sound#{System.unique_integer()}.mp3")}
   end
 
   defp insert_sound!(user, filename) do

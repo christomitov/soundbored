@@ -45,7 +45,7 @@ defmodule Soundboard.Discord.Voice do
     voice_module().playing?(to_id(guild_id))
   end
 
-  # Compatibility shape for existing RTP probe code.
+  @doc "The guild's voice state, with its RTP sequence as `rtp_sequence` for the RTP probe."
   def get_voice(guild_id) do
     case voice_module().get_voice_state(to_id(guild_id)) do
       {:ok, %{sequence: seq} = state} -> {:ok, %{rtp_sequence: seq, state: state}}

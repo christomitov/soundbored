@@ -63,3 +63,5 @@ config :phoenix_live_view,
 
 config :swoosh, :api_client, false
 config :soundboard, env: :dev
+
+config :credence, assumptions: :strict

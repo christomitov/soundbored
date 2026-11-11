@@ -93,12 +93,12 @@ defmodule Soundboard.Migrations.DataMigrationsTest do
 
     :ok = Ecto.Migrator.up(repo, 20_260_306_150_000, AddSoundIdToPlays, log: false)
 
-    assert column_names(repo, "plays") |> Enum.member?("sound_id")
+    assert Enum.member?(column_names(repo, "plays"), "sound_id")
     assert [[1]] = repo.query!("SELECT sound_id FROM plays WHERE id = 1").rows
 
     :ok = Ecto.Migrator.down(repo, 20_260_306_150_000, AddSoundIdToPlays, log: false)
 
-    refute column_names(repo, "plays") |> Enum.member?("sound_id")
+    refute Enum.member?(column_names(repo, "plays"), "sound_id")
   end
 
   test "rename_sound_name_to_played_filename_in_plays renames the column and rolls back cleanly",
@@ -134,8 +134,8 @@ defmodule Soundboard.Migrations.DataMigrationsTest do
         log: false
       )
 
-    assert column_names(repo, "plays") |> Enum.member?("played_filename")
-    refute column_names(repo, "plays") |> Enum.member?("sound_name")
+    assert Enum.member?(column_names(repo, "plays"), "played_filename")
+    refute Enum.member?(column_names(repo, "plays"), "sound_name")
 
     assert [["beep.mp3", 1]] =
              repo.query!("SELECT played_filename, sound_id FROM plays WHERE id = 1").rows
@@ -148,8 +148,8 @@ defmodule Soundboard.Migrations.DataMigrationsTest do
         log: false
       )
 
-    assert column_names(repo, "plays") |> Enum.member?("sound_name")
-    refute column_names(repo, "plays") |> Enum.member?("played_filename")
+    assert Enum.member?(column_names(repo, "plays"), "sound_name")
+    refute Enum.member?(column_names(repo, "plays"), "played_filename")
   end
 
   test "finalize favorites and sound tags backfills legacy tags and restores them on rollback", %{
@@ -198,7 +198,7 @@ defmodule Soundboard.Migrations.DataMigrationsTest do
         log: false
       )
 
-    refute column_names(repo, "sounds") |> Enum.member?("tags")
+    refute Enum.member?(column_names(repo, "sounds"), "tags")
 
     assert [["alert"], ["meme"]] =
              repo.query!("SELECT name FROM tags ORDER BY name").rows
@@ -217,7 +217,7 @@ defmodule Soundboard.Migrations.DataMigrationsTest do
         log: false
       )
 
-    assert column_names(repo, "sounds") |> Enum.member?("tags")
+    assert Enum.member?(column_names(repo, "sounds"), "tags")
     assert [["[\"alert\",\"meme\"]"]] = repo.query!("SELECT tags FROM sounds WHERE id = 1").rows
   end
 
@@ -233,8 +233,6 @@ defmodule Soundboard.Migrations.DataMigrationsTest do
       {20_250_218_214_832, RemoveJoinLeaveFlagsFromSounds}
     ])
 
-    # Pre-tenant production schema: AddStorageKeyToSounds touches the global
-    # Repo (file renames), so mirror its schema change directly.
     repo.query!("ALTER TABLE sounds ADD COLUMN storage_key TEXT NOT NULL DEFAULT ''")
     repo.query!("ALTER TABLE sounds ADD COLUMN volume REAL DEFAULT 1.0")
     repo.query!("CREATE UNIQUE INDEX sounds_storage_key_index ON sounds (storage_key)")
@@ -259,35 +257,28 @@ defmodule Soundboard.Migrations.DataMigrationsTest do
     VALUES (1, 1, 1, 1, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     """)
 
-    # -- production upgrade: run the tenant migrations in place ---------------
     :ok = Ecto.Migrator.up(repo, 20_260_831_120_000, CreateGuilds, log: false)
     :ok = Ecto.Migrator.up(repo, 20_260_831_120_100, AddGuildIdToSounds, log: false)
 
-    # No data was lost.
     assert [[2]] = repo.query!("SELECT count(*) FROM sounds").rows
     assert [[1]] = repo.query!("SELECT count(*) FROM user_sound_settings").rows
 
-    # Existing sounds are backfilled into the default guild...
     default_guild = Soundboard.Tenants.default_guild_id()
     rows = repo.query!("SELECT DISTINCT guild_id FROM sounds").rows
     assert Enum.all?(rows, fn [guild_id] -> guild_id == default_guild end)
 
-    # ...with unknown sizes (so caps never block retroactively).
     sizes = repo.query!("SELECT DISTINCT byte_size FROM sounds").rows
     assert Enum.all?(sizes, fn [size] -> size == 0 end)
 
-    # Sound settings inherit their sound's guild.
     setting_guilds = repo.query!("SELECT DISTINCT guild_id FROM user_sound_settings").rows
 
     assert Enum.all?(setting_guilds, fn [guild_id] -> guild_id == default_guild end)
 
-    # Same filename is now allowed per guild...
     repo.query!("""
     INSERT INTO sounds (id, filename, user_id, storage_key, guild_id, volume, inserted_at, updated_at)
     VALUES (3, 'beep.mp3', 1, 'key-3.mp3', 'other-guild', 1.0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     """)
 
-    # ...but still unique within one guild.
     assert_raise(Exqlite.Error, ~r/UNIQUE constraint failed/, fn ->
       repo.query!("""
       INSERT INTO sounds (id, filename, user_id, storage_key, guild_id, volume, inserted_at, updated_at)
@@ -295,9 +286,6 @@ defmodule Soundboard.Migrations.DataMigrationsTest do
       """)
     end)
 
-    # A tenant row created after the migration may have a NULL cap; the
-    # runtime fallback (Tenants.storage_cap/1, unit-tested) applies the
-    # platform default in that case.
     repo.query!("""
     INSERT INTO guilds (id, discord_guild_id, slug, name, max_storage_bytes, inserted_at, updated_at)
     VALUES (1, '555', 'acme', 'Acme', NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
@@ -305,13 +293,12 @@ defmodule Soundboard.Migrations.DataMigrationsTest do
 
     assert [[nil]] = repo.query!("SELECT max_storage_bytes FROM guilds WHERE id = 1").rows
 
-    # -- rollback restores the pre-tenant schema without data loss ------------
     :ok = Ecto.Migrator.down(repo, 20_260_831_120_100, AddGuildIdToSounds, log: false)
     :ok = Ecto.Migrator.down(repo, 20_260_831_120_000, CreateGuilds, log: false)
 
-    refute column_names(repo, "sounds") |> Enum.member?("guild_id")
-    refute column_names(repo, "sounds") |> Enum.member?("byte_size")
-    refute column_names(repo, "user_sound_settings") |> Enum.member?("guild_id")
+    refute Enum.member?(column_names(repo, "sounds"), "guild_id")
+    refute Enum.member?(column_names(repo, "sounds"), "byte_size")
+    refute Enum.member?(column_names(repo, "user_sound_settings"), "guild_id")
     assert [[3]] = repo.query!("SELECT count(*) FROM sounds").rows
   end
 

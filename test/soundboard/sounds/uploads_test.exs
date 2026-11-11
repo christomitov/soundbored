@@ -1,5 +1,5 @@
 defmodule Soundboard.Sounds.UploadsTest do
-  use Soundboard.DataCase
+  use Soundboard.DataCase, async: false
 
   import Soundboard.DataCase, only: [errors_on: 1]
 

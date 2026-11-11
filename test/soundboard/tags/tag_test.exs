@@ -2,7 +2,7 @@ defmodule Soundboard.Tags.TagTest do
   @moduledoc """
   Tests the Tag module.
   """
-  use Soundboard.DataCase
+  use Soundboard.DataCase, async: false
   alias Soundboard.Accounts.User
   alias Soundboard.{Repo, Sound, Tag}
 
@@ -40,9 +40,8 @@ defmodule Soundboard.Tags.TagTest do
     end
 
     test "associates tags with sounds", %{sound: sound, tag: tag} do
-      now = NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
+      now = NaiveDateTime.utc_now(:second)
 
-      # Insert directly into join table with timestamps
       Repo.query!(
         "INSERT INTO sound_tags (sound_id, tag_id, inserted_at, updated_at) VALUES (?, ?, ?, ?)",
         [sound.id, tag.id, now, now]
@@ -62,19 +61,18 @@ defmodule Soundboard.Tags.TagTest do
     end
 
     test "finds tags by partial name match" do
-      results = Tag.search("test") |> Repo.all()
+      results = Repo.all(Tag.search("test"))
       assert Enum.count(results) == 2
-      assert Enum.map(results, & &1.name) |> Enum.sort() == ["test", "testing"]
+      assert Enum.sort(Enum.map(results, & &1.name)) == ["test", "testing"]
     end
 
     test "search is case insensitive" do
-      results = Tag.search("TEST") |> Repo.all()
+      results = Repo.all(Tag.search("TEST"))
       assert Enum.count(results) == 2
-      assert Enum.map(results, & &1.name) |> Enum.sort() == ["test", "testing"]
+      assert Enum.sort(Enum.map(results, & &1.name)) == ["test", "testing"]
     end
   end
 
-  # Helper functions
   defp insert_user do
     {:ok, user} =
       %Soundboard.Accounts.User{}

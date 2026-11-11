@@ -4,8 +4,7 @@ defmodule Soundboard.Discord.GuildCache do
   alias EDA.Cache
 
   def all do
-    Cache.guilds()
-    |> Enum.map(&normalize_guild/1)
+    Enum.map(Cache.guilds(), &normalize_guild/1)
   end
 
   def get(guild_id) do

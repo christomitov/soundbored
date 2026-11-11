@@ -32,14 +32,15 @@ defmodule Soundboard.Discord.Handler.VoicePresence do
 
   def bot_id do
     case BotIdentity.fetch() do
-      {:ok, %{id: id}} when not is_nil(id) -> {:ok, id}
+      {:ok, %{id: nil}} -> {:error, :bot_identity_missing}
+      {:ok, %{id: id}} -> {:ok, id}
       {:ok, _} -> {:error, :bot_identity_missing}
       {:error, reason} -> {:error, {:bot_identity_unavailable, reason}}
     end
   end
 
   def cached_guilds do
-    {:ok, GuildCache.all() |> Enum.to_list()}
+    {:ok, Enum.to_list(GuildCache.all())}
   rescue
     error in @boundary_exceptions ->
       {:error, {:guild_cache_unavailable, Exception.message(error)}}
@@ -72,7 +73,8 @@ defmodule Soundboard.Discord.Handler.VoicePresence do
     target = to_string(discord_id)
 
     case Enum.find(guild.voice_states, fn vs -> to_string(vs.user_id) == target end) do
-      %{channel_id: channel_id} when not is_nil(channel_id) -> {:ok, {guild.id, channel_id}}
+      %{channel_id: nil} -> nil
+      %{channel_id: channel_id} -> {:ok, {guild.id, channel_id}}
       _ -> nil
     end
   end
@@ -97,8 +99,9 @@ defmodule Soundboard.Discord.Handler.VoicePresence do
         voice_states = List.wrap(guild.voice_states)
 
         users_in_channel =
-          voice_states
-          |> Enum.count(fn vs -> vs.channel_id == channel_id && vs.user_id != bot_id end)
+          Enum.count(voice_states, fn vs ->
+            vs.channel_id == channel_id && vs.user_id != bot_id
+          end)
 
         log_voice_state_snapshot(channel_id, users_in_channel, bot_id, voice_states)
         {:ok, users_in_channel}
@@ -154,7 +157,10 @@ defmodule Soundboard.Discord.Handler.VoicePresence do
     guild.voice_states
     |> List.wrap()
     |> Enum.find_value(fn
-      %{user_id: ^bot_id, channel_id: channel_id} when not is_nil(channel_id) ->
+      %{user_id: ^bot_id, channel_id: nil} ->
+        nil
+
+      %{user_id: ^bot_id, channel_id: channel_id} ->
         {guild.id, channel_id}
 
       _ ->
@@ -164,7 +170,13 @@ defmodule Soundboard.Discord.Handler.VoicePresence do
 
   defp fallback_voice_channel(guild_id) do
     case AudioPlayer.current_voice_channel(guild_id) do
-      {:ok, {gid, cid}} when not is_nil(gid) and not is_nil(cid) ->
+      {:ok, {nil, _cid}} ->
+        nil
+
+      {:ok, {_gid, nil}} ->
+        nil
+
+      {:ok, {gid, cid}} ->
         {gid, cid}
 
       {:ok, _} ->

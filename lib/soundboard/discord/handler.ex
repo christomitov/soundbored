@@ -1,47 +1,17 @@
 defmodule Soundboard.Discord.Handler do
   @moduledoc """
   Handles the Discord events.
+
+  A deployment with no guild configured (no `:default_guild_id` or
+  `:required_guild_id`) discovers its guild once READY arrives: guilds stream
+  into the cache after READY, so it polls briefly for the bot's sole guild and
+  repoints rows migrated as "default" (`Tenants.reconcile_default_guild/0`).
   """
   use GenServer
   require Logger
 
   alias Soundboard.Discord.Handler.{CommandHandler, SoundEffects, VoiceRuntime}
-
-  defmodule State do
-    @moduledoc """
-    Handles the state of the Discord handler.
-    """
-    use GenServer
-
-    def start_link(_) do
-      GenServer.start_link(__MODULE__, %{}, name: __MODULE__)
-    end
-
-    def init(_) do
-      {:ok, %{voice_states: %{}}}
-    end
-
-    def get_state(user_id) do
-      GenServer.call(__MODULE__, {:get_state, user_id})
-    catch
-      :exit, _ -> nil
-    end
-
-    def update_state(user_id, channel_id, session_id) do
-      GenServer.cast(__MODULE__, {:update_state, user_id, channel_id, session_id})
-    catch
-      :exit, _ -> :error
-    end
-
-    def handle_call({:get_state, user_id}, _from, state) do
-      {:reply, Map.get(state.voice_states, user_id), state}
-    end
-
-    def handle_cast({:update_state, user_id, channel_id, session_id}, state) do
-      {:noreply,
-       %{state | voice_states: Map.put(state.voice_states, user_id, {channel_id, session_id})}}
-    end
-  end
+  alias Soundboard.Discord.Handler.State
 
   def init do
     VoiceRuntime.bootstrap()
@@ -179,10 +149,6 @@ defmodule Soundboard.Discord.Handler do
     Enum.each(actions, &apply_runtime_action/1)
   end
 
-  # Legacy upgrades: guilds stream into the cache after READY, so poll briefly
-  # to let a zero-config (env-less) single-guild deployment discover its guild
-  # and repoint rows that were migrated as "default". Configured deployments
-  # skip this entirely (see Tenants.reconcile_default_guild/0).
   defp maybe_reconcile_default_guild do
     if Application.get_env(:soundboard, :default_guild_id) ||
          Application.get_env(:soundboard, :required_guild_id) do

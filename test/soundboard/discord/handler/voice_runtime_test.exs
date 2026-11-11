@@ -89,7 +89,6 @@ defmodule Soundboard.Discord.Handler.VoiceRuntimeTest do
   test "bootstrap skips guild check in play mode" do
     with_mock AutoJoinPolicy, mode: fn -> :play end do
       assert :ok = VoiceRuntime.bootstrap()
-      # No Task spawned, nothing to assert — just verify it returns :ok without hanging
     end
   end
 

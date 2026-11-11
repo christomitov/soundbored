@@ -192,7 +192,6 @@ defmodule SoundboardWeb.BillingWebTest do
           call_guild!(conn!(conn), :switch, %{"discord_guild_id" => @guild["id"]})
 
         assert redirected_to(conn) == "/billing"
-        # no flash: the billing page itself communicates the paywall
         assert Phoenix.Flash.get(conn.assigns.flash, :info) == nil
         refute Tenants.get_guild(@guild["id"])
         assert get_session(conn, :billing_guild_id) == @guild["id"]
@@ -217,7 +216,7 @@ defmodule SoundboardWeb.BillingWebTest do
 
   defp webhook_header(payload, secret \\ "whsec_test") do
     ts = Integer.to_string(System.system_time(:second))
-    mac = :crypto.mac(:hmac, :sha256, secret, ts <> "." <> payload) |> Base.encode16(case: :lower)
+    mac = Base.encode16(:crypto.mac(:hmac, :sha256, secret, ts <> "." <> payload), case: :lower)
     "t=#{ts},v1=#{mac}"
   end
 
@@ -440,7 +439,7 @@ defmodule SoundboardWeb.BillingWebTest do
   describe "cancel" do
     test "a successful cancel flashes the period end date", %{conn: conn} do
       Application.put_env(:soundboard, Billing, @stripe_env)
-      period_end = DateTime.to_unix(DateTime.utc_now() |> DateTime.add(86_400))
+      period_end = DateTime.to_unix(DateTime.add(DateTime.utc_now(), 86_400))
 
       with_mock Billing, [:passthrough],
         cancel_subscription: fn _g -> {:ok, %{cancel_at: period_end}} end do

@@ -1,6 +1,6 @@
 defmodule SoundboardWeb.SoundboardLiveTest do
   @moduledoc false
-  use SoundboardWeb.ConnCase
+  use SoundboardWeb.ConnCase, async: false
   import Phoenix.LiveViewTest
   alias Soundboard.{Accounts.User, Repo, Sound, Tag}
   import Mock
@@ -27,7 +27,7 @@ defmodule SoundboardWeb.SoundboardLiveTest do
       })
       |> Repo.insert()
 
-    conn = conn |> init_test_session(%{user_id: user.id})
+    conn = init_test_session(conn, %{user_id: user.id})
 
     {:ok, conn: conn, user: user, sound: sound}
   end
@@ -37,7 +37,6 @@ defmodule SoundboardWeb.SoundboardLiveTest do
       {:ok, _, html} = live(conn, "/")
 
       assert html =~ "Soundboard"
-      # Check for the main content instead of a specific container
       assert html =~ "SoundBored"
     end
 
@@ -140,11 +139,8 @@ defmodule SoundboardWeb.SoundboardLiveTest do
       |> element("div.hidden.sm\\:flex button[phx-value-tag='funny']")
       |> render_click()
 
-      # With the tag selected, the untagged sound is filtered out
       refute render(view) =~ "test.mp3"
 
-      # Submitting the search (pressing enter) clears the tag filter,
-      # so the query matches the untagged sound again
       view
       |> element("form[phx-submit='commit_search']")
       |> render_submit(%{"query" => "test"})
@@ -218,7 +214,6 @@ defmodule SoundboardWeb.SoundboardLiveTest do
 
       refute render(view) =~ "test.mp3"
 
-      # The JS hook pushes clear_tag_filters when backspace hits an empty input
       view
       |> element("button[phx-click='clear_tag_filters']")
       |> render_click()
@@ -251,8 +246,6 @@ defmodule SoundboardWeb.SoundboardLiveTest do
       |> element("form[phx-change='search']")
       |> render_change(%{"query" => "fun"})
 
-      # Typing keeps the tag; the hook only fires clear_tag_filters when
-      # the input value is empty, so a non-empty search never clears it.
       rendered = render(view)
       refute rendered =~ "test.mp3"
       assert rendered =~ "funny.mp3"
@@ -261,26 +254,21 @@ defmodule SoundboardWeb.SoundboardLiveTest do
     test "can open and close upload modal", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/")
 
-      # First verify we can see the Add Sound button
       assert render(view) =~ "Add Sound"
 
-      # Click the Add Sound button and verify modal appears
       view
       |> element("[phx-click='show_upload_modal']")
       |> render_click()
 
-      # The modal should be visible now, verify its presence using form ID and content
       assert has_element?(view, "#upload-form")
       assert has_element?(view, "form[phx-submit='save_upload']")
       assert has_element?(view, "select[name='source_type']")
       assert render(view) =~ "Source Type"
 
-      # Close the modal using the correct phx-click value
       view
       |> element("[phx-click='close_upload_modal']")
       |> render_click()
 
-      # Verify modal is gone by checking for the form
       refute has_element?(view, "#upload-form")
     end
 
@@ -310,12 +298,10 @@ defmodule SoundboardWeb.SoundboardLiveTest do
         File.write!(test_file, "test content")
       end
 
-      # Target the edit form specifically
       view
       |> element("#edit-form")
       |> render_submit(params)
 
-      # Clean up both original and updated files
       File.rm_rf!(test_file)
       File.rm_rf!(updated_file)
 
@@ -594,7 +580,6 @@ defmodule SoundboardWeb.SoundboardLiveTest do
 
       Soundboard.PubSubTopics.broadcast_files_updated()
 
-      # Just verify the view is still alive
       assert render(view) =~ "SoundBored"
     end
   end

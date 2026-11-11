@@ -27,7 +27,6 @@ defmodule Soundboard.Discord.InviteURL do
   end
 
   defp configured_client_id do
-    Application.get_env(:ueberauth, Ueberauth.Strategy.Discord.OAuth, [])
-    |> Keyword.get(:client_id)
+    Keyword.get(Application.get_env(:ueberauth, Ueberauth.Strategy.Discord.OAuth, []), :client_id)
   end
 end

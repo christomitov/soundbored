@@ -1,8 +1,9 @@
 defmodule SoundboardWeb.SettingsLiveTest do
-  use SoundboardWeb.ConnCase
+  use SoundboardWeb.ConnCase, async: false
   import Phoenix.LiveViewTest
   alias Soundboard.Accounts.{ApiTokens, User}
-  alias Soundboard.Repo
+  alias Soundboard.{Billing, Repo}
+  alias Soundboard.Tenants.Guild
 
   setup %{conn: conn} do
     {:ok, user} =
@@ -25,21 +26,17 @@ defmodule SoundboardWeb.SettingsLiveTest do
   test "can create and revoke tokens via live view", %{conn: conn} do
     {:ok, view, _html} = live(conn, "/settings")
 
-    # Create token
     view
     |> element("form[phx-submit=\"create_token\"]")
     |> render_submit(%{"label" => "CI Bot"})
 
-    # Ensure it appears in the table
     html = render(view)
     assert html =~ "CI Bot"
 
-    # Revoke the first token button
     view
     |> element("button", "Revoke")
     |> render_click()
 
-    # Should disappear from the table
     refute has_element?(view, "td", "CI Bot")
   end
 
@@ -48,7 +45,6 @@ defmodule SoundboardWeb.SettingsLiveTest do
 
     {:ok, _view, html} = live(conn, "/settings")
 
-    # Token label is always visible; raw value is not shown after the creation session
     assert html =~ "Saved token"
     assert html =~ "Token values are shown"
   end
@@ -62,5 +58,63 @@ defmodule SoundboardWeb.SettingsLiveTest do
     assert html =~ "tags[]"
     assert html =~ "is_join_sound"
     assert html =~ "is_leave_sound"
+  end
+
+  describe "plan card" do
+    setup %{conn: conn, user: user} do
+      Application.put_env(:soundboard, Billing, secret_key: "sk_test_key")
+      on_exit(fn -> Application.put_env(:soundboard, Billing, []) end)
+
+      guild =
+        %Guild{}
+        |> Guild.changeset(%{
+          discord_guild_id: "9#{System.unique_integer([:positive])}",
+          slug: "plan-#{System.unique_integer([:positive])}",
+          owner_discord_id: user.discord_id,
+          max_storage_bytes: 0
+        })
+        |> Repo.insert!()
+
+      %{conn: init_test_session(conn, %{guild_id: guild.discord_guild_id}), guild: guild}
+    end
+
+    test "the guild's owner sees their plan and storage", %{conn: conn} do
+      {:ok, _view, html} = live(conn, "/settings")
+
+      assert html =~ "Manage plan"
+      assert html =~ "No plan"
+      assert html =~ "0 B of 0 B used"
+    end
+
+    test "anyone else sees no plan card", %{conn: conn, guild: guild} do
+      guild |> Ecto.Changeset.change(owner_discord_id: "someone-else") |> Repo.update!()
+
+      {:ok, _view, html} = live(conn, "/settings")
+
+      refute html =~ "Manage plan"
+    end
+  end
+
+  test "revoking another user's token is refused", %{conn: conn} do
+    {:ok, other} =
+      %User{}
+      |> User.changeset(%{
+        username: "other_#{System.unique_integer([:positive])}",
+        discord_id: "5#{System.unique_integer([:positive])}"
+      })
+      |> Repo.insert()
+
+    {:ok, _raw, token} = ApiTokens.generate_token(other, %{label: "theirs"})
+    {:ok, view, _html} = live(conn, "/settings")
+
+    html = render_click(view, "revoke_token", %{"id" => to_string(token.id)})
+
+    assert html =~ "Not allowed"
+  end
+
+  test "revoking a token that doesn't exist says so", %{conn: conn} do
+    {:ok, view, _html} = live(conn, "/settings")
+
+    assert render_click(view, "revoke_token", %{"id" => "999999999"}) =~ "Token not found"
   end
 end

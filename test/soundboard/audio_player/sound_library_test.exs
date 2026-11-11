@@ -1,5 +1,5 @@
 defmodule Soundboard.AudioPlayer.SoundLibraryTest do
-  use Soundboard.DataCase
+  use Soundboard.DataCase, async: false
 
   alias Soundboard.Accounts.User
   alias Soundboard.AudioPlayer.SoundLibrary
@@ -55,7 +55,6 @@ defmodule Soundboard.AudioPlayer.SoundLibraryTest do
     filename = unique_filename("local", ".wav")
     sound = insert_sound!(user, %{filename: filename, source_type: "local", volume: 1.2})
 
-    # File lives at storage_key path, not display filename path
     storage_path = Soundboard.UploadsPath.file_path(sound.storage_key)
     File.mkdir_p!(Path.dirname(storage_path))
     File.write!(storage_path, "audio")

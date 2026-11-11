@@ -1,0 +1,13 @@
+<.link
+  navigate={@navigate}
+  class={[
+    "block pl-4 pr-4 py-3 border-l-4 text-base font-medium leading-relaxed tracking-wide",
+    if(@active,
+      do: "bg-blue-50 dark:bg-blue-900/50 border-blue-500 text-blue-700 dark:text-blue-100",
+      else:
+        "border-transparent text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:text-gray-800 dark:hover:text-gray-200"
+    )
+  ]}
+>
+  {render_slot(@inner_block)}
+</.link>

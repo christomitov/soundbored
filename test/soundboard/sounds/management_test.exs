@@ -1,5 +1,5 @@
 defmodule Soundboard.Sounds.ManagementTest do
-  use Soundboard.DataCase
+  use Soundboard.DataCase, async: false
 
   import Mock
 
@@ -8,8 +8,6 @@ defmodule Soundboard.Sounds.ManagementTest do
   alias Soundboard.Sounds.Management
 
   setup do
-    # Tests write files straight into the uploads dir; don't rely on another
-    # test having created it first (fails under some random seeds in CI).
     File.mkdir_p!(uploads_dir())
 
     {:ok, user} =
@@ -28,7 +26,6 @@ defmodule Soundboard.Sounds.ManagementTest do
     filename = "delete_#{System.unique_integer([:positive])}.mp3"
     sound = insert_local_sound(user, filename)
 
-    # File lives at storage_key path, not display filename path
     storage_path = Path.join(uploads_dir(), sound.storage_key)
     File.write!(storage_path, "audio")
     on_exit(fn -> File.rm(storage_path) end)
@@ -47,7 +44,6 @@ defmodule Soundboard.Sounds.ManagementTest do
     filename = "old_#{System.unique_integer([:positive])}.mp3"
     sound = insert_local_sound(user, filename)
 
-    # File lives at storage_key path — rename does not move it
     storage_path = Path.join(uploads_dir(), sound.storage_key)
     File.write!(storage_path, "audio")
     on_exit(fn -> File.rm(storage_path) end)
@@ -70,7 +66,6 @@ defmodule Soundboard.Sounds.ManagementTest do
       assert_called(Soundboard.AudioPlayer.invalidate_cache(:_, filename))
       assert_called(Soundboard.AudioPlayer.invalidate_cache(:_, new_filename))
 
-      # Display name updated; storage_key (and file on disk) unchanged
       assert updated_sound.filename == new_filename
       assert updated_sound.storage_key == sound.storage_key
       assert File.exists?(storage_path)

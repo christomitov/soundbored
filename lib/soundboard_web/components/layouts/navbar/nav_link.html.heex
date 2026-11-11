@@ -1,0 +1,13 @@
+<.link
+  navigate={@navigate}
+  class={[
+    "inline-flex items-center px-1 pt-1 text-sm font-medium",
+    if(@active,
+      do: "border-b-2 border-blue-500 text-gray-900 dark:text-gray-100",
+      else:
+        "border-b-2 border-transparent text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-600 hover:text-gray-700 dark:hover:text-gray-200"
+    )
+  ]}
+>
+  {render_slot(@inner_block)}
+</.link>

@@ -64,7 +64,6 @@ defmodule Soundboard.AudioPlayer.GuildsTest do
     AudioPlayer.playback_finished("guild-a")
     AudioPlayer.last_user_left("guild-b")
 
-    # guild-a still in its channel; guild-b left after last user
     assert {:ok, {"guild-a", "ch-a"}} == AudioPlayer.current_voice_channel("guild-a")
     assert {:ok, nil} == AudioPlayer.current_voice_channel("guild-b")
   end
@@ -89,7 +88,6 @@ defmodule Soundboard.AudioPlayer.GuildsTest do
     assert Soundboard.PubSubTopics.playback_topic(nil) == "soundboard.playback:default"
     assert Soundboard.PubSubTopics.playback_topic("guild-z") == "soundboard.playback:guild-z"
 
-    # Subscribing to guild A's topic must not receive guild B's broadcast.
     Phoenix.PubSub.subscribe(Soundboard.PubSub, Soundboard.PubSubTopics.playback_topic("guild-a"))
     Soundboard.PubSubTopics.broadcast_sound_played("x.mp3", "someone", "guild-b")
     refute_received {:sound_played, _}
@@ -104,10 +102,8 @@ defmodule Soundboard.AudioPlayer.GuildsTest do
     SoundLibrary.invalidate_cache("guild-a", "cache-check.mp3")
     SoundLibrary.invalidate_cache("guild-b", "cache-check.mp3")
 
-    # No sounds exist in either guild (DataCase not used; direct ETS checks).
     assert {:error, "Sound not found"} = SoundLibrary.get_sound_path("guild-a", "cache-check.mp3")
 
-    # A cached entry for guild A must not be visible to guild B.
     SoundLibrary.ensure_cache()
 
     :ets.insert(

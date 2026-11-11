@@ -19,7 +19,7 @@ defmodule Soundboard.MixProject do
       deps: deps(),
       usage_rules: usage_rules(),
       dialyzer: [
-        plt_add_apps: [:ex_unit]
+        plt_add_apps: [:mix, :ex_unit, :credence]
       ],
       test_coverage: [
         tool: ExCoveralls,
@@ -128,6 +128,7 @@ defmodule Soundboard.MixProject do
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:reach, "~> 2.8", only: [:dev, :test], runtime: false},
       {:ex_slop, "~> 0.4", only: [:dev, :test], runtime: false},
+      {:credence, "~> 0.8", only: [:dev, :test], runtime: false},
       {:usage_rules, "~> 1.2", only: :dev}
     ]
   end
@@ -149,6 +150,7 @@ defmodule Soundboard.MixProject do
         "deps.unlock --unused",
         "format",
         "credo --strict",
+        "credence",
         "cmd env MIX_ENV=test mix do compile --warnings-as-errors + test --warnings-as-errors",
         "ex_dna"
       ],
@@ -157,6 +159,7 @@ defmodule Soundboard.MixProject do
         "format --check-formatted",
         "cmd ./scripts/check-coverage.sh",
         "credo --strict",
+        "credence --check",
         "dialyzer",
         "ex_dna --max-clones 0",
         "reach.check --arch --smells --strict"

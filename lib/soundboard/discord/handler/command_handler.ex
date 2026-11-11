@@ -16,8 +16,9 @@ defmodule Soundboard.Discord.Handler.CommandHandler do
     end
   end
 
-  def handle_message(%{content: "!leave", guild_id: guild_id, channel_id: channel_id})
-      when not is_nil(guild_id) do
+  def handle_message(%{content: "!leave", guild_id: nil}), do: :ignore
+
+  def handle_message(%{content: "!leave", guild_id: guild_id, channel_id: channel_id}) do
     VoiceRuntime.leave_voice_channel(guild_id)
     Message.create(channel_id, "Left the voice channel!")
   end

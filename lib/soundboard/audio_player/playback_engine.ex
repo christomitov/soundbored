@@ -5,6 +5,7 @@ defmodule Soundboard.AudioPlayer.PlaybackEngine do
 
   alias Soundboard.Accounts.User
   alias Soundboard.{AudioPlayer, AudioPlayer.Notifier, AudioPlayer.SoundLibrary, Discord.Voice}
+  alias Soundboard.AudioPlayer.PlaybackEngine.Retry
   @boundary_exceptions Soundboard.Boundary.exceptions()
 
   @system_users ["System"]
@@ -17,11 +18,6 @@ defmodule Soundboard.AudioPlayer.PlaybackEngine do
   @voice_settle_ms 120
   @rejoin_retry_threshold 3
   @max_play_attempts 20
-
-  defmodule Retry do
-    @moduledoc false
-    defstruct [:log, :sleep_ms, :stop_first?, :force_refresh?]
-  end
 
   def play(guild_id, channel_id, sound_name, path_or_url, volume, actor) do
     join_state = ensure_joined_channel(guild_id, channel_id)
@@ -58,7 +54,7 @@ defmodule Soundboard.AudioPlayer.PlaybackEngine do
 
   defp play_with_retries(play_request, attempt, refresh_attempted)
        when attempt < @max_play_attempts do
-    case voice_play(play_request) |> classify_play_attempt() do
+    case classify_play_attempt(voice_play(play_request)) do
       :ok ->
         maybe_probe_first_rtp(play_request.guild_id, play_request.sound_name, attempt + 1)
         track_play_if_needed(play_request.guild_id, play_request.sound_name, play_request.actor)

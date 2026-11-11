@@ -98,8 +98,6 @@ defmodule SoundboardWeb.SoundboardLive do
 
   @impl true
   def handle_event("commit_search", %{"query" => query}, socket) do
-    # Pressing enter commits the text search and drops any selected tag,
-    # giving a keyboard alternative to clicking the tag button to clear it.
     {:noreply,
      socket
      |> assign(:search_query, query)
@@ -141,6 +139,11 @@ defmodule SoundboardWeb.SoundboardLive do
   @impl true
   def handle_event("validate_upload", params, socket) do
     UploadFlow.validate(socket, params)
+  end
+
+  @impl true
+  def handle_event("cancel_upload_entry", %{"ref" => ref}, socket) do
+    UploadFlow.cancel_entry(socket, ref)
   end
 
   @impl true
@@ -311,10 +314,8 @@ defmodule SoundboardWeb.SoundboardLive do
 
   @impl true
   def handle_event("stop_sound", _params, socket) do
-    # Stop browser-based sounds
     socket = push_event(socket, "stop-all-sounds", %{})
 
-    # Stop Discord bot sounds if user is logged in
     if socket.assigns.current_user do
       Soundboard.AudioPlayer.stop_sound(socket.assigns.guild_id)
     end
