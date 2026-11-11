@@ -1,467 +1,431 @@
 defmodule Soundboard.AudioPlayerTest do
-  use ExUnit.Case, async: false
+  use Soundboard.DataCase, async: false
+
+  @moduletag :capture_log
 
   import Mock
 
   alias Soundboard.Accounts.User
-  alias Soundboard.AudioPlayer
-  alias Soundboard.AudioPlayer.{State, VoiceSession}
-  alias Soundboard.Discord.Handler.{AutoJoinPolicy, VoicePresence}
-  alias Soundboard.Discord.Voice
+  alias Soundboard.{AudioPlayer, FakeVoice, PubSubTopics, Sound}
+  alias Soundboard.Discord.{GuildCache, Handler}
+  alias Soundboard.Stats.Play
 
-  @guild Soundboard.Tenants.default_guild_id()
-
-  defp player, do: Soundboard.AudioPlayer.ensure_started(@guild)
+  @channel "voice-1"
+  @not_connected "Bot is not connected to a voice channel. Use !join in Discord first."
 
   setup do
-    pid = player()
-    original_state = :sys.get_state(pid)
-
     on_exit(fn ->
-      :sys.replace_state(pid, fn _ -> original_state end)
+      System.delete_env("AUTO_JOIN")
+      System.delete_env("VOICE_IDLE_TIMEOUT_SECONDS")
+      Application.put_env(:soundboard, :ffmpeg_executable, "ffmpeg")
     end)
 
-    :ok
+    guild = new_guild()
+    PubSubTopics.subscribe_playback(guild)
+    %{user: insert_user!("player"), guild: guild}
   end
 
-  test "forces leave and rejoin when EDA loses its channel after a gateway disconnect" do
-    test_pid = self()
+  describe "playback" do
+    test "plays a guild sound through the voice connection", %{guild: guild, user: user} do
+      sound = url_sound!(user, guild, %{volume: 0.8})
+      FakeVoice.claim(guild, channel: @channel)
+      connect(guild)
 
-    state = %State{
-      voice_channel: {@guild, "channel-1"},
-      current_playback: nil,
-      pending_request: nil,
-      interrupting: false,
-      interrupt_watchdog_ref: nil,
-      interrupt_watchdog_attempt: 0
-    }
+      AudioPlayer.play_sound(sound.filename, "System", guild)
 
-    with_mock Voice,
-      channel_id: fn @guild -> nil end,
-      ready?: fn @guild -> false end,
-      playing?: fn @guild -> false end,
-      leave_channel: fn @guild -> send(test_pid, :left_channel) end,
-      join_channel: fn @guild, "channel-1" -> send(test_pid, :joined_channel) end do
-      assert VoiceSession.maintain_connection(state) == state
-      assert_received :left_channel
-      assert_received :joined_channel
-    end
-  end
-
-  test "continues voice maintenance when playback status is unavailable" do
-    test_pid = self()
-
-    :sys.replace_state(player(), fn _ ->
-      %State{
-        voice_channel: {@guild, "channel-1"},
-        current_playback: nil,
-        pending_request: nil,
-        interrupting: false,
-        interrupt_watchdog_ref: nil,
-        interrupt_watchdog_attempt: 0
-      }
-    end)
-
-    with_mock Voice,
-      channel_id: fn @guild -> "channel-1" end,
-      ready?: fn @guild -> false end,
-      playing?: fn @guild -> raise "playback status unavailable" end,
-      leave_channel: fn @guild -> :ok end,
-      join_channel: fn @guild, "channel-1" ->
-        send(test_pid, :join_attempted)
-        :ok
-      end do
-      send(player(), :check_voice_connection)
-
-      assert_receive :join_attempted, 2_000
-    end
-  end
-
-  describe "idle timeout" do
-    test "schedules idle timeout when voice channel is set (play mode)" do
-      :sys.replace_state(player(), fn state ->
-        %{state | voice_channel: nil, idle_timeout_ref: nil}
-      end)
-
-      AudioPlayer.set_voice_channel(@guild, "ch-1")
-      AudioPlayer.current_voice_channel()
-
-      state = :sys.get_state(player())
-      assert state.voice_channel == {@guild, "ch-1"}
-      assert state.idle_timeout_ref != nil
+      assert_receive {:fake_voice, ^guild, {:play, "https://sounds.example/" <> _, :url, opts}}
+      assert opts == [volume: 0.8]
+      assert_receive {:sound_played, %{filename: filename, played_by: "System"}}
+      assert filename == sound.filename
     end
 
-    test "does not schedule idle timeout in presence mode" do
-      :sys.replace_state(player(), fn state ->
-        %{state | voice_channel: nil, idle_timeout_ref: nil}
-      end)
+    test "a new play interrupts the sound that is still playing", %{guild: guild, user: user} do
+      first = url_sound!(user, guild)
+      second = url_sound!(user, guild)
+      FakeVoice.claim(guild, channel: @channel, play: [:hold])
+      connect(guild)
 
-      with_mock AutoJoinPolicy, mode: fn -> :presence end do
-        AudioPlayer.set_voice_channel(@guild, "ch-1")
-        AudioPlayer.current_voice_channel()
+      AudioPlayer.play_sound(first.filename, "System", guild)
+      assert_receive {:fake_voice_holding, ^guild, first_task}
+      first_ref = Process.monitor(first_task)
 
-        state = :sys.get_state(player())
-        assert state.voice_channel == {@guild, "ch-1"}
-        assert state.idle_timeout_ref == nil
-      end
+      AudioPlayer.play_sound(second.filename, "System", guild)
+
+      assert_receive {:fake_voice, ^guild, :stop}
+      assert_receive {:DOWN, ^first_ref, :process, ^first_task, :killed}
+      second_url = second.url
+      assert_receive {:fake_voice, ^guild, {:play, ^second_url, :url, _}}
+      assert_receive {:sound_played, %{filename: filename}}
+      assert filename == second.filename
     end
 
-    test "does not schedule idle timeout in false mode on join" do
-      :sys.replace_state(player(), fn state ->
-        %{state | voice_channel: nil, idle_timeout_ref: nil}
-      end)
+    test "when EDA keeps playing after stop, VOICE_PLAYBACK_FINISHED starts the queued sound",
+         %{guild: guild, user: user} do
+      first = url_sound!(user, guild)
+      second = url_sound!(user, guild)
+      FakeVoice.claim(guild, channel: @channel, play: [:hold], stop: :ignored)
+      connect(guild)
 
-      with_mock AutoJoinPolicy, mode: fn -> false end do
-        AudioPlayer.set_voice_channel(@guild, "ch-1")
-        AudioPlayer.current_voice_channel()
+      AudioPlayer.play_sound(first.filename, "System", guild)
+      assert_receive {:fake_voice_holding, ^guild, _first_task}
 
-        state = :sys.get_state(player())
-        assert state.voice_channel == {@guild, "ch-1"}
-        assert state.idle_timeout_ref == nil
-      end
+      AudioPlayer.play_sound(second.filename, "System", guild)
+      assert_receive {:fake_voice, ^guild, :stop}
+
+      second_url = second.url
+      refute_receive {:fake_voice, ^guild, {:play, ^second_url, _, _}}, 100
+
+      Handler.handle_event({:VOICE_PLAYBACK_FINISHED, %{guild_id: guild}, nil})
+
+      assert_receive {:fake_voice, ^guild, {:play, ^second_url, :url, _}}, 300
     end
 
-    test "cancels idle timeout when voice channel is cleared" do
-      :sys.replace_state(player(), fn state ->
-        %{
-          state
-          | voice_channel: {@guild, "ch-1"},
-            idle_timeout_ref: {make_ref(), make_ref()}
-        }
-      end)
+    test "stop_sound kills the playback in progress", %{guild: guild, user: user} do
+      sound = url_sound!(user, guild)
+      FakeVoice.claim(guild, channel: @channel, play: [:hold])
+      connect(guild)
 
-      AudioPlayer.set_voice_channel(nil, nil)
-      AudioPlayer.current_voice_channel()
+      AudioPlayer.play_sound(sound.filename, "System", guild)
+      assert_receive {:fake_voice_holding, ^guild, task}
+      ref = Process.monitor(task)
 
-      state = :sys.get_state(player())
-      assert state.voice_channel == nil
-      assert state.idle_timeout_ref == nil
+      AudioPlayer.stop_sound(guild)
+
+      assert_receive {:fake_voice, ^guild, :stop}
+      assert_receive {:DOWN, ^ref, :process, ^task, :killed}
+      assert_receive {:sound_played, %{filename: "All sounds stopped", played_by: "System"}}
     end
 
-    test "resets idle timeout when a sound is played (play mode)" do
-      token = make_ref()
+    test "stop_sound without a voice channel reports that the bot is not connected",
+         %{guild: guild} do
+      FakeVoice.claim(guild)
+      PubSubTopics.subscribe_playback(guild)
 
-      :sys.replace_state(player(), fn state ->
-        %{
-          state
-          | voice_channel: {@guild, "ch-1"},
-            idle_timeout_ref: {make_ref(), token},
-            current_playback: nil,
-            pending_request: nil,
-            interrupting: false,
-            interrupt_watchdog_attempt: 0
-        }
-      end)
+      AudioPlayer.stop_sound(guild)
 
-      with_mocks([
-        {Soundboard.AudioPlayer.SoundLibrary, [],
-         [get_sound_path: fn _guild, "test.mp3" -> {:ok, {"/path/test.mp3", 1.0}} end]},
-        {Soundboard.AudioPlayer.PlaybackEngine, [], [play: fn _, _, _, _, _, _ -> :ok end]}
-      ]) do
-        AudioPlayer.play_sound("test.mp3", "actor")
-        AudioPlayer.current_voice_channel()
-
-        state = :sys.get_state(player())
-        {_ref, new_token} = state.idle_timeout_ref
-        assert new_token != token
-      end
+      assert_receive {:error, "Bot is not connected to a voice channel"}
+      refute_received {:fake_voice, ^guild, :stop}
     end
 
-    test "does not reset idle timeout when a sound is played in presence mode" do
-      token = make_ref()
+    test "two guilds play at once and stop independently", %{guild: guild_a, user: user} do
+      guild_b = new_guild()
+      sound_a = url_sound!(user, guild_a)
+      sound_b = url_sound!(user, guild_b)
+      FakeVoice.claim(guild_a, channel: @channel, play: [:hold])
+      FakeVoice.claim(guild_b, channel: @channel, play: [:hold])
+      connect(guild_a)
+      connect(guild_b)
 
-      :sys.replace_state(player(), fn state ->
-        %{
-          state
-          | voice_channel: {@guild, "ch-1"},
-            idle_timeout_ref: {make_ref(), token},
-            current_playback: nil,
-            pending_request: nil,
-            interrupting: false,
-            interrupt_watchdog_attempt: 0
-        }
-      end)
+      AudioPlayer.play_sound(sound_a.filename, "System", guild_a)
+      AudioPlayer.play_sound(sound_b.filename, "System", guild_b)
+      assert_receive {:fake_voice_holding, ^guild_a, task_a}
+      assert_receive {:fake_voice_holding, ^guild_b, task_b}
+      ref_a = Process.monitor(task_a)
 
-      with_mocks([
-        {AutoJoinPolicy, [], [mode: fn -> :presence end]},
-        {Soundboard.AudioPlayer.SoundLibrary, [],
-         [get_sound_path: fn _guild, "test.mp3" -> {:ok, {"/path/test.mp3", 1.0}} end]},
-        {Soundboard.AudioPlayer.PlaybackEngine, [], [play: fn _, _, _, _, _, _ -> :ok end]}
-      ]) do
-        AudioPlayer.play_sound("test.mp3", "actor")
-        AudioPlayer.current_voice_channel()
+      AudioPlayer.stop_sound(guild_a)
 
-        state = :sys.get_state(player())
-        {_ref, unchanged_token} = state.idle_timeout_ref
-        assert unchanged_token == token
-      end
+      assert_receive {:DOWN, ^ref_a, :process, ^task_a, :killed}
+      assert Process.alive?(task_b)
+      refute_received {:fake_voice, ^guild_b, :stop}
     end
 
-    test "idle timeout fires and leaves the voice channel" do
-      test_pid = self()
-      token = make_ref()
+    test "unplayable sounds report why and never reach voice", %{guild: guild, user: user} do
+      missing_file = insert_sound!(user, %{guild_id: guild, source_type: "local"})
+      FakeVoice.claim(guild, channel: @channel)
+      connect(guild)
 
-      :sys.replace_state(player(), fn state ->
-        %{
-          state
-          | voice_channel: {@guild, "ch-1"},
-            idle_timeout_ref: {make_ref(), token},
-            current_playback: nil
-        }
-      end)
+      AudioPlayer.play_sound(missing_file.filename, "System", guild)
+      AudioPlayer.play_sound("never-uploaded.mp3", "System", guild)
 
-      with_mock Voice,
-        leave_channel: fn @guild ->
-          send(test_pid, :leave_called)
-          :ok
-        end do
-        send(player(), {:idle_timeout, token})
-        assert_receive :leave_called, 1_000
-
-        AudioPlayer.current_voice_channel()
-        state = :sys.get_state(player())
-        assert state.voice_channel == nil
-        assert state.idle_timeout_ref == nil
-      end
+      expected_path = Soundboard.UploadsPath.file_path(missing_file.storage_key)
+      assert_receive {:error, "Sound file not found at " <> path}
+      assert path == expected_path
+      assert_receive {:error, "Sound not found"}
+      refute_received {:fake_voice, ^guild, {:play, _, _, _}}
     end
 
-    test "stale idle timeout tokens are ignored" do
-      test_pid = self()
-      active_token = make_ref()
-      stale_token = make_ref()
+    test "a play that voice rejects is reported to the guild", %{guild: guild, user: user} do
+      sound = url_sound!(user, guild)
+      FakeVoice.claim(guild, channel: @channel, play: [{:error, :boom}])
+      connect(guild)
 
-      :sys.replace_state(player(), fn state ->
-        %{
-          state
-          | voice_channel: {@guild, "ch-1"},
-            idle_timeout_ref: {make_ref(), active_token}
-        }
-      end)
+      AudioPlayer.play_sound(sound.filename, user, guild)
 
-      with_mock Voice,
-        leave_channel: fn _ ->
-          send(test_pid, :leave_called)
-          :ok
-        end do
-        send(player(), {:idle_timeout, stale_token})
-        AudioPlayer.current_voice_channel()
-        refute_receive :leave_called, 100
-
-        state = :sys.get_state(player())
-        assert state.voice_channel == {@guild, "ch-1"}
-      end
-    end
-  end
-
-  describe "last_user_left" do
-    test "leaves immediately in play mode" do
-      test_pid = self()
-
-      :sys.replace_state(player(), fn state ->
-        %{state | voice_channel: {@guild, "ch-1"}, idle_timeout_ref: nil}
-      end)
-
-      with_mock Voice,
-        leave_channel: fn @guild ->
-          send(test_pid, :leave_called)
-          :ok
-        end do
-        AudioPlayer.last_user_left(@guild)
-        assert_receive :leave_called, 1_000
-
-        AudioPlayer.current_voice_channel()
-        state = :sys.get_state(player())
-        assert state.voice_channel == nil
-        assert state.idle_timeout_ref == nil
-      end
+      assert_receive {:error, "Failed to play sound: :boom"}
+      refute_received {:sound_played, _}
+      refute Repo.get_by(Play, user_id: user.id)
     end
 
-    test "leaves immediately in presence mode" do
-      test_pid = self()
+    test "without ffmpeg the guild sees an error and voice is never asked to play",
+         %{guild: guild, user: user} do
+      Application.put_env(:soundboard, :ffmpeg_executable, false)
+      sound = url_sound!(user, guild)
+      FakeVoice.claim(guild, channel: @channel)
+      connect(guild)
 
-      :sys.replace_state(player(), fn state ->
-        %{state | voice_channel: {@guild, "ch-1"}, idle_timeout_ref: nil}
-      end)
+      AudioPlayer.play_sound(sound.filename, "System", guild)
 
-      with_mocks([
-        {AutoJoinPolicy, [], [mode: fn -> :presence end]},
-        {Voice, [],
-         [
-           leave_channel: fn @guild ->
-             send(test_pid, :leave_called)
-             :ok
-           end
-         ]}
-      ]) do
-        AudioPlayer.last_user_left(@guild)
-        assert_receive :leave_called, 1_000
-
-        AudioPlayer.current_voice_channel()
-        state = :sys.get_state(player())
-        assert state.voice_channel == nil
-      end
+      assert_receive {:error, "ffmpeg is not installed on this host"}
+      refute_received {:fake_voice, ^guild, {:play, _, _, _}}
     end
 
-    test "starts idle timer in false mode (with timeout configured)" do
-      :sys.replace_state(player(), fn state ->
-        %{state | voice_channel: {@guild, "ch-1"}, idle_timeout_ref: nil}
-      end)
+    test "plays by a signed-in user are recorded in stats, other actors are not",
+         %{guild: guild, user: user} do
+      sound = url_sound!(user, guild)
+      FakeVoice.claim(guild, channel: @channel)
+      connect(guild)
 
-      with_mocks([
-        {AutoJoinPolicy, [], [mode: fn -> false end]},
-        {Soundboard.Discord.Handler.IdleTimeoutPolicy, [], [timeout_ms: fn -> 60_000 end]},
-        {Voice, [], [leave_channel: fn _ -> :ok end]}
-      ]) do
-        AudioPlayer.last_user_left(@guild)
-        AudioPlayer.current_voice_channel()
+      AudioPlayer.play_sound(sound.filename, user, guild)
+      assert_receive {:sound_played, %{played_by: "player"}}
 
-        state = :sys.get_state(player())
-        assert state.voice_channel == {@guild, "ch-1"}
-        assert state.idle_timeout_ref != nil
-        refute called(Voice.leave_channel(:_))
-      end
-    end
+      AudioPlayer.play_sound(sound.filename, "nobody-by-this-name", guild)
+      assert_receive {:sound_played, %{played_by: "nobody-by-this-name"}}
 
-    test "stays in false mode when timeout is disabled (0)" do
-      :sys.replace_state(player(), fn state ->
-        %{state | voice_channel: {@guild, "ch-1"}, idle_timeout_ref: nil}
-      end)
+      AudioPlayer.play_sound(sound.filename, "System", guild)
+      assert_receive {:sound_played, %{played_by: "System"}}
 
-      with_mocks([
-        {AutoJoinPolicy, [], [mode: fn -> false end]},
-        {Soundboard.Discord.Handler.IdleTimeoutPolicy, [], [timeout_ms: fn -> nil end]},
-        {Voice, [], [leave_channel: fn _ -> :ok end]}
-      ]) do
-        AudioPlayer.last_user_left(@guild)
-        AudioPlayer.current_voice_channel()
-
-        state = :sys.get_state(player())
-        assert state.voice_channel == {@guild, "ch-1"}
-        assert state.idle_timeout_ref == nil
-        refute called(Voice.leave_channel(:_))
-      end
-    end
-
-    test "ignores last_user_left when bot is not in a channel" do
-      :sys.replace_state(player(), fn state ->
-        %{state | voice_channel: nil}
-      end)
-
-      with_mock Voice, leave_channel: fn _ -> :ok end do
-        AudioPlayer.last_user_left(@guild)
-        AudioPlayer.current_voice_channel()
-
-        refute called(Voice.leave_channel(:_))
-      end
-    end
-  end
-
-  describe "user_joined_channel" do
-    test "cancels idle timer" do
-      token = make_ref()
-
-      :sys.replace_state(player(), fn state ->
-        %{state | voice_channel: {@guild, "ch-1"}, idle_timeout_ref: {make_ref(), token}}
-      end)
-
-      AudioPlayer.user_joined_channel(@guild)
-      AudioPlayer.current_voice_channel()
-
-      state = :sys.get_state(player())
-      assert state.idle_timeout_ref == nil
+      assert [%Play{user_id: user_id}] = Repo.all(from p in Play, where: p.sound_id == ^sound.id)
+      assert user_id == user.id
     end
   end
 
   describe "auto-join on play" do
-    test "auto-joins user's voice channel when bot has no channel and actor has discord_id" do
-      test_pid = self()
-      user = %User{discord_id: "discord-99", username: "tester", id: 1}
+    test "joins the player's voice channel when the bot has none", %{guild: guild, user: user} do
+      sound = url_sound!(user, guild)
+      FakeVoice.claim(guild)
+      cached = [%{id: guild, voice_states: [%{user_id: user.discord_id, channel_id: "ch-5"}]}]
 
-      :sys.replace_state(player(), fn state ->
-        %{state | voice_channel: nil, idle_timeout_ref: nil}
-      end)
+      with_mock GuildCache, all: fn -> cached end do
+        AudioPlayer.play_sound(sound.filename, user, guild)
 
-      with_mocks([
-        {VoicePresence, [],
-         [find_user_voice_channel: fn "discord-99", _guild -> {:ok, {@guild, "ch-5"}} end]},
-        {Voice, [],
-         [
-           join_channel: fn @guild, "ch-5" ->
-             send(test_pid, :join_called)
-             :ok
-           end
-         ]},
-        {Soundboard.AudioPlayer.SoundLibrary, [],
-         [get_sound_path: fn _guild, _name -> {:error, "not found"} end]}
-      ]) do
-        AudioPlayer.play_sound("any.mp3", user)
-        assert_receive :join_called, 1_000
-
-        AudioPlayer.current_voice_channel()
-        state = :sys.get_state(player())
-        assert state.voice_channel == {@guild, "ch-5"}
-        assert state.idle_timeout_ref != nil
+        assert_receive {:fake_voice, ^guild, {:join, "ch-5"}}
+        assert_receive {:fake_voice, ^guild, {:play, _, :url, _}}
+        assert AudioPlayer.current_voice_channel(guild) == {:ok, {guild, "ch-5"}}
+        assert armed?(guild)
       end
     end
 
-    test "shows error and skips auto-join when user is not in any voice channel" do
-      user = %User{discord_id: "discord-99", username: "tester", id: 1}
+    test "reports that the bot is not connected when it cannot auto-join",
+         %{guild: guild, user: user} do
+      sound = url_sound!(user, guild)
+      FakeVoice.claim(guild)
+      in_voice = [%{id: guild, voice_states: [%{user_id: user.discord_id, channel_id: "ch-5"}]}]
 
-      :sys.replace_state(player(), fn state ->
-        %{state | voice_channel: nil, idle_timeout_ref: nil}
-      end)
+      elsewhere = [
+        %{id: "another-guild", voice_states: [%{user_id: user.discord_id, channel_id: "ch-5"}]}
+      ]
 
-      with_mocks([
-        {VoicePresence, [], [find_user_voice_channel: fn _discord, _guild -> :not_found end]},
-        {Voice, [], [join_channel: fn _, _ -> :ok end]}
-      ]) do
-        AudioPlayer.play_sound("any.mp3", user)
-        AudioPlayer.current_voice_channel()
+      table = [
+        {"player is in no voice channel here", :play, elsewhere, user},
+        {"actor has no Discord account", :play, in_voice, "System"},
+        {"auto-join is off", false, in_voice, user},
+        {"guild cache is down", :play, :raise, user}
+      ]
 
-        state = :sys.get_state(player())
-        assert state.voice_channel == nil
+      for {label, mode, cache, actor} <- table do
+        auto_join(mode)
 
-        refute called(Voice.join_channel(:_, :_))
+        with_mock GuildCache,
+          all: fn -> if cache == :raise, do: raise("cache down"), else: cache end do
+          AudioPlayer.play_sound(sound.filename, actor, guild)
+
+          assert_receive {:error, @not_connected}, 500, label
+          refute_received {:fake_voice, ^guild, {:join, _}}, label
+          assert AudioPlayer.current_voice_channel(guild) == {:ok, nil}, label
+        end
+      end
+    end
+  end
+
+  describe "idle timeout" do
+    test "joining in play mode leaves the channel once the idle timeout passes", %{guild: guild} do
+      System.put_env("VOICE_IDLE_TIMEOUT_SECONDS", "1")
+      FakeVoice.claim(guild, channel: @channel)
+
+      connect(guild)
+
+      assert_receive {:fake_voice, ^guild, :leave}, 2_000
+      assert AudioPlayer.current_voice_channel(guild) == {:ok, nil}
+    end
+
+    test "presence and false modes do not arm the idle timer on join", %{guild: guild} do
+      for mode <- [:presence, false] do
+        auto_join(mode)
+        AudioPlayer.set_voice_channel(guild, nil)
+
+        connect(guild)
+
+        assert AudioPlayer.current_voice_channel(guild) == {:ok, {guild, @channel}}
+        refute armed?(guild), "#{mode} mode armed the idle timer"
       end
     end
 
-    test "skips auto-join for actors without discord_id" do
-      :sys.replace_state(player(), fn state ->
-        %{state | voice_channel: nil, idle_timeout_ref: nil}
-      end)
+    test "clearing the voice channel cancels the idle timer", %{guild: guild} do
+      connect(guild)
+      assert armed?(guild)
 
-      with_mocks([
-        {VoicePresence, [],
-         [find_user_voice_channel: fn _guild, _discord -> {:ok, {@guild, "ch-1"}} end]},
-        {Voice, [], [join_channel: fn _, _ -> :ok end]}
-      ]) do
-        AudioPlayer.play_sound("any.mp3", "System")
-        AudioPlayer.current_voice_channel()
+      AudioPlayer.set_voice_channel(guild, nil)
 
-        refute called(VoicePresence.find_user_voice_channel(:_, :_))
-        refute called(Voice.join_channel(:_, :_))
+      assert AudioPlayer.current_voice_channel(guild) == {:ok, nil}
+      refute armed?(guild)
+    end
+
+    test "playing a sound restarts the idle timer", %{guild: guild, user: user} do
+      sound = url_sound!(user, guild)
+      FakeVoice.claim(guild, channel: @channel)
+      connect(guild)
+      before = idle_timer(guild)
+
+      AudioPlayer.play_sound(sound.filename, "System", guild)
+      assert_receive {:fake_voice, ^guild, {:play, _, _, _}}
+
+      assert idle_timer(guild) not in [nil, before]
+    end
+
+    test "a stale idle timeout message does not make the bot leave", %{guild: guild} do
+      FakeVoice.claim(guild, channel: @channel)
+      connect(guild)
+
+      send(AudioPlayer.server_pid(guild), {:idle_timeout, make_ref()})
+
+      assert AudioPlayer.current_voice_channel(guild) == {:ok, {guild, @channel}}
+      refute_received {:fake_voice, ^guild, :leave}
+    end
+  end
+
+  describe "last_user_left" do
+    test "play and presence modes leave at once", %{guild: guild} do
+      FakeVoice.claim(guild, channel: @channel)
+
+      for mode <- [:play, :presence] do
+        auto_join(mode)
+        connect(guild)
+
+        AudioPlayer.last_user_left(guild)
+
+        assert_receive {:fake_voice, ^guild, :leave}
+        assert AudioPlayer.current_voice_channel(guild) == {:ok, nil}
+        refute armed?(guild)
       end
     end
 
-    test "skips auto-join in false mode" do
-      user = %User{discord_id: "discord-99", username: "tester", id: 1}
+    test "false mode stays and arms the idle timer only when one is configured",
+         %{guild: guild} do
+      FakeVoice.claim(guild, channel: @channel)
+      auto_join(false)
 
-      :sys.replace_state(player(), fn state ->
-        %{state | voice_channel: nil, idle_timeout_ref: nil}
-      end)
+      for {timeout, armed} <- [{"60", true}, {"0", false}] do
+        System.put_env("VOICE_IDLE_TIMEOUT_SECONDS", timeout)
+        connect(guild)
 
-      with_mocks([
-        {AutoJoinPolicy, [], [mode: fn -> false end]},
-        {VoicePresence, [],
-         [find_user_voice_channel: fn _guild, _discord -> {:ok, {@guild, "ch-1"}} end]},
-        {Voice, [], [join_channel: fn _, _ -> :ok end]}
-      ]) do
-        AudioPlayer.play_sound("any.mp3", user)
-        AudioPlayer.current_voice_channel()
+        AudioPlayer.last_user_left(guild)
 
-        refute called(VoicePresence.find_user_voice_channel(:_, :_))
-        refute called(Voice.join_channel(:_, :_))
+        assert AudioPlayer.current_voice_channel(guild) == {:ok, {guild, @channel}}
+        assert armed?(guild) == armed
+        refute_received {:fake_voice, ^guild, :leave}
       end
     end
+
+    test "is ignored when the bot is not in a channel", %{guild: guild} do
+      FakeVoice.claim(guild)
+      AudioPlayer.ensure_started(guild)
+
+      AudioPlayer.last_user_left(guild)
+
+      assert AudioPlayer.current_voice_channel(guild) == {:ok, nil}
+      refute_received {:fake_voice, ^guild, :leave}
+    end
+
+    test "a user joining the bot's channel cancels the false-mode idle timer", %{guild: guild} do
+      auto_join(false)
+      connect(guild)
+      AudioPlayer.last_user_left(guild)
+      assert armed?(guild)
+
+      AudioPlayer.user_joined_channel(guild)
+
+      refute armed?(guild)
+    end
+  end
+
+  describe "voice maintenance" do
+    test "rejoins when EDA lost the channel or the session is stale, even if status calls raise" do
+      lost = new_guild()
+      stale = new_guild()
+      FakeVoice.claim(lost, channel: nil, ready: false)
+      FakeVoice.claim(stale, channel: @channel, ready: false, playing: :raise)
+      connect(lost)
+      connect(stale)
+
+      send(AudioPlayer.server_pid(lost), :check_voice_connection)
+      send(AudioPlayer.server_pid(stale), :check_voice_connection)
+
+      for guild <- [lost, stale] do
+        assert_receive {:fake_voice, ^guild, :leave}
+        assert_receive {:fake_voice, ^guild, {:join, @channel}}, 2_000
+        assert AudioPlayer.current_voice_channel(guild) == {:ok, {guild, @channel}}
+      end
+    end
+  end
+
+  defp new_guild do
+    guild = "guild-#{System.unique_integer([:positive])}"
+
+    on_exit(fn ->
+      if pid = AudioPlayer.server_pid(guild), do: GenServer.stop(pid)
+    end)
+
+    guild
+  end
+
+  defp connect(guild) do
+    AudioPlayer.set_voice_channel(guild, @channel)
+    {:ok, {^guild, @channel}} = AudioPlayer.current_voice_channel(guild)
+  end
+
+  defp auto_join(:play), do: System.delete_env("AUTO_JOIN")
+  defp auto_join(mode), do: System.put_env("AUTO_JOIN", to_string(mode))
+
+  defp idle_timer(guild) do
+    case :sys.get_state(AudioPlayer.server_pid(guild)).idle_timeout_ref do
+      {_timer, token} -> token
+      nil -> nil
+    end
+  end
+
+  defp armed?(guild), do: idle_timer(guild) != nil
+
+  defp insert_user!(username) do
+    %User{}
+    |> User.changeset(%{
+      username: username,
+      discord_id: Integer.to_string(System.unique_integer([:positive])),
+      avatar: "avatar.png"
+    })
+    |> Repo.insert!()
+  end
+
+  defp url_sound!(user, guild, attrs \\ %{}) do
+    name = "sound-#{System.unique_integer([:positive])}.mp3"
+
+    insert_sound!(
+      user,
+      Map.merge(
+        %{guild_id: guild, source_type: "url", url: "https://sounds.example/#{name}"},
+        attrs
+      )
+    )
+  end
+
+  defp insert_sound!(user, attrs) do
+    attrs =
+      Map.merge(
+        %{filename: "sound-#{System.unique_integer([:positive])}.mp3", user_id: user.id},
+        attrs
+      )
+
+    %Sound{}
+    |> Sound.changeset(attrs)
+    |> Repo.insert!()
   end
 end

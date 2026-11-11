@@ -123,14 +123,6 @@ defmodule Soundboard.Discord.Handler do
   end
 
   @impl true
-  def handle_info({:event, {event_name, payload, ws_state}}, state) do
-    {event_name, payload, ws_state}
-    |> handle_event()
-    |> apply_runtime_actions()
-
-    {:noreply, state}
-  end
-
   def handle_info({:recheck_alone, guild_id, channel_id}, state) do
     guild_id
     |> VoiceRuntime.recheck_alone(channel_id)
@@ -140,10 +132,6 @@ defmodule Soundboard.Discord.Handler do
   end
 
   def handle_info(_msg, state), do: {:noreply, state}
-
-  def get_current_voice_channel do
-    VoiceRuntime.get_current_voice_channel()
-  end
 
   defp apply_runtime_actions(actions) do
     Enum.each(actions, &apply_runtime_action/1)

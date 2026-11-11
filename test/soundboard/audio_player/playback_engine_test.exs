@@ -1,274 +1,105 @@
 defmodule Soundboard.AudioPlayer.PlaybackEngineTest do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
 
-  import ExUnit.CaptureLog
-  import Mock
+  @moduletag :capture_log
 
+  alias Soundboard.{AudioPlayer, FakeVoice, PubSubTopics}
   alias Soundboard.AudioPlayer.PlaybackEngine
 
-  setup do
-    previous_probe = Application.get_env(:soundboard, :voice_rtp_probe)
-    previous_ffmpeg = Application.get_env(:soundboard, :ffmpeg_executable, :system)
+  @channel "channel-9"
+  @url "https://sounds.example/intro.mp3"
 
-    Application.put_env(:soundboard, :voice_rtp_probe, false)
-    Application.put_env(:soundboard, :ffmpeg_executable, "/usr/bin/ffmpeg")
+  setup do
+    guild = "engine-#{System.unique_integer([:positive])}"
+    PubSubTopics.subscribe_playback(guild)
 
     on_exit(fn ->
-      if is_nil(previous_probe) do
-        Application.delete_env(:soundboard, :voice_rtp_probe)
-      else
-        Application.put_env(:soundboard, :voice_rtp_probe, previous_probe)
-      end
-
-      case previous_ffmpeg do
-        :system -> Application.delete_env(:soundboard, :ffmpeg_executable)
-        value -> Application.put_env(:soundboard, :ffmpeg_executable, value)
-      end
+      if pid = AudioPlayer.server_pid(guild), do: GenServer.stop(pid)
     end)
 
-    :ok
+    %{guild: guild}
   end
 
-  test "joins the requested channel before playing" do
-    test_pid = self()
+  test "joins the requested channel, then plays and announces the sound", %{guild: guild} do
+    FakeVoice.claim(guild)
 
-    with_mocks([
-      {Soundboard.AudioPlayer.SoundLibrary, [],
-       [
-         prepare_play_input: fn _guild, "intro.mp3", "/tmp/intro.mp3" ->
-           {"/tmp/intro.mp3", :url}
-         end
-       ]},
-      {Soundboard.Discord.Voice, [],
-       [
-         channel_id: fn "guild-1" -> nil end,
-         join_channel: fn "guild-1", "channel-9" -> send(test_pid, :joined_channel) end,
-         ready?: fn "guild-1" -> true end,
-         play: fn "guild-1", "/tmp/intro.mp3", :url, [volume: 0.8] ->
-           send(test_pid, :played_sound)
-           :ok
-         end
-       ]},
-      {Soundboard.PubSubTopics, [],
-       [
-         broadcast_sound_played: fn "intro.mp3", "System", _guild ->
-           send(test_pid, :broadcast_played)
-         end
-       ]},
-      {Soundboard.Stats, [],
-       [track_play: fn _sound_name, _user_id, _guild -> send(test_pid, :tracked_play) end]}
-    ]) do
-      assert :ok =
-               PlaybackEngine.play(
-                 "guild-1",
-                 "channel-9",
-                 "intro.mp3",
-                 "/tmp/intro.mp3",
-                 0.8,
-                 "System"
-               )
+    assert :ok = play(guild, 0.8)
 
-      assert_receive :joined_channel
-      assert_receive :played_sound
-      assert_receive :broadcast_played
-      refute_received :tracked_play
+    assert voice_calls(guild) == [{:join, @channel}, {:play, @url, :url, [volume: 0.8]}]
+    assert_received {:sound_played, %{filename: "intro.mp3", played_by: "System"}}
+  end
+
+  test "retries transient voice errors", %{guild: guild} do
+    played = {:play, @url, :url, [volume: 1.0]}
+
+    table = [
+      {:already_playing, [played, :stop, played]},
+      {:not_connected, [played, played]}
+    ]
+
+    for {error, calls} <- table do
+      FakeVoice.claim(guild, channel: @channel, play: [{:error, error}])
+
+      assert :ok = play(guild, 1.0)
+
+      assert {error, voice_calls(guild)} == {error, calls}
     end
   end
 
-  test "retries after stopping already-playing audio" do
-    test_pid = self()
-    attempt_ref = make_ref()
-    Process.put(attempt_ref, 0)
+  test "refreshes the voice session after repeated encryption negotiation failures",
+       %{guild: guild} do
+    AudioPlayer.set_voice_channel(guild, @channel)
+    FakeVoice.claim(guild, channel: @channel, play: List.duplicate({:error, :not_ready}, 4))
 
-    with_mocks([
-      {Soundboard.AudioPlayer.SoundLibrary, [],
-       [
-         prepare_play_input: fn _guild, "retry.mp3", "/tmp/retry.mp3" ->
-           {"/tmp/retry.mp3", :url}
-         end
-       ]},
-      {Soundboard.Discord.Voice, [],
-       [
-         channel_id: fn "guild-1" -> "channel-9" end,
-         ready?: fn "guild-1" -> true end,
-         stop: fn "guild-1" -> send(test_pid, :stopped_audio) end,
-         play: fn "guild-1", "/tmp/retry.mp3", :url, [volume: 1.0] ->
-           case Process.get(attempt_ref, 0) do
-             0 ->
-               Process.put(attempt_ref, 1)
-               {:error, "Audio already playing in voice channel."}
+    assert :ok = play(guild, 1.0)
 
-             _ ->
-               send(test_pid, :played_after_retry)
-               :ok
-           end
-         end
-       ]},
-      {Soundboard.PubSubTopics, [],
-       [
-         broadcast_sound_played: fn "retry.mp3", "System", _guild ->
-           send(test_pid, :broadcast_played)
-         end
-       ]},
-      {Soundboard.Stats, [],
-       [track_play: fn _sound_name, _user_id, _guild -> send(test_pid, :tracked_play) end]}
-    ]) do
-      assert :ok =
-               PlaybackEngine.play(
-                 "guild-1",
-                 "channel-9",
-                 "retry.mp3",
-                 "/tmp/retry.mp3",
-                 1.0,
-                 "System"
-               )
+    played = {:play, @url, :url, [volume: 1.0]}
+    assert voice_calls(guild) == [played, played, played, played, {:join, @channel}, played]
+  end
 
-      assert_receive :stopped_audio
-      assert_receive :played_after_retry
-      assert_receive :broadcast_played
-      refute_received :tracked_play
+  test "still plays when the voice session never reports ready", %{guild: guild} do
+    FakeVoice.claim(guild, channel: @channel, ready: false)
+
+    assert :ok = play(guild, 1.0)
+
+    assert voice_calls(guild) == [{:play, @url, :url, [volume: 1.0]}]
+  end
+
+  test "gives up and reports an error when audio never stops", %{guild: guild} do
+    FakeVoice.claim(guild,
+      channel: @channel,
+      play: List.duplicate({:error, :already_playing}, 20)
+    )
+
+    assert :error = play(guild, 1.0)
+
+    assert Enum.frequencies(voice_calls(guild)) == %{
+             {:play, @url, :url, [volume: 1.0]} => 20,
+             :stop => 20
+           }
+
+    assert_received {:error, "Failed to play sound after multiple attempts"}
+    refute_received {:sound_played, _}
+  end
+
+  test "clamps the volume sent to voice", %{guild: guild} do
+    FakeVoice.claim(guild, channel: @channel)
+
+    for {volume, sent} <- [{3.0, 1.5}, {-1, 0.0}, {nil, 1.0}, {0.333333, 0.3333}] do
+      assert :ok = play(guild, volume)
+
+      assert voice_calls(guild) == [{:play, @url, :url, [volume: sent]}]
     end
   end
 
-  test "refreshes the current voice session after repeated encryption negotiation failures" do
-    test_pid = self()
-    attempt_ref = make_ref()
-    ready_ref = make_ref()
-    Process.put(attempt_ref, 0)
-    Process.put(ready_ref, 0)
+  defp play(guild, volume),
+    do: PlaybackEngine.play(guild, @channel, "intro.mp3", @url, volume, "System")
 
-    with_mocks([
-      {Soundboard.AudioPlayer.SoundLibrary, [],
-       [
-         prepare_play_input: fn _guild, "refresh.mp3", "/tmp/refresh.mp3" ->
-           {"/tmp/refresh.mp3", :url}
-         end
-       ]},
-      {Soundboard.AudioPlayer, [],
-       [current_voice_channel: fn _guild -> {:ok, {"guild-1", "channel-9"}} end]},
-      {Soundboard.Discord.Voice, [],
-       [
-         channel_id: fn "guild-1" -> "channel-9" end,
-         ready?: fn "guild-1" ->
-           case Process.get(ready_ref, 0) do
-             0 ->
-               Process.put(ready_ref, 1)
-               true
-
-             1 ->
-               Process.put(ready_ref, 2)
-               false
-
-             _ ->
-               true
-           end
-         end,
-         join_channel: fn "guild-1", "channel-9" -> send(test_pid, :refreshed_voice) end,
-         play: fn "guild-1", "/tmp/refresh.mp3", :url, [volume: 1.0] ->
-           attempt = Process.get(attempt_ref, 0)
-           Process.put(attempt_ref, attempt + 1)
-
-           if attempt < 4 do
-             {:error, "Voice session is still negotiating encryption."}
-           else
-             send(test_pid, :played_after_refresh)
-             :ok
-           end
-         end
-       ]},
-      {Soundboard.PubSubTopics, [],
-       [
-         broadcast_sound_played: fn "refresh.mp3", "System", _guild ->
-           send(test_pid, :broadcast_played)
-         end,
-         broadcast_error: fn _guild, message -> flunk("unexpected playback error: #{message}") end
-       ]},
-      {Soundboard.Stats, [],
-       [track_play: fn _sound_name, _user_id, _guild -> send(test_pid, :tracked_play) end]}
-    ]) do
-      assert :ok =
-               PlaybackEngine.play(
-                 "guild-1",
-                 "channel-9",
-                 "refresh.mp3",
-                 "/tmp/refresh.mp3",
-                 1.0,
-                 "System"
-               )
-
-      assert_receive :refreshed_voice
-      assert_receive :played_after_refresh
-      assert_receive :broadcast_played
-      refute_received :tracked_play
+  defp voice_calls(guild) do
+    receive do
+      {:fake_voice, ^guild, call} -> [call | voice_calls(guild)]
+    after
+      0 -> []
     end
-  end
-
-  test "returns an error when ffmpeg is unavailable" do
-    test_pid = self()
-    Application.put_env(:soundboard, :ffmpeg_executable, false)
-
-    with_mocks([
-      {Soundboard.Discord.Voice, [],
-       [
-         channel_id: fn "guild-1" -> "channel-9" end,
-         ready?: fn "guild-1" -> true end
-       ]},
-      {Soundboard.PubSubTopics, [],
-       [
-         broadcast_error: fn "ffmpeg is not installed on this host", _guild ->
-           send(test_pid, :broadcast_error)
-         end
-       ]}
-    ]) do
-      assert :error =
-               PlaybackEngine.play(
-                 "guild-1",
-                 "channel-9",
-                 "missing-ffmpeg.mp3",
-                 "/tmp/missing-ffmpeg.mp3",
-                 1.0,
-                 "System"
-               )
-
-      assert_receive :broadcast_error
-    end
-  end
-
-  test "logs when voice readiness times out before playback" do
-    log =
-      capture_log(fn ->
-        with_mocks([
-          {Soundboard.AudioPlayer.SoundLibrary, [],
-           [
-             prepare_play_input: fn _guild, "timeout.mp3", "/tmp/timeout.mp3" ->
-               {"/tmp/timeout.mp3", :url}
-             end
-           ]},
-          {Soundboard.Discord.Voice, [],
-           [
-             channel_id: fn "guild-1" -> "channel-9" end,
-             ready?: fn "guild-1" -> false end,
-             play: fn "guild-1", "/tmp/timeout.mp3", :url, [volume: 1.0] -> :ok end
-           ]},
-          {Soundboard.PubSubTopics, [],
-           [
-             broadcast_sound_played: fn _, _, _ -> :ok end,
-             broadcast_error: fn _, _ -> :ok end
-           ]},
-          {Soundboard.Stats, [], [track_play: fn _, _, _ -> :ok end]}
-        ]) do
-          assert :ok =
-                   PlaybackEngine.play(
-                     "guild-1",
-                     "channel-9",
-                     "timeout.mp3",
-                     "/tmp/timeout.mp3",
-                     1.0,
-                     "System"
-                   )
-        end
-      end)
-
-    assert log =~ "Timed out waiting for voice readiness in guild guild-1"
   end
 end

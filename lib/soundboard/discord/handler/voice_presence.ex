@@ -7,7 +7,7 @@ defmodule Soundboard.Discord.Handler.VoicePresence do
   alias Soundboard.Discord.{BotIdentity, GuildCache}
   @boundary_exceptions Soundboard.Boundary.exceptions()
 
-  def current_voice_channel(guild_id \\ nil) do
+  def current_voice_channel(guild_id) do
     with {:ok, bot_id} <- bot_id() do
       case find_bot_voice_channel(bot_id, guild_id) do
         nil -> :not_found
@@ -47,10 +47,10 @@ defmodule Soundboard.Discord.Handler.VoicePresence do
   end
 
   @doc """
-  Finds the voice channel of `discord_id`, optionally restricted to `guild_id`
-  so a tenant's playback can never auto-join another tenant's channel.
+  Finds the voice channel of `discord_id` in `guild_id` only, so a tenant's
+  playback can never auto-join another tenant's channel.
   """
-  def find_user_voice_channel(discord_id, guild_id \\ nil) do
+  def find_user_voice_channel(discord_id, guild_id) do
     case cached_guilds() do
       {:ok, guilds} ->
         guilds
@@ -62,8 +62,6 @@ defmodule Soundboard.Discord.Handler.VoicePresence do
         :not_found
     end
   end
-
-  defp filter_guilds(guilds, nil), do: guilds
 
   defp filter_guilds(guilds, guild_id) do
     Enum.filter(guilds, &(&1.id == to_string(guild_id)))

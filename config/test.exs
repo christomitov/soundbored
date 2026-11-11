@@ -63,6 +63,10 @@ config :soundboard, env: :test
 
 config :soundboard, Soundboard.AudioPlayer.Server, voice_maintenance_enabled: false
 
+config :soundboard,
+  eda_voice_module: Soundboard.FakeVoice,
+  ffmpeg_executable: "ffmpeg"
+
 config :soundboard, Soundboard.PubSub,
   adapter: Phoenix.PubSub.PG2,
   name: Soundboard.PubSub

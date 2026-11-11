@@ -1,8 +1,6 @@
 defmodule Soundboard.Discord.Voice do
   @moduledoc false
 
-  require Logger
-
   alias EDA.Voice, as: EDAVoice
 
   @connected_error "Must be connected to voice channel to play audio."
@@ -20,7 +18,7 @@ defmodule Soundboard.Discord.Voice do
   def play(guild_id, input, type, opts \\ []) do
     guild_id = to_id(guild_id)
 
-    case play_with_supported_arity(guild_id, input, type, opts) do
+    case voice_module().play(guild_id, input, type, opts) do
       :ok -> :ok
       {:error, :already_playing} -> {:error, @already_playing_error}
       {:error, :not_connected} -> {:error, @connected_error}
@@ -52,22 +50,6 @@ defmodule Soundboard.Discord.Voice do
       {:ok, state} -> {:ok, %{state: state}}
       {:error, reason} -> {:error, reason}
       other -> {:error, {:unexpected_voice_state, other}}
-    end
-  end
-
-  defp play_with_supported_arity(guild_id, input, type, opts) do
-    module = voice_module()
-
-    cond do
-      function_exported?(module, :play, 4) ->
-        :erlang.apply(module, :play, [guild_id, input, type, opts])
-
-      opts == [] ->
-        module.play(guild_id, input, type)
-
-      true ->
-        Logger.debug("EDA.Voice.play/4 unavailable; dropping playback opts #{inspect(opts)}")
-        module.play(guild_id, input, type)
     end
   end
 

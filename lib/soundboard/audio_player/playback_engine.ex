@@ -4,7 +4,7 @@ defmodule Soundboard.AudioPlayer.PlaybackEngine do
   require Logger
 
   alias Soundboard.Accounts.User
-  alias Soundboard.{AudioPlayer, AudioPlayer.Notifier, AudioPlayer.SoundLibrary, Discord.Voice}
+  alias Soundboard.{AudioPlayer, AudioPlayer.Notifier, Discord.Voice}
   alias Soundboard.AudioPlayer.PlaybackEngine.Retry
   @boundary_exceptions Soundboard.Boundary.exceptions()
 
@@ -37,12 +37,10 @@ defmodule Soundboard.AudioPlayer.PlaybackEngine do
       broadcast_error(guild_id, "ffmpeg is not installed on this host")
       :error
     else
-      {play_input, play_type} = SoundLibrary.prepare_play_input(guild_id, sound_name, path_or_url)
-
       play_request = %{
         guild_id: guild_id,
-        play_input: play_input,
-        play_type: play_type,
+        play_input: path_or_url,
+        play_type: :url,
         play_options: [volume: clamp_volume(volume)],
         sound_name: sound_name,
         actor: actor

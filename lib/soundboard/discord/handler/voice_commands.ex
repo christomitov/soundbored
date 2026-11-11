@@ -64,13 +64,19 @@ defmodule Soundboard.Discord.Handler.VoiceCommands do
 
   defp execute(true, _skip_message, command_fun, success_fun, error_fun) do
     case command_fun.() do
-      :ok -> success_fun.()
-      {:error, error_msg} -> error_fun.(error_msg)
+      :ok ->
+        success_fun.()
+        :ok
+
+      {:error, error_msg} = error ->
+        error_fun.(error_msg)
+        error
     end
   end
 
   defp execute(false, skip_message, _command_fun, _success_fun, _error_fun) do
     Logger.warning(skip_message)
+    {:error, :not_connected}
   end
 
   defp run(action, command) do
