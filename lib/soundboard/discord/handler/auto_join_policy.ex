@@ -4,12 +4,7 @@ defmodule Soundboard.Discord.Handler.AutoJoinPolicy do
   @type mode :: :presence | :play | false
 
   @spec mode() :: mode()
-  def mode do
-    case Application.get_env(:soundboard, :env) do
-      :test -> :play
-      _ -> parse_mode(System.get_env("AUTO_JOIN"))
-    end
-  end
+  def mode, do: parse_mode(System.get_env("AUTO_JOIN"))
 
   defp parse_mode(nil), do: :play
 
