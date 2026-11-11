@@ -63,7 +63,8 @@ defmodule SoundboardWeb.Plugs.RoleCheckTest do
           result = conn |> signed_in(user, session) |> RoleCheck.call([])
 
           refute result.halted
-          assert get_session(result, :roles_verified_at) > stale
+          verified_at = get_session(result, :roles_verified_at)
+          assert is_integer(verified_at) and verified_at > stale
         end
 
         assert_called(RoleChecker.authorized?(user.discord_id))
