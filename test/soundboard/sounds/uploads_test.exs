@@ -58,6 +58,24 @@ defmodule Soundboard.Sounds.UploadsTest do
     end
   end
 
+  describe "error_message/1" do
+    test "shows a whole-sound error as the message alone", %{user: user} do
+      {:ok, _} = Soundboard.Tenants.get_or_create_guild("no-plan", %{max_storage_bytes: 0})
+
+      assert {:error, changeset} =
+               user
+               |> request(%{
+                 name: "blocked",
+                 url: "https://example.com/b.mp3",
+                 guild_id: "no-plan"
+               })
+               |> Uploads.create()
+
+      assert Uploads.error_message(changeset) ==
+               "This soundboard has no active plan. Subscribe to add sounds."
+    end
+  end
+
   describe "create/1" do
     test "creates url sound with tags and settings", %{user: user} do
       name = "upload_url_#{System.unique_integer([:positive])}"

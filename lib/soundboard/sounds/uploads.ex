@@ -35,6 +35,7 @@ defmodule Soundboard.Sounds.Uploads do
     Enum.map_join(changeset.errors, ", ", fn
       {:filename, {"has already been taken", _}} -> "A sound with that name already exists"
       {:file, {"Please select a file", _}} -> "Please select a file"
+      {:base, {msg, _}} -> msg
       {key, {msg, _}} -> "#{key} #{msg}"
     end)
   end
