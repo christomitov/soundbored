@@ -204,37 +204,21 @@ defmodule SoundboardWeb.StatsLive do
   end
 
   defp load_sound_ids_by_filename(top_sounds, recent_plays, recent_uploads, guild_id) do
-    filenames =
-      top_sounds
-      |> Enum.map(fn {filename, _count} -> filename end)
-      |> Kernel.++(Enum.map(recent_plays, & &1.filename))
-      |> Kernel.++(Enum.map(recent_uploads, fn {filename, _username, _timestamp} -> filename end))
-      |> Enum.uniq()
-
-    case filenames do
-      [] ->
-        %{}
-
-      _ ->
-        Sounds.ids_by_filename(filenames, guild_id)
-    end
+    top_sounds
+    |> Enum.map(fn {filename, _count} -> filename end)
+    |> Kernel.++(Enum.map(recent_plays, & &1.filename))
+    |> Kernel.++(Enum.map(recent_uploads, fn {filename, _username, _timestamp} -> filename end))
+    |> Enum.uniq()
+    |> Sounds.ids_by_filename(guild_id)
   end
 
   defp load_avatars_by_username(top_users, recent_plays, recent_uploads) do
-    usernames =
-      top_users
-      |> Enum.map(fn {username, _count} -> username end)
-      |> Kernel.++(Enum.map(recent_plays, & &1.username))
-      |> Kernel.++(Enum.map(recent_uploads, fn {_filename, username, _timestamp} -> username end))
-      |> Enum.uniq()
-
-    case usernames do
-      [] ->
-        %{}
-
-      _ ->
-        Accounts.avatars_by_usernames(usernames)
-    end
+    top_users
+    |> Enum.map(fn {username, _count} -> username end)
+    |> Kernel.++(Enum.map(recent_plays, & &1.username))
+    |> Kernel.++(Enum.map(recent_uploads, fn {_filename, username, _timestamp} -> username end))
+    |> Enum.uniq()
+    |> Accounts.avatars_by_usernames()
   end
 
   defp recent_play_dom_id(play) do

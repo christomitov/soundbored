@@ -50,6 +50,17 @@ defmodule SoundboardWeb.StatsLiveTest do
     assert has_element?(view, "[id='play-upload-stats_sound.mp3']")
   end
 
+  test "a guild with no plays or uploads shows empty lists", %{conn: conn, sound: sound} do
+    Repo.delete!(sound)
+    Repo.delete_all(Soundboard.Stats.Play)
+
+    {:ok, view, _html} = live(conn, "/stats")
+
+    refute has_element?(view, "[id^='play-top-']")
+    refute has_element?(view, "[id^='user-stat-']")
+    refute has_element?(view, "[id^='play-upload-']")
+  end
+
   test "plays keep the name the sound had when it was played", %{conn: conn, sound: sound} do
     sound |> Sound.changeset(%{filename: "renamed.mp3"}) |> Repo.update!()
 
