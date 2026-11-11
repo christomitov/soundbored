@@ -278,16 +278,6 @@ defmodule Soundboard.SoundTest do
     end
   end
 
-  describe "fetch_filename_extension/1" do
-    test "returns the stored file extension", %{sound: sound} do
-      assert Sounds.fetch_filename_extension(sound.id) == {:ok, ".mp3"}
-    end
-
-    test "returns :error when sound doesn't exist" do
-      assert Sounds.fetch_filename_extension(-1) == :error
-    end
-  end
-
   describe "get_recent_uploads/1" do
     test "returns recent uploads with default limit", %{user: user} do
       _sounds =

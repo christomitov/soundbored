@@ -89,14 +89,6 @@ defmodule Soundboard.Sounds do
     )
   end
 
-  @spec fetch_filename_extension(term()) :: {:ok, String.t()} | :error
-  def fetch_filename_extension(sound_id) do
-    case Repo.get(Sound, sound_id) do
-      %Sound{filename: filename} -> {:ok, Path.extname(filename)}
-      _ -> :error
-    end
-  end
-
   @spec get_recent_uploads(keyword()) :: [{String.t(), String.t(), NaiveDateTime.t()}]
   def get_recent_uploads(opts \\ []) do
     limit = Keyword.get(opts, :limit, 10)

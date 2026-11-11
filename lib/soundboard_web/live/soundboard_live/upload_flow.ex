@@ -16,7 +16,7 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
     {:noreply, update_state(socket, &%{&1 | source_type: source_type})}
   end
 
-  def save(socket, params, consume_uploaded_entries_fn) do
+  def save(socket, params) do
     upload = state(socket)
 
     case upload.source_type do
@@ -36,7 +36,7 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
 
       _ ->
         results =
-          consume_uploaded_entries_fn.(socket, :audio, fn meta, entry ->
+          Phoenix.LiveView.consume_uploaded_entries(socket, :audio, fn meta, entry ->
             request =
               upload
               |> build_request(params)
@@ -98,8 +98,6 @@ defmodule SoundboardWeb.Live.SoundboardLive.UploadFlow do
        %{upload | upload_tags: Enum.reject(upload.upload_tags, &(&1.name == tag_name))}
      end)}
   end
-
-  def select_tag_suggestion(socket, tag_name), do: select_tag(socket, tag_name)
 
   def update_tag_input(socket, value), do: TagForm.update_input(socket, value, @tag_form)
 

@@ -12,18 +12,16 @@ defmodule SoundboardWeb.Live.SoundboardLive.EditFlow do
   def assign_defaults(socket), do: put_state(socket, default_state())
 
   def validate_sound(socket, %{"_target" => ["filename"]} = params) do
-    current_sound_id = params["sound_id"]
-
     error =
-      case Sounds.fetch_filename_extension(current_sound_id) do
-        {:ok, extension} ->
-          filename = String.trim(params["filename"] || "") <> extension
+      case state(socket).current_sound do
+        %{id: id, filename: current} ->
+          filename = String.trim(params["filename"] || "") <> Path.extname(current)
 
-          if Sounds.filename_taken_excluding?(filename, current_sound_id, socket.assigns.guild_id) do
+          if Sounds.filename_taken_excluding?(filename, id, socket.assigns.guild_id) do
             "A sound with that name already exists"
           end
 
-        :error ->
+        nil ->
           nil
       end
 
@@ -66,8 +64,6 @@ defmodule SoundboardWeb.Live.SoundboardLive.EditFlow do
      |> update_state(&%{&1 | current_sound: updated_sound})
      |> assign(:uploaded_files, Sounds.list_detailed(socket.assigns.guild_id))}
   end
-
-  def select_tag_suggestion(socket, tag_name), do: select_tag(socket, tag_name)
 
   def update_tag_input(socket, value), do: TagForm.update_input(socket, value, @tag_form)
 
