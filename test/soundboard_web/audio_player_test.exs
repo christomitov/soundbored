@@ -59,6 +59,26 @@ defmodule Soundboard.AudioPlayerTest do
       assert filename == second.filename
     end
 
+    test "a sound that has started playing is stopped before the next one plays",
+         %{guild: guild, user: user} do
+      first = url_sound!(user, guild)
+      second = url_sound!(user, guild)
+      FakeVoice.claim(guild, channel: @channel)
+      connect(guild)
+
+      AudioPlayer.play_sound(first.filename, "System", guild)
+      assert_receive {:sound_played, %{filename: first_name}}
+      assert first_name == first.filename
+      assert_receive {:fake_voice, ^guild, {:play, _, _, _}}
+
+      AudioPlayer.play_sound(second.filename, "System", guild)
+      assert_receive {:sound_played, %{filename: second_name}}
+      assert second_name == second.filename
+
+      second_url = second.url
+      assert voice_calls(guild) == [:stop, {:play, second_url, :url, [volume: 1.0]}]
+    end
+
     test "an interrupt goes through when EDA does not answer playing?",
          %{guild: guild, user: user} do
       first = url_sound!(user, guild)
@@ -282,6 +302,19 @@ defmodule Soundboard.AudioPlayerTest do
       end
     end
 
+    test "playing a sound in presence mode leaves the idle timer unarmed",
+         %{guild: guild, user: user} do
+      sound = url_sound!(user, guild)
+      FakeVoice.claim(guild, channel: @channel)
+      auto_join(:presence)
+      connect(guild)
+
+      AudioPlayer.play_sound(sound.filename, "System", guild)
+      assert_receive {:sound_played, _}
+
+      refute armed?(guild)
+    end
+
     test "clearing the voice channel cancels the idle timer", %{guild: guild} do
       connect(guild)
       assert armed?(guild)
@@ -416,6 +449,14 @@ defmodule Soundboard.AudioPlayerTest do
   end
 
   defp armed?(guild), do: idle_timer(guild) != nil
+
+  defp voice_calls(guild) do
+    receive do
+      {:fake_voice, ^guild, call} -> [call | voice_calls(guild)]
+    after
+      0 -> []
+    end
+  end
 
   defp insert_user!(username) do
     %User{}

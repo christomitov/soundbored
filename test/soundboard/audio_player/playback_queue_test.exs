@@ -114,7 +114,7 @@ defmodule Soundboard.AudioPlayer.PlaybackQueueTest do
 
   test "the interrupt watchdog forces the queued request after its last attempt",
        %{guild: guild} do
-    FakeVoice.claim(guild, channel: @channel, playing: true, stop: :ignored)
+    FakeVoice.claim(guild, channel: @channel, playing: true)
 
     state =
       PlaybackQueue.handle_interrupt_watchdog(
@@ -130,7 +130,10 @@ defmodule Soundboard.AudioPlayer.PlaybackQueueTest do
         35
       )
 
-    assert_receive {:fake_voice, ^guild, :stop}
+    assert_receive {:fake_voice, ^guild, first_call}
+    assert first_call == :stop
+    assert_receive {:fake_voice, ^guild, {:play, "https://sounds.example/next.mp3", :url, _}}
+    refute_receive {:fake_voice, ^guild, _}, 50
     assert %{sound_name: "next.mp3"} = state.current_playback
     assert state.interrupting == false
     assert state.interrupt_watchdog_attempt == 0
