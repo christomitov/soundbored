@@ -74,6 +74,17 @@ defmodule Soundboard.Sounds.UploadsTest do
       assert Uploads.error_message(changeset) ==
                "This soundboard has no active plan. Subscribe to add sounds."
     end
+
+    test "shows a file error as its sentence alone", %{user: user} do
+      assert {:error, changeset} =
+               user
+               |> request(%{name: "notes"})
+               |> CreateRequest.put_upload(%{path: "/tmp/notes.txt", filename: "notes.txt"})
+               |> Uploads.create()
+
+      assert Uploads.error_message(changeset) ==
+               "Invalid file type. Please upload an MP3, WAV, OGG, or M4A file."
+    end
   end
 
   describe "create/1" do

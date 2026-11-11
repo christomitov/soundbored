@@ -265,6 +265,24 @@ defmodule SoundboardWeb.API.SoundControllerTest do
       assert Repo.aggregate(Sound, :count) == sounds_before
     end
 
+    test "refuses a file whose bytes are not audio, whatever its name", %{conn: conn} do
+      files_before = uploaded_files()
+      path = Path.join(System.tmp_dir!(), "#{System.unique_integer([:positive])}-fake.mp3")
+      File.write!(path, "just some text pretending to be audio")
+      on_exit(fn -> File.rm(path) end)
+      upload = %Plug.Upload{path: path, filename: "fake.mp3", content_type: "audio/mpeg"}
+
+      conn = post(conn, ~p"/api/sounds", %{"name" => "fake", "file" => upload})
+
+      assert json_response(conn, 422) == %{
+               "errors" => %{
+                 "file" => ["Invalid file type. Please upload an MP3, WAV, OGG, or M4A file."]
+               }
+             }
+
+      assert uploaded_files() == files_before
+    end
+
     test "refuses a file given as a server path instead of an upload", %{conn: conn} do
       files_before = uploaded_files()
 

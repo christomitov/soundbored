@@ -141,16 +141,16 @@ defmodule Soundboard.Sounds.Uploads.Source do
       {:ok, mime} when mime in @allowed_audio_mime_types ->
         :ok
 
-      {:ok, _mime} ->
+      {:error, :unreadable} ->
+        {:error, add_error(change(%Sound{}), :file, "Could not read uploaded file")}
+
+      _not_audio ->
         {:error,
          add_error(
            change(%Sound{}),
            :file,
            "Invalid file type. Please upload an MP3, WAV, OGG, or M4A file."
          )}
-
-      {:error, _} ->
-        {:error, add_error(change(%Sound{}), :file, "Could not read uploaded file")}
     end
   end
 
