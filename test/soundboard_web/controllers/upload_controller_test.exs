@@ -23,8 +23,16 @@ defmodule SoundboardWeb.UploadControllerTest do
     assert conn |> get("/uploads/#{other.storage_key}") |> response(404) == "File not found"
   end
 
-  test "does not serve files outside the uploads dir", %{conn: conn} do
-    assert conn |> get("/uploads/../../mix.exs") |> response(404) == "File not found"
+  test "does not serve a file outside the uploads dir, even one a sound points at", %{
+    conn: conn,
+    own: own
+  } do
+    outside = Path.join(UploadsPath.dir(), "../robots.txt")
+    assert File.regular?(outside)
+
+    own |> Ecto.Changeset.change(storage_key: "../robots.txt") |> Repo.update!()
+
+    assert conn |> get("/uploads/../robots.txt") |> response(404) == "File not found"
   end
 
   defp insert_sound_with_file!(user, guild_id, contents) do

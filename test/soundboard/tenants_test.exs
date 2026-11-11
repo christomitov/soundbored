@@ -121,7 +121,8 @@ defmodule Soundboard.TenantsTest do
     end
 
     test "rejects slugs the app's own hosts and paths use" do
-      for slug <- ~w(www api admin app auth uploads static assets settings stats favorites) do
+      for slug <-
+            ~w(www dash api admin app auth uploads static assets mail settings stats favorites) do
         assert {:error, :invalid_slug} = Tenants.claim_slug("777", slug), slug
       end
     end

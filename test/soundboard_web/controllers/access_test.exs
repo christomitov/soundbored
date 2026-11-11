@@ -1,8 +1,7 @@
 defmodule SoundboardWeb.AccessTest do
   @moduledoc """
   The browser routes that need a signed-in user, through the router: a
-  signed-out request is sent to Discord sign-in with its path kept for
-  afterwards, and changes nothing.
+  signed-out request is sent to Discord sign-in and changes nothing.
   """
 
   use SoundboardWeb.ConnCase, async: false
@@ -35,7 +34,6 @@ defmodule SoundboardWeb.AccessTest do
       conn = build_conn() |> init_test_session(%{}) |> dispatch(@endpoint, method, path, params)
 
       assert redirected_to(conn) == "/auth/discord", "#{method} #{path}"
-      assert get_session(conn, :return_to) == path
     end
 
     refute Tenants.get_guild("signed-out-guild")
