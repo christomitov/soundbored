@@ -4,7 +4,7 @@ defmodule Soundboard.Sounds.UploadsTest do
   import Soundboard.DataCase, only: [errors_on: 1]
 
   alias Soundboard.Accounts.User
-  alias Soundboard.{Repo, Sound, UserSoundSetting}
+  alias Soundboard.{Repo, UserSoundSetting}
   alias Soundboard.Sounds.Uploads
   alias Soundboard.Sounds.Uploads.{CreateRequest, Source}
 
@@ -43,28 +43,6 @@ defmodule Soundboard.Sounds.UploadsTest do
                |> Uploads.validate()
 
       assert "can't be blank" in errors_on(changeset).url
-    end
-
-    test "rejects duplicate local filenames before copying", %{user: user} do
-      {:ok, _existing} =
-        %Sound{}
-        |> Sound.changeset(%{
-          filename: "duplicate_name.mp3",
-          source_type: "local",
-          user_id: user.id
-        })
-        |> Repo.insert()
-
-      assert {:error, changeset} =
-               user
-               |> request(%{
-                 source_type: "local",
-                 name: "duplicate_name",
-                 upload: %{filename: "dup.mp3"}
-               })
-               |> Uploads.validate()
-
-      assert "has already been taken" in errors_on(changeset).filename
     end
 
     test "requires a local file selection for local uploads", %{user: user} do
@@ -127,28 +105,6 @@ defmodule Soundboard.Sounds.UploadsTest do
       assert_receive {:stats_updated}
     end
 
-    test "copies local file and persists sound", %{user: user} do
-      name = "upload_local_#{System.unique_integer([:positive])}"
-      tmp_path = Path.join(System.tmp_dir!(), "#{System.unique_integer([:positive])}-local.mp3")
-      File.cp!(Soundboard.TestHelpers.audio_fixture_path(), tmp_path)
-
-      on_exit(fn -> File.rm(tmp_path) end)
-
-      assert {:ok, sound} =
-               user
-               |> request(%{
-                 source_type: "local",
-                 name: name,
-                 upload: %{path: tmp_path, filename: "local.mp3"}
-               })
-               |> Uploads.create()
-
-      copied_path = Path.join(uploads_dir(), sound.storage_key)
-      assert File.exists?(copied_path)
-
-      on_exit(fn -> File.rm(copied_path) end)
-    end
-
     test "clears previous join setting when creating a new join sound", %{user: user} do
       first_name = "first_join_#{System.unique_integer([:positive])}"
       second_name = "second_join_#{System.unique_integer([:positive])}"
@@ -190,32 +146,6 @@ defmodule Soundboard.Sounds.UploadsTest do
                |> Uploads.create()
 
       assert "Please select a file" in errors_on(changeset).file
-    end
-
-    test "returns duplicate filename validation for local upload", %{user: user} do
-      {:ok, _existing} =
-        %Sound{}
-        |> Sound.changeset(%{
-          filename: "duplicate_name.mp3",
-          source_type: "local",
-          user_id: user.id
-        })
-        |> Repo.insert()
-
-      tmp_path = Path.join(System.tmp_dir!(), "#{System.unique_integer([:positive])}-dup.mp3")
-      File.cp!(Soundboard.TestHelpers.audio_fixture_path(), tmp_path)
-      on_exit(fn -> File.rm(tmp_path) end)
-
-      assert {:error, changeset} =
-               user
-               |> request(%{
-                 source_type: "local",
-                 name: "duplicate_name",
-                 upload: %{path: tmp_path, filename: "dup.mp3"}
-               })
-               |> Uploads.create()
-
-      assert "has already been taken" in errors_on(changeset).filename
     end
   end
 
@@ -298,9 +228,5 @@ defmodule Soundboard.Sounds.UploadsTest do
 
   defp request(user, attrs) do
     CreateRequest.new(user, attrs)
-  end
-
-  defp uploads_dir do
-    Soundboard.UploadsPath.dir()
   end
 end

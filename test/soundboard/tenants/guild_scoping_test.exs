@@ -142,27 +142,6 @@ defmodule Soundboard.Tenants.GuildScopingTest do
       assert Tenants.storage_used("capped") == 0
     end
 
-    test "create_sound/1 rejects uploads past the guild's cap", %{user: user} do
-      upload = %{
-        path: local_sound_path(6_000),
-        filename: "big.mp3"
-      }
-
-      Tenants.get_or_create_guild("tiny", %{slug: "tiny", max_storage_bytes: 5_000})
-      insert_sound!(user, filename: "filler.mp3", guild_id: "tiny", byte_size: 3_000)
-
-      {:error, changeset} =
-        create_sound(user, %{
-          "name" => "too-big",
-          "source_type" => "local",
-          "upload" => upload,
-          "guild_id" => "tiny"
-        })
-
-      assert errors_on(changeset).base != nil
-      assert Tenants.storage_used("tiny") == 3_000
-    end
-
     test "create_sound/1 without a guild lands in the default guild (back-compat)", %{user: user} do
       {:ok, sound} =
         create_sound(user, %{
@@ -197,13 +176,6 @@ defmodule Soundboard.Tenants.GuildScopingTest do
     user
     |> Sounds.new_create_request(params)
     |> Sounds.create_sound()
-  end
-
-  defp local_sound_path(bytes) do
-    path = Path.join(System.tmp_dir!(), "soundbored-cap-test-#{System.unique_integer()}.mp3")
-    File.write!(path, "ID3" <> :binary.copy(<<0>>, bytes - 3))
-    on_exit(fn -> File.rm(path) end)
-    path
   end
 
   defp insert_sound!(user, attrs) do

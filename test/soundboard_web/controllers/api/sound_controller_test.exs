@@ -228,28 +228,65 @@ defmodule SoundboardWeb.API.SoundControllerTest do
       assert "Please select a file" in errors["file"]
     end
 
-    test "returns validation error for duplicate filename", %{conn: conn, user: user} do
-      duplicate_name = "dup_#{System.unique_integer([:positive])}"
-
+    test "refuses a name already used in the guild, by URL or by file", %{conn: conn, user: user} do
       {:ok, _} =
         %Sound{}
         |> Sound.changeset(%{
-          filename: "#{duplicate_name}.mp3",
+          filename: "dup.mp3",
           source_type: "url",
           url: "https://example.com/original.mp3",
           user_id: user.id
         })
         |> Repo.insert()
 
-      conn =
-        post(conn, ~p"/api/sounds", %{
-          "source_type" => "url",
-          "name" => duplicate_name,
-          "url" => "https://example.com/new.mp3"
+      files_before = uploaded_files()
+
+      for params <- [
+            %{"url" => "https://example.com/new.mp3"},
+            %{"file" => fixture_upload("dup.mp3")}
+          ] do
+        conn = post(conn, ~p"/api/sounds", Map.put(params, "name", "dup"))
+
+        assert %{"errors" => %{"filename" => ["has already been taken"]}} =
+                 json_response(conn, 422)
+      end
+
+      assert uploaded_files() == files_before
+    end
+
+    test "refuses a file that would go over the guild's storage cap", %{conn: conn} do
+      {:ok, _} =
+        Soundboard.Tenants.get_or_create_guild(Soundboard.Tenants.default_guild_id(), %{
+          max_storage_bytes: 100
         })
 
-      assert %{"errors" => errors} = json_response(conn, 422)
-      assert "has already been taken" in errors["filename"]
+      files_before = uploaded_files()
+
+      conn =
+        post(conn, ~p"/api/sounds", %{"name" => "too-big", "file" => fixture_upload("big.mp3")})
+
+      assert %{"errors" => %{"base" => [message]}} = json_response(conn, 422)
+      assert message =~ "Storage limit reached for this soundboard (100 B cap)"
+      refute Repo.get_by(Sound, filename: "too-big.mp3")
+      assert uploaded_files() == files_before
+    end
+
+    test "refuses a file given as a server path instead of an upload", %{conn: conn} do
+      files_before = uploaded_files()
+
+      conn =
+        post(conn, ~p"/api/sounds", %{
+          "source_type" => "local",
+          "name" => "server-path",
+          "file" => %{
+            "path" => Soundboard.TestHelpers.audio_fixture_path(),
+            "filename" => "x.mp3"
+          }
+        })
+
+      assert %{"errors" => %{"file" => ["Please select a file"]}} = json_response(conn, 422)
+      refute Repo.get_by(Sound, filename: "server-path.mp3")
+      assert uploaded_files() == files_before
     end
 
     test "returns unauthorized without valid token" do
