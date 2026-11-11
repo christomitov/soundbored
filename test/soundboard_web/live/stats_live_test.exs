@@ -160,11 +160,27 @@ defmodule SoundboardWeb.StatsLiveTest do
       end
     end
 
-    test "the hourly week rollover check keeps the page running", %{conn: conn} do
+    test "the hourly check moves a page left open on last week's current week forward", %{
+      conn: conn
+    } do
+      this_week = week_of(Date.utc_today())
+      last_week = week_of(Date.add(Date.utc_today(), -7))
       {:ok, view, _html} = live(conn, "/stats")
+
+      :sys.replace_state(view.pid, fn state ->
+        assigns = %{
+          state.socket.assigns
+          | current_week: last_week,
+            selected_week: last_week,
+            __changed__: %{current_week: true, selected_week: true}
+        }
+
+        put_in(state.socket.assigns, assigns)
+      end)
 
       send(view.pid, :check_week_rollover)
 
+      assert render(view) =~ week_label(this_week)
       assert has_element?(view, top_sound("stats_sound.mp3"), "1 plays")
     end
   end
