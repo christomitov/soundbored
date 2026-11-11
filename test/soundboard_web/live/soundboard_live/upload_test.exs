@@ -133,6 +133,14 @@ defmodule SoundboardWeb.SoundboardLive.UploadTest do
       {_audio, html} = pick_file(view, "notes.txt", "text/plain")
 
       assert html =~ "Invalid file type"
+
+      assert has_element?(
+               view,
+               "#upload-file-errors",
+               "Invalid file type. Please upload an MP3, WAV, OGG, or M4A file."
+             )
+
+      assert has_element?(view, "#upload-form button[type='submit'][disabled]")
     end
 
     test "a file whose bytes are not audio is refused and nothing is saved", %{conn: conn} do
@@ -158,9 +166,9 @@ defmodule SoundboardWeb.SoundboardLive.UploadTest do
       on_exit(fn -> Application.put_env(:soundboard, :max_upload_bytes, previous) end)
 
       view = open_modal(conn)
-      {_audio, html} = pick_file(view)
+      pick_file(view)
 
-      assert html =~ "File is too large"
+      assert has_element?(view, "#upload-file-errors", "File is too large")
       assert has_element?(view, "#upload-form button[type='submit'][disabled]")
     end
 
@@ -233,7 +241,10 @@ defmodule SoundboardWeb.SoundboardLive.UploadTest do
       view |> element("[phx-click='remove_upload_tag'][phx-value-tag='meme']") |> render_click()
       view |> element("[phx-click='toggle_join_sound']") |> render_click()
       view |> element("[phx-click='toggle_leave_sound']") |> render_click()
-      render_hook(view, "update_volume", %{"volume" => "40", "target" => "upload"})
+      node = view |> element("#upload-volume-control") |> render() |> LazyHTML.from_fragment()
+      [event] = LazyHTML.attribute(node, "data-push-event")
+      [target] = LazyHTML.attribute(node, "data-volume-target")
+      render_hook(view, event, %{"volume" => "40", "target" => target})
 
       submit(view, %{"url" => "https://example.com/airhorn.mp3", "name" => "airhorn"})
 

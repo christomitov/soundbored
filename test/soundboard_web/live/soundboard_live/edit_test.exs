@@ -4,6 +4,7 @@ defmodule SoundboardWeb.SoundboardLive.EditTest do
   import Ecto.Query
 
   alias Soundboard.{Accounts.User, Favorites, Repo, Sound, Tag, UploadsPath, UserSoundSetting}
+  alias Soundboard.AudioPlayer.SoundLibrary
 
   setup %{conn: conn} do
     user = Repo.insert!(%User{username: "editor", discord_id: "123", avatar: "e.jpg"})
@@ -38,6 +39,14 @@ defmodule SoundboardWeb.SoundboardLive.EditTest do
     do: view |> element("[phx-click='edit'][phx-value-id='#{sound.id}']") |> render_click()
 
   defp save(view, params), do: view |> element("#edit-form") |> render_submit(params)
+
+  defp move_volume_slider(view, control, volume) do
+    node = view |> element(control) |> render() |> LazyHTML.from_fragment()
+    [event] = LazyHTML.attribute(node, "data-push-event")
+    [target] = LazyHTML.attribute(node, "data-volume-target")
+
+    render_hook(view, event, %{"volume" => volume, "target" => target})
+  end
 
   defp tag_names(sound) do
     Sound
@@ -100,7 +109,7 @@ defmodule SoundboardWeb.SoundboardLive.EditTest do
       {:ok, view, _html} = live(conn, "/")
       open_edit(view, sound)
 
-      render_hook(view, "update_volume", %{"volume" => 27, "target" => "edit"})
+      move_volume_slider(view, "#edit-volume-control", 27)
 
       assert has_element?(view, "#edit-volume-control input[name='volume'][value='27']")
       save(view, %{"filename" => "test"})
@@ -121,6 +130,47 @@ defmodule SoundboardWeb.SoundboardLive.EditTest do
 
       assert %{is_join_sound: false, is_leave_sound: true} = setting(user, old)
       assert %{is_join_sound: true, is_leave_sound: false} = setting(user, new)
+    end
+
+    test "making a sound my leave sound takes the leave flag from my other sound only", %{
+      conn: conn,
+      user: user,
+      sound: old
+    } do
+      insert_setting!(user, old, %{is_join_sound: true, is_leave_sound: true})
+      new = insert_sound!(user, "new.mp3")
+
+      {:ok, view, _html} = live(conn, "/")
+      open_edit(view, new)
+      save(view, %{"filename" => "new", "is_leave_sound" => "true"})
+
+      assert %{is_join_sound: true, is_leave_sound: false} = setting(user, old)
+      assert %{is_join_sound: false, is_leave_sound: true} = setting(user, new)
+    end
+
+    test "saving drops the bot's cached copy so the next play uses the new volume", %{
+      conn: conn,
+      user: user
+    } do
+      sound =
+        insert_sound!(user, "cached.mp3", %{
+          source_type: "url",
+          url: "https://example.com/cached.mp3",
+          volume: 1.0
+        })
+
+      assert {:ok, {"https://example.com/cached.mp3", 1.0}} =
+               SoundLibrary.get_sound_path("default", "cached.mp3")
+
+      {:ok, view, _html} = live(conn, "/")
+      open_edit(view, sound)
+      move_volume_slider(view, "#edit-volume-control", 40)
+      save(view, %{"filename" => "cached"})
+
+      assert {:ok, {"https://example.com/cached.mp3", volume}} =
+               SoundLibrary.get_sound_path("default", "cached.mp3")
+
+      assert_in_delta volume, 0.4, 0.0001
     end
 
     test "a name already taken is flagged while typing", %{conn: conn, user: user} do
@@ -199,6 +249,20 @@ defmodule SoundboardWeb.SoundboardLive.EditTest do
   end
 
   describe "deleting" do
+    test "drops the bot's cached copy", %{conn: conn, user: user} do
+      sound =
+        insert_sound!(user, "gone.mp3", %{source_type: "url", url: "https://example.com/gone.mp3"})
+
+      assert {:ok, _cached} = SoundLibrary.get_sound_path("default", "gone.mp3")
+
+      {:ok, view, _html} = live(conn, "/")
+      open_edit(view, sound)
+      view |> element("[phx-click='show_delete_confirm']") |> render_click()
+      view |> element("[phx-click='delete_sound']") |> render_click()
+
+      assert {:error, _reason} = SoundLibrary.get_sound_path("default", "gone.mp3")
+    end
+
     test "removes the sound, its file, and everyone's favorites, settings and tags for it", %{
       conn: conn,
       user: user,

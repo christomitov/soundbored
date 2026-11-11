@@ -41,5 +41,6 @@ defmodule Soundboard.UploadsPathTest do
 
     assert :error = UploadsPath.safe_joined_path(["..", "escape.mp3"])
     assert :error = UploadsPath.safe_joined_path("../escape.mp3")
+    assert :error = UploadsPath.safe_joined_path(["..", Path.basename(base) <> "-evil", "x.mp3"])
   end
 end
