@@ -2,6 +2,11 @@
 
 Handles the Discord events.
 
+A deployment with no guild configured (no `:default_guild_id` or
+`:required_guild_id`) discovers its guild once READY arrives: guilds stream
+into the cache after READY, so it polls briefly for the bot's sole guild and
+repoints rows migrated as "default" (`Tenants.reconcile_default_guild/0`).
+
 # `child_spec`
 
 Returns a specification to start this module under a supervisor.
@@ -9,8 +14,6 @@ Returns a specification to start this module under a supervisor.
 See `Supervisor`.
 
 # `dispatch_event`
-
-# `get_current_voice_channel`
 
 # `handle_event`
 

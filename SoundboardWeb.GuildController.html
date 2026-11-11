@@ -12,7 +12,7 @@
 
     <link rel="stylesheet" href="dist/html-elixir-NHQLCD6Y.css" />
 
-    <script defer src="dist/sidebar_items-D5B242B7.js"></script>
+    <script defer src="dist/sidebar_items-F137BBC9.js"></script>
     <script defer src="docs_config.js"></script>
     <script defer src="dist/html-Y2MUTVIN.js"></script>
 
@@ -111,7 +111,11 @@ soundboard
     <section id="moduledoc">
 <p>Tenant onboarding: list the guilds the shared bot is a member of and let the
 signed-in user switch their active soundboard (creating the tenant row on
-first use — that is the whole &quot;provisioning&quot; step).</p>
+first use — that is the whole &quot;provisioning&quot; step).</p><p>With billing configured, switching to a guild without an active
+subscription goes to checkout instead, remembering the guild: the Stripe
+webhook is the only hosted provisioning path, so no tenant row is created
+here.</p><p>Only members of a Discord guild may switch to it or open it by slug, and
+only its owner may claim its slug (<a href="Soundboard.Tenants.Membership.html"><code class="inline">Soundboard.Tenants.Membership</code></a>).</p>
     </section>
 
 </div>

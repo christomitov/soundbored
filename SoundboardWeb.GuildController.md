@@ -4,6 +4,14 @@ Tenant onboarding: list the guilds the shared bot is a member of and let the
 signed-in user switch their active soundboard (creating the tenant row on
 first use — that is the whole "provisioning" step).
 
+With billing configured, switching to a guild without an active
+subscription goes to checkout instead, remembering the guild: the Stripe
+webhook is the only hosted provisioning path, so no tenant row is created
+here.
+
+Only members of a Discord guild may switch to it or open it by slug, and
+only its owner may claim its slug (`Soundboard.Tenants.Membership`).
+
 # `claim`
 
 Claims a slug (subdomain name) for the session's current guild.

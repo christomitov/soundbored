@@ -18,10 +18,8 @@ Starts the player for `guild_id` if not already running. Returns its pid.
 
 # `invalidate_cache`
 
-# `invalidate_cache`
-
 Removes any cached metadata for `filename` in `guild_id` so future plays use
-fresh data. The 1-arity form targets the default guild (back-compat).
+fresh data.
 
 # `last_user_left`
 

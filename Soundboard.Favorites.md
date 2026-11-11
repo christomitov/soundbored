@@ -15,12 +15,6 @@ The Favorites module.
 @spec error_message(Ecto.Changeset.t()) :: String.t()
 ```
 
-# `favorite?`
-
-```elixir
-@spec favorite?(integer(), integer()) :: boolean()
-```
-
 # `list_favorite_sounds_with_tags`
 
 ```elixir
@@ -32,7 +26,7 @@ The Favorites module.
 # `list_favorites`
 
 ```elixir
-@spec list_favorites(integer()) :: [integer()]
+@spec list_favorites(integer(), String.t() | nil) :: [integer()]
 ```
 
 # `max_favorites`
@@ -44,7 +38,7 @@ The Favorites module.
 # `toggle_favorite`
 
 ```elixir
-@spec toggle_favorite(integer(), integer()) :: favorite_result()
+@spec toggle_favorite(integer(), term(), String.t() | nil) :: favorite_result()
 ```
 
 ---

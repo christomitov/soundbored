@@ -1,4 +1,5 @@
 404.html
+Mix.Tasks.Credence.html
 Soundboard.Accounts.ApiToken.html
 Soundboard.Accounts.ApiTokens.html
 Soundboard.Accounts.User.html
@@ -8,6 +9,8 @@ Soundboard.AudioPlayer.State.html
 Soundboard.AudioPlayer.html
 Soundboard.Billing.SubscriptionSnapshot.html
 Soundboard.Billing.html
+Soundboard.Boundary.html
+Soundboard.Discord.Handler.SoundEffects.html
 Soundboard.Discord.Handler.State.html
 Soundboard.Discord.Handler.html
 Soundboard.Discord.InviteURL.html
@@ -19,12 +22,15 @@ Soundboard.Sound.html
 Soundboard.SoundTag.html
 Soundboard.Sounds.Management.html
 Soundboard.Sounds.Tags.html
+Soundboard.Sounds.Uploads.CreateRequest.html
 Soundboard.Sounds.Uploads.html
 Soundboard.Sounds.html
 Soundboard.Stats.Play.html
 Soundboard.Stats.html
+Soundboard.TableOwner.html
 Soundboard.Tag.html
 Soundboard.Tenants.Guild.html
+Soundboard.Tenants.Membership.html
 Soundboard.Tenants.html
 Soundboard.UploadsPath.html
 Soundboard.UserSoundSetting.html
@@ -55,6 +61,7 @@ SoundboardWeb.OnboardingController.html
 SoundboardWeb.Plugs.APIAuth.html
 SoundboardWeb.Plugs.AppGate.html
 SoundboardWeb.Plugs.BasicAuth.html
+SoundboardWeb.Plugs.RoleCheck.html
 SoundboardWeb.Plugs.Tenant.html
 SoundboardWeb.Presence.html
 SoundboardWeb.PresenceHandler.html
@@ -76,7 +83,7 @@ dist/lato-latin-700-normal-2XVSBPG4.woff2
 dist/lato-latin-ext-400-normal-N27NCBWW.woff2
 dist/lato-latin-ext-700-normal-Q2L5DVMW.woff2
 dist/remixicon-ZWU5GQ4X.woff2
-dist/search_data-D61E3D57.js
-dist/sidebar_items-D5B242B7.js
+dist/search_data-9ABFCBC7.js
+dist/sidebar_items-F137BBC9.js
 index.html
 search.html

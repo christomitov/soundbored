@@ -12,7 +12,7 @@
 
     <link rel="stylesheet" href="dist/html-elixir-NHQLCD6Y.css" />
 
-    <script defer src="dist/sidebar_items-D5B242B7.js"></script>
+    <script defer src="dist/sidebar_items-F137BBC9.js"></script>
     <script defer src="docs_config.js"></script>
     <script defer src="dist/html-Y2MUTVIN.js"></script>
 
@@ -198,11 +198,34 @@ webhooks: the subscription id, its line item id, and the price id.</p></div>
 </div>
 <div class="summary-row">
   <div class="summary-signature">
+    <a href="Soundboard.Boundary.html" translate="no">Soundboard.<wbr />Boundary</a>
+
+  </div>
+
+    <div class="summary-synopsis"><p>The exception types that can realistically escape across a process or API
+boundary here: the Discord gateway (EDA), voice, HTTP, the file system and
+SQLite. Code rescues <code class="inline">e in @boundary_exceptions</code> rather than everything;
+exits and throws are caught separately.</p></div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
     <a href="Soundboard.Discord.Handler.html" translate="no">Soundboard.<wbr />Discord.<wbr />Handler</a>
 
   </div>
 
     <div class="summary-synopsis"><p>Handles the Discord events.</p></div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="Soundboard.Discord.Handler.SoundEffects.html" translate="no">Soundboard.<wbr />Discord.<wbr />Handler.<wbr />SoundEffects</a>
+
+  </div>
+
+    <div class="summary-synopsis"><p>Join and leave sounds. A join is a voice state with no tracked previous one
+(a first join, or state lost on restart) or one after a disconnect; a
+channel switch or a mute/deafen update is not.</p></div>
 
 </div>
 <div class="summary-row">
@@ -313,6 +336,15 @@ webhooks: the subscription id, its line item id, and the price id.</p></div>
 </div>
 <div class="summary-row">
   <div class="summary-signature">
+    <a href="Soundboard.Sounds.Uploads.CreateRequest.html" translate="no">Soundboard.<wbr />Sounds.<wbr />Uploads.<wbr />CreateRequest</a>
+
+  </div>
+
+    <div class="summary-synopsis"><p>The input to create a sound, built from request params (<a href="#new/2"><code class="inline">new/2</code></a>).</p></div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
     <a href="Soundboard.Stats.html" translate="no">Soundboard.<wbr />Stats</a>
 
   </div>
@@ -327,6 +359,16 @@ webhooks: the subscription id, its line item id, and the price id.</p></div>
   </div>
 
     <div class="summary-synopsis"><p>The Play module.</p></div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="Soundboard.TableOwner.html" translate="no">Soundboard.<wbr />TableOwner</a>
+
+  </div>
+
+    <div class="summary-synopsis"><p>Owns the app's shared ETS tables (billing's processed events, Stripe
+customers and subscriptions, and the sound metadata cache).</p></div>
 
 </div>
 <div class="summary-row">
@@ -354,6 +396,15 @@ webhooks: the subscription id, its line item id, and the price id.</p></div>
   </div>
 
     <div class="summary-synopsis"><p>A tenant: one Discord guild's provisioned soundboard.</p></div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="Soundboard.Tenants.Membership.html" translate="no">Soundboard.<wbr />Tenants.<wbr />Membership</a>
+
+  </div>
+
+    <div class="summary-synopsis"><p>Who may use and who may manage a guild's soundboard.</p></div>
 
 </div>
 <div class="summary-row">
@@ -399,12 +450,19 @@ as controllers, components, channels, and so on.</p></div>
 
   </div>
 
+    <div class="summary-synopsis"><p>The JSON API. <a href="SoundboardWeb.Plugs.APIAuth.html"><code class="inline">SoundboardWeb.Plugs.APIAuth</code></a> has already authenticated the
+token's user and <a href="SoundboardWeb.Plugs.Tenant.html"><code class="inline">SoundboardWeb.Plugs.Tenant</code></a> resolved the guild, so every
+action acts as <code class="inline">:current_user</code> in <code class="inline">:current_guild_id</code>.</p></div>
+
 </div>
 <div class="summary-row">
   <div class="summary-signature">
     <a href="SoundboardWeb.AuthController.html" translate="no">SoundboardWeb.<wbr />AuthController</a>
 
   </div>
+
+    <div class="summary-synopsis"><p>Discord sign-in. A signed-out visitor who opened <code class="inline">/g/:slug</code> has that slug
+kept in the session (<code class="inline">:pending_slug</code>), and lands on it after signing in.</p></div>
 
 </div>
 <div class="summary-row">
@@ -506,7 +564,9 @@ client-side via JS.</p></div>
 
   </div>
 
-    <div class="summary-synopsis"><p>Provides core UI components.</p></div>
+    <div class="summary-synopsis"><p>The flash notices and icons every page uses, and the JS commands that show
+and hide them. Icons are <a href="https://heroicons.com">heroicons</a>, bundled into
+app.css by the Tailwind plugin.</p></div>
 
 </div>
 <div class="summary-row">
@@ -617,6 +677,18 @@ provisions the tenant.</p></div>
 </div>
 <div class="summary-row">
   <div class="summary-signature">
+    <a href="SoundboardWeb.Plugs.RoleCheck.html" translate="no">SoundboardWeb.<wbr />Plugs.<wbr />RoleCheck</a>
+
+  </div>
+
+    <div class="summary-synopsis"><p>Re-checks a signed-in user's required Discord role at most every
+<code class="inline">:role_recheck_interval_seconds</code> (default 15 minutes), and signs them out
+when they no longer have it. Runs after <code class="inline">ensure_authenticated_user</code>, so
+there is always a user.</p></div>
+
+</div>
+<div class="summary-row">
+  <div class="summary-signature">
     <a href="SoundboardWeb.Plugs.Tenant.html" translate="no">SoundboardWeb.<wbr />Plugs.<wbr />Tenant</a>
 
   </div>
@@ -658,12 +730,22 @@ provisions the tenant.</p></div>
 
   </div>
 
+    <div class="summary-synopsis"><p>Routes. The app pages (Sounds, Stats, Favorites, Settings) need an active
+subscription on hosted deployments (<code class="inline">:app_access</code>); self-hosted is always
+unlocked. Setup pages (pick a guild, claim a subdomain, subscribe) stay
+reachable while locked, since they are the way to unlock it; <code class="inline">:auth</code> only
+tells the navbar whether to show the app's links.</p></div>
+
 </div>
 <div class="summary-row">
   <div class="summary-signature">
     <a href="SoundboardWeb.SettingsLive.html" translate="no">SoundboardWeb.<wbr />SettingsLive</a>
 
   </div>
+
+    <div class="summary-synopsis"><p>API tokens and their docs, and, on hosted deployments, the guild's plan:
+shown only when billing is configured and the signed-in user is the
+Discord account that provisioned the guild.</p></div>
 
 </div>
 <div class="summary-row">
@@ -711,11 +793,35 @@ provisions the tenant.</p></div>
 
   </div>
 
+    <div class="summary-synopsis"><p>Serves uploaded sound files to the signed-in user, for the browser's local
+preview. Only the stored file of a sound in the current soundboard is
+served; any other path, including another guild's sound, is a 404.</p></div>
+
 </div>
 
       </div>
     </section>
 
+
+    <section class="details-list">
+      <h2 id="tasks" class="section-heading">Mix Tasks</h2>
+      <div class="summary">
+<div class="summary-row">
+  <div class="summary-signature">
+    <a href="Mix.Tasks.Credence.html" translate="no">mix credence</a>
+
+  </div>
+
+    <div class="summary-synopsis"><p>Credence finds code that works but isn't written the Elixir way (a list
+built only to be summed, a zip then a map) and rewrites it.
+<a href="Mix.Tasks.Credence.html"><code class="inline">mix credence</code></a> fixes each file it finds something in, in place, with
+<a href="https://hexdocs.pm/credence/0.8.1/Credence.html#fix/2"><code class="inline">Credence.fix/2</code></a>, and lists what it couldn't fix; <code class="inline">mix credence --check</code>
+(precommit and CI) changes nothing and fails listing what it finds.</p></div>
+
+</div>
+
+      </div>
+    </section>
 
 </div>
     <footer class="footer">

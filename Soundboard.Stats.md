@@ -38,12 +38,6 @@ Handles the stats of the soundboard.
 @spec get_top_users(Date.t(), Date.t(), keyword()) :: [leaderboard_entry()]
 ```
 
-# `reset_weekly_stats`
-
-```elixir
-@spec reset_weekly_stats() :: :ok | {:error, term()}
-```
-
 # `track_play`
 
 ```elixir

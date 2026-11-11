@@ -8,8 +8,6 @@ Domain helpers for searching, resolving, and persisting sound tags.
 
 # `find_or_create`
 
-# `list_for_sound`
-
 # `resolve`
 
 # `resolve_many`

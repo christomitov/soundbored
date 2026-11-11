@@ -50,6 +50,12 @@ Resolution order: `SOUNDBOARD_DEFAULT_GUILD_ID` env (configured as
 `GuildCache` for zero-config single-guild deployments that never set the
 legacy envs), then the literal `"default"`.
 
+The sole-guild step keeps deployments from before multi-tenancy
+zero-config on upgrade: the migration backfills `"default"`, and
+`reconcile_default_guild/0` repoints those rows once the guild cache is
+populated. A bot in several guilds has no sole guild: those hosts configure
+a guild or claim a slug.
+
 # `get_by_slug`
 
 ```elixir
@@ -68,6 +74,10 @@ legacy envs), then the literal `"default"`.
 @spec get_or_create_guild(String.t() | term(), map()) ::
   {:ok, Soundboard.Tenants.Guild.t()} | {:error, term()}
 ```
+
+The guild's tenant row, created when missing with the provisional slug
+`guild-<id>` (unique by construction) until someone claims a subdomain
+(`claim_slug/2`).
 
 # `list_guilds`
 
@@ -123,19 +133,14 @@ Whether a slug can be claimed (valid format, not reserved, not taken).
 # `storage_cap`
 
 ```elixir
-@spec storage_cap(String.t() | term()) :: pos_integer() | nil
+@spec storage_cap(String.t() | term()) :: non_neg_integer() | nil
 ```
 
 The storage cap for a guild: its own `max_storage_bytes`, or nil when the
-guild has no cap — which means unlimited. Caps exist only where subscriptions
-put them: on hosted, the billing webhook writes exact plan caps; self-hosted
-installs have no cap at all.
-
-# `storage_remaining`
-
-```elixir
-@spec storage_remaining(String.t() | term()) :: non_neg_integer() | nil
-```
+guild has no cap, which means unlimited. Caps exist only where
+subscriptions put them: on hosted, the billing webhook writes exact plan
+caps and 0 once the subscription ends (no plan: nothing can be added);
+self-hosted installs have no cap at all.
 
 # `storage_used`
 
@@ -153,8 +158,9 @@ existing deployments are never retroactively blocked by a cap.
 @spec within_storage_limit?(String.t() | term(), non_neg_integer()) :: boolean()
 ```
 
-Whether uploading `incoming_bytes` more would stay within the guild's cap.
-An uncapped guild (self-hosted) is always within its limit.
+Whether adding a sound of `incoming_bytes` stays within the guild's cap.
+An uncapped guild (self-hosted) is always within its limit; a guild with
+no plan (cap 0) cannot add anything, not even a URL sound.
 
 ---
 

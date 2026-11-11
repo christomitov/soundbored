@@ -30,6 +30,23 @@ replay an event. That is safe here because every handler is an absolute
 write (set the cap to the plan's cap, not an increment), so replays are
 no-ops; the ETS set just avoids redundant work in the common case.
 
+The guild's subscription (its id and line item id) is cached in memory too.
+After a restart it is recovered from Stripe: by the remembered customer
+when there is one, otherwise by the `guild_id` metadata on the
+subscription. Stripe API results are structs and webhook payloads plain
+maps; `field/2` reads either.
+
+## Ordering and status
+
+Stripe does not deliver events in order. Only an `active` or `trialing`
+subscription carries its plan's cap; any other status (past_due, unpaid,
+canceled, incomplete) leaves the guild at cap 0. The `created` time of the
+last event applied to each subscription is remembered (in memory, like the
+rest), and an older event for that subscription is acknowledged without
+being applied, so a late `customer.subscription.updated` cannot undo a
+deletion. The limitation: that memory does not survive a restart, so an
+out-of-order event arriving across a restart is still applied.
+
 Stripe customer ids seen on events are kept in a second ETS table
 (`:billing_stripe_customers`) so the customer portal can be opened without
 a `stripe_customer_id` column on `guilds`. Also in-memory: after a restart
@@ -81,6 +98,10 @@ reconciliation key) and in metadata (read back by the webhook). The price id
 is also mirrored into metadata because checkout session payloads do not
 include line items unless they are expanded.
 
+Stripe returns the user to `opts[:base_url]` when given (the host they came
+in on, which behind a proxy or on a local test domain differs from
+PHX_HOST), otherwise to the configured URL.
+
 Returns `{:ok, %{id: id, url: url}}` or `{:error, :not_configured |
 :invalid_price | term()}`.
 
@@ -130,14 +151,6 @@ Bytes formatted for display: MB up to 1000 MB, then GB.
 
 Cents to a display price like "$3.99".
 
-# `handle_event`
-
-```elixir
-@spec handle_event(map()) :: :ok | {:error, term()}
-```
-
-Handles a decoded Stripe event map. Public for direct unit testing.
-
 # `handle_webhook`
 
 ```elixir
@@ -146,6 +159,10 @@ Handles a decoded Stripe event map. Public for direct unit testing.
 ```
 
 Verifies the Stripe signature header, then dispatches the event.
+
+The `Stripe-Signature` header (`t=...,v1=...`) is checked locally with
+HMAC-SHA256 over `"<t>.<payload>"` and a five-minute timestamp tolerance,
+rather than through `Stripe.Webhook.construct_event/3`.
 
 Returns `{:ok, event_id | :duplicate}` on success (both ack the delivery),
 `{:error, :invalid_signature}` for tampered/foreign payloads, or
@@ -183,7 +200,9 @@ The storage cap in bytes for a Stripe price id, or nil when unknown.
 @spec plan_for_cap(non_neg_integer() | nil) :: :studio | :pro | nil
 ```
 
-The plan a storage cap belongs to: :studio, :pro, or nil.
+The plan a storage cap belongs to: :studio, :pro, or nil. A cap that
+matches no plan exactly (a legacy or self-hosted row) has none: the webhook
+only ever writes exact plan caps.
 
 # `plan_label`
 
@@ -201,17 +220,6 @@ Human plan name for a cap value.
 
 Maps every configured Stripe price id to its storage cap in bytes. This is
 the single source of truth for the price -> plan mapping.
-
-# `remember_subscription`
-
-```elixir
-@spec remember_subscription(
-  String.t() | term(),
-  Soundboard.Billing.SubscriptionSnapshot.t()
-) :: :ok
-```
-
-Caches the guild's subscription state (id, item, price) in memory.
 
 # `reset_memory`
 
@@ -231,14 +239,6 @@ Rows with cap 0, legacy/default caps, or no row at all count as unpaid —
 on hosted there is no free tier; self-hosted never reaches this check
 because the paywall gate short-circuits when billing is dormant.
 
-# `subscription_id_for_guild`
-
-```elixir
-@spec subscription_id_for_guild(String.t() | term()) :: String.t() | nil
-```
-
-The Stripe subscription id last seen for a guild, or nil.
-
 # `tiers`
 
 Plan catalog entries for display (name, cap, amounts, configured price ids).
@@ -246,27 +246,6 @@ Plan catalog entries for display (name, cap, amounts, configured price ids).
 # `valid_price?`
 
 Whether the price id belongs to the configured plan catalog.
-
-# `verify_webhook_signature`
-
-```elixir
-@spec verify_webhook_signature(
-  binary(),
-  String.t() | nil,
-  String.t() | nil,
-  pos_integer()
-) ::
-  :ok | {:error, :invalid_signature | :not_configured}
-```
-
-Verifies a Stripe webhook signature header (`t=...,v1=...`) against
-`payload` using HMAC-SHA256. Verified locally instead of via
-`Stripe.Webhook.construct_event/3` so the boundary is testable without
-network or Stripe SDK behavior drift.
-
-# `webhook_configured?`
-
-Whether webhook signature verification is possible.
 
 ---
 

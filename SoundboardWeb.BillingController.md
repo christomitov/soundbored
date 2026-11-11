@@ -3,8 +3,13 @@
 Stripe subscriptions: plan options, checkout, customer portal, and the
 public webhook receiver (signature-verified, no session auth).
 
-Checkout/portal delegate to `Soundboard.Billing` so tests can stub at that
-seam instead of Stripe internals.
+Only a guild's owner (`Soundboard.Tenants.Membership.owner?/2`) may open
+its portal, change or cancel its plan, or start a checkout for it once it
+has an owner; a new guild can be subscribed by the member who picked it.
+
+The webhook signature is computed over the raw request bytes, so the
+webhook reads the untouched JSON body that `SoundboardWeb.RawBodyReader`
+kept in `:raw_body`, never re-encoded JSON.
 
 # `cancel`
 
@@ -18,8 +23,10 @@ Switches the session guild's subscription to another price (tier or interval).
 
 Starts Stripe Checkout. The guild id comes from the session's pending
 billing guild (set when a switch to an unpaid guild was gated) or the
-session's current guild; `Billing` puts it into `client_reference_id` and
-metadata so the webhook can provision the right tenant.
+picked soundboard (a tenant row, not the default-guild fallback); with
+neither, the user is sent to pick one. `Billing` puts it into
+`client_reference_id` and metadata so the webhook can provision the right
+tenant.
 
 # `index`
 

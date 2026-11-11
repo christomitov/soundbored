@@ -12,7 +12,7 @@
 
     <link rel="stylesheet" href="dist/html-elixir-NHQLCD6Y.css" />
 
-    <script defer src="dist/sidebar_items-D5B242B7.js"></script>
+    <script defer src="dist/sidebar_items-F137BBC9.js"></script>
     <script defer src="docs_config.js"></script>
     <script defer src="dist/html-Y2MUTVIN.js"></script>
 
@@ -184,6 +184,10 @@ needed. Returns <code class="inline">{:error, :slug_taken}</code> / <code class=
 
       </div>
 
+        <div class="summary-synopsis"><p>The guild's tenant row, created when missing with the provisional slug
+<code class="inline">guild-&lt;id&gt;</code> (unique by construction) until someone claims a subdomain
+(<a href="#claim_slug/2"><code class="inline">claim_slug/2</code></a>).</p></div>
+
     </div>
 
     <div class="summary-row">
@@ -251,17 +255,10 @@ never configured a guild env (see <a href="#default_guild_id/0"><code class="inl
       </div>
 
         <div class="summary-synopsis"><p>The storage cap for a guild: its own <code class="inline">max_storage_bytes</code>, or nil when the
-guild has no cap — which means unlimited. Caps exist only where subscriptions
-put them: on hosted, the billing webhook writes exact plan caps; self-hosted
-installs have no cap at all.</p></div>
-
-    </div>
-
-    <div class="summary-row">
-      <div class="summary-signature">
-        <a href="#storage_remaining/1" data-no-tooltip="" translate="no">storage_remaining(guild_id)</a>
-
-      </div>
+guild has no cap, which means unlimited. Caps exist only where
+subscriptions put them: on hosted, the billing webhook writes exact plan
+caps and 0 once the subscription ends (no plan: nothing can be added);
+self-hosted installs have no cap at all.</p></div>
 
     </div>
 
@@ -283,8 +280,9 @@ existing deployments are never retroactively blocked by a cap.</p></div>
 
       </div>
 
-        <div class="summary-synopsis"><p>Whether uploading <code class="inline">incoming_bytes</code> more would stay within the guild's cap.
-An uncapped guild (self-hosted) is always within its limit.</p></div>
+        <div class="summary-synopsis"><p>Whether adding a sound of <code class="inline">incoming_bytes</code> stays within the guild's cap.
+An uncapped guild (self-hosted) is always within its limit; a guild with
+no plan (cap 0) cannot add anything, not even a URL sound.</p></div>
 
     </div>
 
@@ -352,7 +350,7 @@ rows (if claimed). Used by the guild switcher and onboarding.</p>
 
           <pre translate="no"><span class="attribute">@spec</span> claim_slug(<a href="https://hexdocs.pm/elixir/String.html#t:t/0">String.t</a>() | <a href="https://hexdocs.pm/elixir/typespecs.html#built-in-types">term</a>(), <a href="https://hexdocs.pm/elixir/String.html#t:t/0">String.t</a>()) ::
   {:ok, <a href="Soundboard.Tenants.Guild.html#t:t/0">Soundboard.Tenants.Guild.t</a>()}
-  | {:error, :slug_taken | :invalid_slug | <a href="https://hexdocs.pm/ecto/3.14.2/Ecto.Changeset.html#t:t/0">Ecto.Changeset.t</a>()}</pre>
+  | {:error, :slug_taken | :invalid_slug | <a href="https://hexdocs.pm/ecto/3.14.3/Ecto.Changeset.html#t:t/0">Ecto.Changeset.t</a>()}</pre>
 
       </div>
 
@@ -386,7 +384,11 @@ needed. Returns <code class="inline">{:error, :slug_taken}</code> / <code class=
 <code class="inline">:default_guild_id</code>), the existing <code class="inline">DISCORD_REQUIRED_GUILD_ID</code> env
 (configured as <code class="inline">:required_guild_id</code>), the bot's sole guild (discovered via
 <code class="inline">GuildCache</code> for zero-config single-guild deployments that never set the
-legacy envs), then the literal <code class="inline">&quot;default&quot;</code>.</p>
+legacy envs), then the literal <code class="inline">&quot;default&quot;</code>.</p><p>The sole-guild step keeps deployments from before multi-tenancy
+zero-config on upgrade: the migration backfills <code class="inline">&quot;default&quot;</code>, and
+<a href="#reconcile_default_guild/0"><code class="inline">reconcile_default_guild/0</code></a> repoints those rows once the guild cache is
+populated. A bot in several guilds has no sole guild: those hosts configure
+a guild or claim a slug.</p>
   </section>
 </section>
 <section class="detail" id="get_by_slug/1">
@@ -461,7 +463,9 @@ legacy envs), then the literal <code class="inline">&quot;default&quot;</code>.<
 
       </div>
 
-
+<p>The guild's tenant row, created when missing with the provisional slug
+<code class="inline">guild-&lt;id&gt;</code> (unique by construction) until someone claims a subdomain
+(<a href="#claim_slug/2"><code class="inline">claim_slug/2</code></a>).</p>
   </section>
 </section>
 <section class="detail" id="list_guilds/0">
@@ -505,7 +509,7 @@ legacy envs), then the literal <code class="inline">&quot;default&quot;</code>.<
 
       <div class="specs">
 
-          <pre translate="no"><span class="attribute">@spec</span> put_default_guild_id(<a href="https://hexdocs.pm/ecto/3.14.2/Ecto.Changeset.html#t:t/0">Ecto.Changeset.t</a>()) :: <a href="https://hexdocs.pm/ecto/3.14.2/Ecto.Changeset.html#t:t/0">Ecto.Changeset.t</a>()</pre>
+          <pre translate="no"><span class="attribute">@spec</span> put_default_guild_id(<a href="https://hexdocs.pm/ecto/3.14.3/Ecto.Changeset.html#t:t/0">Ecto.Changeset.t</a>()) :: <a href="https://hexdocs.pm/ecto/3.14.3/Ecto.Changeset.html#t:t/0">Ecto.Changeset.t</a>()</pre>
 
       </div>
 
@@ -626,38 +630,15 @@ explicit identity — env or slug claim — is required). Idempotent.</p>
 
       <div class="specs">
 
-          <pre translate="no"><span class="attribute">@spec</span> storage_cap(<a href="https://hexdocs.pm/elixir/String.html#t:t/0">String.t</a>() | <a href="https://hexdocs.pm/elixir/typespecs.html#built-in-types">term</a>()) :: <a href="https://hexdocs.pm/elixir/typespecs.html#basic-types">pos_integer</a>() | nil</pre>
+          <pre translate="no"><span class="attribute">@spec</span> storage_cap(<a href="https://hexdocs.pm/elixir/String.html#t:t/0">String.t</a>() | <a href="https://hexdocs.pm/elixir/typespecs.html#built-in-types">term</a>()) :: <a href="https://hexdocs.pm/elixir/typespecs.html#basic-types">non_neg_integer</a>() | nil</pre>
 
       </div>
 
 <p>The storage cap for a guild: its own <code class="inline">max_storage_bytes</code>, or nil when the
-guild has no cap — which means unlimited. Caps exist only where subscriptions
-put them: on hosted, the billing webhook writes exact plan caps; self-hosted
-installs have no cap at all.</p>
-  </section>
-</section>
-<section class="detail" id="storage_remaining/1">
-
-  <div class="detail-header">
-    <a href="#storage_remaining/1" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
-      <i class="ri-link-m" aria-hidden="true"></i>
-    </a>
-    <div class="heading-with-actions">
-      <h1 class="signature" translate="no">storage_remaining(guild_id)</h1>
-
-
-    </div>
-  </div>
-
-  <section class="docstring">
-
-      <div class="specs">
-
-          <pre translate="no"><span class="attribute">@spec</span> storage_remaining(<a href="https://hexdocs.pm/elixir/String.html#t:t/0">String.t</a>() | <a href="https://hexdocs.pm/elixir/typespecs.html#built-in-types">term</a>()) :: <a href="https://hexdocs.pm/elixir/typespecs.html#basic-types">non_neg_integer</a>() | nil</pre>
-
-      </div>
-
-
+guild has no cap, which means unlimited. Caps exist only where
+subscriptions put them: on hosted, the billing webhook writes exact plan
+caps and 0 once the subscription ends (no plan: nothing can be added);
+self-hosted installs have no cap at all.</p>
   </section>
 </section>
 <section class="detail" id="storage_used/1">
@@ -707,8 +688,9 @@ existing deployments are never retroactively blocked by a cap.</p>
 
       </div>
 
-<p>Whether uploading <code class="inline">incoming_bytes</code> more would stay within the guild's cap.
-An uncapped guild (self-hosted) is always within its limit.</p>
+<p>Whether adding a sound of <code class="inline">incoming_bytes</code> stays within the guild's cap.
+An uncapped guild (self-hosted) is always within its limit; a guild with
+no plan (cap 0) cannot add anything, not even a URL sound.</p>
   </section>
 </section>
 

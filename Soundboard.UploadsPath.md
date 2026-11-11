@@ -12,8 +12,6 @@ Central source of truth for uploaded sound storage paths.
 
 # `file_path`
 
-# `joined_path`
-
 # `safe_joined_path`
 
 ```elixir

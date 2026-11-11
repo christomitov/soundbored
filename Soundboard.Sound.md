@@ -25,12 +25,6 @@ Sound schema.
 }
 ```
 
-# `by_tag`
-
-```elixir
-@spec by_tag(Ecto.Queryable.t(), String.t()) :: Ecto.Query.t()
-```
-
 # `changeset`
 
 ```elixir

@@ -12,7 +12,7 @@
 
     <link rel="stylesheet" href="dist/html-elixir-NHQLCD6Y.css" />
 
-    <script defer src="dist/sidebar_items-D5B242B7.js"></script>
+    <script defer src="dist/sidebar_items-F137BBC9.js"></script>
     <script defer src="docs_config.js"></script>
     <script defer src="dist/html-Y2MUTVIN.js"></script>
 
@@ -150,14 +150,6 @@ soundboard
 
     <div class="summary-row">
       <div class="summary-signature">
-        <a href="#favorite?/2" data-no-tooltip="" translate="no">favorite?(user_id, sound_id)</a>
-
-      </div>
-
-    </div>
-
-    <div class="summary-row">
-      <div class="summary-signature">
         <a href="#list_favorite_sounds_with_tags/2" data-no-tooltip="" translate="no">list_favorite_sounds_with_tags(user_id, guild_id \\ nil)</a>
 
       </div>
@@ -166,7 +158,7 @@ soundboard
 
     <div class="summary-row">
       <div class="summary-signature">
-        <a href="#list_favorites/1" data-no-tooltip="" translate="no">list_favorites(user_id)</a>
+        <a href="#list_favorites/2" data-no-tooltip="" translate="no">list_favorites(user_id, guild_id \\ nil)</a>
 
       </div>
 
@@ -182,7 +174,7 @@ soundboard
 
     <div class="summary-row">
       <div class="summary-signature">
-        <a href="#toggle_favorite/2" data-no-tooltip="" translate="no">toggle_favorite(user_id, sound_id)</a>
+        <a href="#toggle_favorite/3" data-no-tooltip="" translate="no">toggle_favorite(user_id, sound_id, guild_id \\ nil)</a>
 
       </div>
 
@@ -220,7 +212,7 @@ soundboard
       <div class="specs">
 
           <pre translate="no"><span class="attribute">@type</span> favorite_result() ::
-  {:ok, <a href="Soundboard.Favorites.Favorite.html#t:t/0">Soundboard.Favorites.Favorite.t</a>()} | {:error, <a href="https://hexdocs.pm/ecto/3.14.2/Ecto.Changeset.html#t:t/0">Ecto.Changeset.t</a>()}</pre>
+  {:ok, <a href="Soundboard.Favorites.Favorite.html#t:t/0">Soundboard.Favorites.Favorite.t</a>()} | {:error, <a href="https://hexdocs.pm/ecto/3.14.3/Ecto.Changeset.html#t:t/0">Ecto.Changeset.t</a>()}</pre>
 
       </div>
 
@@ -257,31 +249,7 @@ soundboard
 
       <div class="specs">
 
-          <pre translate="no"><span class="attribute">@spec</span> error_message(<a href="https://hexdocs.pm/ecto/3.14.2/Ecto.Changeset.html#t:t/0">Ecto.Changeset.t</a>()) :: <a href="https://hexdocs.pm/elixir/String.html#t:t/0">String.t</a>()</pre>
-
-      </div>
-
-
-  </section>
-</section>
-<section class="detail" id="favorite?/2">
-
-  <div class="detail-header">
-    <a href="#favorite?/2" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
-      <i class="ri-link-m" aria-hidden="true"></i>
-    </a>
-    <div class="heading-with-actions">
-      <h1 class="signature" translate="no">favorite?(user_id, sound_id)</h1>
-
-
-    </div>
-  </div>
-
-  <section class="docstring">
-
-      <div class="specs">
-
-          <pre translate="no"><span class="attribute">@spec</span> favorite?(<a href="https://hexdocs.pm/elixir/typespecs.html#basic-types">integer</a>(), <a href="https://hexdocs.pm/elixir/typespecs.html#basic-types">integer</a>()) :: <a href="https://hexdocs.pm/elixir/typespecs.html#built-in-types">boolean</a>()</pre>
+          <pre translate="no"><span class="attribute">@spec</span> error_message(<a href="https://hexdocs.pm/ecto/3.14.3/Ecto.Changeset.html#t:t/0">Ecto.Changeset.t</a>()) :: <a href="https://hexdocs.pm/elixir/String.html#t:t/0">String.t</a>()</pre>
 
       </div>
 
@@ -316,14 +284,16 @@ soundboard
 
   </section>
 </section>
-<section class="detail" id="list_favorites/1">
+<section class="detail" id="list_favorites/2">
+
+    <span id="list_favorites/1"></span>
 
   <div class="detail-header">
-    <a href="#list_favorites/1" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
+    <a href="#list_favorites/2" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
       <i class="ri-link-m" aria-hidden="true"></i>
     </a>
     <div class="heading-with-actions">
-      <h1 class="signature" translate="no">list_favorites(user_id)</h1>
+      <h1 class="signature" translate="no">list_favorites(user_id, guild_id \\ nil)</h1>
 
 
     </div>
@@ -333,7 +303,7 @@ soundboard
 
       <div class="specs">
 
-          <pre translate="no"><span class="attribute">@spec</span> list_favorites(<a href="https://hexdocs.pm/elixir/typespecs.html#basic-types">integer</a>()) :: [<a href="https://hexdocs.pm/elixir/typespecs.html#basic-types">integer</a>()]</pre>
+          <pre translate="no"><span class="attribute">@spec</span> list_favorites(<a href="https://hexdocs.pm/elixir/typespecs.html#basic-types">integer</a>(), <a href="https://hexdocs.pm/elixir/String.html#t:t/0">String.t</a>() | nil) :: [<a href="https://hexdocs.pm/elixir/typespecs.html#basic-types">integer</a>()]</pre>
 
       </div>
 
@@ -364,14 +334,16 @@ soundboard
 
   </section>
 </section>
-<section class="detail" id="toggle_favorite/2">
+<section class="detail" id="toggle_favorite/3">
+
+    <span id="toggle_favorite/2"></span>
 
   <div class="detail-header">
-    <a href="#toggle_favorite/2" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
+    <a href="#toggle_favorite/3" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
       <i class="ri-link-m" aria-hidden="true"></i>
     </a>
     <div class="heading-with-actions">
-      <h1 class="signature" translate="no">toggle_favorite(user_id, sound_id)</h1>
+      <h1 class="signature" translate="no">toggle_favorite(user_id, sound_id, guild_id \\ nil)</h1>
 
 
     </div>
@@ -381,7 +353,7 @@ soundboard
 
       <div class="specs">
 
-          <pre translate="no"><span class="attribute">@spec</span> toggle_favorite(<a href="https://hexdocs.pm/elixir/typespecs.html#basic-types">integer</a>(), <a href="https://hexdocs.pm/elixir/typespecs.html#basic-types">integer</a>()) :: <a href="#t:favorite_result/0">favorite_result</a>()</pre>
+          <pre translate="no"><span class="attribute">@spec</span> toggle_favorite(<a href="https://hexdocs.pm/elixir/typespecs.html#basic-types">integer</a>(), <a href="https://hexdocs.pm/elixir/typespecs.html#built-in-types">term</a>(), <a href="https://hexdocs.pm/elixir/String.html#t:t/0">String.t</a>() | nil) :: <a href="#t:favorite_result/0">favorite_result</a>()</pre>
 
       </div>
 

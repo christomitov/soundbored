@@ -1,3 +1,4 @@
+Mix.Tasks.Credence.md
 Soundboard.Accounts.ApiToken.md
 Soundboard.Accounts.ApiTokens.md
 Soundboard.Accounts.User.md
@@ -7,6 +8,8 @@ Soundboard.AudioPlayer.State.md
 Soundboard.AudioPlayer.md
 Soundboard.Billing.SubscriptionSnapshot.md
 Soundboard.Billing.md
+Soundboard.Boundary.md
+Soundboard.Discord.Handler.SoundEffects.md
 Soundboard.Discord.Handler.State.md
 Soundboard.Discord.Handler.md
 Soundboard.Discord.InviteURL.md
@@ -18,12 +21,15 @@ Soundboard.Sound.md
 Soundboard.SoundTag.md
 Soundboard.Sounds.Management.md
 Soundboard.Sounds.Tags.md
+Soundboard.Sounds.Uploads.CreateRequest.md
 Soundboard.Sounds.Uploads.md
 Soundboard.Sounds.md
 Soundboard.Stats.Play.md
 Soundboard.Stats.md
+Soundboard.TableOwner.md
 Soundboard.Tag.md
 Soundboard.Tenants.Guild.md
+Soundboard.Tenants.Membership.md
 Soundboard.Tenants.md
 Soundboard.UploadsPath.md
 Soundboard.UserSoundSetting.md
@@ -54,6 +60,7 @@ SoundboardWeb.OnboardingController.md
 SoundboardWeb.Plugs.APIAuth.md
 SoundboardWeb.Plugs.AppGate.md
 SoundboardWeb.Plugs.BasicAuth.md
+SoundboardWeb.Plugs.RoleCheck.md
 SoundboardWeb.Plugs.Tenant.md
 SoundboardWeb.Presence.md
 SoundboardWeb.PresenceHandler.md

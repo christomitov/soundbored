@@ -12,7 +12,7 @@
 
     <link rel="stylesheet" href="dist/html-elixir-NHQLCD6Y.css" />
 
-    <script defer src="dist/sidebar_items-D5B242B7.js"></script>
+    <script defer src="dist/sidebar_items-F137BBC9.js"></script>
     <script defer src="docs_config.js"></script>
     <script defer src="dist/html-Y2MUTVIN.js"></script>
 
@@ -122,7 +122,18 @@ table (<code class="inline">:billing_processed_events</code>). Tradeoff: ETS is 
 restart forgets the set and Stripe retries arriving across a restart could
 replay an event. That is safe here because every handler is an absolute
 write (set the cap to the plan's cap, not an increment), so replays are
-no-ops; the ETS set just avoids redundant work in the common case.</p><p>Stripe customer ids seen on events are kept in a second ETS table
+no-ops; the ETS set just avoids redundant work in the common case.</p><p>The guild's subscription (its id and line item id) is cached in memory too.
+After a restart it is recovered from Stripe: by the remembered customer
+when there is one, otherwise by the <code class="inline">guild_id</code> metadata on the
+subscription. Stripe API results are structs and webhook payloads plain
+maps; <code class="inline">field/2</code> reads either.</p><h2 id="module-ordering-and-status" class="section-heading"><a href="#module-ordering-and-status" class="hover-link"><i class="ri-link-m" aria-hidden="true"></i></a><span class="text">Ordering and status</span></h2><p>Stripe does not deliver events in order. Only an <code class="inline">active</code> or <code class="inline">trialing</code>
+subscription carries its plan's cap; any other status (past_due, unpaid,
+canceled, incomplete) leaves the guild at cap 0. The <code class="inline">created</code> time of the
+last event applied to each subscription is remembered (in memory, like the
+rest), and an older event for that subscription is acknowledged without
+being applied, so a late <code class="inline">customer.subscription.updated</code> cannot undo a
+deletion. The limitation: that memory does not survive a restart, so an
+out-of-order event arriving across a restart is still applied.</p><p>Stripe customer ids seen on events are kept in a second ETS table
 (<code class="inline">:billing_stripe_customers</code>) so the customer portal can be opened without
 a <code class="inline">stripe_customer_id</code> column on <code class="inline">guilds</code>. Also in-memory: after a restart
 the portal is unavailable until the next event repopulates it.</p>
@@ -250,16 +261,6 @@ the guild to have a customer id already seen on a billing webhook event
 
     <div class="summary-row">
       <div class="summary-signature">
-        <a href="#handle_event/1" data-no-tooltip="" translate="no">handle_event(arg1)</a>
-
-      </div>
-
-        <div class="summary-synopsis"><p>Handles a decoded Stripe event map. Public for direct unit testing.</p></div>
-
-    </div>
-
-    <div class="summary-row">
-      <div class="summary-signature">
         <a href="#handle_webhook/2" data-no-tooltip="" translate="no">handle_webhook(payload, signature_header)</a>
 
       </div>
@@ -306,7 +307,9 @@ after a restart, or events processed by older code).</p></div>
 
       </div>
 
-        <div class="summary-synopsis"><p>The plan a storage cap belongs to: :studio, :pro, or nil.</p></div>
+        <div class="summary-synopsis"><p>The plan a storage cap belongs to: :studio, :pro, or nil. A cap that
+matches no plan exactly (a legacy or self-hosted row) has none: the webhook
+only ever writes exact plan caps.</p></div>
 
     </div>
 
@@ -328,16 +331,6 @@ after a restart, or events processed by older code).</p></div>
 
         <div class="summary-synopsis"><p>Maps every configured Stripe price id to its storage cap in bytes. This is
 the single source of truth for the price -&gt; plan mapping.</p></div>
-
-    </div>
-
-    <div class="summary-row">
-      <div class="summary-signature">
-        <a href="#remember_subscription/2" data-no-tooltip="" translate="no">remember_subscription(guild_id, state)</a>
-
-      </div>
-
-        <div class="summary-synopsis"><p>Caches the guild's subscription state (id, item, price) in memory.</p></div>
 
     </div>
 
@@ -369,16 +362,6 @@ because the paywall gate short-circuits when billing is dormant.</p></div>
 
     <div class="summary-row">
       <div class="summary-signature">
-        <a href="#subscription_id_for_guild/1" data-no-tooltip="" translate="no">subscription_id_for_guild(guild_id)</a>
-
-      </div>
-
-        <div class="summary-synopsis"><p>The Stripe subscription id last seen for a guild, or nil.</p></div>
-
-    </div>
-
-    <div class="summary-row">
-      <div class="summary-signature">
         <a href="#tiers/0" data-no-tooltip="" translate="no">tiers()</a>
 
       </div>
@@ -394,29 +377,6 @@ because the paywall gate short-circuits when billing is dormant.</p></div>
       </div>
 
         <div class="summary-synopsis"><p>Whether the price id belongs to the configured plan catalog.</p></div>
-
-    </div>
-
-    <div class="summary-row">
-      <div class="summary-signature">
-        <a href="#verify_webhook_signature/4" data-no-tooltip="" translate="no">verify_webhook_signature(payload, signature_header, secret \\ nil, tolerance \\ 300)</a>
-
-      </div>
-
-        <div class="summary-synopsis"><p>Verifies a Stripe webhook signature header (<code class="inline">t=...,v1=...</code>) against
-<code class="inline">payload</code> using HMAC-SHA256. Verified locally instead of via
-<a href="https://hexdocs.pm/stripity_stripe/3.2.0/Stripe.Webhook.html#construct_event/3"><code class="inline">Stripe.Webhook.construct_event/3</code></a> so the boundary is testable without
-network or Stripe SDK behavior drift.</p></div>
-
-    </div>
-
-    <div class="summary-row">
-      <div class="summary-signature">
-        <a href="#webhook_configured?/0" data-no-tooltip="" translate="no">webhook_configured?()</a>
-
-      </div>
-
-        <div class="summary-synopsis"><p>Whether webhook signature verification is possible.</p></div>
 
     </div>
 
@@ -555,7 +515,9 @@ applies the new cap.</p>
 <p>Creates a Stripe Checkout Session for <code class="inline">guild_id</code> at <code class="inline">price_id</code>.</p><p>The session carries the guild id in <code class="inline">client_reference_id</code> (Stripe's
 reconciliation key) and in metadata (read back by the webhook). The price id
 is also mirrored into metadata because checkout session payloads do not
-include line items unless they are expanded.</p><p>Returns <code class="inline">{:ok, %{id: id, url: url}}</code> or <code class="inline">{:error, :not_configured | :invalid_price | term()}</code>.</p>
+include line items unless they are expanded.</p><p>Stripe returns the user to <code class="inline">opts[:base_url]</code> when given (the host they came
+in on, which behind a proxy or on a local test domain differs from
+PHX_HOST), otherwise to the configured URL.</p><p>Returns <code class="inline">{:ok, %{id: id, url: url}}</code> or <code class="inline">{:error, :not_configured | :invalid_price | term()}</code>.</p>
   </section>
 </section>
 <section class="detail" id="create_portal_session/2">
@@ -686,30 +648,6 @@ the guild to have a customer id already seen on a billing webhook event
 <p>Cents to a display price like &quot;$3.99&quot;.</p>
   </section>
 </section>
-<section class="detail" id="handle_event/1">
-
-  <div class="detail-header">
-    <a href="#handle_event/1" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
-      <i class="ri-link-m" aria-hidden="true"></i>
-    </a>
-    <div class="heading-with-actions">
-      <h1 class="signature" translate="no">handle_event(arg1)</h1>
-
-
-    </div>
-  </div>
-
-  <section class="docstring">
-
-      <div class="specs">
-
-          <pre translate="no"><span class="attribute">@spec</span> handle_event(<a href="https://hexdocs.pm/elixir/typespecs.html#basic-types">map</a>()) :: :ok | {:error, <a href="https://hexdocs.pm/elixir/typespecs.html#built-in-types">term</a>()}</pre>
-
-      </div>
-
-<p>Handles a decoded Stripe event map. Public for direct unit testing.</p>
-  </section>
-</section>
 <section class="detail" id="handle_webhook/2">
 
   <div class="detail-header">
@@ -732,7 +670,9 @@ the guild to have a customer id already seen on a billing webhook event
 
       </div>
 
-<p>Verifies the Stripe signature header, then dispatches the event.</p><p>Returns <code class="inline">{:ok, event_id | :duplicate}</code> on success (both ack the delivery),
+<p>Verifies the Stripe signature header, then dispatches the event.</p><p>The <code class="inline">Stripe-Signature</code> header (<code class="inline">t=...,v1=...</code>) is checked locally with
+HMAC-SHA256 over <code class="inline">&quot;&lt;t&gt;.&lt;payload&gt;&quot;</code> and a five-minute timestamp tolerance,
+rather than through <a href="https://hexdocs.pm/stripity_stripe/3.3.3/Stripe.Webhook.html#construct_event/3"><code class="inline">Stripe.Webhook.construct_event/3</code></a>.</p><p>Returns <code class="inline">{:ok, event_id | :duplicate}</code> on success (both ack the delivery),
 <code class="inline">{:error, :invalid_signature}</code> for tampered/foreign payloads, or
 <code class="inline">{:error, term()}</code> for malformed payloads / handler failures.</p>
   </section>
@@ -832,7 +772,9 @@ after a restart, or events processed by older code).</p>
 
       </div>
 
-<p>The plan a storage cap belongs to: :studio, :pro, or nil.</p>
+<p>The plan a storage cap belongs to: :studio, :pro, or nil. A cap that
+matches no plan exactly (a legacy or self-hosted row) has none: the webhook
+only ever writes exact plan caps.</p>
   </section>
 </section>
 <section class="detail" id="plan_label/1">
@@ -884,33 +826,6 @@ after a restart, or events processed by older code).</p>
 the single source of truth for the price -&gt; plan mapping.</p>
   </section>
 </section>
-<section class="detail" id="remember_subscription/2">
-
-  <div class="detail-header">
-    <a href="#remember_subscription/2" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
-      <i class="ri-link-m" aria-hidden="true"></i>
-    </a>
-    <div class="heading-with-actions">
-      <h1 class="signature" translate="no">remember_subscription(guild_id, state)</h1>
-
-
-    </div>
-  </div>
-
-  <section class="docstring">
-
-      <div class="specs">
-
-          <pre translate="no"><span class="attribute">@spec</span> remember_subscription(
-  <a href="https://hexdocs.pm/elixir/String.html#t:t/0">String.t</a>() | <a href="https://hexdocs.pm/elixir/typespecs.html#built-in-types">term</a>(),
-  <a href="Soundboard.Billing.SubscriptionSnapshot.html#t:t/0">Soundboard.Billing.SubscriptionSnapshot.t</a>()
-) :: :ok</pre>
-
-      </div>
-
-<p>Caches the guild's subscription state (id, item, price) in memory.</p>
-  </section>
-</section>
 <section class="detail" id="reset_memory/0">
 
   <div class="detail-header">
@@ -959,30 +874,6 @@ on hosted there is no free tier; self-hosted never reaches this check
 because the paywall gate short-circuits when billing is dormant.</p>
   </section>
 </section>
-<section class="detail" id="subscription_id_for_guild/1">
-
-  <div class="detail-header">
-    <a href="#subscription_id_for_guild/1" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
-      <i class="ri-link-m" aria-hidden="true"></i>
-    </a>
-    <div class="heading-with-actions">
-      <h1 class="signature" translate="no">subscription_id_for_guild(guild_id)</h1>
-
-
-    </div>
-  </div>
-
-  <section class="docstring">
-
-      <div class="specs">
-
-          <pre translate="no"><span class="attribute">@spec</span> subscription_id_for_guild(<a href="https://hexdocs.pm/elixir/String.html#t:t/0">String.t</a>() | <a href="https://hexdocs.pm/elixir/typespecs.html#built-in-types">term</a>()) :: <a href="https://hexdocs.pm/elixir/String.html#t:t/0">String.t</a>() | nil</pre>
-
-      </div>
-
-<p>The Stripe subscription id last seen for a guild, or nil.</p>
-  </section>
-</section>
 <section class="detail" id="tiers/0">
 
   <div class="detail-header">
@@ -1017,61 +908,6 @@ because the paywall gate short-circuits when billing is dormant.</p>
   <section class="docstring">
 
 <p>Whether the price id belongs to the configured plan catalog.</p>
-  </section>
-</section>
-<section class="detail" id="verify_webhook_signature/4">
-
-    <span id="verify_webhook_signature/2"></span>
-
-    <span id="verify_webhook_signature/3"></span>
-
-  <div class="detail-header">
-    <a href="#verify_webhook_signature/4" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
-      <i class="ri-link-m" aria-hidden="true"></i>
-    </a>
-    <div class="heading-with-actions">
-      <h1 class="signature" translate="no">verify_webhook_signature(payload, signature_header, secret \\ nil, tolerance \\ 300)</h1>
-
-
-    </div>
-  </div>
-
-  <section class="docstring">
-
-      <div class="specs">
-
-          <pre translate="no"><span class="attribute">@spec</span> verify_webhook_signature(
-  <a href="https://hexdocs.pm/elixir/typespecs.html#built-in-types">binary</a>(),
-  <a href="https://hexdocs.pm/elixir/String.html#t:t/0">String.t</a>() | nil,
-  <a href="https://hexdocs.pm/elixir/String.html#t:t/0">String.t</a>() | nil,
-  <a href="https://hexdocs.pm/elixir/typespecs.html#basic-types">pos_integer</a>()
-) ::
-  :ok | {:error, :invalid_signature | :not_configured}</pre>
-
-      </div>
-
-<p>Verifies a Stripe webhook signature header (<code class="inline">t=...,v1=...</code>) against
-<code class="inline">payload</code> using HMAC-SHA256. Verified locally instead of via
-<a href="https://hexdocs.pm/stripity_stripe/3.2.0/Stripe.Webhook.html#construct_event/3"><code class="inline">Stripe.Webhook.construct_event/3</code></a> so the boundary is testable without
-network or Stripe SDK behavior drift.</p>
-  </section>
-</section>
-<section class="detail" id="webhook_configured?/0">
-
-  <div class="detail-header">
-    <a href="#webhook_configured?/0" class="detail-link" data-no-tooltip="" aria-label="Link to this function">
-      <i class="ri-link-m" aria-hidden="true"></i>
-    </a>
-    <div class="heading-with-actions">
-      <h1 class="signature" translate="no">webhook_configured?()</h1>
-
-
-    </div>
-  </div>
-
-  <section class="docstring">
-
-<p>Whether webhook signature verification is possible.</p>
   </section>
 </section>
 

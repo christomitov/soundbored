@@ -10,10 +10,6 @@ LiveView-facing tag queries and mutations for the soundboard.
 
 # `count_sounds_with_tag`
 
-# `find_or_create_tag`
-
-# `list_tags_for_sound`
-
 # `search`
 
 # `tag_selected?`

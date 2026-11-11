@@ -7,6 +7,7 @@ The Play module.
 ```elixir
 @type t() :: %Soundboard.Stats.Play{
   __meta__: term(),
+  guild_id: term(),
   id: term(),
   inserted_at: term(),
   played_filename: term(),

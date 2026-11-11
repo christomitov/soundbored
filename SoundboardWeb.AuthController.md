@@ -1,12 +1,16 @@
 # `SoundboardWeb.AuthController`
 
-# `callback`
+Discord sign-in. A signed-out visitor who opened `/g/:slug` has that slug
+kept in the session (`:pending_slug`), and lands on it after signing in.
 
-# `debug_session`
+# `callback`
 
 # `logout`
 
 # `request`
+
+Only reached for providers Ueberauth does not handle: the Ueberauth plug
+answers `/auth/discord` itself by redirecting to Discord.
 
 # `test_login`
 

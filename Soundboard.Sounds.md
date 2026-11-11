@@ -21,32 +21,16 @@ Sound domain context.
 @spec delete_sound(Soundboard.Sound.t(), integer()) :: :ok | {:error, term()}
 ```
 
-# `fetch_filename_extension`
+# `fetch_sound`
 
 ```elixir
-@spec fetch_filename_extension(term()) :: {:ok, String.t()} | :error
+@spec fetch_sound(term(), String.t() | nil) :: {:ok, Soundboard.Sound.t()} | :error
 ```
 
 # `fetch_sound_id`
 
 ```elixir
 @spec fetch_sound_id(String.t(), String.t() | nil) :: {:ok, integer()} | :error
-```
-
-# `filename_conflicts_across_extensions?`
-
-```elixir
-@spec filename_conflicts_across_extensions?(
-  String.t(),
-  [String.t()],
-  String.t() | nil
-) :: boolean()
-```
-
-# `filename_taken?`
-
-```elixir
-@spec filename_taken?(String.t(), String.t() | nil) :: boolean()
 ```
 
 # `filename_taken_excluding?`
@@ -62,41 +46,16 @@ Sound domain context.
 @spec get_recent_uploads(keyword()) :: [{String.t(), String.t(), NaiveDateTime.t()}]
 ```
 
-# `get_sound!`
-
-```elixir
-@spec get_sound!(term()) :: Soundboard.Sound.t()
-```
-
-# `get_user_join_sound`
-
-```elixir
-@spec get_user_join_sound(integer(), String.t() | nil) :: String.t() | nil
-```
-
 # `get_user_join_sound_by_discord_id`
 
 ```elixir
 @spec get_user_join_sound_by_discord_id(term(), String.t() | nil) :: String.t() | nil
 ```
 
-# `get_user_leave_sound`
-
-```elixir
-@spec get_user_leave_sound(integer(), String.t() | nil) :: String.t() | nil
-```
-
 # `get_user_leave_sound_by_discord_id`
 
 ```elixir
 @spec get_user_leave_sound_by_discord_id(term(), String.t() | nil) :: String.t() | nil
-```
-
-# `get_user_sound_preferences_by_discord_id`
-
-```elixir
-@spec get_user_sound_preferences_by_discord_id(term(), String.t() | nil) ::
-  map() | nil
 ```
 
 # `ids_by_filename`
@@ -113,12 +72,6 @@ Sound domain context.
 @spec list_detailed(String.t() | nil) :: [Soundboard.Sound.t()]
 ```
 
-# `list_files`
-
-```elixir
-@spec list_files(String.t() | nil) :: [Soundboard.Sound.t()]
-```
-
 # `new_create_request`
 
 ```elixir
@@ -131,13 +84,6 @@ Sound domain context.
 ```elixir
 @spec put_request_upload(Soundboard.Sounds.Uploads.CreateRequest.t(), map() | nil) ::
   Soundboard.Sounds.Uploads.CreateRequest.t()
-```
-
-# `update_sound`
-
-```elixir
-@spec update_sound(Soundboard.Sound.t(), map()) ::
-  {:ok, Soundboard.Sound.t()} | {:error, Ecto.Changeset.t()}
 ```
 
 # `update_sound`

@@ -9,6 +9,10 @@ otherwise they are steered to `/guilds` (pick a soundboard) or `/billing`
 (subscribe). Setup pages (/guilds, /onboarding, /billing) are never gated —
 they are the path to getting unlocked.
 
+Runs after `SoundboardWeb.Plugs.Tenant`, so the guild is the resolved
+`:current_guild_id`; a picked soundboard is one with a tenant row
+(`:current_guild` is a `Soundboard.Tenants.Guild`).
+
 Also assigns `:app_unlocked` so the navbar can hide app navigation until the
 gate opens.
 
