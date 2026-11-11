@@ -30,17 +30,6 @@ defmodule Soundboard.UploadsPathTest do
     assert UploadsPath.dir() == absolute
   end
 
-  test "file_path/1 and joined_path/1 build paths relative to uploads dir" do
-    base = Path.join(System.tmp_dir!(), "soundboard-uploads-paths")
-    Application.put_env(:soundboard, :uploads_dir, base)
-
-    assert UploadsPath.file_path("beep.mp3") == Path.join(base, "beep.mp3")
-    assert UploadsPath.joined_path("nested/beep.mp3") == Path.join(base, "nested/beep.mp3")
-
-    assert UploadsPath.joined_path(["nested", "beep.mp3"]) ==
-             Path.join([base, "nested", "beep.mp3"])
-  end
-
   test "safe_joined_path/1 allows in-directory paths and rejects traversal" do
     base = Path.join(System.tmp_dir!(), "soundboard-safe-uploads")
     Application.put_env(:soundboard, :uploads_dir, base)

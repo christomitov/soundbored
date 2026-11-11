@@ -15,14 +15,6 @@ defmodule Soundboard.UploadsPath do
     Path.join(dir(), filename)
   end
 
-  def joined_path(path_segments) when is_list(path_segments) do
-    Path.join([dir() | path_segments])
-  end
-
-  def joined_path(path) when is_binary(path) do
-    Path.join(dir(), path)
-  end
-
   @spec safe_joined_path(path_input()) :: {:ok, String.t()} | :error
   def safe_joined_path(path) do
     base_dir = Path.expand(dir())
