@@ -13,6 +13,7 @@ defmodule Soundboard.Stats.Play do
 
   schema "plays" do
     field :played_filename, :string
+    field :guild_id, :string
     belongs_to :sound, Sound
     belongs_to :user, User
 
@@ -21,8 +22,8 @@ defmodule Soundboard.Stats.Play do
 
   def changeset(play, attrs) do
     play
-    |> cast(attrs, [:played_filename, :sound_id, :user_id])
-    |> validate_required([:played_filename, :sound_id, :user_id])
+    |> cast(attrs, [:played_filename, :sound_id, :user_id, :guild_id])
+    |> validate_required([:played_filename, :sound_id, :user_id, :guild_id])
     |> assoc_constraint(:sound)
   end
 end

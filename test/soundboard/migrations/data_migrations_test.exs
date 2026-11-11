@@ -16,7 +16,8 @@ for migration_file <- [
       "20260510000001_remove_token_plain_from_api_tokens.exs",
       "20260510000002_add_storage_key_to_sounds.exs",
       "20260831120000_create_guilds.exs",
-      "20260831120100_add_guild_id_to_sounds.exs"
+      "20260831120100_add_guild_id_to_sounds.exs",
+      "20261110120000_add_guild_id_to_plays.exs"
     ] do
   Code.require_file(Application.app_dir(:soundboard, "priv/repo/migrations/#{migration_file}"))
 end
@@ -25,6 +26,7 @@ defmodule Soundboard.Migrations.DataMigrationsTest do
   use ExUnit.Case, async: false
 
   alias Soundboard.Repo.Migrations.{
+    AddGuildIdToPlays,
     AddGuildIdToSounds,
     AddJoinLeaveFlagsToSounds,
     AddSoundIdToPlays,
@@ -300,6 +302,52 @@ defmodule Soundboard.Migrations.DataMigrationsTest do
     refute Enum.member?(column_names(repo, "sounds"), "byte_size")
     refute Enum.member?(column_names(repo, "user_sound_settings"), "guild_id")
     assert [[3]] = repo.query!("SELECT count(*) FROM sounds").rows
+  end
+
+  test "add_guild_id_to_plays backfills each play's guild from its sound and rolls back",
+       %{repo: repo} do
+    migrate_up(repo, [
+      {20_250_101_213_201, CreateSounds},
+      {20_250_101_231_744, CreateUsers},
+      {20_250_102_212_120, CreatePlays},
+      {20_250_102_212_122, AddUserIdToSounds},
+      {20_250_102_212_125, AddJoinLeaveFlagsToSounds},
+      {20_250_218_214_831, CreateUserSoundSettings},
+      {20_260_306_150_000, AddSoundIdToPlays},
+      {20_260_307_211_000, RenameSoundNameToPlayedFilenameInPlays}
+    ])
+
+    repo.query!("ALTER TABLE sounds ADD COLUMN storage_key TEXT NOT NULL DEFAULT ''")
+    :ok = Ecto.Migrator.up(repo, 20_260_831_120_000, CreateGuilds, log: false)
+    :ok = Ecto.Migrator.up(repo, 20_260_831_120_100, AddGuildIdToSounds, log: false)
+
+    repo.query!("""
+    INSERT INTO users (id, discord_id, username, avatar, inserted_at, updated_at)
+    VALUES (1, 'discord-1', 'tester', 'avatar.png', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    """)
+
+    repo.query!("""
+    INSERT INTO sounds (id, filename, user_id, storage_key, guild_id, inserted_at, updated_at)
+    VALUES (1, 'beep.mp3', 1, 'key-1', 'guild-a', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    """)
+
+    repo.query!("""
+    INSERT INTO plays (id, played_filename, sound_id, user_id, inserted_at, updated_at)
+    VALUES (1, 'beep.mp3', 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+           (2, 'gone.mp3', NULL, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    """)
+
+    :ok = Ecto.Migrator.up(repo, 20_261_110_120_000, AddGuildIdToPlays, log: false)
+
+    default_guild = Soundboard.Tenants.default_guild_id()
+
+    assert [[1, "guild-a"], [2, ^default_guild]] =
+             repo.query!("SELECT id, guild_id FROM plays ORDER BY id").rows
+
+    :ok = Ecto.Migrator.down(repo, 20_261_110_120_000, AddGuildIdToPlays, log: false)
+
+    refute Enum.member?(column_names(repo, "plays"), "guild_id")
+    assert [[2]] = repo.query!("SELECT count(*) FROM plays").rows
   end
 
   defp migrate_up(repo, migrations) do

@@ -105,8 +105,9 @@ defmodule Soundboard.Sounds do
       from(s in Sound,
         join: u in User,
         on: s.user_id == u.id,
+        where: s.guild_id == ^Tenants.scope_guild_id(Keyword.get(opts, :guild_id)),
         select: {s.filename, u.username, s.inserted_at},
-        order_by: [desc: s.inserted_at],
+        order_by: [desc: s.inserted_at, desc: s.id],
         limit: ^limit
       )
     )

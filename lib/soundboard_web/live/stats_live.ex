@@ -39,7 +39,7 @@ defmodule SoundboardWeb.StatsLive do
 
   @impl true
   def handle_info({:sound_played, %{filename: filename, played_by: username}}, socket) do
-    recent_plays = recent_plays()
+    recent_plays = recent_plays(socket.assigns.guild_id)
 
     {:noreply,
      socket
@@ -73,13 +73,18 @@ defmodule SoundboardWeb.StatsLive do
 
   defp assign_stats(socket) do
     {start_date, end_date} = socket.assigns.selected_week
-    top_users = Stats.get_top_users(start_date, end_date, limit: @recent_limit)
-    top_sounds = Stats.get_top_sounds(start_date, end_date, limit: @recent_limit)
+    guild_id = socket.assigns.guild_id
 
-    recent_plays = recent_plays()
+    top_users =
+      Stats.get_top_users(start_date, end_date, limit: @recent_limit, guild_id: guild_id)
+
+    top_sounds =
+      Stats.get_top_sounds(start_date, end_date, limit: @recent_limit, guild_id: guild_id)
+
+    recent_plays = recent_plays(guild_id)
 
     recent_uploads =
-      Sounds.get_recent_uploads(limit: @recent_limit, guild_id: socket.assigns[:guild_id])
+      Sounds.get_recent_uploads(limit: @recent_limit, guild_id: guild_id)
 
     favorites = get_favorites(socket.assigns.current_user)
 
@@ -88,7 +93,7 @@ defmodule SoundboardWeb.StatsLive do
         top_sounds,
         recent_plays,
         recent_uploads,
-        socket.assigns[:guild_id]
+        guild_id
       )
 
     avatars_by_username = load_avatars_by_username(top_users, recent_plays, recent_uploads)
@@ -163,7 +168,7 @@ defmodule SoundboardWeb.StatsLive do
   end
 
   defp handle_favorite_toggle(socket, user, sound_name) do
-    case Sounds.fetch_sound_id(sound_name) do
+    case Sounds.fetch_sound_id(sound_name, socket.assigns.guild_id) do
       {:ok, sound_id} -> update_favorite(socket, user, sound_id)
       :error -> {:noreply, put_flash(socket, :error, "Sound not found")}
     end
@@ -173,7 +178,7 @@ defmodule SoundboardWeb.StatsLive do
     case Favorites.toggle_favorite(user.id, sound_id) do
       {:ok, _favorite} ->
         updated_favorites = Favorites.list_favorites(user.id)
-        recent_plays = recent_plays()
+        recent_plays = recent_plays(socket.assigns.guild_id)
 
         {:noreply,
          socket
@@ -186,8 +191,8 @@ defmodule SoundboardWeb.StatsLive do
     end
   end
 
-  defp recent_plays do
-    Enum.map(Stats.get_recent_plays(limit: @recent_limit), &map_recent_play/1)
+  defp recent_plays(guild_id) do
+    Enum.map(Stats.get_recent_plays(limit: @recent_limit, guild_id: guild_id), &map_recent_play/1)
   end
 
   defp map_recent_play({id, filename, username, timestamp}) do

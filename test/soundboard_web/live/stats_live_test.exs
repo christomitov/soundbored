@@ -146,6 +146,49 @@ defmodule SoundboardWeb.StatsLiveTest do
     assert has_element?(view, "[id='play-top-#{sound.filename}']", "1 plays")
   end
 
+  test "plays and uploads from another guild never show, and favorites resolve here", %{
+    conn: conn,
+    user: user,
+    sound: sound
+  } do
+    outsider =
+      Repo.insert!(%User{username: "outsider", discord_id: "outsider-1", avatar: "o.jpg"})
+
+    elsewhere =
+      %Sound{}
+      |> Sound.changeset(%{
+        filename: "elsewhere.mp3",
+        user_id: outsider.id,
+        source_type: "local",
+        guild_id: "other-guild"
+      })
+      |> Repo.insert!()
+
+    twin =
+      %Sound{}
+      |> Sound.changeset(%{
+        filename: sound.filename,
+        user_id: outsider.id,
+        source_type: "local",
+        guild_id: "other-guild"
+      })
+      |> Repo.insert!()
+
+    {:ok, _play} = Stats.track_play(elsewhere.filename, outsider.id, "other-guild")
+    {:ok, _play} = Stats.track_play(twin.filename, outsider.id, "other-guild")
+
+    {:ok, view, html} = live(conn, "/stats")
+
+    refute html =~ "elsewhere"
+    refute html =~ "outsider"
+    assert has_element?(view, "[id='play-top-#{sound.filename}']", "1 plays")
+
+    view |> element("[id='favorite-#{sound.filename}']") |> render_click()
+
+    refute sound.id in Favorites.list_favorites(user.id)
+    refute twin.id in Favorites.list_favorites(user.id)
+  end
+
   defp live_as_user(conn, user) do
     conn
     |> Plug.Test.init_test_session(%{})

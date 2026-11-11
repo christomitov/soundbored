@@ -6,7 +6,7 @@ defmodule Soundboard.Stats do
   import Ecto.Query
   import Ecto.Changeset, only: [add_error: 3, change: 1]
 
-  alias Soundboard.{Accounts.User, PubSubTopics, Repo, Sounds}
+  alias Soundboard.{Accounts.User, PubSubTopics, Repo, Sounds, Tenants}
   alias Soundboard.Stats.Play
 
   @type leaderboard_entry :: {String.t(), non_neg_integer()}
@@ -15,9 +15,16 @@ defmodule Soundboard.Stats do
   @spec track_play(String.t(), integer() | nil, String.t() | nil) ::
           {:ok, Play.t()} | {:error, Ecto.Changeset.t()}
   def track_play(sound_name, user_id, guild_id \\ nil) do
+    guild_id = Tenants.scope_guild_id(guild_id)
+
     with {:ok, sound_id} <- Sounds.fetch_sound_id(sound_name, guild_id),
          {:ok, play} <-
-           insert_play(%{played_filename: sound_name, sound_id: sound_id, user_id: user_id}) do
+           insert_play(%{
+             played_filename: sound_name,
+             sound_id: sound_id,
+             user_id: user_id,
+             guild_id: guild_id
+           }) do
       broadcast_stats_update()
       {:ok, play}
     else
@@ -45,6 +52,7 @@ defmodule Soundboard.Stats do
     Repo.all(
       from(p in Play,
         join: u in assoc(p, :user),
+        where: p.guild_id == ^guild(opts),
         where: fragment("DATE(?) BETWEEN ? AND ?", p.inserted_at, ^start_date, ^end_date),
         group_by: u.username,
         select: {u.username, count(p.id)},
@@ -60,6 +68,7 @@ defmodule Soundboard.Stats do
 
     Repo.all(
       from(p in Play,
+        where: p.guild_id == ^guild(opts),
         where: fragment("DATE(?) BETWEEN ? AND ?", p.inserted_at, ^start_date, ^end_date),
         group_by: p.played_filename,
         select: {p.played_filename, count(p.id)},
@@ -77,6 +86,7 @@ defmodule Soundboard.Stats do
       from(p in Play,
         join: u in User,
         on: p.user_id == u.id,
+        where: p.guild_id == ^guild(opts),
         select: {p.id, p.played_filename, u.username, p.inserted_at},
         order_by: [desc: p.inserted_at, desc: p.id],
         limit: ^limit
@@ -96,6 +106,8 @@ defmodule Soundboard.Stats do
   def broadcast_stats_update do
     PubSubTopics.broadcast_stats_updated()
   end
+
+  defp guild(opts), do: Tenants.scope_guild_id(Keyword.get(opts, :guild_id))
 
   defp insert_play(attrs) do
     %Play{}
