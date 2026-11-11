@@ -46,8 +46,10 @@ defmodule SoundboardWeb.BillingController do
   @doc """
   Starts Stripe Checkout. The guild id comes from the session's pending
   billing guild (set when a switch to an unpaid guild was gated) or the
-  session's current guild; `Billing` puts it into `client_reference_id` and
-  metadata so the webhook can provision the right tenant.
+  picked soundboard (a tenant row, not the default-guild fallback); with
+  neither, the user is sent to pick one. `Billing` puts it into
+  `client_reference_id` and metadata so the webhook can provision the right
+  tenant.
   """
   def checkout(conn, %{"price_id" => price_id}) do
     case pending_or_current_guild_id(conn) do
@@ -68,14 +70,15 @@ defmodule SoundboardWeb.BillingController do
   end
 
   defp pending_or_current_guild_id(conn) do
-    case get_session(conn, :billing_guild_id) || conn.assigns.current_guild_id do
-      id when is_binary(id) and id != "" -> id
+    case {get_session(conn, :billing_guild_id), conn.assigns.current_guild} do
+      {pending, _current} when is_binary(pending) and pending != "" -> pending
+      {_pending, %Tenants.Guild{discord_guild_id: id}} -> id
       _ -> nil
     end
   end
 
   defp start_checkout(conn, guild_id, price_id) do
-    owner = conn.assigns.current_user && conn.assigns.current_user.discord_id
+    owner = conn.assigns.current_user.discord_id
 
     case Billing.create_checkout_session(guild_id, price_id, owner, base_url: request_base(conn)) do
       {:ok, %{url: url}} when is_binary(url) ->

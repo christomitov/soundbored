@@ -145,6 +145,16 @@ defmodule SoundboardWeb.BillingWebTest do
       end
     end
 
+    test "without a picked soundboard asks for one before Stripe", %{conn: conn, owner: owner} do
+      with_mock Stripe.Checkout.Session,
+        create: fn _, _ -> flunk("Stripe must not be called") end do
+        conn = conn |> sign_in(owner) |> post("/billing/checkout", %{"price_id" => "price_pro_m"})
+
+        assert redirected_to(conn) == "/guilds"
+        assert Phoenix.Flash.get(conn.assigns.flash, :error) == "Pick a soundboard first"
+      end
+    end
+
     test "returns to /billing when Stripe fails or gives no URL", %{conn: conn, owner: owner} do
       for {result, flash} <- [
             {{:error, :stripe_down}, "Could not start checkout: :stripe_down"},
