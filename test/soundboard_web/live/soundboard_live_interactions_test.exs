@@ -93,7 +93,9 @@ defmodule SoundboardWeb.SoundboardLiveInteractionsTest do
       {:ok, view, _html} = live(conn, "/")
       open_upload(view)
 
-      render_hook(view, "close_modal_key", %{"key" => "Escape"})
+      view
+      |> element("[phx-window-keydown='close_modal_key']")
+      |> render_keydown(%{"key" => "Escape"})
 
       refute has_element?(view, "#upload-form")
     end
@@ -133,7 +135,9 @@ defmodule SoundboardWeb.SoundboardLiveInteractionsTest do
       {:ok, view, _html} = live(conn, "/")
       open_edit(view, sound)
 
-      render_hook(view, "close_modal_key", %{"key" => "Escape"})
+      view
+      |> element("[phx-window-keydown='close_modal_key']")
+      |> render_keydown(%{"key" => "Escape"})
 
       refute has_element?(view, "#edit-form")
     end
