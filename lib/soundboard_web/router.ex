@@ -127,7 +127,8 @@ defmodule SoundboardWeb.Router do
       :auth,
       :ensure_authenticated_user,
       :require_role_check,
-      :require_browser_basic_auth
+      :require_browser_basic_auth,
+      :app_access
     ]
 
     live "/", SoundboardLive
