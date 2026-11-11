@@ -162,6 +162,29 @@ defmodule SoundboardWeb.GuildControllerTest do
     end
   end
 
+  test "a guild with no recorded owner can be claimed only when it is the default guild", %{
+    conn: conn
+  } do
+    {:ok, _} = Tenants.get_or_create_guild("guild-ownerless", %{slug: "ownerless"})
+    {:ok, _} = Tenants.get_or_create_guild("guild-switch")
+
+    refused =
+      conn
+      |> init_test_session(%{guild_id: "guild-ownerless"})
+      |> post("/guilds/claim", %{"slug" => "taken-over"})
+
+    assert Phoenix.Flash.get(refused.assigns.flash, :error) ==
+             "Only the soundboard's owner can claim its subdomain"
+
+    assert Tenants.get_guild("guild-ownerless").slug == "ownerless"
+
+    conn
+    |> init_test_session(%{guild_id: "guild-switch"})
+    |> post("/guilds/claim", %{"slug" => "home-board"})
+
+    assert Tenants.get_by_slug("home-board").discord_guild_id == "guild-switch"
+  end
+
   test "a member who is not the owner cannot claim the guild's slug", %{conn: conn} do
     {:ok, _} =
       Tenants.get_or_create_guild("guild-owned", %{

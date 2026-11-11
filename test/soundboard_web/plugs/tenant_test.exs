@@ -17,6 +17,8 @@ defmodule SoundboardWeb.Plugs.TenantTest do
      guilds: fn -> [] end,
      fetch_member: fn
        "333", _ -> {:error, :not_found}
+       "444", _ -> raise RuntimeError, "Discord is down"
+       "555", _ -> exit(:timeout)
        _, _ -> {:ok, %{}}
      end}
   ]) do
@@ -27,6 +29,8 @@ defmodule SoundboardWeb.Plugs.TenantTest do
     {:ok, _} = Tenants.get_or_create_guild("111", %{slug: "acme", name: "Acme"})
     {:ok, _} = Tenants.get_or_create_guild("222", %{slug: "other"})
     {:ok, _} = Tenants.get_or_create_guild("333", %{slug: "closed"})
+    {:ok, _} = Tenants.get_or_create_guild("444", %{slug: "raises"})
+    {:ok, _} = Tenants.get_or_create_guild("555", %{slug: "times-out"})
     %{conn: sign_in(conn, user_fixture())}
   end
 
@@ -79,6 +83,12 @@ defmodule SoundboardWeb.Plugs.TenantTest do
       conn = get(%{conn | host: "closed.soundbored.app"}, "/guilds")
 
       assert response(conn, 403) == "You are not a member of this soundboard"
+    end
+
+    test "when Discord cannot answer, membership is refused", %{conn: conn} do
+      for host <- ["raises.soundbored.app", "times-out.soundbored.app"] do
+        assert conn |> Map.put(:host, host) |> get("/guilds") |> response(403), host
+      end
     end
 
     test "a session guild the user is not in falls back to the default guild", %{conn: conn} do

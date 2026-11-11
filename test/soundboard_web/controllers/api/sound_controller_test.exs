@@ -134,6 +134,17 @@ defmodule SoundboardWeb.API.SoundControllerTest do
       refute setting.is_leave_sound
     end
 
+    test "files the sound in the request's guild, whatever guild_id the client sends", %{
+      conn: conn
+    } do
+      params = %{"name" => "smuggled", "url" => "https://e.com/a.mp3", "guild_id" => "elsewhere"}
+
+      assert %{"id" => id} =
+               conn |> post(~p"/api/sounds", params) |> json_response(201) |> Map.fetch!("data")
+
+      assert Repo.get!(Sound, id).guild_id == Tenants.default_guild_id()
+    end
+
     test "infers the source type from what was sent", %{conn: conn} do
       for {params, source_type, filename} <- [
             {%{"url" => "https://example.com/inferred.mp3"}, "url", "inferred-url.mp3"},
