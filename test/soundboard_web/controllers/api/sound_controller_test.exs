@@ -326,6 +326,58 @@ defmodule SoundboardWeb.API.SoundControllerTest do
     end
   end
 
+  describe "storage plans" do
+    setup %{conn: conn, user: user} do
+      enable_billing()
+
+      deliver_stripe_event(%{
+        "id" => "evt_plan_#{System.unique_integer([:positive])}",
+        "type" => "checkout.session.completed",
+        "data" => %{
+          "object" => %{
+            "customer" => "cus_plan",
+            "metadata" => %{
+              "guild_id" => "plan-guild",
+              "price_id" => "price_pro_m",
+              "owner_discord_id" => user.discord_id
+            }
+          }
+        }
+      })
+
+      %{conn: init_test_session(conn, %{guild_id: "plan-guild"})}
+    end
+
+    setup_with_mocks([{EDA.Cache, [:passthrough], fetch_member: fn _, _ -> {:ok, %{}} end}]) do
+      :ok
+    end
+
+    test "a cancelled subscription can no longer add sounds", %{conn: conn} do
+      files_before = uploaded_files()
+
+      deliver_stripe_event(%{
+        "id" => "evt_plan_deleted",
+        "type" => "customer.subscription.deleted",
+        "data" => %{
+          "object" => %{"status" => "canceled", "metadata" => %{"guild_id" => "plan-guild"}}
+        }
+      })
+
+      for params <- [
+            %{"name" => "after-cancel-url", "url" => "https://example.com/a.mp3"},
+            %{"name" => "after-cancel-file", "file" => fixture_upload("after.mp3")}
+          ] do
+        conn = post(conn, ~p"/api/sounds", params)
+
+        assert %{"errors" => %{"base" => [message]}} = json_response(conn, 422)
+        assert message =~ "no active plan"
+      end
+
+      refute Repo.get_by(Sound, guild_id: "plan-guild")
+      assert uploaded_files() == files_before
+    end
+  end
+
   describe "tenant isolation" do
     setup %{user: user} do
       Application.put_env(:soundboard, :tenant_base_host, "soundbored.app")
@@ -430,6 +482,18 @@ defmodule SoundboardWeb.API.SoundControllerTest do
         tag_id: tag.id
       })
       |> Repo.insert()
+  end
+
+  defp fixture_upload(filename) do
+    path = temp_upload_path(filename)
+    File.cp!(Soundboard.TestHelpers.audio_fixture_path(), path)
+    on_exit(fn -> File.rm(path) end)
+    %Plug.Upload{path: path, filename: filename, content_type: "audio/mpeg"}
+  end
+
+  defp uploaded_files do
+    File.mkdir_p!(uploads_dir())
+    File.ls!(uploads_dir())
   end
 
   defp uploads_dir do

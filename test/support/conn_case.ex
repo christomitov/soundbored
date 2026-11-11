@@ -61,6 +61,16 @@ defmodule SoundboardWeb.ConnCase do
     "t=#{ts},v1=#{mac}"
   end
 
+  @doc "Delivers a Stripe event to the webhook through the endpoint, signed now."
+  def deliver_stripe_event(event) do
+    payload = Jason.encode!(event)
+
+    Phoenix.ConnTest.build_conn()
+    |> Plug.Conn.put_req_header("content-type", "application/json")
+    |> Plug.Conn.put_req_header("stripe-signature", stripe_signature(payload))
+    |> Phoenix.ConnTest.dispatch(@endpoint, :post, "/billing/webhook", payload)
+  end
+
   @doc "Inserts a user with a unique Discord id."
   def user_fixture(attrs \\ %{}) do
     n = System.unique_integer([:positive])

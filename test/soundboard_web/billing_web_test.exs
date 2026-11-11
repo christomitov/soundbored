@@ -30,9 +30,9 @@ defmodule SoundboardWeb.BillingWebTest do
       event = checkout_event("evt_web_1", @guild, "price_studio_m", "cus_web")
 
       assert %{"received" => true, "event" => "evt_web_1"} =
-               build_conn() |> deliver(event) |> json_response(200)
+               deliver_stripe_event(event) |> json_response(200)
 
-      assert %{"event" => "duplicate"} = build_conn() |> deliver(event) |> json_response(200)
+      assert %{"event" => "duplicate"} = deliver_stripe_event(event) |> json_response(200)
       assert Tenants.get_guild(@guild).max_storage_bytes == Billing.plan_cap("price_studio_m")
     end
 
@@ -85,7 +85,7 @@ defmodule SoundboardWeb.BillingWebTest do
       conn: conn,
       owner: owner
     } do
-      deliver(build_conn(), sub_event("evt_page_sub", @guild, "price_pro_m", "si_1"))
+      deliver_stripe_event(sub_event("evt_page_sub", @guild, "price_pro_m", "si_1"))
 
       html = conn |> sign_in(owner, %{guild_id: @guild}) |> get("/billing") |> html_response(200)
 
@@ -175,7 +175,7 @@ defmodule SoundboardWeb.BillingWebTest do
 
   describe "POST /billing/portal" do
     test "opens the Stripe portal for the guild's customer", %{conn: conn, owner: owner} do
-      deliver(build_conn(), checkout_event("evt_portal", @guild, "price_pro_m", "cus_portal"))
+      deliver_stripe_event(checkout_event("evt_portal", @guild, "price_pro_m", "cus_portal"))
 
       with_mock Stripe.BillingPortal.Session,
         create: fn params, _ ->
@@ -201,7 +201,7 @@ defmodule SoundboardWeb.BillingWebTest do
 
   describe "POST /billing/change" do
     test "moves the subscription item to the new price", %{conn: conn, owner: owner} do
-      deliver(build_conn(), sub_event("evt_change_sub", @guild, "price_pro_m", "si_change"))
+      deliver_stripe_event(sub_event("evt_change_sub", @guild, "price_pro_m", "si_change"))
 
       with_mock Stripe.SubscriptionItem,
         update: fn item_id, params, _ ->
@@ -245,7 +245,7 @@ defmodule SoundboardWeb.BillingWebTest do
 
   describe "POST /billing/cancel" do
     test "cancels at period end and says until when", %{conn: conn, owner: owner} do
-      deliver(build_conn(), sub_event("evt_cancel_sub", @guild, "price_pro_m", "si_cancel"))
+      deliver_stripe_event(sub_event("evt_cancel_sub", @guild, "price_pro_m", "si_cancel"))
       period_end = ~U[2031-05-17 12:00:00Z]
 
       with_mock Stripe.Subscription,
@@ -301,15 +301,6 @@ defmodule SoundboardWeb.BillingWebTest do
                  "Only the soundboard's owner can manage its billing"
       end
     end
-  end
-
-  defp deliver(conn, event) do
-    payload = Jason.encode!(event)
-
-    conn
-    |> put_req_header("content-type", "application/json")
-    |> put_req_header("stripe-signature", stripe_signature(payload))
-    |> post("/billing/webhook", payload)
   end
 
   defp checkout_session(params, _opts) do
