@@ -96,7 +96,9 @@ if config_env() == :dev do
   required_role_ids =
     "DISCORD_REQUIRED_ROLE_IDS"
     |> env!(:string, "")
-    |> String.split(",", trim: true)
+    |> String.split(",")
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
 
   role_recheck_interval_seconds = env!("DISCORD_ROLE_RECHECK_INTERVAL_SECONDS", :integer, 900)
 
@@ -238,7 +240,9 @@ if config_env() == :prod and is_nil(env!("SKIP_RUNTIME_CONFIG", :string, nil)) d
   required_role_ids =
     "DISCORD_REQUIRED_ROLE_IDS"
     |> env!(:string, "")
-    |> String.split(",", trim: true)
+    |> String.split(",")
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
 
   role_recheck_interval_seconds = env!("DISCORD_ROLE_RECHECK_INTERVAL_SECONDS", :integer, 900)
 
