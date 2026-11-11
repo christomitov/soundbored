@@ -187,27 +187,31 @@ defmodule Soundboard.Discord.HandlerTest do
       end)
     end
 
-    test "!join leaves the player alone when the bot cannot join", %{guild_id: guild_id} do
+    test "!join and !leave say so when the bot could not move", %{guild_id: guild_id} do
       in_voice = %{id: guild_id, voice_states: [voice_state(guild_id, "777", "123")]}
       not_in_voice = %{id: guild_id, voice_states: []}
+      join_failed = "I couldn't join your voice channel. Try again in a moment."
+      leave_failed = "I couldn't leave the voice channel. Try again in a moment."
 
       table = [
-        {"user is not in voice", not_in_voice, true, :ok, "You need to be in a voice channel!"},
-        {"bot is not ready", in_voice, false, :ok, nil},
-        {"Discord rejects the join", in_voice, true, {:error, :timeout}, nil}
+        {"user is not in voice", "!join", not_in_voice, true, :ok,
+         "You need to be in a voice channel!"},
+        {"bot is not ready", "!join", in_voice, false, :ok, join_failed},
+        {"Discord rejects the join", "!join", in_voice, true, {:error, :timeout}, join_failed},
+        {"bot is not ready", "!leave", in_voice, false, :ok, leave_failed}
       ]
 
-      for {label, guild, ready?, join_result, reply} <- table do
+      for {label, content, guild, ready?, join_result, reply} <- table do
         FakeVoice.claim(guild_id, join: join_result)
         Application.put_env(:soundboard, :bot_ready, ready?)
 
         capture_log(fn ->
           with_mocks([cache(guild), bot(), chat()]) do
-            Handler.handle_event({:MESSAGE_CREATE, command(guild_id, "!join"), nil})
+            Handler.handle_event({:MESSAGE_CREATE, command(guild_id, content), nil})
           end
         end)
 
-        if reply, do: assert_received({:chat, "text", ^reply}, label)
+        assert_received {:chat, "text", ^reply}, "#{content}: #{label}"
         assert AudioPlayer.current_voice_channel(guild_id) == {:ok, nil}, label
       end
     end
