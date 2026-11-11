@@ -49,10 +49,16 @@ defmodule SoundboardWeb.BasicAuthPlugTest do
       end
     end
 
-    test "challenges a missing, wrong or non-Basic authorization" do
+    test "challenges a missing or non-Basic authorization, or either credential wrong" do
       configure("u", "p")
 
-      for authorization <- [nil, "Basic " <> Base.encode64("wrong:creds"), "Bearer token123"] do
+      for authorization <- [
+            nil,
+            header("wrong", "creds"),
+            header("u", "wrong"),
+            header("wrong", "p"),
+            "Bearer token123"
+          ] do
         conn = call(authorization)
 
         assert conn.halted
