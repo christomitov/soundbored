@@ -33,4 +33,11 @@ defmodule Soundboard.Discord.Handler.VoicePresenceTest do
       end
     end
   end
+
+  test "cached_guilds reports an unavailable cache instead of raising" do
+    with_mock GuildCache, all: fn -> raise "cache unavailable" end do
+      assert {:error, {:guild_cache_unavailable, "cache unavailable"}} =
+               VoicePresence.cached_guilds()
+    end
+  end
 end

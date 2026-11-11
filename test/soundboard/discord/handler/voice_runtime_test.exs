@@ -73,7 +73,21 @@ defmodule Soundboard.Discord.Handler.VoiceRuntimeTest do
     end
 
     assert AudioPlayer.current_voice_channel(guild) == {:ok, {guild, @channel}}
+    assert armed?(guild)
     refute_received {:fake_voice, ^guild, :leave}
+  end
+
+  test "in play mode a user's voice update neither joins nor leaves", %{guild: guild} do
+    FakeVoice.claim(guild, channel: @channel)
+    AudioPlayer.set_voice_channel(guild, @channel)
+    payload = %{guild_id: guild, channel_id: "channel-2", user_id: "user-1"}
+
+    with_mocks(presence(guild, 0)) do
+      assert VoiceRuntime.handle_connect(payload) == []
+    end
+
+    assert AudioPlayer.current_voice_channel(guild) == {:ok, {guild, @channel}}
+    refute_received {:fake_voice, ^guild, _}
   end
 
   test "presence mode leaves when a user moves away and the bot is alone", %{guild: guild} do
@@ -130,6 +144,9 @@ defmodule Soundboard.Discord.Handler.VoiceRuntimeTest do
       assert :ok = VoiceRuntime.bootstrap()
       assert_receive {:fake_voice, ^guild, {:join, "channel-9"}}, 6_000
     end
+
+    assert eventually(fn -> AudioPlayer.current_voice_channel(guild) end) ==
+             {:ok, {guild, "channel-9"}}
   end
 
   test "handle_connect in false mode cancels the idle timer only for the bot's channel",
@@ -172,6 +189,16 @@ defmodule Soundboard.Discord.Handler.VoiceRuntimeTest do
        ]},
       {BotIdentity, [], [fetch: fn -> {:ok, %{id: "bot-1"}} end]}
     ]
+  end
+
+  defp eventually(fun, attempts \\ 50) do
+    case fun.() do
+      {:ok, nil} when attempts > 0 ->
+        receive after: (20 -> eventually(fun, attempts - 1))
+
+      result ->
+        result
+    end
   end
 
   defp auto_join(:play), do: System.delete_env("AUTO_JOIN")
