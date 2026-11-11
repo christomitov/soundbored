@@ -86,7 +86,7 @@ defmodule SoundboardWeb.StatsLive do
     recent_uploads =
       Sounds.get_recent_uploads(limit: @recent_limit, guild_id: guild_id)
 
-    favorites = get_favorites(socket.assigns.current_user)
+    favorites = get_favorites(socket.assigns.current_user, guild_id)
 
     sound_ids_by_filename =
       load_sound_ids_by_filename(
@@ -122,8 +122,8 @@ defmodule SoundboardWeb.StatsLive do
     |> assign_stats()
   end
 
-  defp get_favorites(nil), do: []
-  defp get_favorites(user), do: Favorites.list_favorites(user.id)
+  defp get_favorites(nil, _guild_id), do: []
+  defp get_favorites(user, guild_id), do: Favorites.list_favorites(user.id, guild_id)
 
   defp format_timestamp(timestamp) do
     timestamp
@@ -175,9 +175,9 @@ defmodule SoundboardWeb.StatsLive do
   end
 
   defp update_favorite(socket, user, sound_id) do
-    case Favorites.toggle_favorite(user.id, sound_id) do
+    case Favorites.toggle_favorite(user.id, sound_id, socket.assigns.guild_id) do
       {:ok, _favorite} ->
-        updated_favorites = Favorites.list_favorites(user.id)
+        updated_favorites = Favorites.list_favorites(user.id, socket.assigns.guild_id)
         recent_plays = recent_plays(socket.assigns.guild_id)
 
         {:noreply,

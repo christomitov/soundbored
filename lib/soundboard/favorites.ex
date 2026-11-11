@@ -12,33 +12,31 @@ defmodule Soundboard.Favorites do
 
   @max_favorites 16
 
-  @spec list_favorites(integer()) :: [integer()]
-  def list_favorites(user_id) do
-    Favorite
-    |> where([f], f.user_id == ^user_id)
+  @spec list_favorites(integer(), String.t() | nil) :: [integer()]
+  def list_favorites(user_id, guild_id \\ nil) do
+    user_id
+    |> in_guild(guild_id)
     |> select([f], f.sound_id)
     |> Repo.all()
   end
 
   @spec list_favorite_sounds_with_tags(integer(), String.t() | nil) :: [Sound.t()]
   def list_favorite_sounds_with_tags(user_id, guild_id \\ nil) do
-    favorite_ids_query =
-      Favorite
-      |> where([f], f.user_id == ^user_id)
-      |> select([f], f.sound_id)
+    favorite_ids_query = select(in_guild(user_id, guild_id), [f], f.sound_id)
 
     Sound.with_tags()
     |> where([s], s.id in subquery(favorite_ids_query))
-    |> where([s], s.guild_id == ^Tenants.scope_guild_id(guild_id))
     |> order_by([s], asc: fragment("lower(?)", s.filename))
     |> Repo.all()
   end
 
-  @spec toggle_favorite(integer(), integer()) :: favorite_result()
-  def toggle_favorite(user_id, sound_id) do
-    case Repo.get_by(Favorite, user_id: user_id, sound_id: sound_id) do
-      nil -> add_favorite(user_id, sound_id)
-      favorite -> Repo.delete(favorite)
+  @spec toggle_favorite(integer(), term(), String.t() | nil) :: favorite_result()
+  def toggle_favorite(user_id, sound_id, guild_id \\ nil) do
+    with {:ok, sound} <- fetch_sound(sound_id, guild_id) do
+      case Repo.get_by(Favorite, user_id: user_id, sound_id: sound.id) do
+        nil -> add_favorite(user_id, sound)
+        favorite -> Repo.delete(favorite)
+      end
     end
   end
 
@@ -51,28 +49,40 @@ defmodule Soundboard.Favorites do
     end)
   end
 
-  defp add_favorite(user_id, sound_id) do
-    case Repo.get(Sound, sound_id) do
-      nil ->
+  defp add_favorite(user_id, sound) do
+    count = Repo.one(select(in_guild(user_id, sound.guild_id), [f], count()))
+
+    if count >= @max_favorites do
+      {:error,
+       Ecto.Changeset.add_error(
+         Ecto.Changeset.change(%Favorite{}),
+         :base,
+         "You can only have #{@max_favorites} favorites"
+       )}
+    else
+      %Favorite{}
+      |> Favorite.changeset(%{user_id: user_id, sound_id: sound.id})
+      |> Repo.insert()
+    end
+  end
+
+  defp fetch_sound(sound_id, guild_id) do
+    with {:ok, id} <- Ecto.Type.cast(:id, sound_id),
+         %Sound{} = sound <-
+           Repo.get_by(Sound, id: id, guild_id: Tenants.scope_guild_id(guild_id)) do
+      {:ok, sound}
+    else
+      _ ->
         {:error,
          Ecto.Changeset.add_error(Ecto.Changeset.change(%Favorite{}), :sound, "does not exist")}
-
-      _sound ->
-        count = Repo.one(from f in Favorite, where: f.user_id == ^user_id, select: count())
-
-        if count >= @max_favorites do
-          {:error,
-           Ecto.Changeset.add_error(
-             Ecto.Changeset.change(%Favorite{}),
-             :base,
-             "You can only have #{@max_favorites} favorites"
-           )}
-        else
-          %Favorite{}
-          |> Favorite.changeset(%{user_id: user_id, sound_id: sound_id})
-          |> Repo.insert()
-        end
     end
+  end
+
+  defp in_guild(user_id, guild_id) do
+    from f in Favorite,
+      join: s in Sound,
+      on: s.id == f.sound_id,
+      where: f.user_id == ^user_id and s.guild_id == ^Tenants.scope_guild_id(guild_id)
   end
 
   @spec favorite?(integer(), integer()) :: boolean()

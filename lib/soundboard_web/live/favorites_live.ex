@@ -37,7 +37,7 @@ defmodule SoundboardWeb.FavoritesLive do
         {:noreply, put_flash(socket, :error, "You must be logged in to favorite sounds")}
 
       user ->
-        case Favorites.toggle_favorite(user.id, sound_id) do
+        case Favorites.toggle_favorite(user.id, sound_id, socket.assigns.guild_id) do
           {:ok, _favorite} ->
             {:noreply,
              socket
@@ -97,7 +97,7 @@ defmodule SoundboardWeb.FavoritesLive do
   end
 
   defp assign_favorites_state(socket, user) do
-    favorites = Favorites.list_favorites(user.id)
+    favorites = Favorites.list_favorites(user.id, socket.assigns.guild_id)
 
     assign(socket,
       favorites: favorites,

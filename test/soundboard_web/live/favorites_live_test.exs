@@ -163,4 +163,44 @@ defmodule SoundboardWeb.FavoritesLiveTest do
 
     assert html =~ "You can only have #{Favorites.max_favorites()} favorites"
   end
+
+  test "another guild's favorites neither count here nor can be starred here", %{
+    conn: conn,
+    user: user,
+    second_sound: second_sound
+  } do
+    elsewhere =
+      for n <- 1..16 do
+        sound =
+          %Sound{}
+          |> Sound.changeset(%{
+            filename: "elsewhere_#{n}.mp3",
+            user_id: user.id,
+            source_type: "local",
+            guild_id: "other-guild"
+          })
+          |> Repo.insert!()
+
+        Repo.insert!(%Soundboard.Favorites.Favorite{user_id: user.id, sound_id: sound.id})
+        sound
+      end
+
+    {:ok, view, html} = live(conn, "/favorites")
+
+    assert html =~ "1/16 favorites"
+    refute html =~ "elsewhere_1"
+
+    {:ok, board, _html} = live(conn, "/")
+
+    assert board
+           |> element("[phx-click='toggle_favorite'][phx-value-sound-id='#{second_sound.id}']")
+           |> render_click() =~ "Favorites updated!"
+
+    [foreign | _] = elsewhere
+
+    assert render_click(view, "toggle_favorite", %{"sound-id" => "#{foreign.id}"}) =~
+             "Sound does not exist"
+
+    assert Repo.get_by(Soundboard.Favorites.Favorite, user_id: user.id, sound_id: foreign.id)
+  end
 end
