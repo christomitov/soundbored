@@ -108,34 +108,56 @@ defmodule Soundboard.BillingTest do
     test "subscription deletion zeroes the cap but keeps the guild row" do
       {:ok, _} = Tenants.get_or_create_guild("bill-del", %{max_storage_bytes: 1_073_741_824})
 
-      {payload, header} =
-        signed(
-          Jason.encode!(
-            sub_event("customer.subscription.deleted", "evt_del_1", %{"guild_id" => "bill-del"})
-          )
+      event =
+        subscription_event("customer.subscription.deleted", "evt_del_1", "bill-del",
+          status: "canceled"
         )
 
-      assert {:ok, "evt_del_1"} = Billing.handle_webhook(payload, header)
-
-      guild = Tenants.get_guild("bill-del")
-      assert %Tenants.Guild{} = guild
-      assert guild.max_storage_bytes == 0
+      assert {:ok, "evt_del_1"} = deliver(event)
+      assert %Tenants.Guild{max_storage_bytes: 0} = Tenants.get_guild("bill-del")
     end
 
-    test "subscription updates cap the guild to the new plan" do
-      {:ok, _} = Tenants.get_or_create_guild("bill-upd", %{max_storage_bytes: 1_073_741_824})
+    test "only an active or trialing subscription carries a paid cap" do
+      for {status, cap} <- [
+            {"active", 5_368_709_120},
+            {"trialing", 5_368_709_120},
+            {"past_due", 0},
+            {"unpaid", 0},
+            {"canceled", 0},
+            {"incomplete", 0}
+          ] do
+        guild_id = "bill-status-#{String.replace(status, "_", "-")}"
+        {:ok, _} = Tenants.get_or_create_guild(guild_id, %{max_storage_bytes: 1_073_741_824})
 
-      {payload, header} =
-        signed(
-          Jason.encode!(
-            sub_event("customer.subscription.updated", "evt_upd_1", %{
-              "guild_id" => "bill-upd"
-            })
+        event =
+          subscription_event("customer.subscription.updated", "evt_status_#{status}", guild_id,
+            status: status
           )
+
+        assert {:ok, _} = deliver(event)
+        assert Tenants.get_guild(guild_id).max_storage_bytes == cap, status
+      end
+    end
+
+    test "an update older than the deletion does not bring the plan back" do
+      now = System.system_time(:second)
+      {:ok, _} = Tenants.get_or_create_guild("bill-late", %{max_storage_bytes: 1_073_741_824})
+
+      deleted =
+        subscription_event("customer.subscription.deleted", "evt_late_del", "bill-late",
+          status: "canceled",
+          created: now
         )
 
-      assert {:ok, "evt_upd_1"} = Billing.handle_webhook(payload, header)
-      assert Tenants.get_guild("bill-upd").max_storage_bytes == 5_368_709_120
+      stale_update =
+        subscription_event("customer.subscription.updated", "evt_late_upd", "bill-late",
+          status: "active",
+          created: now - 60
+        )
+
+      assert {:ok, "evt_late_del"} = deliver(deleted)
+      assert {:ok, "evt_late_upd"} = deliver(stale_update)
+      assert Tenants.get_guild("bill-late").max_storage_bytes == 0
     end
 
     test "duplicate event ids are processed once (no-op on replay)" do
@@ -173,6 +195,30 @@ defmodule Soundboard.BillingTest do
     end
   end
 
+  defp deliver(event) do
+    {payload, header} = signed(Jason.encode!(event))
+    Billing.handle_webhook(payload, header)
+  end
+
+  defp subscription_event(type, id, guild_id, opts) do
+    %{
+      "id" => id,
+      "type" => type,
+      "created" => Keyword.get(opts, :created, System.system_time(:second)),
+      "data" => %{
+        "object" => %{
+          "id" => "sub_#{guild_id}",
+          "object" => "subscription",
+          "status" => Keyword.fetch!(opts, :status),
+          "metadata" => %{"guild_id" => guild_id},
+          "items" => %{
+            "data" => [%{"id" => "si_#{guild_id}", "price" => %{"id" => "price_studio_monthly"}}]
+          }
+        }
+      }
+    }
+  end
+
   defp signed(payload, secret \\ @secret) do
     ts = Integer.to_string(System.system_time(:second))
     mac = Base.encode16(:crypto.mac(:hmac, :sha256, secret, ts <> "." <> payload), case: :lower)
@@ -189,22 +235,6 @@ defmodule Soundboard.BillingTest do
           "client_reference_id" => guild_id,
           "customer" => customer_id,
           "metadata" => %{"guild_id" => guild_id, "price_id" => price_id}
-        }
-      }
-    }
-  end
-
-  defp sub_event(type, id, metadata) do
-    %{
-      "id" => id,
-      "type" => type,
-      "data" => %{
-        "object" => %{
-          "object" => "subscription",
-          "metadata" => metadata,
-          "items" => %{
-            "data" => [%{"price" => %{"id" => "price_studio_monthly"}}]
-          }
         }
       }
     }

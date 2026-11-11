@@ -36,6 +36,17 @@ defmodule Soundboard.Billing do
   subscription. Stripe API results are structs and webhook payloads plain
   maps; `field/2` reads either.
 
+  ## Ordering and status
+
+  Stripe does not deliver events in order. Only an `active` or `trialing`
+  subscription carries its plan's cap; any other status (past_due, unpaid,
+  canceled, incomplete) leaves the guild at cap 0. The `created` time of the
+  last event applied to each subscription is remembered (in memory, like the
+  rest), and an older event for that subscription is acknowledged without
+  being applied, so a late `customer.subscription.updated` cannot undo a
+  deletion. The limitation: that memory does not survive a restart, so an
+  out-of-order event arriving across a restart is still applied.
+
   Stripe customer ids seen on events are kept in a second ETS table
   (`:billing_stripe_customers`) so the customer portal can be opened without
   a `stripe_customer_id` column on `guilds`. Also in-memory: after a restart
@@ -51,6 +62,8 @@ defmodule Soundboard.Billing do
   @events_ets :billing_processed_events
   @customers_ets :billing_stripe_customers
   @subscriptions_ets :billing_stripe_subscriptions
+  @subscription_events_ets :billing_subscription_events
+  @paid_statuses ~w(active trialing)
   @signature_tolerance_seconds 300
 
   @cap_by_tier %{pro: 1_073_741_824, studio: 5_368_709_120}
@@ -617,18 +630,56 @@ defmodule Soundboard.Billing do
 
   @doc "Handles a decoded Stripe event map. Public for direct unit testing."
   @spec handle_event(map()) :: :ok | {:error, term()}
-  def handle_event(%{"type" => type, "data" => %{"object" => object}}) do
+  def handle_event(%{"type" => type, "data" => %{"object" => object}} = event) do
+    created = event["created"]
+
     case type do
-      "checkout.session.completed" -> handle_checkout_completed(object)
-      "customer.subscription.updated" -> handle_subscription_updated(object)
-      "customer.subscription.deleted" -> handle_subscription_deleted(object)
-      _other -> :ok
+      "checkout.session.completed" ->
+        handle_checkout_completed(object, created)
+
+      "customer.subscription.updated" ->
+        unless_stale(object["id"], created, fn -> handle_subscription_updated(object) end)
+
+      "customer.subscription.deleted" ->
+        unless_stale(object["id"], created, fn -> handle_subscription_deleted(object) end)
+
+      _other ->
+        :ok
     end
   end
 
   def handle_event(_), do: :ok
 
-  defp handle_checkout_completed(session) do
+  defp unless_stale(subscription_id, created, apply) do
+    if stale?(subscription_id, created) do
+      Logger.info("Ignoring out-of-order event for subscription #{subscription_id}")
+      :ok
+    else
+      with :ok <- apply.(), do: remember_event_time(subscription_id, created)
+    end
+  end
+
+  defp stale?(subscription_id, created) when is_binary(subscription_id) and is_integer(created) do
+    ensure_ets(@subscription_events_ets)
+
+    case :ets.lookup(@subscription_events_ets, subscription_id) do
+      [{_id, last_applied}] -> created < last_applied
+      [] -> false
+    end
+  end
+
+  defp stale?(_subscription_id, _created), do: false
+
+  defp remember_event_time(subscription_id, created)
+       when is_binary(subscription_id) and is_integer(created) do
+    ensure_ets(@subscription_events_ets)
+    :ets.insert(@subscription_events_ets, {subscription_id, created})
+    :ok
+  end
+
+  defp remember_event_time(_subscription_id, _created), do: :ok
+
+  defp handle_checkout_completed(session, created) do
     guild_id =
       get_in(session, ["metadata", "guild_id"]) ||
         get_in(session, ["subscription_data", "metadata", "guild_id"]) ||
@@ -647,13 +698,14 @@ defmodule Soundboard.Billing do
       )
     end
 
-    apply_cap(guild_id, cap, owner)
+    with :ok <- apply_cap(guild_id, cap, owner),
+         do: remember_event_time(session["subscription"], created)
   end
 
   defp handle_subscription_updated(subscription) do
     guild_id = get_in(subscription, ["metadata", "guild_id"])
     price_id = subscription_price_id(subscription)
-    cap = plan_cap(price_id)
+    cap = if subscription["status"] in @paid_statuses, do: plan_cap(price_id), else: 0
 
     if is_binary(guild_id) do
       item_id =
@@ -754,7 +806,7 @@ defmodule Soundboard.Billing do
   module doc on idempotency).
   """
   def reset_memory do
-    for table <- [@events_ets, @customers_ets, @subscriptions_ets] do
+    for table <- [@events_ets, @customers_ets, @subscriptions_ets, @subscription_events_ets] do
       ensure_ets(table)
       :ets.delete_all_objects(table)
     end
