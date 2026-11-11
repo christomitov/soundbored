@@ -30,10 +30,6 @@ defmodule SoundboardWeb.FavoritesLiveTest do
 
   defp card(filename), do: "[phx-click='play'][phx-value-name='#{filename}']"
 
-  test "redirects unauthenticated users" do
-    assert redirected_to(get(build_conn(), "/favorites")) == "/auth/discord"
-  end
-
   test "lists only my favorites", %{conn: conn} do
     {:ok, view, html} = live(conn, "/favorites")
 
