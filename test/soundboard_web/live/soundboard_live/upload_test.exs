@@ -36,7 +36,12 @@ defmodule SoundboardWeb.SoundboardLive.UploadTest do
     |> Repo.insert!()
   end
 
-  defp uploaded_files, do: UploadsPath.dir() |> File.ls() |> elem(1) |> MapSet.new()
+  defp uploaded_files do
+    case File.ls(UploadsPath.dir()) do
+      {:ok, files} -> MapSet.new(files)
+      {:error, :enoent} -> MapSet.new()
+    end
+  end
 
   describe "a local file" do
     test "picking a file names the sound after it and enables the form", %{conn: conn} do
