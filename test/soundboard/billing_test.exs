@@ -14,8 +14,6 @@ defmodule Soundboard.BillingTest do
 
   @secret "whsec_test"
   setup do
-    Billing.reset_memory()
-
     Application.put_env(:soundboard, Billing,
       secret_key: "sk_test_key",
       webhook_secret: @secret,
@@ -25,10 +23,7 @@ defmodule Soundboard.BillingTest do
       price_studio_yearly: "price_studio_yearly"
     )
 
-    on_exit(fn ->
-      Billing.reset_memory()
-      Application.put_env(:soundboard, Billing, [])
-    end)
+    on_exit(fn -> Application.put_env(:soundboard, Billing, []) end)
 
     :ok
   end
@@ -90,6 +85,17 @@ defmodule Soundboard.BillingTest do
       assert %Tenants.Guild{} = guild
       assert guild.max_storage_bytes == 5_368_709_120
       assert Billing.customer_id_for_guild("bill-checkout") == "cus_1"
+    end
+
+    test "what a webhook remembers outlives the process that handled it" do
+      event = checkout_event("evt_outlives", "bill-outlives", "price_pro_monthly", "cus_outlives")
+      {payload, header} = signed(Jason.encode!(event))
+
+      {pid, ref} = spawn_monitor(fn -> {:ok, _} = Billing.handle_webhook(payload, header) end)
+      assert_receive {:DOWN, ^ref, :process, ^pid, :normal}
+
+      assert Billing.customer_id_for_guild("bill-outlives") == "cus_outlives"
+      assert {:ok, :duplicate} = Billing.handle_webhook(payload, header)
     end
 
     test "a tampered payload is rejected with an invalid signature" do
