@@ -85,11 +85,6 @@ defmodule Soundboard.Favorites do
       where: f.user_id == ^user_id and s.guild_id == ^Tenants.scope_guild_id(guild_id)
   end
 
-  @spec favorite?(integer(), integer()) :: boolean()
-  def favorite?(user_id, sound_id) do
-    Repo.exists?(from f in Favorite, where: f.user_id == ^user_id and f.sound_id == ^sound_id)
-  end
-
   @spec max_favorites() :: pos_integer()
   def max_favorites, do: @max_favorites
 end

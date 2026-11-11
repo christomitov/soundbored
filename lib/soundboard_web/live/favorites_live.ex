@@ -56,20 +56,6 @@ defmodule SoundboardWeb.FavoritesLive do
   end
 
   @impl true
-  def handle_info({:sound_played, filename}, socket) when is_binary(filename) do
-    username =
-      case SoundPlayback.current_username(socket) do
-        {:ok, current_username} -> current_username
-        :error -> "Someone"
-      end
-
-    {:noreply,
-     socket
-     |> put_flash(:info, "#{username} played #{filename}")
-     |> clear_flash_after_timeout()}
-  end
-
-  @impl true
   def handle_info({:error, message}, socket) do
     {:noreply,
      socket
@@ -85,11 +71,6 @@ defmodule SoundboardWeb.FavoritesLive do
   @impl true
   def handle_info(:clear_flash, socket) do
     {:noreply, clear_flash(socket)}
-  end
-
-  @impl true
-  def handle_info({:stats_updated}, socket) do
-    {:noreply, assign_favorites_state(socket, socket.assigns[:current_user])}
   end
 
   defp assign_favorites_state(socket, nil) do
