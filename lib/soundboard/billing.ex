@@ -429,7 +429,8 @@ defmodule Soundboard.Billing do
            Stripe.Subscription.update(subscription_id, %{cancel_at_period_end: true},
              api_key: cfg(:secret_key)
            ) do
-      {:ok, %{cancel_at: subscription["current_period_end"]}}
+      {:ok,
+       %{cancel_at: field(subscription, :cancel_at) || field(subscription, :current_period_end)}}
     else
       {:configured, false} -> {:error, :not_configured}
       {:error, reason} -> {:error, reason}

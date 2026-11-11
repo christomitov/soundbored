@@ -244,6 +244,26 @@ defmodule SoundboardWeb.BillingWebTest do
   end
 
   describe "POST /billing/cancel" do
+    test "cancels at period end and says until when", %{conn: conn, owner: owner} do
+      deliver(build_conn(), sub_event("evt_cancel_sub", @guild, "price_pro_m", "si_cancel"))
+      period_end = ~U[2031-05-17 12:00:00Z]
+
+      with_mock Stripe.Subscription,
+        update: fn id, params, _ ->
+          send(self(), {:sub_update, id, params})
+          {:ok, %Stripe.Subscription{id: id, current_period_end: DateTime.to_unix(period_end)}}
+        end do
+        conn = conn |> sign_in(owner, %{guild_id: @guild}) |> post("/billing/cancel")
+
+        assert redirected_to(conn) == "/billing"
+
+        assert Phoenix.Flash.get(conn.assigns.flash, :info) ==
+                 "Your subscription will end on 2031-05-17. You keep your plan until then."
+
+        assert_received {:sub_update, "sub_evt_cancel_sub", %{cancel_at_period_end: true}}
+      end
+    end
+
     test "says so when Stripe has no active subscription", %{conn: conn, owner: owner} do
       with_mock Stripe.Subscription, list: fn _, _ -> {:ok, %Stripe.List{data: []}} end do
         conn = conn |> sign_in(owner, %{guild_id: @guild}) |> post("/billing/cancel")
