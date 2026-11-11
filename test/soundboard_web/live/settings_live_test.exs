@@ -1,5 +1,6 @@
 defmodule SoundboardWeb.SettingsLiveTest do
   use SoundboardWeb.ConnCase, async: false
+  import Mock
   import Phoenix.LiveViewTest
   alias Soundboard.Accounts.{ApiTokens, User}
   alias Soundboard.{Billing, Repo}
@@ -79,6 +80,10 @@ defmodule SoundboardWeb.SettingsLiveTest do
   end
 
   describe "plan card" do
+    setup_with_mocks([{EDA.Cache, [:passthrough], fetch_member: fn _, _ -> {:ok, %{}} end}]) do
+      :ok
+    end
+
     setup %{conn: conn, user: user} do
       Application.put_env(:soundboard, Billing, secret_key: "sk_test_key")
       on_exit(fn -> Application.put_env(:soundboard, Billing, []) end)
@@ -89,7 +94,7 @@ defmodule SoundboardWeb.SettingsLiveTest do
           discord_guild_id: "9#{System.unique_integer([:positive])}",
           slug: "plan-#{System.unique_integer([:positive])}",
           owner_discord_id: user.discord_id,
-          max_storage_bytes: 0
+          max_storage_bytes: 1_073_741_824
         })
         |> Repo.insert!()
 
@@ -100,8 +105,8 @@ defmodule SoundboardWeb.SettingsLiveTest do
       {:ok, _view, html} = live(conn, "/settings")
 
       assert html =~ "Manage plan"
-      assert html =~ "No plan"
-      assert html =~ "0 B of 0 B used"
+      assert html =~ "Pro"
+      assert html =~ "0 B of 1 GB used"
     end
 
     test "anyone else sees no plan card", %{conn: conn, guild: guild} do
