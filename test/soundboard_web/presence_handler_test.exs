@@ -23,19 +23,4 @@ defmodule SoundboardWeb.PresenceHandlerTest do
     refute third == ""
     refute Map.equal?(:persistent_term.get(:user_colors), %{})
   end
-
-  test "handle_presence_diff/2 counts only presences active in the last minute" do
-    now = System.system_time(:second)
-
-    diff = %{
-      joins: %{"joiner" => %{metas: [%{online_at: now - 5}]}},
-      leaves: %{
-        "old" => %{metas: [%{online_at: now - 300}]},
-        "recent" => %{metas: [%{online_at: now - 5}]}
-      }
-    }
-
-    assert PresenceHandler.handle_presence_diff(diff, 2) == 2
-    assert PresenceHandler.handle_presence_diff(diff, 0) == 0
-  end
 end

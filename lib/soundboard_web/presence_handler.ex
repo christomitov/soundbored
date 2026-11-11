@@ -56,23 +56,4 @@ defmodule SoundboardWeb.PresenceHandler do
 
     color
   end
-
-  def handle_presence_diff(%{joins: joins, leaves: leaves}, current_count) do
-    now = System.system_time(:second)
-
-    active_joins = count_active_presences(joins, now)
-    active_leaves = count_active_presences(leaves, now)
-
-    max(current_count + (active_joins - active_leaves), 0)
-  end
-
-  defp count_active_presences(presences, now) do
-    Enum.count(presences, fn {_id, presence} ->
-      metas = presence.metas || []
-
-      Enum.any?(metas, fn %{online_at: online_at} ->
-        now - online_at < 60
-      end)
-    end)
-  end
 end

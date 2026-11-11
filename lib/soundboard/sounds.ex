@@ -47,14 +47,6 @@ defmodule Soundboard.Sounds do
     |> Map.new()
   end
 
-  @spec filename_taken?(String.t(), String.t() | nil) :: boolean()
-  def filename_taken?(filename, guild_id \\ nil) when is_binary(filename) do
-    Repo.exists?(
-      from s in Sound,
-        where: s.filename == ^filename and s.guild_id == ^Tenants.scope_guild_id(guild_id)
-    )
-  end
-
   @spec filename_taken_excluding?(String.t(), integer() | String.t(), String.t() | nil) ::
           boolean()
   def filename_taken_excluding?(filename, sound_id, guild_id \\ nil) do
@@ -80,32 +72,6 @@ defmodule Soundboard.Sounds do
         order_by: [desc: s.inserted_at, desc: s.id],
         limit: ^limit
       )
-    )
-  end
-
-  @spec get_user_join_sound(integer(), String.t() | nil) :: String.t() | nil
-  def get_user_join_sound(user_id, guild_id \\ nil) do
-    Repo.one(
-      from uss in Soundboard.UserSoundSetting,
-        join: s in Sound,
-        on: uss.sound_id == s.id,
-        where:
-          uss.user_id == ^user_id and uss.is_join_sound == true and
-            s.guild_id == ^Tenants.scope_guild_id(guild_id),
-        select: s.filename
-    )
-  end
-
-  @spec get_user_leave_sound(integer(), String.t() | nil) :: String.t() | nil
-  def get_user_leave_sound(user_id, guild_id \\ nil) do
-    Repo.one(
-      from uss in Soundboard.UserSoundSetting,
-        join: s in Sound,
-        on: uss.sound_id == s.id,
-        where:
-          uss.user_id == ^user_id and uss.is_leave_sound == true and
-            s.guild_id == ^Tenants.scope_guild_id(guild_id),
-        select: s.filename
     )
   end
 
