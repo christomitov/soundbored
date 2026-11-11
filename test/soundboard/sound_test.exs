@@ -503,6 +503,41 @@ defmodule Soundboard.SoundTest do
     end
   end
 
+  describe "join and leave sounds by Discord id" do
+    test "each guild returns its own sound for a user configured in several guilds", %{
+      user: user
+    } do
+      for {flag, lookup} <- [
+            is_join_sound: &Sounds.get_user_join_sound_by_discord_id/2,
+            is_leave_sound: &Sounds.get_user_leave_sound_by_discord_id/2
+          ] do
+        Repo.delete_all(UserSoundSetting)
+
+        for guild <- ["guild-a", "guild-b"] do
+          sound =
+            %Sound{}
+            |> Sound.changeset(%{
+              filename: "#{flag}-#{guild}.mp3",
+              source_type: "local",
+              user_id: user.id,
+              guild_id: guild
+            })
+            |> Repo.insert!()
+
+          %UserSoundSetting{}
+          |> UserSoundSetting.changeset(
+            Map.put(%{user_id: user.id, sound_id: sound.id, guild_id: guild}, flag, true)
+          )
+          |> Repo.insert!()
+        end
+
+        assert lookup.(user.discord_id, "guild-a") == "#{flag}-guild-a.mp3"
+        assert lookup.(user.discord_id, "guild-b") == "#{flag}-guild-b.mp3"
+        assert lookup.(user.discord_id, "guild-c") == nil
+      end
+    end
+  end
+
   defp insert_user do
     {:ok, user} =
       %Soundboard.Accounts.User{}

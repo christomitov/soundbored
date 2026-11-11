@@ -140,28 +140,23 @@ defmodule Soundboard.Sounds do
   end
 
   @spec get_user_join_sound_by_discord_id(term(), String.t() | nil) :: String.t() | nil
-  def get_user_join_sound_by_discord_id(discord_id, guild_id \\ nil) do
-    Repo.one(
-      from u in User,
-        where: u.discord_id == ^to_string(discord_id),
-        left_join: uss in Soundboard.UserSoundSetting,
-        on: uss.user_id == u.id and uss.is_join_sound == true,
-        left_join: s in Sound,
-        on: s.id == uss.sound_id and s.guild_id == ^Tenants.scope_guild_id(guild_id),
-        select: s.filename,
-        limit: 1
-    )
-  end
+  def get_user_join_sound_by_discord_id(discord_id, guild_id \\ nil),
+    do: sound_by_discord_id(discord_id, guild_id, :is_join_sound)
 
   @spec get_user_leave_sound_by_discord_id(term(), String.t() | nil) :: String.t() | nil
-  def get_user_leave_sound_by_discord_id(discord_id, guild_id \\ nil) do
+  def get_user_leave_sound_by_discord_id(discord_id, guild_id \\ nil),
+    do: sound_by_discord_id(discord_id, guild_id, :is_leave_sound)
+
+  defp sound_by_discord_id(discord_id, guild_id, flag) do
     Repo.one(
       from u in User,
-        where: u.discord_id == ^to_string(discord_id),
-        left_join: uss in Soundboard.UserSoundSetting,
-        on: uss.user_id == u.id and uss.is_leave_sound == true,
-        left_join: s in Sound,
-        on: s.id == uss.sound_id and s.guild_id == ^Tenants.scope_guild_id(guild_id),
+        join: uss in Soundboard.UserSoundSetting,
+        on: uss.user_id == u.id and field(uss, ^flag) == true,
+        join: s in Sound,
+        on: s.id == uss.sound_id,
+        where:
+          u.discord_id == ^to_string(discord_id) and
+            s.guild_id == ^Tenants.scope_guild_id(guild_id),
         select: s.filename,
         limit: 1
     )
