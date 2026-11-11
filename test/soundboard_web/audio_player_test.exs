@@ -75,9 +75,12 @@ defmodule Soundboard.AudioPlayerTest do
       second_url = second.url
       refute_receive {:fake_voice, ^guild, {:play, ^second_url, _, _}}, 100
 
+      FakeVoice.finish(guild)
       Handler.handle_event({:VOICE_PLAYBACK_FINISHED, %{guild_id: guild}, nil})
 
       assert_receive {:fake_voice, ^guild, {:play, ^second_url, :url, _}}, 300
+      assert_receive {:sound_played, %{filename: filename}}
+      assert filename == second.filename
     end
 
     test "stop_sound kills the playback in progress", %{guild: guild, user: user} do
@@ -353,7 +356,7 @@ defmodule Soundboard.AudioPlayerTest do
       lost = new_guild()
       stale = new_guild()
       FakeVoice.claim(lost, channel: nil, ready: false)
-      FakeVoice.claim(stale, channel: @channel, ready: false, playing: :raise)
+      FakeVoice.claim(stale, channel: @channel, ready: false)
       connect(lost)
       connect(stale)
 

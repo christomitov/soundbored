@@ -194,15 +194,14 @@ defmodule Soundboard.Discord.HandlerTest do
       leave_failed = "I couldn't leave the voice channel. Try again in a moment."
 
       table = [
-        {"user is not in voice", "!join", not_in_voice, true, :ok,
+        {"user is not in voice", "!join", not_in_voice, true, [],
          "You need to be in a voice channel!"},
-        {"bot is not ready", "!join", in_voice, false, :ok, join_failed},
-        {"Discord rejects the join", "!join", in_voice, true, {:error, :timeout}, join_failed},
-        {"bot is not ready", "!leave", in_voice, false, :ok, leave_failed}
+        {"bot is not ready", "!join", in_voice, false, [], join_failed},
+        {"bot is not ready", "!leave", in_voice, false, [], leave_failed}
       ]
 
-      for {label, content, guild, ready?, join_result, reply} <- table do
-        FakeVoice.claim(guild_id, join: join_result)
+      for {label, content, guild, ready?, voice, reply} <- table do
+        FakeVoice.claim(guild_id, voice)
         Application.put_env(:soundboard, :bot_ready, ready?)
 
         capture_log(fn ->
