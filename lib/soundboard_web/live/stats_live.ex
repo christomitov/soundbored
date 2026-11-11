@@ -29,7 +29,6 @@ defmodule SoundboardWeb.StatsLive do
      |> mount_presence(session)
      |> assign(:current_path, "/stats")
      |> assign(:current_user, get_user_from_session(session))
-     |> assign(:force_update, 0)
      |> assign(:selected_week, current_week)
      |> assign(:current_week, current_week)
      |> stream_configure(:recent_plays, dom_id: &recent_play_dom_id/1)

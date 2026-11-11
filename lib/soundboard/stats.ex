@@ -33,18 +33,6 @@ defmodule Soundboard.Stats do
     end
   end
 
-  defp get_week_range do
-    today = Date.utc_today()
-    days_since_monday = Date.day_of_week(today, :monday)
-    start_date = Date.add(today, -days_since_monday + 1)
-    end_date = Date.add(start_date, 6)
-
-    {
-      DateTime.new!(start_date, ~T[00:00:00], "Etc/UTC"),
-      DateTime.new!(end_date, ~T[23:59:59], "Etc/UTC")
-    }
-  end
-
   @spec get_top_users(Date.t(), Date.t(), keyword()) :: [leaderboard_entry()]
   def get_top_users(start_date, end_date, opts \\ []) do
     limit = Keyword.get(opts, :limit, 10)
@@ -92,14 +80,6 @@ defmodule Soundboard.Stats do
         limit: ^limit
       )
     )
-  end
-
-  @spec reset_weekly_stats() :: :ok | {:error, term()}
-  def reset_weekly_stats do
-    {week_start, _week_end} = get_week_range()
-
-    Repo.delete_all(from(p in Play, where: p.inserted_at < ^week_start))
-    broadcast_stats_update()
   end
 
   @spec broadcast_stats_update() :: :ok | {:error, term()}
