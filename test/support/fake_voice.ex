@@ -84,52 +84,56 @@ defmodule Soundboard.FakeVoice do
   end
 
   def join(guild_id, channel_id) do
-    notify(guild_id, {:join, channel_id})
-    maybe_exit(guild_id, :join)
-
-    update(guild_id, &%{&1 | channel: channel_id, ready: &1.ready_on_join, playing: false})
-    :ok
+    command(guild_id, :join, {:join, channel_id}, fn guild ->
+      %{guild | channel: channel_id, ready: guild.ready_on_join, playing: false}
+    end)
   end
 
   def leave(guild_id) do
-    notify(guild_id, :leave)
-    maybe_exit(guild_id, :leave)
-    update(guild_id, &%{&1 | channel: nil, ready: false, playing: false})
-    :ok
+    command(guild_id, :leave, :leave, &%{&1 | channel: nil, ready: false, playing: false})
   end
 
   def play(guild_id, input, type, opts) do
-    notify(guild_id, {:play, input, type, opts})
+    result = next_play_result(guild_id)
 
-    case next_play_result(guild_id) do
-      :hold ->
-        holder = self()
-        update(guild_id, &%{&1 | playing: true, holders: [holder | &1.holders]})
-        notify(guild_id, {:holding, holder})
-        receive do: (:never -> :ok)
+    case result do
+      {:error, reason} when reason in [:not_ready, :not_connected] ->
+        update(guild_id, &%{&1 | ready: false})
 
-      :ok ->
-        update(guild_id, &%{&1 | playing: true})
+      {:error, _reason} ->
         :ok
 
-      {:error, reason} = error when reason in [:not_ready, :not_connected] ->
-        update(guild_id, &%{&1 | ready: false})
-        error
-
-      error ->
-        error
+      _started ->
+        update(guild_id, &%{&1 | playing: true})
     end
+
+    notify(guild_id, {:play, input, type, opts})
+    if result == :hold, do: hold(guild_id), else: result
   end
 
   def stop(guild_id) do
-    notify(guild_id, :stop)
-
-    update(guild_id, fn
+    command(guild_id, :stop, :stop, fn
       %{stop: :ignored} = guild -> guild
       guild -> %{guild | playing: false}
     end)
+  end
 
+  defp command(guild_id, call, message, fun) do
+    if call in guild(guild_id).exit_on do
+      notify(guild_id, message)
+      exit_like_eda(guild_id, call)
+    end
+
+    update(guild_id, fun)
+    notify(guild_id, message)
     :ok
+  end
+
+  defp hold(guild_id) do
+    holder = self()
+    update(guild_id, &%{&1 | holders: [holder | &1.holders]})
+    notify(guild_id, {:holding, holder})
+    receive do: (:never -> :ok)
   end
 
   def ready?(guild_id), do: status(guild_id, :ready?, :ready)
@@ -138,14 +142,13 @@ defmodule Soundboard.FakeVoice do
   def get_voice_state(_guild_id), do: {:ok, %{}}
 
   defp status(guild_id, call, field) do
-    maybe_exit(guild_id, call)
-    Map.fetch!(guild(guild_id), field)
+    guild = guild(guild_id)
+    if call in guild.exit_on, do: exit_like_eda(guild_id, call)
+    Map.fetch!(guild, field)
   end
 
-  defp maybe_exit(guild_id, call) do
-    if call in guild(guild_id).exit_on,
-      do: exit({:timeout, {GenServer, :call, [EDA.Voice, {call, guild_id}, 5000]}})
-  end
+  defp exit_like_eda(guild_id, call),
+    do: exit({:timeout, {GenServer, :call, [EDA.Voice, {call, guild_id}, 5000]}})
 
   defp next_play_result(guild_id) do
     Agent.get_and_update(__MODULE__, fn guilds ->
