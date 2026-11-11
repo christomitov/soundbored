@@ -30,9 +30,9 @@ defmodule SoundboardWeb.BillingWebTest do
       event = checkout_event("evt_web_1", @guild, "price_studio_m", "cus_web")
 
       assert %{"received" => true, "event" => "evt_web_1"} =
-               deliver_stripe_event(event) |> json_response(200)
+               json_response(deliver_stripe_event(event), 200)
 
-      assert %{"event" => "duplicate"} = deliver_stripe_event(event) |> json_response(200)
+      assert %{"event" => "duplicate"} = json_response(deliver_stripe_event(event), 200)
       assert Tenants.get_guild(@guild).max_storage_bytes == Billing.plan_cap("price_studio_m")
     end
 
