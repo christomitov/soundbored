@@ -3,12 +3,9 @@ defmodule SoundboardWeb.BillingController do
   Stripe subscriptions: plan options, checkout, customer portal, and the
   public webhook receiver (signature-verified, no session auth).
 
-  Checkout/portal delegate to `Soundboard.Billing` so tests can stub at that
-  seam instead of Stripe internals.
-
   The webhook signature is computed over the raw request bytes, so the
-  webhook reads the untouched body (`:raw_body`, kept by the JSON parser, or
-  read directly), never re-encoded JSON.
+  webhook reads the untouched JSON body that `SoundboardWeb.RawBodyReader`
+  kept in `:raw_body`, never re-encoded JSON.
   """
 
   use SoundboardWeb, :controller
@@ -191,14 +188,8 @@ defmodule SoundboardWeb.BillingController do
 
   defp raw_body(conn) do
     case conn.assigns[:raw_body] do
-      [body | _] ->
-        body
-
-      _ ->
-        case Plug.Conn.read_body(conn) do
-          {:ok, body, _conn} -> body
-          _ -> ""
-        end
+      [body | _] -> body
+      _ -> ""
     end
   end
 

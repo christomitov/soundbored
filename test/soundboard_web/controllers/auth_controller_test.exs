@@ -99,6 +99,20 @@ defmodule SoundboardWeb.AuthControllerTest do
       assert final_count == initial_count + 1
     end
 
+    test "callback/2 lands on the soundboard a signed-out visitor asked for", %{conn: conn} do
+      for {pending, landing} <- [{"wanted-slug", "/g/wanted-slug"}, {"//evil.com", "/"}] do
+        conn =
+          conn
+          |> put_session(:pending_slug, pending)
+          |> assign(:ueberauth_auth, %{uid: "999888", info: %{nickname: "SlugUser", image: nil}})
+          |> get(~p"/auth/discord/callback")
+
+        assert redirected_to(conn) == landing
+        assert get_session(conn, :user_id)
+        assert get_session(conn, :pending_slug) == nil
+      end
+    end
+
     test "callback/2 handles auth failures", %{conn: conn} do
       capture_log(fn ->
         conn =

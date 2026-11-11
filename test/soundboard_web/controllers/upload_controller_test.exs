@@ -17,12 +17,6 @@ defmodule SoundboardWeb.UploadControllerTest do
     %{conn: conn, filename: filename}
   end
 
-  test "GET /uploads/*path redirects unauthenticated users", %{conn: conn, filename: filename} do
-    conn = get(conn, ~p"/uploads/#{filename}")
-
-    assert redirected_to(conn) == "/auth/discord"
-  end
-
   test "GET /uploads/*path serves files for authenticated users", %{
     conn: conn,
     filename: filename

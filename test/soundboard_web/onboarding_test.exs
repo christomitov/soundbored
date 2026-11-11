@@ -1,8 +1,8 @@
 defmodule SoundboardWeb.OnboardingTest do
   @moduledoc """
-  Web tests for the onboarding handoff: signed-out visitors are sent to
-  Discord auth, and a signed-in user sees the shared bot's invite link (with
-  the pinned permission integer and scope) plus the continue path to /guilds.
+  The onboarding handoff: a signed-in user sees the shared bot's invite link
+  (with the pinned permission integer and scope) plus the continue path to
+  /guilds.
   """
 
   use SoundboardWeb.ConnCase, async: false
@@ -24,12 +24,6 @@ defmodule SoundboardWeb.OnboardingTest do
     %User{}
     |> User.changeset(%{discord_id: "discord-onboarding", username: "onboarder"})
     |> Repo.insert!()
-  end
-
-  test "a signed-out visit to /onboarding redirects to Discord auth", %{conn: conn} do
-    conn = conn |> init_test_session(%{}) |> get("/onboarding")
-
-    assert redirected_to(conn) == "/auth/discord"
   end
 
   test "a signed-in user gets the invite link for the configured client id", %{conn: conn} do

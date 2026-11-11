@@ -1,4 +1,11 @@
 defmodule SoundboardWeb.GuildControllerTest do
+  @moduledoc """
+  Picking a soundboard, through the router: the guild list, switching
+  (provisioning the tenant, or the paywall on hosted), claiming a subdomain
+  slug, and opening a soundboard by `/g/:slug`. Only the Discord cache is
+  mocked.
+  """
+
   use SoundboardWeb.ConnCase, async: false
 
   import Mock
@@ -6,67 +13,118 @@ defmodule SoundboardWeb.GuildControllerTest do
   alias EDA.Cache
   alias Soundboard.Tenants
 
-  @guild %{"id" => "guild-controller-test", "name" => "Test Guild"}
+  @bot_guild %{"id" => "guild-switch", "name" => "Switch Guild"}
 
-  defp conn!(conn),
-    do:
-      conn
-      |> init_test_session(%{})
-      |> fetch_query_params()
-      |> fetch_flash()
-      |> Map.update!(:params, &Map.put(&1, "_format", "html"))
-
-  defp call!(conn, action, params \\ %{}) do
-    conn = Map.update!(conn, :params, &Map.merge(&1, params))
-    SoundboardWeb.GuildController.call(conn, action)
+  setup_with_mocks([
+    {Cache, [:passthrough],
+     guilds: fn -> [@bot_guild] end,
+     get_guild: fn
+       "guild-switch" -> @bot_guild
+       _ -> nil
+     end,
+     channels_for_guild: fn _ -> [] end,
+     voice_states: fn _ -> [] end,
+     fetch_member: fn _, _ -> {:ok, %{}} end}
+  ]) do
+    :ok
   end
 
-  test "GET /guilds renders the guild list", %{conn: conn} do
-    with_mocks([
-      {Cache, [],
-       [
-         guilds: fn -> [@guild] end,
-         channels_for_guild: fn _ -> [] end,
-         voice_states: fn _ -> [] end
-       ]}
-    ]) do
-      conn =
-        call!(
-          conn!(conn)
-          |> assign(:current_guild_id, nil)
-          |> assign(:current_user, %{id: 1, username: "owner"})
-          |> assign(:current_path, "/guilds")
-          |> assign(:presences, []),
-          :index
-        )
+  setup %{conn: conn} do
+    user = user_fixture()
+    %{conn: sign_in(conn, user), user: user}
+  end
 
-      assert html_response(conn, 200) =~ "Test Guild"
+  describe "GET /guilds" do
+    test "lists the bot's guilds", %{conn: conn} do
+      assert conn |> get("/guilds") |> html_response(200) =~ "Switch Guild"
     end
   end
 
-  test "POST /guilds/switch provisions the tenant and stores the session", %{conn: conn} do
-    with_mocks([
-      {Cache, [],
-       [
-         get_guild: fn _ -> @guild end,
-         channels_for_guild: fn _ -> [] end,
-         voice_states: fn _ -> [] end
-       ]}
-    ]) do
-      conn = call!(conn!(conn), :switch, %{"discord_guild_id" => @guild["id"]})
+  describe "POST /guilds/switch" do
+    test "provisions the tenant with the switcher as owner", %{conn: conn, user: user} do
+      conn = post(conn, "/guilds/switch", %{"discord_guild_id" => "guild-switch"})
 
       assert redirected_to(conn) == "/"
-      assert get_session(conn, :guild_id) == @guild["id"]
-      assert %Tenants.Guild{} = Tenants.get_guild(@guild["id"])
+      assert get_session(conn, :guild_id) == "guild-switch"
+      assert Tenants.get_guild("guild-switch").owner_discord_id == user.discord_id
+    end
+
+    test "refuses a guild the bot is not in", %{conn: conn} do
+      conn = post(conn, "/guilds/switch", %{"discord_guild_id" => "guild-nope"})
+
+      assert redirected_to(conn) == "/guilds"
+      assert Phoenix.Flash.get(conn.assigns.flash, :error) == "Bot is not a member of that guild"
+      refute Tenants.get_guild("guild-nope")
+    end
+
+    test "on hosted, an unpaid guild goes to checkout without a tenant row", %{conn: conn} do
+      enable_billing()
+
+      conn = post(conn, "/guilds/switch", %{"discord_guild_id" => "guild-switch"})
+
+      assert redirected_to(conn) == "/billing"
+      assert get_session(conn, :billing_guild_id) == "guild-switch"
+      refute Tenants.get_guild("guild-switch")
     end
   end
 
-  test "POST /guilds/switch with unknown guild redirects with an error", %{conn: conn} do
-    with_mocks([{Cache, [], [get_guild: fn _ -> nil end]}]) do
-      conn = call!(conn!(conn), :switch, %{"discord_guild_id" => "guild-nope"})
+  describe "POST /guilds/claim" do
+    setup %{conn: conn, user: user} do
+      {:ok, _} = Tenants.get_or_create_guild("guild-claim", %{owner_discord_id: user.discord_id})
+      %{conn: init_test_session(conn, %{guild_id: "guild-claim"})}
+    end
+
+    test "claims a free slug for the owner's guild", %{conn: conn} do
+      conn = post(conn, "/guilds/claim", %{"slug" => "My-Server"})
 
       assert redirected_to(conn) == "/guilds"
-      assert Phoenix.Flash.get(conn.assigns.flash, :error) =~ "Bot is not a member"
+      assert Tenants.get_by_slug("my-server").discord_guild_id == "guild-claim"
+
+      assert Phoenix.Flash.get(conn.assigns.flash, :info) =~
+               "https://dashboard.soundbored.app/g/my-server"
+    end
+
+    test "refuses taken and reserved slugs without changing anything", %{conn: conn} do
+      {:ok, _} = Tenants.claim_slug("other-guild", "taken-slug")
+
+      for slug <- ["taken-slug", "admin"] do
+        conn = post(conn, "/guilds/claim", %{"slug" => slug})
+
+        assert Phoenix.Flash.get(conn.assigns.flash, :error) == "That subdomain is not available"
+      end
+
+      assert Tenants.get_by_slug("taken-slug").discord_guild_id == "other-guild"
+      refute Tenants.get_by_slug("admin")
+      assert Tenants.get_guild("guild-claim").slug == "guild-guild-claim"
+    end
+  end
+
+  describe "GET /g/:slug" do
+    test "opens that soundboard for the rest of the session", %{conn: conn} do
+      {:ok, _} = Tenants.claim_slug("g-resolved", "resolve-me")
+
+      conn = get(conn, "/g/resolve-me")
+
+      assert redirected_to(conn) == "/"
+      assert get_session(conn, :guild_id) == "g-resolved"
+
+      assert conn
+             |> recycle()
+             |> get("/guilds")
+             |> Map.get(:assigns)
+             |> Map.get(:current_guild_id) == "g-resolved"
+    end
+
+    test "is a 404 for an unknown slug, creating nothing", %{conn: conn} do
+      assert conn |> get("/g/unknown") |> response(404)
+      refute Tenants.get_by_slug("unknown")
+    end
+
+    test "a signed-out visit keeps the slug for after sign-in" do
+      conn = build_conn() |> init_test_session(%{}) |> get("/g/wanted-slug")
+
+      assert redirected_to(conn) == "/auth/discord"
+      assert get_session(conn, :pending_slug) == "wanted-slug"
     end
   end
 end
