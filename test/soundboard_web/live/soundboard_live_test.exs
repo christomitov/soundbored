@@ -626,6 +626,21 @@ defmodule SoundboardWeb.SoundboardLiveTest do
       refute Repo.get_by(Sound, filename: "revived.mp3")
     end
 
+    test "renaming a sound to a blank name is refused", %{conn: conn, sound: sound} do
+      {:ok, view, _html} = live(conn, "/")
+      view |> element("[phx-click='edit'][phx-value-id='#{sound.id}']") |> render_click()
+
+      html = view |> element("#edit-form") |> render_submit(%{"filename" => "   "})
+
+      assert html =~ "Error updating sound: filename can&#39;t be blank"
+      assert has_element?(view, "#edit-form")
+
+      assert render_submit(view, "save_sound", %{"sound_id" => sound.id}) =~
+               "filename can&#39;t be blank"
+
+      assert Repo.get!(Sound, sound.id).filename == "test.mp3"
+    end
+
     test "handles pubsub updates", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/")
 

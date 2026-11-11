@@ -13,7 +13,9 @@ defmodule Soundboard.Sounds.Management do
 
   def update_sound(%Sound{} = sound, user_id, params) do
     with {:ok, db_sound} <- fetch(sound),
-         {:ok, updated_sound} <- update_in_transaction(db_sound, user_id, params) do
+         {:ok, name} <- new_name(db_sound, params["filename"]),
+         {:ok, updated_sound} <-
+           update_in_transaction(db_sound, user_id, Map.put(params, "filename", name)) do
       PubSubTopics.broadcast_files_updated()
       {:ok, updated_sound}
     end
@@ -60,6 +62,20 @@ defmodule Soundboard.Sounds.Management do
       {:error, reason} -> {:error, reason}
     end
   end
+
+  defp new_name(db_sound, name) when is_binary(name) do
+    case String.trim(name) do
+      "" -> blank_name(db_sound)
+      trimmed -> {:ok, trimmed}
+    end
+  end
+
+  defp new_name(db_sound, _name), do: blank_name(db_sound)
+
+  defp blank_name(db_sound),
+    do:
+      {:error,
+       Ecto.Changeset.add_error(Ecto.Changeset.change(db_sound), :filename, "can't be blank")}
 
   defp fetch(%Sound{id: id}) do
     case Repo.get(Sound, id) do
