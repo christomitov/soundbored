@@ -169,34 +169,32 @@ defmodule SoundboardWeb.API.SoundControllerTest do
       on_exit(fn -> File.rm(Path.join(uploads_dir(), "#{name}.mp3")) end)
     end
 
-    test "clears previous join sound when creating a new join sound", %{conn: conn, user: user} do
-      first_name = "join_one_#{System.unique_integer([:positive])}"
-      second_name = "join_two_#{System.unique_integer([:positive])}"
+    test "a new join or leave sound replaces the user's previous one in that guild", %{
+      conn: conn,
+      user: user
+    } do
+      with_mock EDA.Cache, [:passthrough], fetch_member: fn _, _ -> {:ok, %{}} end do
+        for guild <- [Soundboard.Tenants.default_guild_id(), "join-guild"],
+            flag <- ["is_join_sound", "is_leave_sound"] do
+          conn = init_test_session(conn, %{guild_id: guild})
+          {:ok, _} = Soundboard.Tenants.get_or_create_guild(guild)
 
-      _ =
-        post(conn, ~p"/api/sounds", %{
-          "source_type" => "url",
-          "name" => first_name,
-          "url" => "https://example.com/first.mp3",
-          "is_join_sound" => "true"
-        })
+          [first, second] =
+            for n <- [1, 2] do
+              name = "#{flag}-#{guild}-#{n}"
+              params = %{"name" => name, "url" => "https://example.com/#{n}.mp3", flag => "true"}
 
-      _ =
-        post(conn, ~p"/api/sounds", %{
-          "source_type" => "url",
-          "name" => second_name,
-          "url" => "https://example.com/second.mp3",
-          "is_join_sound" => "true"
-        })
+              assert %{"data" => %{"id" => id}} =
+                       conn |> post(~p"/api/sounds", params) |> json_response(201)
 
-      first_sound = Repo.get_by!(Sound, filename: "#{first_name}.mp3")
-      second_sound = Repo.get_by!(Sound, filename: "#{second_name}.mp3")
+              Repo.get_by!(UserSoundSetting, user_id: user.id, sound_id: id)
+            end
 
-      first_setting = Repo.get_by!(UserSoundSetting, user_id: user.id, sound_id: first_sound.id)
-      second_setting = Repo.get_by!(UserSoundSetting, user_id: user.id, sound_id: second_sound.id)
-
-      refute first_setting.is_join_sound
-      assert second_setting.is_join_sound
+          key = String.to_existing_atom(flag)
+          refute Map.fetch!(Repo.reload!(first), key), "#{guild} #{flag}"
+          assert Map.fetch!(Repo.reload!(second), key), "#{guild} #{flag}"
+        end
+      end
     end
 
     test "returns validation errors for missing fields", %{conn: conn} do

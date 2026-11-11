@@ -85,7 +85,8 @@ defmodule Soundboard.Sounds.Uploads.Creator do
       params.user.id,
       sound.id,
       params.is_join_sound,
-      params.is_leave_sound
+      params.is_leave_sound,
+      params.guild_id
     )
 
     %UserSoundSetting{}
