@@ -16,15 +16,6 @@ defmodule Soundboard.Sounds do
     user_sound_settings: [user: []]
   ]
 
-  @spec list_files(String.t() | nil) :: [Sound.t()]
-  def list_files(guild_id \\ nil) do
-    Sound
-    |> Sound.with_tags()
-    |> where(guild_id: ^Tenants.scope_guild_id(guild_id))
-    |> preload(:user_sound_settings)
-    |> Repo.all()
-  end
-
   @spec list_detailed(String.t() | nil) :: [Sound.t()]
   def list_detailed(guild_id \\ nil) do
     Sound
@@ -72,19 +63,6 @@ defmodule Soundboard.Sounds do
         where:
           s.filename == ^filename and s.id != ^sound_id and
             s.guild_id == ^Tenants.scope_guild_id(guild_id)
-      )
-    )
-  end
-
-  @spec filename_conflicts_across_extensions?(String.t(), [String.t()], String.t() | nil) ::
-          boolean()
-  def filename_conflicts_across_extensions?(base_name, extensions, guild_id \\ nil)
-      when is_list(extensions) do
-    names = Enum.map(extensions, &(base_name <> &1))
-
-    Repo.exists?(
-      from(s in Sound,
-        where: s.filename in ^names and s.guild_id == ^Tenants.scope_guild_id(guild_id)
       )
     )
   end
@@ -154,21 +132,6 @@ defmodule Soundboard.Sounds do
     )
   end
 
-  @spec get_user_sound_preferences_by_discord_id(term(), String.t() | nil) :: map() | nil
-  def get_user_sound_preferences_by_discord_id(discord_id, guild_id \\ nil) do
-    case Repo.get_by(User, discord_id: to_string(discord_id)) do
-      nil ->
-        nil
-
-      user ->
-        %{
-          user_id: user.id,
-          join_sound: get_user_join_sound(user.id, guild_id),
-          leave_sound: get_user_leave_sound(user.id, guild_id)
-        }
-    end
-  end
-
   @spec fetch_sound(term(), String.t() | nil) :: {:ok, Sound.t()} | :error
   def fetch_sound(id, guild_id) do
     with {:ok, id} <- Ecto.Type.cast(:id, id),
@@ -178,13 +141,6 @@ defmodule Soundboard.Sounds do
     else
       _ -> :error
     end
-  end
-
-  @spec update_sound(Sound.t(), map()) :: {:ok, Sound.t()} | {:error, Ecto.Changeset.t()}
-  def update_sound(sound, attrs) do
-    sound
-    |> Sound.changeset(attrs)
-    |> Repo.update()
   end
 
   @spec update_sound(Sound.t(), integer(), map()) :: {:ok, Sound.t()} | {:error, term()}

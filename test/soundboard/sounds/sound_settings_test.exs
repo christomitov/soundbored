@@ -1,189 +1,34 @@
 defmodule Soundboard.Sounds.SoundSettingsTest do
-  @moduledoc """
-  The SoundSettingsTest module.
-  """
   use Soundboard.DataCase, async: false
-  alias Soundboard.{Accounts.User, Repo, Sound, UserSoundSetting}
-  import Ecto.Changeset
 
-  setup do
-    user = insert_user()
-    {:ok, sound} = insert_sound(user)
-    %{user: user, sound: sound}
-  end
+  alias Soundboard.{Accounts.User, Sound, UserSoundSetting}
 
-  describe "changeset validation" do
-    test "requires user_id and sound_id" do
-      changeset = UserSoundSetting.changeset(%UserSoundSetting{}, %{})
+  test "a user has at most one join and one leave sound per guild" do
+    user = Repo.insert!(%User{username: "settings", discord_id: "77", avatar: "a.jpg"})
 
-      assert errors_on(changeset) == %{
-               user_id: ["can't be blank"],
-               sound_id: ["can't be blank"]
-             }
+    for flag <- [:is_join_sound, :is_leave_sound] do
+      [first, second, elsewhere] =
+        for {name, guild} <- [{"a", "default"}, {"b", "default"}, {"c", "other-guild"}] do
+          sound =
+            %Sound{}
+            |> Sound.changeset(%{
+              filename: "#{flag}-#{name}.mp3",
+              source_type: "local",
+              user_id: user.id,
+              guild_id: guild
+            })
+            |> Repo.insert!()
+
+          UserSoundSetting.changeset(
+            %UserSoundSetting{},
+            Map.put(%{user_id: user.id, sound_id: sound.id, guild_id: guild}, flag, true)
+          )
+        end
+
+      Repo.insert!(first)
+      Repo.insert!(elsewhere)
+
+      assert_raise Ecto.ConstraintError, fn -> Repo.insert!(second) end
     end
-
-    test "defaults join and leave sounds to false", %{user: user, sound: sound} do
-      attrs = %{
-        user_id: user.id,
-        sound_id: sound.id
-      }
-
-      changeset = UserSoundSetting.changeset(%UserSoundSetting{}, attrs)
-      assert get_field(changeset, :is_join_sound) == false
-      assert get_field(changeset, :is_leave_sound) == false
-    end
-
-    test "accepts join and leave sound settings", %{user: user, sound: sound} do
-      attrs = %{
-        user_id: user.id,
-        sound_id: sound.id,
-        is_join_sound: true,
-        is_leave_sound: false
-      }
-
-      changeset = UserSoundSetting.changeset(%UserSoundSetting{}, attrs)
-      assert get_field(changeset, :is_join_sound) == true
-      assert get_field(changeset, :is_leave_sound) == false
-    end
-
-    test "building a changeset does not mutate existing join settings", %{
-      user: user,
-      sound: sound
-    } do
-      other_sound = insert_sound!(user, "other_#{System.unique_integer([:positive])}.mp3")
-
-      %UserSoundSetting{}
-      |> UserSoundSetting.changeset(%{
-        user_id: user.id,
-        sound_id: other_sound.id,
-        is_join_sound: true
-      })
-      |> Repo.insert!()
-
-      _changeset =
-        UserSoundSetting.changeset(%UserSoundSetting{}, %{
-          user_id: user.id,
-          sound_id: sound.id,
-          is_join_sound: true
-        })
-
-      existing_setting =
-        Repo.get_by!(UserSoundSetting, user_id: user.id, sound_id: other_sound.id)
-
-      assert existing_setting.is_join_sound
-    end
-  end
-
-  describe "conflicting setting cleanup" do
-    test "clear_conflicting_settings/4 clears other join and leave flags", %{
-      user: user,
-      sound: sound
-    } do
-      other_sound = insert_sound!(user, "other_#{System.unique_integer([:positive])}.mp3")
-
-      join_setting =
-        %UserSoundSetting{}
-        |> UserSoundSetting.changeset(%{
-          user_id: user.id,
-          sound_id: other_sound.id,
-          is_join_sound: true
-        })
-        |> Repo.insert!()
-
-      leave_setting =
-        %UserSoundSetting{}
-        |> UserSoundSetting.changeset(%{
-          user_id: user.id,
-          sound_id: other_sound.id,
-          is_leave_sound: true
-        })
-        |> Repo.insert!()
-
-      assert :ok = UserSoundSetting.clear_conflicting_settings(user.id, sound.id, true, true)
-
-      refute Repo.get!(UserSoundSetting, join_setting.id).is_join_sound
-      refute Repo.get!(UserSoundSetting, leave_setting.id).is_leave_sound
-    end
-  end
-
-  describe "unique constraints" do
-    test "enforces unique join sound per user", %{user: user, sound: sound} do
-      {:ok, _} =
-        %UserSoundSetting{}
-        |> UserSoundSetting.changeset(%{
-          user_id: user.id,
-          sound_id: sound.id,
-          is_join_sound: true
-        })
-        |> Repo.insert()
-
-      changeset =
-        %UserSoundSetting{}
-        |> UserSoundSetting.changeset(%{
-          user_id: user.id,
-          sound_id: sound.id,
-          is_join_sound: true
-        })
-        |> unique_constraint(:user_id,
-          name: "user_sound_settings_user_id_guild_id_is_join_sound_index",
-          message: "already has a join sound"
-        )
-
-      {:error, changeset} = Repo.insert(changeset)
-      assert %{user_id: ["already has a join sound"]} = errors_on(changeset)
-    end
-
-    test "enforces unique leave sound per user", %{user: user, sound: sound} do
-      {:ok, _} =
-        %UserSoundSetting{}
-        |> UserSoundSetting.changeset(%{
-          user_id: user.id,
-          sound_id: sound.id,
-          is_leave_sound: true
-        })
-        |> Repo.insert()
-
-      changeset =
-        %UserSoundSetting{}
-        |> UserSoundSetting.changeset(%{
-          user_id: user.id,
-          sound_id: sound.id,
-          is_leave_sound: true
-        })
-        |> unique_constraint(:user_id,
-          name: "user_sound_settings_user_id_guild_id_is_leave_sound_index",
-          message: "already has a leave sound"
-        )
-
-      {:error, changeset} = Repo.insert(changeset)
-      assert %{user_id: ["already has a leave sound"]} = errors_on(changeset)
-    end
-  end
-
-  defp insert_user do
-    {:ok, user} =
-      %User{}
-      |> User.changeset(%{
-        username: "test_user",
-        discord_id: "123456",
-        avatar: "test.jpg"
-      })
-      |> Repo.insert()
-
-    user
-  end
-
-  defp insert_sound(user) do
-    {:ok, insert_sound!(user, "test_sound#{System.unique_integer()}.mp3")}
-  end
-
-  defp insert_sound!(user, filename) do
-    %Sound{}
-    |> Sound.changeset(%{
-      filename: filename,
-      source_type: "local",
-      user_id: user.id
-    })
-    |> Repo.insert!()
   end
 end

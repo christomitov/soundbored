@@ -79,13 +79,6 @@ defmodule Soundboard.Sounds.Tags do
     end
   end
 
-  def list_for_sound(filename) do
-    case Repo.get_by(Sound, filename: filename) do
-      nil -> []
-      sound -> sound |> Repo.preload(:tags) |> Map.get(:tags)
-    end
-  end
-
   defp insert_or_get(name) do
     case %Tag{} |> Tag.changeset(%{name: name}) |> Repo.insert() do
       {:ok, tag} -> {:ok, tag}
