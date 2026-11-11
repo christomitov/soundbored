@@ -1,13 +1,12 @@
 defmodule Soundboard.BillingTest do
   @moduledoc """
-  Unit tests for SB-3 billing: price-to-cap mapping, webhook provisioning
-  (checkout.session.completed), subscription deletion zeroing the cap while
-  keeping the row, and duplicate-event idempotency.
+  Billing's event semantics: the price-to-cap catalog, webhook signature
+  checks, provisioning on checkout, status and ordering of subscription
+  events, idempotency, and the paywall predicate. The HTTP side (and every
+  Stripe API call) is in `SoundboardWeb.BillingWebTest`.
   """
 
-  use SoundboardWeb.ConnCase, async: false
-
-  import Mock
+  use Soundboard.DataCase, async: false
 
   alias Soundboard.Billing
   alias Soundboard.Tenants
@@ -28,50 +27,23 @@ defmodule Soundboard.BillingTest do
     :ok
   end
 
-  describe "plan_cap/1" do
-    test "maps each configured price id to its tier cap" do
-      assert Billing.plan_cap("price_pro_monthly") == 1_073_741_824
-      assert Billing.plan_cap("price_pro_yearly") == 1_073_741_824
-      assert Billing.plan_cap("price_studio_monthly") == 5_368_709_120
-      assert Billing.plan_cap("price_studio_yearly") == 5_368_709_120
-    end
-
-    test "unknown price ids and non-binaries map to nil" do
-      assert Billing.plan_cap("price_unknown") == nil
-      assert Billing.plan_cap(nil) == nil
+  test "each configured price maps to its plan's cap, anything else to nil" do
+    for {price, cap} <- [
+          {"price_pro_monthly", 1_073_741_824},
+          {"price_pro_yearly", 1_073_741_824},
+          {"price_studio_monthly", 5_368_709_120},
+          {"price_studio_yearly", 5_368_709_120},
+          {"price_unknown", nil},
+          {"", nil},
+          {nil, nil}
+        ] do
+      assert Billing.plan_cap(price) == cap, inspect(price)
     end
   end
 
-  describe "create_checkout_session/2" do
-    test "validates the price against the configured set" do
-      assert {:error, :invalid_price} = Billing.create_checkout_session("g1", "price_unknown")
-      assert {:error, :invalid_price} = Billing.create_checkout_session("g1", "")
-    end
-
-    test "builds a subscription checkout carrying the guild id for reconciliation" do
-      with_mock Stripe.Checkout.Session, [],
-        create: fn params, _opts ->
-          send(self(), {:stripe_checkout_params, params})
-          {:ok, %{id: "cs_test", url: "https://checkout.stripe.com/test"}}
-        end,
-        create: fn params ->
-          send(self(), {:stripe_checkout_params, params})
-          {:ok, %{id: "cs_test", url: "https://checkout.stripe.com/test"}}
-        end do
-        assert {:ok, %{id: "cs_test", url: "https://checkout.stripe.com/test"}} =
-                 Billing.create_checkout_session("bill-guild", "price_pro_monthly")
-
-        assert_received {:stripe_checkout_params, params}
-        assert params.client_reference_id == "bill-guild"
-        assert params.mode == "subscription" || params.mode == :subscription
-        assert params.metadata["guild_id"] == "bill-guild"
-        assert params.metadata["price_id"] == "price_pro_monthly"
-        assert params.subscription_data.metadata["guild_id"] == "bill-guild"
-        assert [%{price: "price_pro_monthly", quantity: 1}] = params.line_items
-        assert params.success_url =~ "/guilds"
-        assert params.cancel_url =~ "/guilds"
-      end
-    end
+  test "checkout refuses a price outside the plan catalog before calling Stripe" do
+    assert {:error, :invalid_price} = Billing.create_checkout_session("g1", "price_unknown")
+    assert {:error, :invalid_price} = Billing.create_checkout_session("g1", "")
   end
 
   describe "handle_webhook/2" do

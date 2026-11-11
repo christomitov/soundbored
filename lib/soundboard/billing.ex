@@ -80,9 +80,6 @@ defmodule Soundboard.Billing do
   @doc "Whether Stripe billing is active (STRIPE_SECRET_KEY present)."
   def configured?, do: present?(cfg(:secret_key))
 
-  @doc "Whether webhook signature verification is possible."
-  def webhook_configured?, do: present?(cfg(:webhook_secret))
-
   @doc """
   Maps every configured Stripe price id to its storage cap in bytes. This is
   the single source of truth for the price -> plan mapping.
@@ -366,15 +363,6 @@ defmodule Soundboard.Billing do
     end)
   end
 
-  @doc "The Stripe subscription id last seen for a guild, or nil."
-  @spec subscription_id_for_guild(String.t() | term()) :: String.t() | nil
-  def subscription_id_for_guild(guild_id) do
-    case subscription_state_for_guild(guild_id) do
-      nil -> nil
-      state -> state.id
-    end
-  end
-
   defp subscription_state_for_guild(guild_id) do
     ensure_ets(@subscriptions_ets)
 
@@ -384,21 +372,13 @@ defmodule Soundboard.Billing do
     end
   end
 
-  @doc "Caches the guild's subscription state (id, item, price) in memory."
-  @spec remember_subscription(String.t() | term(), SubscriptionSnapshot.t()) :: :ok
-  def remember_subscription(guild_id, %SubscriptionSnapshot{} = state) when is_binary(guild_id) do
+  defp remember_subscription(guild_id, %SubscriptionSnapshot{} = state)
+       when is_binary(guild_id) do
     ensure_ets(@subscriptions_ets)
     :ets.insert(@subscriptions_ets, {guild_id, state})
   end
 
-  def remember_subscription(guild_id, state) do
-    Logger.warning(
-      "remember_subscription: ignoring call with guild_id=#{inspect(guild_id)} " <>
-        "and state=#{inspect(state)}; expected a binary guild id and %SubscriptionSnapshot{}"
-    )
-
-    :ok
-  end
+  defp remember_subscription(_guild_id, _state), do: :ok
 
   @doc """
   Moves the guild's live subscription to another price (tier or interval
@@ -521,6 +501,10 @@ defmodule Soundboard.Billing do
   @doc """
   Verifies the Stripe signature header, then dispatches the event.
 
+  The `Stripe-Signature` header (`t=...,v1=...`) is checked locally with
+  HMAC-SHA256 over `"<t>.<payload>"` and a five-minute timestamp tolerance,
+  rather than through `Stripe.Webhook.construct_event/3`.
+
   Returns `{:ok, event_id | :duplicate}` on success (both ack the delivery),
   `{:error, :invalid_signature}` for tampered/foreign payloads, or
   `{:error, term()}` for malformed payloads / handler failures.
@@ -552,26 +536,9 @@ defmodule Soundboard.Billing do
 
   def handle_webhook(_, _), do: {:error, :invalid_payload}
 
-  @doc """
-  Verifies a Stripe webhook signature header (`t=...,v1=...`) against
-  `payload` using HMAC-SHA256. Verified locally instead of via
-  `Stripe.Webhook.construct_event/3` so the boundary is testable without
-  network or Stripe SDK behavior drift.
-  """
-  @spec verify_webhook_signature(binary(), String.t() | nil, String.t() | nil, pos_integer()) ::
-          :ok | {:error, :invalid_signature | :not_configured}
-  def verify_webhook_signature(
-        payload,
-        signature_header,
-        secret \\ nil,
-        tolerance \\ @signature_tolerance_seconds
-      )
+  defp verify_webhook_signature(payload, signature_header) do
+    secret = cfg(:webhook_secret)
 
-  def verify_webhook_signature(payload, signature_header, nil, tolerance) do
-    verify_webhook_signature(payload, signature_header, cfg(:webhook_secret), tolerance)
-  end
-
-  def verify_webhook_signature(payload, signature_header, secret, tolerance) do
     with {:secret, true} <- {:secret, present?(secret)},
          {timestamp, v1_values} when is_binary(timestamp) <-
            parse_signature_header(signature_header) do
@@ -580,7 +547,7 @@ defmodule Soundboard.Billing do
           case: :lower
         )
 
-      timestamp_fresh? = fresh_timestamp?(timestamp, tolerance)
+      timestamp_fresh? = fresh_timestamp?(timestamp, @signature_tolerance_seconds)
       signature_match? = Enum.any?(v1_values, &secure_equals?(&1, expected))
 
       if timestamp_fresh? and signature_match?,
@@ -628,9 +595,7 @@ defmodule Soundboard.Billing do
 
   defp secure_equals?(_, _), do: false
 
-  @doc "Handles a decoded Stripe event map. Public for direct unit testing."
-  @spec handle_event(map()) :: :ok | {:error, term()}
-  def handle_event(%{"type" => type, "data" => %{"object" => object}} = event) do
+  defp handle_event(%{"type" => type, "data" => %{"object" => object}} = event) do
     created = event["created"]
 
     case type do
@@ -648,7 +613,7 @@ defmodule Soundboard.Billing do
     end
   end
 
-  def handle_event(_), do: :ok
+  defp handle_event(_), do: :ok
 
   defp unless_stale(subscription_id, created, apply) do
     if stale?(subscription_id, created) do
