@@ -8,8 +8,9 @@ defmodule Soundboard.SoundTest do
     %{user: Repo.insert!(%User{username: "uploader", discord_id: "99", avatar: "a.jpg"})}
   end
 
-  test "changeset rules for source type, URL, filename and volume" do
+  test "changeset rules for uploader, source type, URL, filename and volume" do
     for {attrs, field, message} <- [
+          {%{filename: "orphan.mp3", user_id: nil}, :user_id, "can't be blank"},
           {%{source_type: "local"}, :filename, "can't be blank"},
           {%{source_type: "url"}, :url, "can't be blank"},
           {%{source_type: "ftp"}, :source_type, "must be either 'local' or 'url'"},
@@ -17,7 +18,7 @@ defmodule Soundboard.SoundTest do
           {%{filename: "quiet.mp3", volume: -0.1}, :volume,
            "must be greater than or equal to 0.0"}
         ] do
-      changeset = Sound.changeset(%Sound{}, Map.put(attrs, :user_id, 1))
+      changeset = Sound.changeset(%Sound{}, Map.put_new(attrs, :user_id, 1))
 
       assert message in Map.get(errors_on(changeset), field, []), inspect(attrs)
     end
