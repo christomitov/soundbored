@@ -14,13 +14,6 @@ defmodule Soundboard.Discord.GuildCache do
     end
   end
 
-  def get!(guild_id) do
-    case get(guild_id) do
-      {:ok, guild} -> guild
-      _ -> raise "guild #{guild_id} not found in cache"
-    end
-  end
-
   defp normalize_guild(guild) do
     guild_id = map_get(guild, "id")
     channels = Cache.channels_for_guild(guild_id)

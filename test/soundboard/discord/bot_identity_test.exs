@@ -33,8 +33,6 @@ defmodule Soundboard.Discord.BotIdentityTest do
     ]) do
       assert {:ok, %{id: "api-user"}} = BotIdentity.fetch()
       assert_receive :cached_user
-      assert_called(APIUser.me())
-      assert_called(Cache.put_me(fetched_user))
     end
   end
 

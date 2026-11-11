@@ -15,9 +15,6 @@ defmodule Soundboard.Discord.RuntimeCapability do
 
   def voice_runtime_status do
     cond do
-      Application.get_env(:soundboard, :env) == :test ->
-        :ok
-
       not Application.get_env(:eda, :dave, false) ->
         :ok
 

@@ -48,7 +48,7 @@ defmodule Soundboard.Discord.Handler.VoiceRuntime do
     []
   end
 
-  def get_current_voice_channel(guild_id \\ nil) do
+  def get_current_voice_channel(guild_id) do
     case current_voice_channel_status(guild_id) do
       {:ok, channel} -> channel
       _ -> nil
