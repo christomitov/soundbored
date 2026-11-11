@@ -97,12 +97,14 @@
                     No file chosen
                   </span>
                 </div>
-                <p
-                  :for={message <- upload_error_messages(@uploads.audio)}
-                  class="mt-1 text-sm text-red-600 dark:text-red-400 text-left"
-                >
-                  {message}
-                </p>
+                <div id="upload-file-errors">
+                  <p
+                    :for={message <- upload_error_messages(@uploads.audio)}
+                    class="mt-1 text-sm text-red-600 dark:text-red-400 text-left"
+                  >
+                    {message}
+                  </p>
+                </div>
               </div>
             <% else %>
               <!-- URL Input -->
