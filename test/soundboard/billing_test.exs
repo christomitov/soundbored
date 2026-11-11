@@ -98,11 +98,26 @@ defmodule Soundboard.BillingTest do
       assert {:ok, :duplicate} = Billing.handle_webhook(payload, header)
     end
 
-    test "a tampered payload is rejected with an invalid signature" do
-      {payload, _header} =
-        signed(Jason.encode!(checkout_event("evt_x", "g", "price_pro_monthly", "cus_x")))
+    test "a freshly signed payload that was then altered is rejected" do
+      event = checkout_event("evt_tamper", "bill-tamper", "price_pro_monthly", "cus_t")
+      {payload, header} = signed(Jason.encode!(event))
+      tampered = String.replace(payload, "price_pro_monthly", "price_studio_monthly")
 
-      assert {:error, :invalid_signature} = Billing.handle_webhook(payload, "t=1,v1=deadbeef")
+      assert {:error, :invalid_signature} = Billing.handle_webhook(tampered, header)
+      refute Tenants.get_guild("bill-tamper")
+    end
+
+    test "a correct signature with a timestamp outside the tolerance is rejected" do
+      event = checkout_event("evt_stale", "bill-stale", "price_pro_monthly", "cus_s")
+      payload = Jason.encode!(event)
+
+      for skew <- [-301, 301] do
+        {^payload, header} = signed(payload, System.system_time(:second) + skew)
+
+        assert {:error, :invalid_signature} = Billing.handle_webhook(payload, header)
+      end
+
+      refute Tenants.get_guild("bill-stale")
     end
 
     test "subscription deletion zeroes the cap but keeps the guild row" do
@@ -219,9 +234,9 @@ defmodule Soundboard.BillingTest do
     }
   end
 
-  defp signed(payload, secret \\ @secret) do
-    ts = Integer.to_string(System.system_time(:second))
-    mac = Base.encode16(:crypto.mac(:hmac, :sha256, secret, ts <> "." <> payload), case: :lower)
+  defp signed(payload, at \\ System.system_time(:second)) do
+    ts = Integer.to_string(at)
+    mac = Base.encode16(:crypto.mac(:hmac, :sha256, @secret, ts <> "." <> payload), case: :lower)
     {payload, "t=#{ts},v1=#{mac}"}
   end
 
