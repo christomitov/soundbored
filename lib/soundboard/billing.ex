@@ -36,13 +36,24 @@ defmodule Soundboard.Billing do
   subscription. Stripe API results are structs and webhook payloads plain
   maps; `field/2` reads either.
 
+  ## Ordering and status
+
+  Stripe does not deliver events in order. Only an `active` or `trialing`
+  subscription carries its plan's cap; any other status (past_due, unpaid,
+  canceled, incomplete) leaves the guild at cap 0. The `created` time of the
+  last event applied to each subscription is remembered (in memory, like the
+  rest), and an older event for that subscription is acknowledged without
+  being applied, so a late `customer.subscription.updated` cannot undo a
+  deletion. The limitation: that memory does not survive a restart, so an
+  out-of-order event arriving across a restart is still applied.
+
   Stripe customer ids seen on events are kept in a second ETS table
   (`:billing_stripe_customers`) so the customer portal can be opened without
   a `stripe_customer_id` column on `guilds`. Also in-memory: after a restart
   the portal is unavailable until the next event repopulates it.
   """
 
-  alias Soundboard.Billing.SubscriptionSnapshot
+  alias Soundboard.Billing.{Memory, SubscriptionSnapshot}
   alias Soundboard.Repo
   alias Soundboard.Tenants
   alias Soundboard.Tenants.Guild
@@ -51,6 +62,8 @@ defmodule Soundboard.Billing do
   @events_ets :billing_processed_events
   @customers_ets :billing_stripe_customers
   @subscriptions_ets :billing_stripe_subscriptions
+  @subscription_events_ets :billing_subscription_events
+  @paid_statuses ~w(active trialing)
   @signature_tolerance_seconds 300
 
   @cap_by_tier %{pro: 1_073_741_824, studio: 5_368_709_120}
@@ -66,9 +79,6 @@ defmodule Soundboard.Billing do
 
   @doc "Whether Stripe billing is active (STRIPE_SECRET_KEY present)."
   def configured?, do: present?(cfg(:secret_key))
-
-  @doc "Whether webhook signature verification is possible."
-  def webhook_configured?, do: present?(cfg(:webhook_secret))
 
   @doc """
   Maps every configured Stripe price id to its storage cap in bytes. This is
@@ -353,15 +363,6 @@ defmodule Soundboard.Billing do
     end)
   end
 
-  @doc "The Stripe subscription id last seen for a guild, or nil."
-  @spec subscription_id_for_guild(String.t() | term()) :: String.t() | nil
-  def subscription_id_for_guild(guild_id) do
-    case subscription_state_for_guild(guild_id) do
-      nil -> nil
-      state -> state.id
-    end
-  end
-
   defp subscription_state_for_guild(guild_id) do
     ensure_ets(@subscriptions_ets)
 
@@ -371,21 +372,13 @@ defmodule Soundboard.Billing do
     end
   end
 
-  @doc "Caches the guild's subscription state (id, item, price) in memory."
-  @spec remember_subscription(String.t() | term(), SubscriptionSnapshot.t()) :: :ok
-  def remember_subscription(guild_id, %SubscriptionSnapshot{} = state) when is_binary(guild_id) do
+  defp remember_subscription(guild_id, %SubscriptionSnapshot{} = state)
+       when is_binary(guild_id) do
     ensure_ets(@subscriptions_ets)
     :ets.insert(@subscriptions_ets, {guild_id, state})
   end
 
-  def remember_subscription(guild_id, state) do
-    Logger.warning(
-      "remember_subscription: ignoring call with guild_id=#{inspect(guild_id)} " <>
-        "and state=#{inspect(state)}; expected a binary guild id and %SubscriptionSnapshot{}"
-    )
-
-    :ok
-  end
+  defp remember_subscription(_guild_id, _state), do: :ok
 
   @doc """
   Moves the guild's live subscription to another price (tier or interval
@@ -429,7 +422,8 @@ defmodule Soundboard.Billing do
            Stripe.Subscription.update(subscription_id, %{cancel_at_period_end: true},
              api_key: cfg(:secret_key)
            ) do
-      {:ok, %{cancel_at: subscription["current_period_end"]}}
+      {:ok,
+       %{cancel_at: field(subscription, :cancel_at) || field(subscription, :current_period_end)}}
     else
       {:configured, false} -> {:error, :not_configured}
       {:error, reason} -> {:error, reason}
@@ -507,6 +501,10 @@ defmodule Soundboard.Billing do
   @doc """
   Verifies the Stripe signature header, then dispatches the event.
 
+  The `Stripe-Signature` header (`t=...,v1=...`) is checked locally with
+  HMAC-SHA256 over `"<t>.<payload>"` and a five-minute timestamp tolerance,
+  rather than through `Stripe.Webhook.construct_event/3`.
+
   Returns `{:ok, event_id | :duplicate}` on success (both ack the delivery),
   `{:error, :invalid_signature}` for tampered/foreign payloads, or
   `{:error, term()}` for malformed payloads / handler failures.
@@ -538,26 +536,9 @@ defmodule Soundboard.Billing do
 
   def handle_webhook(_, _), do: {:error, :invalid_payload}
 
-  @doc """
-  Verifies a Stripe webhook signature header (`t=...,v1=...`) against
-  `payload` using HMAC-SHA256. Verified locally instead of via
-  `Stripe.Webhook.construct_event/3` so the boundary is testable without
-  network or Stripe SDK behavior drift.
-  """
-  @spec verify_webhook_signature(binary(), String.t() | nil, String.t() | nil, pos_integer()) ::
-          :ok | {:error, :invalid_signature | :not_configured}
-  def verify_webhook_signature(
-        payload,
-        signature_header,
-        secret \\ nil,
-        tolerance \\ @signature_tolerance_seconds
-      )
+  defp verify_webhook_signature(payload, signature_header) do
+    secret = cfg(:webhook_secret)
 
-  def verify_webhook_signature(payload, signature_header, nil, tolerance) do
-    verify_webhook_signature(payload, signature_header, cfg(:webhook_secret), tolerance)
-  end
-
-  def verify_webhook_signature(payload, signature_header, secret, tolerance) do
     with {:secret, true} <- {:secret, present?(secret)},
          {timestamp, v1_values} when is_binary(timestamp) <-
            parse_signature_header(signature_header) do
@@ -566,7 +547,7 @@ defmodule Soundboard.Billing do
           case: :lower
         )
 
-      timestamp_fresh? = fresh_timestamp?(timestamp, tolerance)
+      timestamp_fresh? = fresh_timestamp?(timestamp, @signature_tolerance_seconds)
       signature_match? = Enum.any?(v1_values, &secure_equals?(&1, expected))
 
       if timestamp_fresh? and signature_match?,
@@ -614,20 +595,56 @@ defmodule Soundboard.Billing do
 
   defp secure_equals?(_, _), do: false
 
-  @doc "Handles a decoded Stripe event map. Public for direct unit testing."
-  @spec handle_event(map()) :: :ok | {:error, term()}
-  def handle_event(%{"type" => type, "data" => %{"object" => object}}) do
+  defp handle_event(%{"type" => type, "data" => %{"object" => object}} = event) do
+    created = event["created"]
+
     case type do
-      "checkout.session.completed" -> handle_checkout_completed(object)
-      "customer.subscription.updated" -> handle_subscription_updated(object)
-      "customer.subscription.deleted" -> handle_subscription_deleted(object)
-      _other -> :ok
+      "checkout.session.completed" ->
+        handle_checkout_completed(object, created)
+
+      "customer.subscription.updated" ->
+        unless_stale(object["id"], created, fn -> handle_subscription_updated(object) end)
+
+      "customer.subscription.deleted" ->
+        unless_stale(object["id"], created, fn -> handle_subscription_deleted(object) end)
+
+      _other ->
+        :ok
     end
   end
 
-  def handle_event(_), do: :ok
+  defp handle_event(_), do: :ok
 
-  defp handle_checkout_completed(session) do
+  defp unless_stale(subscription_id, created, apply) do
+    if stale?(subscription_id, created) do
+      Logger.info("Ignoring out-of-order event for subscription #{subscription_id}")
+      :ok
+    else
+      with :ok <- apply.(), do: remember_event_time(subscription_id, created)
+    end
+  end
+
+  defp stale?(subscription_id, created) when is_binary(subscription_id) and is_integer(created) do
+    ensure_ets(@subscription_events_ets)
+
+    case :ets.lookup(@subscription_events_ets, subscription_id) do
+      [{_id, last_applied}] -> created < last_applied
+      [] -> false
+    end
+  end
+
+  defp stale?(_subscription_id, _created), do: false
+
+  defp remember_event_time(subscription_id, created)
+       when is_binary(subscription_id) and is_integer(created) do
+    ensure_ets(@subscription_events_ets)
+    :ets.insert(@subscription_events_ets, {subscription_id, created})
+    :ok
+  end
+
+  defp remember_event_time(_subscription_id, _created), do: :ok
+
+  defp handle_checkout_completed(session, created) do
     guild_id =
       get_in(session, ["metadata", "guild_id"]) ||
         get_in(session, ["subscription_data", "metadata", "guild_id"]) ||
@@ -646,13 +663,14 @@ defmodule Soundboard.Billing do
       )
     end
 
-    apply_cap(guild_id, cap, owner)
+    with :ok <- apply_cap(guild_id, cap, owner),
+         do: remember_event_time(session["subscription"], created)
   end
 
   defp handle_subscription_updated(subscription) do
     guild_id = get_in(subscription, ["metadata", "guild_id"])
     price_id = subscription_price_id(subscription)
-    cap = plan_cap(price_id)
+    cap = if subscription["status"] in @paid_statuses, do: plan_cap(price_id), else: 0
 
     if is_binary(guild_id) do
       item_id =
@@ -745,17 +763,7 @@ defmodule Soundboard.Billing do
 
   defp remember_event(_), do: :ok
 
-  defp ensure_ets(table) do
-    if :ets.whereis(table) == :undefined do
-      try do
-        :ets.new(table, [:set, :public, :named_table, read_concurrency: true])
-      rescue
-        ArgumentError -> :ok
-      end
-    end
-
-    :ok
-  end
+  defp ensure_ets(table), do: Memory.ensure_tables([table])
 
   @doc """
   Clears in-memory billing state (processed events, customer ids). Test and
@@ -763,7 +771,7 @@ defmodule Soundboard.Billing do
   module doc on idempotency).
   """
   def reset_memory do
-    for table <- [@events_ets, @customers_ets, @subscriptions_ets] do
+    for table <- [@events_ets, @customers_ets, @subscriptions_ets, @subscription_events_ets] do
       ensure_ets(table)
       :ets.delete_all_objects(table)
     end

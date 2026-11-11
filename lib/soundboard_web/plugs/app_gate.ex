@@ -9,6 +9,10 @@ defmodule SoundboardWeb.Plugs.AppGate do
   (subscribe). Setup pages (/guilds, /onboarding, /billing) are never gated —
   they are the path to getting unlocked.
 
+  Runs after `SoundboardWeb.Plugs.Tenant`, so the guild is the resolved
+  `:current_guild_id`; a picked soundboard is one with a tenant row
+  (`:current_guild` is a `Soundboard.Tenants.Guild`).
+
   Also assigns `:app_unlocked` so the navbar can hide app navigation until the
   gate opens.
   """
@@ -17,6 +21,7 @@ defmodule SoundboardWeb.Plugs.AppGate do
   import Phoenix.Controller, only: [put_flash: 3, redirect: 2]
 
   alias Soundboard.Billing
+  alias Soundboard.Tenants.Guild
 
   def init(opts), do: opts
 
@@ -28,35 +33,26 @@ defmodule SoundboardWeb.Plugs.AppGate do
   def call(conn, _opts) do
     conn = assign(conn, :app_unlocked, unlocked?(conn))
 
-    if conn.assigns.app_unlocked do
-      conn
-    else
-      redirect_to =
-        if get_session(conn, :guild_id),
-          do: "/billing",
-          else: "/guilds"
+    cond do
+      conn.assigns.app_unlocked ->
+        conn
 
-      conn
-      |> put_flash(
-        :error,
-        if(redirect_to == "/billing",
-          do: "That soundboard needs an active subscription",
-          else: "Pick a soundboard to continue"
-        )
-      )
-      |> redirect(to: redirect_to)
-      |> halt()
+      match?(%Guild{}, conn.assigns[:current_guild]) ->
+        lock(conn, "/billing", "That soundboard needs an active subscription")
+
+      true ->
+        lock(conn, "/guilds", "Pick a soundboard to continue")
     end
   end
 
+  defp lock(conn, path, message) do
+    conn
+    |> put_flash(:error, message)
+    |> redirect(to: path)
+    |> halt()
+  end
+
   defp unlocked?(conn) do
-    if Billing.configured?() do
-      case get_session(conn, :guild_id) do
-        nil -> false
-        guild_id -> Billing.subscription_active?(guild_id)
-      end
-    else
-      true
-    end
+    not Billing.configured?() or Billing.subscription_active?(conn.assigns[:current_guild_id])
   end
 end

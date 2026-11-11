@@ -1,5 +1,13 @@
 defmodule Soundboard.Sounds.Uploads.CreateRequest do
-  @moduledoc false
+  @moduledoc """
+  The input to create a sound, built from request params (`new/2`).
+
+  A local file only comes in as a `%Plug.Upload{}`, the file Plug received
+  in the request; any other `file`/`upload` param (such as a map naming a
+  server path) is ignored, so a client can never make the server copy one of
+  its own files. Callers that already hold a received file (the LiveView's
+  consumed upload entry) attach it with `put_upload/2`.
+  """
 
   alias Soundboard.Accounts.User
 
@@ -49,7 +57,7 @@ defmodule Soundboard.Sounds.Uploads.CreateRequest do
       source_type: get_param(attrs, :source_type),
       name: get_param(attrs, :name),
       url: get_param(attrs, :url),
-      upload: normalize_upload(get_param(attrs, :upload) || get_param(attrs, :file)),
+      upload: received_upload(get_param(attrs, :upload) || get_param(attrs, :file)),
       tags: get_param(attrs, :tags) || get_param(attrs, "tags[]") || [],
       volume: get_param(attrs, :volume),
       is_join_sound: get_param(attrs, :is_join_sound),
@@ -62,6 +70,9 @@ defmodule Soundboard.Sounds.Uploads.CreateRequest do
   def put_upload(%__MODULE__{} = request, upload) do
     struct!(request, upload: normalize_upload(upload))
   end
+
+  defp received_upload(%Plug.Upload{} = upload), do: normalize_upload(upload)
+  defp received_upload(_), do: nil
 
   defp normalize_upload(nil), do: nil
 

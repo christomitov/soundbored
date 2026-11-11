@@ -34,7 +34,7 @@ defmodule Soundboard.Sounds.Uploads do
   def error_message(%Ecto.Changeset{} = changeset) do
     Enum.map_join(changeset.errors, ", ", fn
       {:filename, {"has already been taken", _}} -> "A sound with that name already exists"
-      {:file, {"Please select a file", _}} -> "Please select a file"
+      {key, {msg, _}} when key in [:file, :base] -> msg
       {key, {msg, _}} -> "#{key} #{msg}"
     end)
   end

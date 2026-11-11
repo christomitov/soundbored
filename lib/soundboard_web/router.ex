@@ -127,7 +127,8 @@ defmodule SoundboardWeb.Router do
       :auth,
       :ensure_authenticated_user,
       :require_role_check,
-      :require_browser_basic_auth
+      :require_browser_basic_auth,
+      :app_access
     ]
 
     live "/", SoundboardLive
@@ -174,14 +175,6 @@ defmodule SoundboardWeb.Router do
     ]
 
     get "/*path", SoundboardWeb.UploadController, :show
-  end
-
-  if Mix.env() == :test do
-    scope "/debug", SoundboardWeb do
-      pipe_through [:browser]
-
-      get "/session", AuthController, :debug_session
-    end
   end
 
   scope "/api", SoundboardWeb.API do

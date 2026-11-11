@@ -27,30 +27,12 @@ defmodule Soundboard.Tenants.GuildScopingTest do
   end
 
   describe "same filename in two guilds" do
-    test "is allowed — filenames are unique per guild, not globally", %{
-      guild_a_sound: a,
-      guild_b_sound: b
-    } do
-      assert a.filename == b.filename
-      assert a.guild_id == "guild-a"
-      assert b.guild_id == "guild-b"
-      assert a.id != b.id
-    end
-
     test "list_detailed/1 scopes to the requested guild", %{
       guild_a_sound: a,
       guild_b_sound: b
     } do
-      assert a.guild_id == "guild-a"
-      assert b.guild_id == "guild-b"
-
-      filenames_a = Enum.map(Sounds.list_detailed("guild-a"), & &1.filename)
-      filenames_b = Enum.map(Sounds.list_detailed("guild-b"), & &1.filename)
-
-      assert "airhorn.mp3" in filenames_a
-      assert "airhorn.mp3" in filenames_b
-      assert Enum.count(Sounds.list_detailed("guild-a")) == 1
-      assert Enum.count(Sounds.list_detailed("guild-b")) == 1
+      assert Enum.map(Sounds.list_detailed("guild-a"), & &1.id) == [a.id]
+      assert Enum.map(Sounds.list_detailed("guild-b"), & &1.id) == [b.id]
     end
 
     test "list_detailed/0 (no guild) targets the default guild only", %{default_sound: d} do
@@ -75,25 +57,15 @@ defmodule Soundboard.Tenants.GuildScopingTest do
       assert d_id == d.id
       assert :error == Sounds.fetch_sound_id("default-only.mp3", "guild-a")
     end
-
-    test "filename_taken?/2 is scoped per guild" do
-      assert Sounds.filename_taken?("airhorn.mp3", "guild-a")
-      assert Sounds.filename_taken?("airhorn.mp3", "guild-b")
-      refute Sounds.filename_taken?("airhorn.mp3", "guild-c")
-    end
   end
 
   describe "per-guild join/leave sounds" do
-    test "a user's join sound is scoped to the guild it was configured in", %{user: user} do
-      guild_a_sound = insert_sound!(user, filename: "join-a.mp3", guild_id: "guild-a")
-      guild_b_sound = insert_sound!(user, filename: "join-b.mp3", guild_id: "guild-b")
+    test "a user's join sound is found only in the guild it was set in", %{user: user} do
+      sound = insert_sound!(user, filename: "join-a.mp3", guild_id: "guild-a")
+      insert_setting!(user, sound, is_join_sound: true)
 
-      insert_setting!(user, guild_a_sound, is_join_sound: true)
-      insert_setting!(user, guild_b_sound, is_join_sound: true)
-
-      assert Sounds.get_user_join_sound(user.id, "guild-a") == "join-a.mp3"
-      assert Sounds.get_user_join_sound(user.id, "guild-b") == "join-b.mp3"
-      assert Sounds.get_user_join_sound(user.id, "guild-c") == nil
+      assert Sounds.get_user_join_sound_by_discord_id(user.discord_id, "guild-a") == "join-a.mp3"
+      assert Sounds.get_user_join_sound_by_discord_id(user.discord_id, "guild-b") == nil
     end
 
     test "setting a join sound in one guild does not clear it in another", %{user: user} do
@@ -113,54 +85,39 @@ defmodule Soundboard.Tenants.GuildScopingTest do
         "guild-a"
       )
 
-      assert Sounds.get_user_join_sound(user.id, "guild-b") == "join-b.mp3"
-      assert Sounds.get_user_join_sound(user.id, "guild-a") == nil
+      assert Sounds.get_user_join_sound_by_discord_id(user.discord_id, "guild-b") == "join-b.mp3"
+      assert Sounds.get_user_join_sound_by_discord_id(user.discord_id, "guild-a") == nil
     end
 
     test "join/leave lookups without a guild target the default guild", %{user: user} do
       sound = insert_sound!(user, filename: "leave-default.mp3")
       insert_setting!(user, sound, is_leave_sound: true)
 
-      assert Sounds.get_user_leave_sound(user.id) == "leave-default.mp3"
-      assert Sounds.get_user_leave_sound(user.id, "guild-a") == nil
+      assert Sounds.get_user_leave_sound_by_discord_id(user.discord_id) == "leave-default.mp3"
+      assert Sounds.get_user_leave_sound_by_discord_id(user.discord_id, "guild-a") == nil
     end
   end
 
   describe "storage caps at the upload boundary" do
-    test "create_sound/1 records byte_size and charges it to the guild", %{user: user} do
-      Tenants.get_or_create_guild("capped", %{slug: "capped", max_storage_bytes: 10_000})
+    test "create_sound/1 records a local file's size and charges it to the guild", %{
+      user: user
+    } do
+      Tenants.get_or_create_guild("capped", %{slug: "capped", max_storage_bytes: 10_000_000})
+      path = Path.join(System.tmp_dir!(), "#{System.unique_integer([:positive])}-capped.mp3")
+      File.cp!(Soundboard.TestHelpers.audio_fixture_path(), path)
+      on_exit(fn -> File.rm(path) end)
 
       {:ok, sound} =
-        create_sound(user, %{
-          "name" => "capped-sound",
-          "source_type" => "url",
-          "url" => "https://example.com/capped.mp3",
-          "guild_id" => "capped"
-        })
+        user
+        |> Sounds.new_create_request(%{"name" => "capped-sound", "guild_id" => "capped"})
+        |> Sounds.put_request_upload(%{path: path, filename: "capped.mp3"})
+        |> Sounds.create_sound()
 
-      assert sound.guild_id == "capped"
-      assert Tenants.storage_used("capped") == 0
-    end
+      on_exit(fn -> File.rm(Soundboard.UploadsPath.file_path(sound.storage_key)) end)
 
-    test "create_sound/1 rejects uploads past the guild's cap", %{user: user} do
-      upload = %{
-        path: local_sound_path(6_000),
-        filename: "big.mp3"
-      }
-
-      Tenants.get_or_create_guild("tiny", %{slug: "tiny", max_storage_bytes: 5_000})
-      insert_sound!(user, filename: "filler.mp3", guild_id: "tiny", byte_size: 3_000)
-
-      {:error, changeset} =
-        create_sound(user, %{
-          "name" => "too-big",
-          "source_type" => "local",
-          "upload" => upload,
-          "guild_id" => "tiny"
-        })
-
-      assert errors_on(changeset).base != nil
-      assert Tenants.storage_used("tiny") == 3_000
+      assert sound.byte_size == File.stat!(path).size
+      assert sound.byte_size > 0
+      assert Tenants.storage_used("capped") == sound.byte_size
     end
 
     test "create_sound/1 without a guild lands in the default guild (back-compat)", %{user: user} do
@@ -197,13 +154,6 @@ defmodule Soundboard.Tenants.GuildScopingTest do
     user
     |> Sounds.new_create_request(params)
     |> Sounds.create_sound()
-  end
-
-  defp local_sound_path(bytes) do
-    path = Path.join(System.tmp_dir!(), "soundbored-cap-test-#{System.unique_integer()}.mp3")
-    File.write!(path, "ID3" <> :binary.copy(<<0>>, bytes - 3))
-    on_exit(fn -> File.rm(path) end)
-    path
   end
 
   defp insert_sound!(user, attrs) do

@@ -1,88 +1,91 @@
 defmodule SoundboardWeb.Plugs.TenantTest do
   @moduledoc """
-  Behavioral tests for tenant resolution: subdomain → session → default guild,
-  with unknown subdomains rejected. With no tenant host configured (the
-  single-guild case), every request resolves to the default guild.
+  Tenant resolution through the router: subdomain, then session, then the
+  default guild, with unknown subdomains rejected before any controller and
+  guilds the user is not a member of refused or dropped.
   """
 
   use SoundboardWeb.ConnCase, async: false
 
+  import Mock
+
+  alias Soundboard.Accounts.ApiTokens
   alias Soundboard.Tenants
 
-  setup do
-    {:ok, _} = Tenants.get_or_create_guild("111", %{slug: "acme", name: "Acme"})
+  setup_with_mocks([
+    {EDA.Cache, [:passthrough],
+     guilds: fn -> [] end,
+     fetch_member: fn
+       "333", _ -> {:error, :not_found}
+       _, _ -> {:ok, %{}}
+     end}
+  ]) do
     :ok
   end
 
-  describe "without a tenant base host configured (single-guild default)" do
-    test "resolves to the default guild", %{conn: conn} do
-      conn = dispatch(conn, "soundbored.local")
-
-      assert conn.assigns.current_guild_id == Tenants.default_guild_id()
-    end
+  setup %{conn: conn} do
+    {:ok, _} = Tenants.get_or_create_guild("111", %{slug: "acme", name: "Acme"})
+    {:ok, _} = Tenants.get_or_create_guild("222", %{slug: "other"})
+    {:ok, _} = Tenants.get_or_create_guild("333", %{slug: "closed"})
+    %{conn: sign_in(conn, user_fixture())}
   end
 
-  describe "with a tenant base host configured" do
+  test "with no tenant host configured, every host is the default guild", %{conn: conn} do
+    conn = get(%{conn | host: "acme.soundbored.app"}, "/guilds")
+
+    assert conn.assigns.current_guild_id == Tenants.default_guild_id()
+  end
+
+  describe "with a tenant base host" do
     setup do
       Application.put_env(:soundboard, :tenant_base_host, "soundbored.app")
-
-      on_exit(fn ->
-        Application.delete_env(:soundboard, :tenant_base_host)
-      end)
-
-      :ok
+      on_exit(fn -> Application.delete_env(:soundboard, :tenant_base_host) end)
     end
 
-    test "subdomain slug resolves to that guild's tenant", %{conn: conn} do
-      conn = dispatch(conn, "acme.soundbored.app")
+    test "a subdomain picks its guild, and the session remembers it for LiveViews", %{
+      conn: conn
+    } do
+      conn = get(%{conn | host: "acme.soundbored.app"}, "/guilds")
 
       assert conn.assigns.current_guild_id == "111"
-      assert conn.assigns.current_guild.slug == "acme"
+      assert get_session(conn, :guild_id) == "111"
     end
 
-    test "unknown subdomain is rejected with 404", %{conn: conn} do
-      conn = dispatch(conn, "nope.soundbored.app")
+    test "on the apex host the session's guild applies, else the default", %{conn: conn} do
+      apex = %{conn | host: "soundbored.app"}
 
-      assert conn.status == 404
-      assert conn.halted
+      assert get(apex, "/guilds").assigns.current_guild_id == Tenants.default_guild_id()
+
+      assert apex
+             |> init_test_session(%{guild_id: "222"})
+             |> get("/guilds")
+             |> Map.get(:assigns)
+             |> Map.get(:current_guild_id) ==
+               "222"
     end
 
-    test "the apex host falls through to session/default resolution", %{conn: conn} do
-      conn = dispatch(conn, "soundbored.app")
+    test "an unknown subdomain is a 404 before any controller runs" do
+      {:ok, raw, _} = ApiTokens.generate_token(user_fixture())
+
+      conn =
+        %{build_conn() | host: "nope.soundbored.app"}
+        |> put_req_header("authorization", "Bearer " <> raw)
+        |> get("/api/sounds")
+
+      assert response(conn, 404) == "Unknown soundboard"
+    end
+
+    test "a subdomain whose guild the user is not in is a 403", %{conn: conn} do
+      conn = get(%{conn | host: "closed.soundbored.app"}, "/guilds")
+
+      assert response(conn, 403) == "You are not a member of this soundboard"
+    end
+
+    test "a session guild the user is not in falls back to the default guild", %{conn: conn} do
+      conn = conn |> init_test_session(%{guild_id: "333"}) |> get("/guilds")
 
       assert conn.assigns.current_guild_id == Tenants.default_guild_id()
-    end
-
-    test "session guild wins when no subdomain is present", %{conn: conn} do
-      Tenants.get_or_create_guild("222", %{slug: "other"})
-      conn = Plug.Test.init_test_session(conn, %{"guild_id" => "222"})
-
-      conn = dispatch(conn, "soundbored.app")
-
-      assert conn.assigns.current_guild_id == "222"
-    end
-
-    test "resolved guild id is mirrored into the session for LiveViews", %{conn: conn} do
-      conn = dispatch(conn, "acme.soundbored.app")
-
-      assert get_session(conn, "guild_id") == "111"
+      assert get_session(conn, :guild_id) == Tenants.default_guild_id()
     end
   end
-
-  defp dispatch(conn, host) do
-    conn = Plug.Test.init_test_session(conn, %{})
-
-    conn
-    |> assign(:current_user, nil)
-    |> Map.replace!(:host, host)
-    |> SoundboardWeb.Plugs.Tenant.call(SoundboardWeb.Plugs.Tenant.init([]))
-    |> case do
-      %{halted: true} = conn -> conn
-      conn -> Plug.Conn.send_resp(conn, 200, "")
-    end
-    |> maybe_wait_resp()
-  end
-
-  defp maybe_wait_resp(%{state: :sent} = conn), do: conn
-  defp maybe_wait_resp(conn), do: conn
 end

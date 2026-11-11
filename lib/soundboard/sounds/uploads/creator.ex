@@ -32,11 +32,16 @@ defmodule Soundboard.Sounds.Uploads.Creator do
   defp ensure_storage_capacity(params, source) do
     incoming = byte_size_of(source)
 
-    if Tenants.within_storage_limit?(params.guild_id, incoming) do
-      :ok
-    else
-      {:error,
-       "Storage limit reached for this soundboard (#{Soundboard.Billing.format_bytes(Tenants.storage_cap(params.guild_id))} cap). Remove some sounds or upgrade your plan."}
+    cond do
+      Tenants.within_storage_limit?(params.guild_id, incoming) ->
+        :ok
+
+      Tenants.storage_cap(params.guild_id) == 0 ->
+        {:error, "This soundboard has no active plan. Subscribe to add sounds."}
+
+      true ->
+        {:error,
+         "Storage limit reached for this soundboard (#{Soundboard.Billing.format_bytes(Tenants.storage_cap(params.guild_id))} cap). Remove some sounds or upgrade your plan."}
     end
   end
 
@@ -80,7 +85,8 @@ defmodule Soundboard.Sounds.Uploads.Creator do
       params.user.id,
       sound.id,
       params.is_join_sound,
-      params.is_leave_sound
+      params.is_leave_sound,
+      params.guild_id
     )
 
     %UserSoundSetting{}

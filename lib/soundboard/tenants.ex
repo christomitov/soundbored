@@ -262,34 +262,29 @@ defmodule Soundboard.Tenants do
 
   @doc """
   The storage cap for a guild: its own `max_storage_bytes`, or nil when the
-  guild has no cap — which means unlimited. Caps exist only where subscriptions
-  put them: on hosted, the billing webhook writes exact plan caps; self-hosted
-  installs have no cap at all.
+  guild has no cap, which means unlimited. Caps exist only where
+  subscriptions put them: on hosted, the billing webhook writes exact plan
+  caps and 0 once the subscription ends (no plan: nothing can be added);
+  self-hosted installs have no cap at all.
   """
-  @spec storage_cap(String.t() | term()) :: pos_integer() | nil
+  @spec storage_cap(String.t() | term()) :: non_neg_integer() | nil
   def storage_cap(guild_id) do
     case get_guild(guild_id) do
-      %Guild{max_storage_bytes: bytes} when is_integer(bytes) and bytes > 0 -> bytes
+      %Guild{max_storage_bytes: bytes} when is_integer(bytes) and bytes >= 0 -> bytes
       _ -> nil
     end
   end
 
-  @spec storage_remaining(String.t() | term()) :: non_neg_integer() | nil
-  def storage_remaining(guild_id) do
-    case storage_cap(guild_id) do
-      nil -> nil
-      cap -> max(cap - storage_used(guild_id), 0)
-    end
-  end
-
   @doc """
-  Whether uploading `incoming_bytes` more would stay within the guild's cap.
-  An uncapped guild (self-hosted) is always within its limit.
+  Whether adding a sound of `incoming_bytes` stays within the guild's cap.
+  An uncapped guild (self-hosted) is always within its limit; a guild with
+  no plan (cap 0) cannot add anything, not even a URL sound.
   """
   @spec within_storage_limit?(String.t() | term(), non_neg_integer()) :: boolean()
   def within_storage_limit?(guild_id, incoming_bytes) do
     case storage_cap(guild_id) do
       nil -> true
+      0 -> false
       cap -> storage_used(guild_id) + incoming_bytes <= cap
     end
   end

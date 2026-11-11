@@ -27,7 +27,7 @@ defmodule SoundboardWeb.AuthControllerTest do
   end
 
   describe "auth flow" do
-    test "request/2 initiates Discord auth and sets session", %{conn: conn} do
+    test "request/2 sends the visitor to Discord", %{conn: conn} do
       conn = get(conn, ~p"/auth/discord")
 
       assert conn.status == 302
@@ -60,6 +60,7 @@ defmodule SoundboardWeb.AuthControllerTest do
 
       assert redirected_to(conn) == "/"
       assert get_session(conn, :user_id)
+      assert is_integer(get_session(conn, :roles_verified_at))
 
       user = Repo.get_by(User, discord_id: "12345")
       assert user
@@ -99,6 +100,20 @@ defmodule SoundboardWeb.AuthControllerTest do
       assert final_count == initial_count + 1
     end
 
+    test "callback/2 lands on the soundboard a signed-out visitor asked for", %{conn: conn} do
+      for {pending, landing} <- [{"wanted-slug", "/g/wanted-slug"}, {"//evil.com", "/"}] do
+        conn =
+          conn
+          |> put_session(:pending_slug, pending)
+          |> assign(:ueberauth_auth, %{uid: "999888", info: %{nickname: "SlugUser", image: nil}})
+          |> get(~p"/auth/discord/callback")
+
+        assert redirected_to(conn) == landing
+        assert get_session(conn, :user_id)
+        assert get_session(conn, :pending_slug) == nil
+      end
+    end
+
     test "callback/2 handles auth failures", %{conn: conn} do
       capture_log(fn ->
         conn =
@@ -127,41 +142,9 @@ defmodule SoundboardWeb.AuthControllerTest do
       assert redirected_to(conn) == "/"
       refute get_session(conn, :user_id)
     end
-
-    test "debug_session/2 returns limited session info", %{conn: conn} do
-      user = insert_user()
-
-      conn =
-        conn
-        |> put_session(:session_id, 123)
-        |> put_session(:user_id, user.id)
-        |> get(~p"/debug/session")
-
-      assert json = json_response(conn, 200)
-      assert json == %{"session" => %{"session_id" => 123, "user_id" => user.id}}
-    end
   end
 
   describe "role-gated access" do
-    test "callback/2 sets roles_verified_at session key on successful auth", %{conn: conn} do
-      auth_data = %{
-        uid: "99999",
-        info: %{
-          nickname: "RoleUser",
-          image: "role_avatar.jpg"
-        }
-      }
-
-      conn =
-        conn
-        |> assign(:ueberauth_auth, auth_data)
-        |> get(~p"/auth/discord/callback")
-
-      assert redirected_to(conn) == "/"
-      assert get_session(conn, :user_id)
-      assert is_integer(get_session(conn, :roles_verified_at))
-    end
-
     test "callback/2 rejects unauthorized user without creating user record", %{conn: conn} do
       previous_guild = Application.get_env(:soundboard, :required_guild_id)
       previous_roles = Application.get_env(:soundboard, :required_role_ids)
@@ -204,18 +187,5 @@ defmodule SoundboardWeb.AuthControllerTest do
         assert Repo.aggregate(User, :count) == user_count_before
       end
     end
-  end
-
-  defp insert_user do
-    {:ok, user} =
-      %User{}
-      |> User.changeset(%{
-        username: "testuser#{System.unique_integer([:positive])}",
-        discord_id: "#{System.unique_integer([:positive])}",
-        avatar: "test_avatar.jpg"
-      })
-      |> Repo.insert()
-
-    user
   end
 end
