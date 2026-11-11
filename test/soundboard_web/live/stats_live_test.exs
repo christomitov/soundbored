@@ -138,6 +138,14 @@ defmodule SoundboardWeb.StatsLiveTest do
     assert html =~ Calendar.strftime(start_date, "%b %d")
   end
 
+  test "the hourly week rollover check keeps the page running", %{conn: conn, sound: sound} do
+    {:ok, view, _html} = live(conn, "/stats")
+
+    send(view.pid, :check_week_rollover)
+
+    assert has_element?(view, "[id='play-top-#{sound.filename}']", "1 plays")
+  end
+
   defp live_as_user(conn, user) do
     conn
     |> Plug.Test.init_test_session(%{})

@@ -62,6 +62,11 @@ defmodule SoundboardWeb.StatsLive do
   end
 
   @impl true
+  def handle_info(:check_week_rollover, socket) do
+    {:noreply, roll_week(socket, get_week_range())}
+  end
+
+  @impl true
   def handle_info(:clear_flash, socket) do
     {:noreply, clear_flash(socket)}
   end
@@ -96,6 +101,20 @@ defmodule SoundboardWeb.StatsLive do
     |> assign(:favorites, favorites)
     |> assign(:sound_ids_by_filename, sound_ids_by_filename)
     |> assign(:avatars_by_username, avatars_by_username)
+  end
+
+  defp roll_week(%{assigns: %{current_week: week}} = socket, week), do: socket
+
+  defp roll_week(%{assigns: %{current_week: old_week}} = socket, new_week) do
+    selected_week =
+      if socket.assigns.selected_week == old_week,
+        do: new_week,
+        else: socket.assigns.selected_week
+
+    socket
+    |> assign(:current_week, new_week)
+    |> assign(:selected_week, selected_week)
+    |> assign_stats()
   end
 
   defp get_favorites(nil), do: []
