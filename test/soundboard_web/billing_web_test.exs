@@ -36,6 +36,33 @@ defmodule SoundboardWeb.BillingWebTest do
       assert Tenants.get_guild(@guild).max_storage_bytes == Billing.plan_cap("price_studio_m")
     end
 
+    test "an event type billing does not handle is acknowledged, so Stripe stops retrying" do
+      event = %{
+        "id" => "evt_web_other",
+        "type" => "customer.created",
+        "data" => %{"object" => %{}}
+      }
+
+      assert json_response(deliver_stripe_event(event), 200) == %{
+               "received" => true,
+               "event" => "evt_web_other"
+             }
+    end
+
+    test "the signature is checked over the exact bytes Stripe sent", %{conn: conn} do
+      event = checkout_event("evt_web_pretty", @guild, "price_pro_m", "cus_web")
+      payload = Jason.encode!(event, pretty: true)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> put_req_header("stripe-signature", stripe_signature(payload))
+        |> post("/billing/webhook", payload)
+
+      assert %{"event" => "evt_web_pretty"} = json_response(conn, 200)
+      assert Tenants.get_guild(@guild).max_storage_bytes == Billing.plan_cap("price_pro_m")
+    end
+
     test "a signature over different bytes is rejected with 400", %{conn: conn} do
       payload = Jason.encode!(checkout_event("evt_web_2", @guild, "price_studio_m", "cus_web"))
       other = Jason.encode!(checkout_event("evt_web_2", @guild, "price_pro_m", "cus_web"))
@@ -74,14 +101,15 @@ defmodule SoundboardWeb.BillingWebTest do
         html =
           conn |> sign_in(owner, %{guild_id: @guild}) |> get("/billing") |> html_response(200)
 
-        assert html =~ "Pick a plan"
-        assert html =~ "$3.99"
-        assert html =~ "$9.99"
-        refute html =~ "Cancel subscription"
+        assert html =~ ~s(action="/billing/checkout")
+        assert html =~ ~s(name="price_id" value="price_pro_m")
+        refute html =~ ~s(action="/billing/change")
+        refute html =~ ~s(action="/billing/cancel")
+        refute html =~ "Your plan"
       end
     end
 
-    test "shows the current plan and cancel once a subscription is known", %{
+    test "offers plan changes and cancel instead of checkout once subscribed", %{
       conn: conn,
       owner: owner
     } do
@@ -89,9 +117,10 @@ defmodule SoundboardWeb.BillingWebTest do
 
       html = conn |> sign_in(owner, %{guild_id: @guild}) |> get("/billing") |> html_response(200)
 
-      assert html =~ "Current plan"
+      assert html =~ ~s(action="/billing/change")
+      assert html =~ ~s(action="/billing/cancel")
+      refute html =~ ~s(action="/billing/checkout")
       assert html =~ "Your plan"
-      assert html =~ "Cancel subscription"
     end
   end
 
