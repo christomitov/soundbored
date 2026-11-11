@@ -275,14 +275,6 @@ defmodule Soundboard.Tenants do
     end
   end
 
-  @spec storage_remaining(String.t() | term()) :: non_neg_integer() | nil
-  def storage_remaining(guild_id) do
-    case storage_cap(guild_id) do
-      nil -> nil
-      cap -> max(cap - storage_used(guild_id), 0)
-    end
-  end
-
   @doc """
   Whether adding a sound of `incoming_bytes` stays within the guild's cap.
   An uncapped guild (self-hosted) is always within its limit; a guild with
