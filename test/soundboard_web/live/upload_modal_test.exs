@@ -132,4 +132,21 @@ defmodule SoundboardWeb.UploadModalTest do
 
     assert html =~ "Invalid file type"
   end
+
+  test "a file over the size limit is refused with a message", %{conn: conn} do
+    previous = Application.get_env(:soundboard, :max_upload_bytes)
+    Application.put_env(:soundboard, :max_upload_bytes, 10)
+
+    on_exit(fn ->
+      if previous,
+        do: Application.put_env(:soundboard, :max_upload_bytes, previous),
+        else: Application.delete_env(:soundboard, :max_upload_bytes)
+    end)
+
+    view = open_modal(conn)
+    {_audio, html} = pick_file(view)
+
+    assert html =~ "File is too large"
+    assert has_element?(view, "#upload-form button[type='submit'][disabled]")
+  end
 end
