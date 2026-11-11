@@ -53,7 +53,7 @@ defmodule Soundboard.Billing do
   the portal is unavailable until the next event repopulates it.
   """
 
-  alias Soundboard.Billing.{Memory, SubscriptionSnapshot}
+  alias Soundboard.Billing.SubscriptionSnapshot
   alias Soundboard.Repo
   alias Soundboard.Tenants
   alias Soundboard.Tenants.Guild
@@ -763,7 +763,7 @@ defmodule Soundboard.Billing do
 
   defp remember_event(_), do: :ok
 
-  defp ensure_ets(table), do: Memory.ensure_tables([table])
+  defp ensure_ets(table), do: Soundboard.TableOwner.ensure_tables([table])
 
   @doc """
   Clears in-memory billing state (processed events, customer ids). Test and

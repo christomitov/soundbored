@@ -13,6 +13,7 @@ defmodule Soundboard.Application do
 
     children = [
       Soundboard.Repo,
+      Soundboard.TableOwner,
       {Task.Supervisor, name: Soundboard.AudioTaskSupervisor},
       {Registry, keys: :unique, name: Soundboard.AudioPlayer.Registry},
       {DynamicSupervisor, name: Soundboard.AudioPlayer.Supervisor, strategy: :one_for_one},

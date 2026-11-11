@@ -8,16 +8,7 @@ defmodule Soundboard.AudioPlayer.SoundLibrary do
 
   @cache_table :sound_meta_cache
 
-  def ensure_cache do
-    case :ets.info(@cache_table) do
-      :undefined ->
-        :ets.new(@cache_table, [:set, :named_table, :public, read_concurrency: true])
-        :ok
-
-      _ ->
-        :ok
-    end
-  end
+  def ensure_cache, do: Soundboard.TableOwner.ensure_tables([@cache_table])
 
   @doc """
   Resolves a sound to `{input, volume}` for playback, scoped to `guild_id`.
