@@ -12,7 +12,7 @@ defmodule Soundboard.Tenants do
 
   import Ecto.Query
 
-  alias Soundboard.{Repo, Sound, Tenants.Guild, UserSoundSetting}
+  alias Soundboard.{Repo, Sound, Stats.Play, Tenants.Guild, UserSoundSetting}
   require Logger
   @boundary_exceptions Soundboard.Boundary.exceptions()
 
@@ -96,6 +96,10 @@ defmodule Soundboard.Tenants do
       |> elem(0)
 
     Repo.update_all(from(uss in UserSoundSetting, where: uss.guild_id == @fallback_guild_id),
+      set: [guild_id: guild_id]
+    )
+
+    Repo.update_all(from(p in Play, where: p.guild_id == @fallback_guild_id),
       set: [guild_id: guild_id]
     )
 

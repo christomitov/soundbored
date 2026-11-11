@@ -8,7 +8,7 @@ defmodule Soundboard.TenantsTest do
 
   import Mock
 
-  alias Soundboard.{Accounts.User, Repo, Sound, Tenants, Tenants.Guild}
+  alias Soundboard.{Accounts.User, Repo, Sound, Stats, Stats.Play, Tenants, Tenants.Guild}
 
   describe "default_guild_id/0" do
     setup do
@@ -82,6 +82,29 @@ defmodule Soundboard.TenantsTest do
         assert {:ok, 1} = Tenants.reconcile_default_guild()
         assert Repo.get(Sound, sound.id).guild_id == "111"
       end
+    end
+
+    test "repoints legacy 'default' plays too, so stats keep them once the guild is known" do
+      Application.delete_env(:soundboard, :default_guild_id)
+      Application.delete_env(:soundboard, :required_guild_id)
+
+      user = Repo.insert!(%User{discord_id: "u2", username: "u2", avatar: nil})
+
+      play =
+        Repo.insert!(%Play{
+          played_filename: "deleted-long-ago.mp3",
+          sound_id: nil,
+          user_id: user.id,
+          guild_id: "default"
+        })
+
+      with_mock Soundboard.Discord.GuildCache,
+        all: fn -> [%{id: "111", name: "g", guild: nil}] end do
+        Tenants.reconcile_default_guild()
+      end
+
+      assert Repo.get(Play, play.id).guild_id == "111"
+      assert [{_id, "deleted-long-ago.mp3", "u2", _at}] = Stats.get_recent_plays(guild_id: "111")
     end
 
     test "skips when a guild env is configured" do
