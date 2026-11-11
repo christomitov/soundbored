@@ -107,6 +107,8 @@ defmodule Soundboard.AudioPlayer.VoiceSession do
   rescue
     error in @boundary_exceptions ->
       {:error, {:voice_not_ready, Exception.message(error)}}
+  catch
+    :exit, reason -> {:error, {:voice_not_ready, reason}}
   end
 
   defp safe_voice_playing(guild_id) do
@@ -114,6 +116,8 @@ defmodule Soundboard.AudioPlayer.VoiceSession do
   rescue
     error in @boundary_exceptions ->
       {:error, {:voice_playing_unavailable, Exception.message(error)}}
+  catch
+    :exit, reason -> {:error, {:voice_playing_unavailable, reason}}
   end
 
   defp safe_join_voice_channel(guild_id, channel_id) do

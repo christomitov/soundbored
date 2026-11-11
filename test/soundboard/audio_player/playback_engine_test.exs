@@ -29,36 +29,47 @@ defmodule Soundboard.AudioPlayer.PlaybackEngineTest do
     assert_received {:sound_played, %{filename: "intro.mp3", played_by: "System"}}
   end
 
-  test "retries transient voice errors", %{guild: guild} do
+  test "stops audio that is already playing and plays again", %{guild: guild} do
+    FakeVoice.claim(guild, channel: @channel, playing: true)
+
+    assert :ok = play(guild, 1.0)
+
     played = {:play, @url, :url, [volume: 1.0]}
-
-    table = [
-      {:already_playing, [played, :stop, played]},
-      {:not_connected, [played, played]}
-    ]
-
-    for {error, calls} <- table do
-      FakeVoice.claim(guild, channel: @channel, play: [{:error, error}])
-
-      assert :ok = play(guild, 1.0)
-
-      assert {error, voice_calls(guild)} == {error, calls}
-    end
+    assert voice_calls(guild) == [played, :stop, played]
   end
 
-  test "refreshes the voice session after repeated encryption negotiation failures",
-       %{guild: guild} do
+  test "rejoins the player's channel when the voice session has gone stale", %{guild: guild} do
     AudioPlayer.set_voice_channel(guild, @channel)
-    FakeVoice.claim(guild, channel: @channel, play: List.duplicate({:error, :not_ready}, 4))
+    FakeVoice.claim(guild, channel: @channel, play: [{:error, :not_connected}])
 
     assert :ok = play(guild, 1.0)
 
     played = {:play, @url, :url, [volume: 1.0]}
     assert voice_calls(guild) == [played, played, played, played, {:join, @channel}, played]
+    assert_received {:sound_played, %{filename: "intro.mp3"}}
   end
 
-  test "still plays when the voice session never reports ready", %{guild: guild} do
+  test "a play refused while the session connects is retried once VOICE_READY arrives",
+       %{guild: guild} do
     FakeVoice.claim(guild, channel: @channel, ready: false)
+    test_pid = self()
+
+    engine =
+      Task.async(fn ->
+        result = play(guild, 1.0)
+        send(test_pid, {:engine_done, result})
+      end)
+
+    assert_receive {:fake_voice, ^guild, {:play, @url, :url, _}}, 2_000
+    FakeVoice.voice_ready(guild)
+    Task.await(engine)
+
+    assert_received {:engine_done, :ok}
+    assert voice_calls(guild) == [{:play, @url, :url, [volume: 1.0]}]
+  end
+
+  test "still plays when EDA does not answer the readiness check", %{guild: guild} do
+    FakeVoice.claim(guild, channel: @channel, exit_on: [:ready?])
 
     assert :ok = play(guild, 1.0)
 
@@ -66,10 +77,7 @@ defmodule Soundboard.AudioPlayer.PlaybackEngineTest do
   end
 
   test "gives up and reports an error when audio never stops", %{guild: guild} do
-    FakeVoice.claim(guild,
-      channel: @channel,
-      play: List.duplicate({:error, :already_playing}, 20)
-    )
+    FakeVoice.claim(guild, channel: @channel, playing: true, stop: :ignored)
 
     assert :error = play(guild, 1.0)
 
@@ -83,9 +91,9 @@ defmodule Soundboard.AudioPlayer.PlaybackEngineTest do
   end
 
   test "clamps the volume sent to voice", %{guild: guild} do
-    FakeVoice.claim(guild, channel: @channel)
-
     for {volume, sent} <- [{3.0, 1.5}, {-1, 0.0}, {nil, 1.0}, {0.333333, 0.3333}] do
+      FakeVoice.claim(guild, channel: @channel)
+
       assert :ok = play(guild, volume)
 
       assert voice_calls(guild) == [{:play, @url, :url, [volume: sent]}]

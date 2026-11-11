@@ -321,6 +321,8 @@ defmodule Soundboard.AudioPlayer.PlaybackEngine do
   rescue
     error in @boundary_exceptions ->
       {:error, {:voice_state_unavailable, Exception.message(error)}}
+  catch
+    :exit, reason -> {:error, {:voice_state_unavailable, reason}}
   end
 
   defp safe_voice_status(guild_id) do
@@ -335,6 +337,8 @@ defmodule Soundboard.AudioPlayer.PlaybackEngine do
   rescue
     error in @boundary_exceptions ->
       {:error, {:voice_not_ready, Exception.message(error)}}
+  catch
+    :exit, reason -> {:error, {:voice_not_ready, reason}}
   end
 
   defp safe_voice_channel(guild_id) do
@@ -342,6 +346,8 @@ defmodule Soundboard.AudioPlayer.PlaybackEngine do
   rescue
     error in @boundary_exceptions ->
       {:error, {:voice_channel_unavailable, Exception.message(error)}}
+  catch
+    :exit, reason -> {:error, {:voice_channel_unavailable, reason}}
   end
 
   defp safe_voice_playing(guild_id) do
@@ -349,6 +355,8 @@ defmodule Soundboard.AudioPlayer.PlaybackEngine do
   rescue
     error in @boundary_exceptions ->
       {:error, {:voice_playback_unavailable, Exception.message(error)}}
+  catch
+    :exit, reason -> {:error, {:voice_playback_unavailable, reason}}
   end
 
   defp track_play_if_needed(guild_id, sound_name, actor) do

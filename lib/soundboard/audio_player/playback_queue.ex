@@ -243,5 +243,7 @@ defmodule Soundboard.AudioPlayer.PlaybackQueue do
   rescue
     error in @boundary_exceptions ->
       {:error, {:voice_playing_unavailable, Exception.message(error)}}
+  catch
+    :exit, reason -> {:error, {:voice_playing_unavailable, reason}}
   end
 end

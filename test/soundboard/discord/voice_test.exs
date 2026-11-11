@@ -13,7 +13,7 @@ defmodule Soundboard.Discord.VoiceTest do
     guild_id: id,
     guild: guild
   } do
-    FakeVoice.claim(guild)
+    FakeVoice.claim(guild, channel: "voice-1")
 
     assert :ok = Voice.play(id, "file.mp3", :url, volume: 1.2)
 
