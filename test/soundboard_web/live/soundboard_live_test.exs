@@ -606,6 +606,26 @@ defmodule SoundboardWeb.SoundboardLiveTest do
       refute has_element?(view, "#edit-form")
     end
 
+    test "a sound deleted in one session disappears from another, which can no longer save it",
+         %{conn: conn, sound: sound} do
+      {:ok, deleter, _html} = live(conn, "/")
+      {:ok, watcher, _html} = live(conn, "/")
+      card = "[phx-click='play'][phx-value-name='#{sound.filename}']"
+
+      watcher |> element("[phx-click='edit'][phx-value-id='#{sound.id}']") |> render_click()
+
+      deleter |> element("[phx-click='edit'][phx-value-id='#{sound.id}']") |> render_click()
+      deleter |> element("[phx-click='show_delete_confirm']") |> render_click()
+      deleter |> element("[phx-click='delete_sound']") |> render_click()
+
+      refute has_element?(watcher, card)
+
+      html = watcher |> element("#edit-form") |> render_submit(%{"filename" => "revived"})
+
+      assert html =~ "Error updating sound"
+      refute Repo.get_by(Sound, filename: "revived.mp3")
+    end
+
     test "handles pubsub updates", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/")
 

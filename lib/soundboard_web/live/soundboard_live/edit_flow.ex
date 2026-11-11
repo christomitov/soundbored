@@ -82,8 +82,6 @@ defmodule SoundboardWeb.Live.SoundboardLive.EditFlow do
 
     case Sounds.update_sound(edit.current_sound, edit.current_user_id, params) do
       {:ok, _updated_sound} ->
-        LiveTags.broadcast_update()
-
         {:noreply,
          socket
          |> Phoenix.LiveView.put_flash(:info, "Sound updated successfully")
