@@ -80,14 +80,24 @@ defmodule Soundboard.Sounds.Uploads.Source do
   def cleanup_local_file(_path), do: :ok
 
   defp validate_url(url) when is_binary(url) do
-    if blank?(url) do
-      {:error, add_error(change(%Sound{}), :url, "can't be blank")}
-    else
-      {:ok, url}
+    cond do
+      blank?(url) -> {:error, add_error(change(%Sound{}), :url, "can't be blank")}
+      web_url?(url) -> {:ok, url}
+      true -> {:error, add_error(change(%Sound{}), :url, "must be an http or https URL")}
     end
   end
 
   defp validate_url(_url), do: {:error, add_error(change(%Sound{}), :url, "can't be blank")}
+
+  defp web_url?(url) do
+    case URI.parse(url) do
+      %URI{scheme: scheme, host: host} when scheme in ["http", "https"] ->
+        is_binary(host) and host != ""
+
+      _ ->
+        false
+    end
+  end
 
   defp validate_local_upload(nil, _mode),
     do: {:error, add_error(change(%Sound{}), :file, "Please select a file")}

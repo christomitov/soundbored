@@ -271,6 +271,26 @@ defmodule SoundboardWeb.API.SoundControllerTest do
       assert uploaded_files() == files_before
     end
 
+    test "refuses a URL that is not http or https with a host", %{conn: conn} do
+      sounds_before = Repo.aggregate(Sound, :count)
+
+      for url <- [
+            "file:///etc/passwd",
+            "javascript:alert(1)",
+            "ftp://example.com/a.mp3",
+            "https://"
+          ] do
+        conn = post(conn, ~p"/api/sounds", %{"name" => "bad-url", "url" => url})
+
+        assert json_response(conn, 422) == %{
+                 "errors" => %{"url" => ["must be an http or https URL"]}
+               },
+               url
+      end
+
+      assert Repo.aggregate(Sound, :count) == sounds_before
+    end
+
     test "refuses a file given as a server path instead of an upload", %{conn: conn} do
       files_before = uploaded_files()
 
