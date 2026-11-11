@@ -181,11 +181,15 @@ defmodule Soundboard.Sounds do
     end
   end
 
-  @spec get_sound!(term()) :: Sound.t()
-  def get_sound!(id) do
-    Sound
-    |> Repo.get!(id)
-    |> Repo.preload(@detailed_preloads)
+  @spec fetch_sound(term(), String.t() | nil) :: {:ok, Sound.t()} | :error
+  def fetch_sound(id, guild_id) do
+    with {:ok, id} <- Ecto.Type.cast(:id, id),
+         %Sound{} = sound <-
+           Repo.get_by(Sound, id: id, guild_id: Tenants.scope_guild_id(guild_id)) do
+      {:ok, Repo.preload(sound, @detailed_preloads)}
+    else
+      _ -> :error
+    end
   end
 
   @spec update_sound(Sound.t(), map()) :: {:ok, Sound.t()} | {:error, Ecto.Changeset.t()}

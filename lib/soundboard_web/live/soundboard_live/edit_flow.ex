@@ -33,15 +33,17 @@ defmodule SoundboardWeb.Live.SoundboardLive.EditFlow do
   def validate_sound(socket, _params), do: {:noreply, socket}
 
   def open_modal(socket, id) do
-    sound = Sounds.get_sound!(id)
+    case Sounds.fetch_sound(id, socket.assigns.guild_id) do
+      {:ok, sound} ->
+        {:noreply,
+         update_state(
+           socket,
+           &%{&1 | current_sound: sound, show_modal: true, edit_name_error: nil}
+         )}
 
-    {:noreply,
-     update_state(
-       socket,
-       fn state ->
-         %{state | current_sound: sound, show_modal: true, edit_name_error: nil}
-       end
-     )}
+      :error ->
+        {:noreply, Phoenix.LiveView.put_flash(socket, :error, "Sound not found")}
+    end
   end
 
   def close_modal(socket), do: put_state(socket, default_state())

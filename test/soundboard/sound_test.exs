@@ -157,19 +157,6 @@ defmodule Soundboard.SoundTest do
       assert result.id == sound.id
       assert [%{name: "test_tag"}] = result.tags
     end
-
-    test "get_sound!/1 loads all associations", %{sound: sound, tag: tag} do
-      now = NaiveDateTime.utc_now(:second)
-
-      Repo.query!(
-        "INSERT INTO sound_tags (sound_id, tag_id, inserted_at, updated_at) VALUES (?, ?, ?, ?)",
-        [sound.id, tag.id, now, now]
-      )
-
-      result = Sounds.get_sound!(sound.id)
-      assert result.id == sound.id
-      assert [%{name: "test_tag"}] = result.tags
-    end
   end
 
   describe "user sound settings" do

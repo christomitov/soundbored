@@ -575,6 +575,37 @@ defmodule SoundboardWeb.SoundboardLiveTest do
       assert Repo.get!(Sound, sound.id).filename == sound.filename
     end
 
+    test "another guild's sound cannot be opened for editing by a forged event", %{
+      conn: conn,
+      user: user
+    } do
+      foreign =
+        %Sound{}
+        |> Sound.changeset(%{
+          filename: "foreign.mp3",
+          source_type: "local",
+          user_id: user.id,
+          guild_id: "other-guild"
+        })
+        |> Repo.insert!()
+
+      {:ok, view, _html} = live(conn, "/")
+
+      html = render_click(view, "edit", %{"id" => Integer.to_string(foreign.id)})
+
+      assert html =~ "Sound not found"
+      refute has_element?(view, "#edit-form")
+      assert Repo.get!(Sound, foreign.id).filename == "foreign.mp3"
+    end
+
+    test "editing a sound id that does not exist shows an error", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/")
+
+      assert render_click(view, "edit", %{"id" => "999999999"}) =~ "Sound not found"
+      assert render_click(view, "edit", %{"id" => "not-an-id"}) =~ "Sound not found"
+      refute has_element?(view, "#edit-form")
+    end
+
     test "handles pubsub updates", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/")
 
