@@ -68,6 +68,14 @@ defmodule Soundboard.AudioPlayer.PlaybackEngineTest do
     assert voice_calls(guild) == [{:play, @url, :url, [volume: 1.0]}]
   end
 
+  test "still plays when EDA does not answer the readiness check", %{guild: guild} do
+    FakeVoice.claim(guild, channel: @channel, exit_on: [:ready?])
+
+    assert :ok = play(guild, 1.0)
+
+    assert voice_calls(guild) == [{:play, @url, :url, [volume: 1.0]}]
+  end
+
   test "gives up and reports an error when audio never stops", %{guild: guild} do
     FakeVoice.claim(guild, channel: @channel, playing: true, stop: :ignored)
 
