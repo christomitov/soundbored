@@ -61,10 +61,6 @@ defmodule Soundboard.Sounds.Uploads.Source do
     end
   end
 
-  def prepare(_params, _mode) do
-    {:error, add_error(change(%Sound{}), :source_type, "must be either 'local' or 'url'")}
-  end
-
   @spec cleanup_local_file(String.t() | nil) :: :ok
   def cleanup_local_file(path) when is_binary(path) do
     case File.rm(path) do

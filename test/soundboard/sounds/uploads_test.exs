@@ -1,61 +1,33 @@
 defmodule Soundboard.Sounds.UploadsTest do
+  @moduledoc """
+  What the upload context promises beyond the API's create contracts (which
+  live in `SoundboardWeb.API.SoundControllerTest`): every open soundboard
+  hears about a new sound, and its errors read as sentences in the upload
+  form.
+  """
+
   use Soundboard.DataCase, async: false
 
-  import Soundboard.DataCase, only: [errors_on: 1]
-
   alias Soundboard.Accounts.User
-  alias Soundboard.{Repo, UserSoundSetting}
+  alias Soundboard.Repo
   alias Soundboard.Sounds.Uploads
-  alias Soundboard.Sounds.Uploads.{CreateRequest, Source}
+  alias Soundboard.Sounds.Uploads.CreateRequest
 
   setup do
-    {:ok, user} =
-      %User{}
-      |> User.changeset(%{
-        username: "upload_user_#{System.unique_integer([:positive])}",
-        discord_id: Integer.to_string(System.unique_integer([:positive])),
-        avatar: "test.jpg"
-      })
-      |> Repo.insert()
-
-    %{user: user}
+    %{user: Repo.insert!(%User{discord_id: "uploader", username: "uploader"})}
   end
 
-  describe "validate/1" do
-    test "validates URL uploads when enough input is present", %{user: user} do
-      assert {:ok, _params} =
-               user
-               |> request(%{
-                 source_type: "url",
-                 name: "validated_url",
-                 url: "https://example.com/sound.mp3"
-               })
-               |> Uploads.validate()
-    end
+  test "a created sound is announced to open soundboards and stats", %{user: user} do
+    Soundboard.PubSubTopics.subscribe_files()
+    Soundboard.PubSubTopics.subscribe_stats()
 
-    test "requires a url for url uploads", %{user: user} do
-      assert {:error, changeset} =
-               user
-               |> request(%{
-                 source_type: "url",
-                 name: "validated_url"
-               })
-               |> Uploads.validate()
+    assert {:ok, _sound} =
+             user
+             |> CreateRequest.new(%{name: "announced", url: "https://example.com/events.mp3"})
+             |> Uploads.create()
 
-      assert "can't be blank" in errors_on(changeset).url
-    end
-
-    test "requires a local file selection for local uploads", %{user: user} do
-      assert {:error, changeset} =
-               user
-               |> request(%{
-                 source_type: "local",
-                 name: "missing_file"
-               })
-               |> Uploads.validate()
-
-      assert "Please select a file" in errors_on(changeset).file
-    end
+    assert_receive {:files_updated}
+    assert_receive {:stats_updated}
   end
 
   describe "error_message/1" do
@@ -64,7 +36,7 @@ defmodule Soundboard.Sounds.UploadsTest do
 
       assert {:error, changeset} =
                user
-               |> request(%{
+               |> CreateRequest.new(%{
                  name: "blocked",
                  url: "https://example.com/b.mp3",
                  guild_id: "no-plan"
@@ -78,184 +50,12 @@ defmodule Soundboard.Sounds.UploadsTest do
     test "shows a file error as its sentence alone", %{user: user} do
       assert {:error, changeset} =
                user
-               |> request(%{name: "notes"})
+               |> CreateRequest.new(%{name: "notes"})
                |> CreateRequest.put_upload(%{path: "/tmp/notes.txt", filename: "notes.txt"})
                |> Uploads.create()
 
       assert Uploads.error_message(changeset) ==
                "Invalid file type. Please upload an MP3, WAV, OGG, or M4A file."
     end
-  end
-
-  describe "create/1" do
-    test "creates url sound with tags and settings", %{user: user} do
-      name = "upload_url_#{System.unique_integer([:positive])}"
-
-      assert {:ok, sound} =
-               user
-               |> request(%{
-                 source_type: "url",
-                 name: name,
-                 url: "https://example.com/sound.mp3",
-                 tags: ["alpha", "beta"],
-                 volume: "45",
-                 is_join_sound: "true"
-               })
-               |> Uploads.create()
-
-      assert sound.filename == "#{name}.mp3"
-      assert sound.source_type == "url"
-      assert_in_delta sound.volume, 0.45, 0.0001
-
-      sound = Repo.preload(sound, :tags)
-      assert Enum.sort(Enum.map(sound.tags, & &1.name)) == ["alpha", "beta"]
-
-      setting = Repo.get_by!(UserSoundSetting, user_id: user.id, sound_id: sound.id)
-      assert setting.is_join_sound
-      refute setting.is_leave_sound
-    end
-
-    test "publishes canonical soundboard events after create", %{user: user} do
-      Soundboard.PubSubTopics.subscribe_files()
-      Soundboard.PubSubTopics.subscribe_stats()
-
-      name = "upload_events_#{System.unique_integer([:positive])}"
-
-      assert {:ok, _sound} =
-               user
-               |> request(%{
-                 source_type: "url",
-                 name: name,
-                 url: "https://example.com/events.mp3"
-               })
-               |> Uploads.create()
-
-      assert_receive {:files_updated}
-      assert_receive {:stats_updated}
-    end
-
-    test "clears previous join setting when creating a new join sound", %{user: user} do
-      first_name = "first_join_#{System.unique_integer([:positive])}"
-      second_name = "second_join_#{System.unique_integer([:positive])}"
-
-      assert {:ok, first_sound} =
-               user
-               |> request(%{
-                 source_type: "url",
-                 name: first_name,
-                 url: "https://example.com/first.mp3",
-                 is_join_sound: true
-               })
-               |> Uploads.create()
-
-      assert {:ok, second_sound} =
-               user
-               |> request(%{
-                 source_type: "url",
-                 name: second_name,
-                 url: "https://example.com/second.mp3",
-                 is_join_sound: true
-               })
-               |> Uploads.create()
-
-      first_setting = Repo.get_by!(UserSoundSetting, user_id: user.id, sound_id: first_sound.id)
-      second_setting = Repo.get_by!(UserSoundSetting, user_id: user.id, sound_id: second_sound.id)
-
-      refute first_setting.is_join_sound
-      assert second_setting.is_join_sound
-    end
-
-    test "returns error when local file is missing", %{user: user} do
-      assert {:error, changeset} =
-               user
-               |> request(%{
-                 source_type: "local",
-                 name: "missing_file"
-               })
-               |> Uploads.create()
-
-      assert "Please select a file" in errors_on(changeset).file
-    end
-  end
-
-  describe "Source.prepare/2" do
-    test "returns error for invalid source_type" do
-      assert {:error, changeset} =
-               Source.prepare(%{source_type: "youtube", name: "test"}, :validate)
-
-      assert "must be either 'local' or 'url'" in errors_on(changeset).source_type
-    end
-
-    test "returns error when url is nil" do
-      assert {:error, changeset} =
-               Source.prepare(%{source_type: "url", url: nil, name: "test"}, :validate)
-
-      assert "can't be blank" in errors_on(changeset).url
-    end
-
-    test "returns error for blank filename in local upload in validate mode" do
-      assert {:error, changeset} =
-               Source.prepare(
-                 %{source_type: "local", upload: %{filename: "", path: nil}, name: "test"},
-                 :validate
-               )
-
-      assert "Please select a file" in errors_on(changeset).file
-    end
-
-    test "returns error for blank filename in local upload in create mode" do
-      assert {:error, changeset} =
-               Source.prepare(
-                 %{
-                   source_type: "local",
-                   upload: %{filename: "", path: "/some/path"},
-                   name: "test"
-                 },
-                 :create
-               )
-
-      assert "Invalid file upload" in errors_on(changeset).file
-    end
-
-    test "returns error when local upload is not a recognized struct in create mode" do
-      assert {:error, changeset} =
-               Source.prepare(
-                 %{
-                   source_type: "local",
-                   upload: %{path: 123, filename: "test.mp3"},
-                   name: "test"
-                 },
-                 :create
-               )
-
-      assert "Please select a file" in errors_on(changeset).file
-    end
-
-    test "handles url with no path component (nil URI path)" do
-      assert {:ok, source} =
-               Source.prepare(
-                 %{source_type: "url", url: "http://example.com", name: "nopathtest"},
-                 :validate
-               )
-
-      assert source.filename == "nopathtest"
-    end
-  end
-
-  describe "Source.cleanup_local_file/1" do
-    test "returns :ok when file does not exist (error branch)" do
-      assert :ok =
-               Source.cleanup_local_file(
-                 "/tmp/soundbored_nonexistent_#{System.unique_integer()}.mp3"
-               )
-    end
-
-    test "returns :ok for nil input" do
-      assert :ok = Source.cleanup_local_file(nil)
-    end
-  end
-
-  defp request(user, attrs) do
-    CreateRequest.new(user, attrs)
   end
 end
