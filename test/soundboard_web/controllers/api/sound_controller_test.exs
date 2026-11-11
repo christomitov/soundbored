@@ -326,6 +326,67 @@ defmodule SoundboardWeb.API.SoundControllerTest do
     end
   end
 
+  describe "tenant isolation" do
+    setup %{user: user} do
+      Application.put_env(:soundboard, :tenant_base_host, "soundbored.app")
+      on_exit(fn -> Application.delete_env(:soundboard, :tenant_base_host) end)
+
+      {:ok, _} = Soundboard.Tenants.get_or_create_guild("guild-b", %{slug: "b-slug"})
+
+      {:ok, b_sound} =
+        %Sound{}
+        |> Sound.changeset(%{
+          filename: "b-only.mp3",
+          source_type: "url",
+          url: "https://example.com/b.mp3",
+          user_id: user.id,
+          guild_id: "guild-b"
+        })
+        |> Repo.insert()
+
+      %{b_sound: b_sound}
+    end
+
+    test "a token whose user is not in the subdomain's guild is refused everywhere", %{
+      conn: conn,
+      b_sound: b_sound
+    } do
+      conn = %{conn | host: "b-slug.soundbored.app"}
+
+      with_mocks([
+        {EDA.Cache, [:passthrough], fetch_member: fn _guild, _user -> {:error, :not_found} end},
+        {Soundboard.AudioPlayer, [],
+         play_sound: fn _, _, _ -> :ok end, stop_sound: fn _ -> :ok end}
+      ]) do
+        requests = [
+          get(conn, ~p"/api/sounds"),
+          get(conn, ~p"/api/favorites"),
+          post(conn, ~p"/api/sounds/#{b_sound.id}/play"),
+          get(conn, ~p"/api/sounds/#{b_sound.id}/file"),
+          post(conn, ~p"/api/sounds/stop"),
+          post(conn, ~p"/api/sounds", %{"name" => "planted", "url" => "https://example.com/x.mp3"})
+        ]
+
+        for response <- requests, do: assert(response.status == 403)
+        refute Repo.get_by(Sound, filename: "planted.mp3")
+        refute called(Soundboard.AudioPlayer.play_sound(:_, :_, :_))
+        refute called(Soundboard.AudioPlayer.stop_sound(:_))
+      end
+    end
+
+    test "a member's token works on the subdomain and sees only that guild", %{
+      conn: conn,
+      b_sound: b_sound
+    } do
+      with_mock EDA.Cache, [:passthrough], fetch_member: fn "guild-b", _user -> {:ok, %{}} end do
+        conn = get(%{conn | host: "b-slug.soundbored.app"}, ~p"/api/sounds")
+
+        assert [%{"id" => id}] = json_response(conn, 200)["data"]
+        assert id == b_sound.id
+      end
+    end
+  end
+
   defp insert_sound(user) do
     {:ok, sound} =
       %Sound{}

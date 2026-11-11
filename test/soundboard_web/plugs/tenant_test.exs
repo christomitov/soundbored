@@ -7,6 +7,8 @@ defmodule SoundboardWeb.Plugs.TenantTest do
 
   use SoundboardWeb.ConnCase, async: false
 
+  import Mock
+
   alias Soundboard.Tenants
 
   setup do
@@ -60,6 +62,25 @@ defmodule SoundboardWeb.Plugs.TenantTest do
       conn = dispatch(conn, "soundbored.app")
 
       assert conn.assigns.current_guild_id == "222"
+    end
+
+    test "a signed-in user outside the subdomain's guild gets a 403", %{conn: conn} do
+      with_mock EDA.Cache, [:passthrough], fetch_member: fn _, _ -> {:error, :not_found} end do
+        conn = %{sign_in(conn, user_fixture()) | host: "acme.soundbored.app"} |> get("/guilds")
+
+        assert response(conn, 403) == "You are not a member of this soundboard"
+      end
+    end
+
+    test "a session guild the user is not in falls back to the default guild", %{conn: conn} do
+      with_mock EDA.Cache, [:passthrough],
+        guilds: fn -> [] end,
+        fetch_member: fn _, _ -> {:error, :not_found} end do
+        conn = conn |> sign_in(user_fixture(), %{guild_id: "111"}) |> get("/guilds")
+
+        assert conn.assigns.current_guild_id == Tenants.default_guild_id()
+        assert get_session(conn, :guild_id) == Tenants.default_guild_id()
+      end
     end
 
     test "resolved guild id is mirrored into the session for LiveViews", %{conn: conn} do

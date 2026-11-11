@@ -10,6 +10,10 @@ defmodule SoundboardWeb.Plugs.AppGateTest do
 
   alias Soundboard.{Billing, Repo, Tenants}
 
+  setup_with_mocks([{EDA.Cache, [:passthrough], fetch_member: fn _, _ -> {:ok, %{}} end}]) do
+    :ok
+  end
+
   setup %{conn: conn} do
     enable_billing()
     user = user_fixture()
