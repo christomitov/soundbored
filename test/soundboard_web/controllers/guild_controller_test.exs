@@ -20,11 +20,15 @@ defmodule SoundboardWeb.GuildControllerTest do
      guilds: fn -> [@bot_guild] end,
      get_guild: fn
        "guild-switch" -> @bot_guild
+       "guild-closed" -> %{"id" => "guild-closed", "name" => "Closed"}
        _ -> nil
      end,
      channels_for_guild: fn _ -> [] end,
      voice_states: fn _ -> [] end,
-     fetch_member: fn _, _ -> {:ok, %{}} end}
+     fetch_member: fn
+       "guild-closed", _ -> {:error, :not_found}
+       _, _ -> {:ok, %{}}
+     end}
   ]) do
     :ok
   end
@@ -126,5 +130,54 @@ defmodule SoundboardWeb.GuildControllerTest do
       assert redirected_to(conn) == "/auth/discord"
       assert get_session(conn, :pending_slug) == "wanted-slug"
     end
+  end
+
+  describe "a guild the user is not a member of" do
+    setup do
+      {:ok, _} = Tenants.claim_slug("guild-closed", "closed")
+      :ok
+    end
+
+    test "cannot be switched to", %{conn: conn} do
+      conn = post(conn, "/guilds/switch", %{"discord_guild_id" => "guild-closed"})
+
+      assert redirected_to(conn) == "/guilds"
+
+      assert Phoenix.Flash.get(conn.assigns.flash, :error) ==
+               "You are not a member of that Discord server"
+
+      assert get_session(conn, :guild_id) == Tenants.default_guild_id()
+      refute Tenants.get_guild("guild-closed").owner_discord_id
+    end
+
+    test "cannot be opened by slug", %{conn: conn} do
+      conn = get(conn, "/g/closed")
+
+      assert redirected_to(conn) == "/guilds"
+
+      assert Phoenix.Flash.get(conn.assigns.flash, :error) ==
+               "You are not a member of that Discord server"
+
+      assert get_session(conn, :guild_id) == Tenants.default_guild_id()
+    end
+  end
+
+  test "a member who is not the owner cannot claim the guild's slug", %{conn: conn} do
+    {:ok, _} =
+      Tenants.get_or_create_guild("guild-owned", %{
+        slug: "owned",
+        owner_discord_id: "someone-else"
+      })
+
+    conn =
+      conn
+      |> init_test_session(%{guild_id: "guild-owned"})
+      |> post("/guilds/claim", %{"slug" => "hijacked"})
+
+    assert Tenants.get_guild("guild-owned").slug == "owned"
+    assert redirected_to(conn) == "/guilds"
+
+    assert Phoenix.Flash.get(conn.assigns.flash, :error) ==
+             "Only the soundboard's owner can claim its subdomain"
   end
 end

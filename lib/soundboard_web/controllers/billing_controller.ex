@@ -3,6 +3,10 @@ defmodule SoundboardWeb.BillingController do
   Stripe subscriptions: plan options, checkout, customer portal, and the
   public webhook receiver (signature-verified, no session auth).
 
+  Only a guild's owner (`Soundboard.Tenants.Membership.owner?/2`) may open
+  its portal, change or cancel its plan, or start a checkout for it once it
+  has an owner; a new guild can be subscribed by the member who picked it.
+
   The webhook signature is computed over the raw request bytes, so the
   webhook reads the untouched JSON body that `SoundboardWeb.RawBodyReader`
   kept in `:raw_body`, never re-encoded JSON.
@@ -12,6 +16,9 @@ defmodule SoundboardWeb.BillingController do
 
   alias Soundboard.Billing
   alias Soundboard.Tenants
+  alias Soundboard.Tenants.Membership
+
+  plug :require_owner when action in [:portal, :change, :cancel]
 
   def index(conn, _params) do
     guild_id = conn.assigns.current_guild_id
@@ -44,8 +51,13 @@ defmodule SoundboardWeb.BillingController do
   """
   def checkout(conn, %{"price_id" => price_id}) do
     case pending_or_current_guild_id(conn) do
-      nil -> no_guild_selected(conn)
-      guild_id -> start_checkout(conn, guild_id, price_id)
+      nil ->
+        no_guild_selected(conn)
+
+      guild_id ->
+        if may_subscribe?(conn, guild_id),
+          do: start_checkout(conn, guild_id, price_id),
+          else: not_owner(conn)
     end
   end
 
@@ -81,6 +93,23 @@ defmodule SoundboardWeb.BillingController do
         |> put_flash(:error, "Could not start checkout: #{inspect(reason)}")
         |> redirect(to: "/billing")
     end
+  end
+
+  defp may_subscribe?(conn, guild_id) do
+    Tenants.get_guild(guild_id) == nil or
+      Membership.owner?(guild_id, conn.assigns.current_user.discord_id)
+  end
+
+  defp require_owner(conn, _opts) do
+    if Membership.owner?(conn.assigns.current_guild_id, conn.assigns.current_user.discord_id),
+      do: conn,
+      else: conn |> not_owner() |> halt()
+  end
+
+  defp not_owner(conn) do
+    conn
+    |> put_flash(:error, "Only the soundboard's owner can manage its billing")
+    |> redirect(to: "/billing")
   end
 
   defp no_guild_selected(conn) do

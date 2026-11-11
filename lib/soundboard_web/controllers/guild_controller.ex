@@ -8,11 +8,15 @@ defmodule SoundboardWeb.GuildController do
   subscription goes to checkout instead, remembering the guild: the Stripe
   webhook is the only hosted provisioning path, so no tenant row is created
   here.
+
+  Only members of a Discord guild may switch to it or open it by slug, and
+  only its owner may claim its slug (`Soundboard.Tenants.Membership`).
   """
 
   use SoundboardWeb, :controller
 
   alias Soundboard.{Billing, Discord.GuildCache, Tenants}
+  alias Soundboard.Tenants.Membership
 
   def index(conn, _params) do
     current_guild = Tenants.get_guild(conn.assigns.current_guild_id)
@@ -29,12 +33,17 @@ defmodule SoundboardWeb.GuildController do
   end
 
   def switch(conn, %{"discord_guild_id" => discord_guild_id}) do
-    if Billing.configured?() and not Billing.subscription_active?(discord_guild_id) do
-      conn
-      |> put_session(:billing_guild_id, to_string(discord_guild_id))
-      |> redirect(to: "/billing")
-    else
-      do_switch(conn, discord_guild_id)
+    cond do
+      not member?(conn, discord_guild_id) ->
+        not_a_member(conn)
+
+      Billing.configured?() and not Billing.subscription_active?(discord_guild_id) ->
+        conn
+        |> put_session(:billing_guild_id, to_string(discord_guild_id))
+        |> redirect(to: "/billing")
+
+      true ->
+        do_switch(conn, discord_guild_id)
     end
   end
 
@@ -77,6 +86,11 @@ defmodule SoundboardWeb.GuildController do
     normalized = slug |> String.trim() |> String.downcase()
 
     cond do
+      not Membership.owner?(guild_id, conn.assigns.current_user.discord_id) ->
+        conn
+        |> put_flash(:error, "Only the soundboard's owner can claim its subdomain")
+        |> redirect(to: "/guilds")
+
       current_guild && current_guild.slug == normalized ->
         already_claimed(conn, normalized)
 
@@ -109,10 +123,9 @@ defmodule SoundboardWeb.GuildController do
   def show(conn, %{"slug" => slug}) do
     case Tenants.get_by_slug(slug) do
       %Tenants.Guild{} = guild ->
-        conn
-        |> put_session(:guild_id, guild.discord_guild_id)
-        |> put_flash(:info, "Now viewing the \"#{slug}\" soundboard")
-        |> redirect(to: "/")
+        if member?(conn, guild.discord_guild_id),
+          do: open_guild(conn, guild, slug),
+          else: not_a_member(conn)
 
       nil ->
         conn
@@ -120,6 +133,22 @@ defmodule SoundboardWeb.GuildController do
         |> put_view(SoundboardWeb.ErrorHTML)
         |> render(:"404")
     end
+  end
+
+  defp open_guild(conn, guild, slug) do
+    conn
+    |> put_session(:guild_id, guild.discord_guild_id)
+    |> put_flash(:info, "Now viewing the \"#{slug}\" soundboard")
+    |> redirect(to: "/")
+  end
+
+  defp member?(conn, guild_id),
+    do: Membership.member?(guild_id, conn.assigns.current_user.discord_id)
+
+  defp not_a_member(conn) do
+    conn
+    |> put_flash(:error, "You are not a member of that Discord server")
+    |> redirect(to: "/guilds")
   end
 
   defp already_claimed(conn, slug) do

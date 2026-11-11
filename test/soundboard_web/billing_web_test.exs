@@ -246,6 +246,33 @@ defmodule SoundboardWeb.BillingWebTest do
     end
   end
 
+  test "a member who is not the owner cannot run the guild's billing", %{conn: conn} do
+    member = user_fixture()
+    refuse = fn _, _ -> flunk("Stripe must not be called") end
+    refuse3 = fn _, _, _ -> flunk("Stripe must not be called") end
+
+    with_mocks([
+      {Stripe.Subscription, [], list: refuse, update: refuse3},
+      {Stripe.SubscriptionItem, [], update: refuse3},
+      {Stripe.BillingPortal.Session, [], create: refuse},
+      {Stripe.Checkout.Session, [], create: refuse}
+    ]) do
+      for {path, params} <- [
+            {"/billing/cancel", %{}},
+            {"/billing/change", %{"price_id" => "price_studio_m"}},
+            {"/billing/portal", %{}},
+            {"/billing/checkout", %{"price_id" => "price_studio_m"}}
+          ] do
+        conn = conn |> sign_in(member, %{guild_id: @guild}) |> post(path, params)
+
+        assert redirected_to(conn) == "/billing", path
+
+        assert Phoenix.Flash.get(conn.assigns.flash, :error) ==
+                 "Only the soundboard's owner can manage its billing"
+      end
+    end
+  end
+
   defp deliver(conn, event) do
     payload = Jason.encode!(event)
 

@@ -1,6 +1,6 @@
 defmodule Soundboard.Tenants.Membership do
   @moduledoc """
-  Who may use a guild's soundboard.
+  Who may use and who may manage a guild's soundboard.
 
   A user may use a guild's soundboard only while they are a member of that
   Discord guild. The deployment's default guild (`Tenants.default_guild_id/0`)
@@ -13,6 +13,7 @@ defmodule Soundboard.Tenants.Membership do
   """
 
   alias Soundboard.Tenants
+  alias Soundboard.Tenants.Guild
 
   @boundary_exceptions Soundboard.Boundary.exceptions()
 
@@ -24,6 +25,22 @@ defmodule Soundboard.Tenants.Membership do
       guild_id == Tenants.default_guild_id() -> true
       is_binary(discord_id) -> match?({:ok, _member}, fetch_member(guild_id, discord_id))
       true -> false
+    end
+  end
+
+  @doc """
+  Whether the user may manage the guild (claim its slug, run its billing):
+  only the owner recorded when it was provisioned. A guild with no recorded
+  owner is manageable only when it is the default guild.
+  """
+  @spec owner?(String.t() | term(), String.t() | nil) :: boolean()
+  def owner?(guild_id, discord_id) do
+    case Tenants.get_guild(guild_id) do
+      %Guild{owner_discord_id: owner} when is_binary(owner) and owner != "" ->
+        owner == discord_id
+
+      _ ->
+        to_string(guild_id) == Tenants.default_guild_id()
     end
   end
 
