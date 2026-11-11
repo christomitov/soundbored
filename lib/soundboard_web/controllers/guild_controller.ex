@@ -48,11 +48,7 @@ defmodule SoundboardWeb.GuildController do
   end
 
   defp do_switch(conn, discord_guild_id) do
-    owner =
-      case conn.assigns[:current_user] do
-        %{discord_id: discord_id} -> %{owner_discord_id: discord_id}
-        _ -> %{}
-      end
+    owner = %{owner_discord_id: conn.assigns.current_user.discord_id}
 
     with {:ok, _discord_guild} <- GuildCache.get(discord_guild_id),
          {:ok, _tenant} <- Tenants.get_or_create_guild(discord_guild_id, owner) do

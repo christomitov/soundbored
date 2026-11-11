@@ -7,9 +7,6 @@ defmodule Soundboard.PubSubTopics do
   @playback_topic "soundboard.playback"
   @stats_topic "soundboard.stats"
 
-  def files_topic, do: @files_topic
-  def stats_topic, do: @stats_topic
-
   @doc """
   Playback topic for a guild: `"soundboard.playback:{guild_id}"`.
   """

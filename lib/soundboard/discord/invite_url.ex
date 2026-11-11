@@ -3,8 +3,8 @@ defmodule Soundboard.Discord.InviteURL do
   Builds the bot invite URL used by the onboarding flow.
 
   The shared bot only needs to see the channels it is invited to, connect to
-  voice, and speak. The permissions integer is pinned by a test in
-  `SoundboardWeb.OnboardingTest` so the scope cannot drift silently.
+  voice, and speak. The permissions integer is pinned by the onboarding page test
+  (`SoundboardWeb.OnboardingTest`) so the scope cannot drift silently.
   """
 
   import Bitwise
@@ -14,9 +14,6 @@ defmodule Soundboard.Discord.InviteURL do
   @speak 1 <<< 3
 
   @permissions @view_channel ||| @connect ||| @speak
-
-  @spec permissions() :: non_neg_integer()
-  def permissions, do: @permissions
 
   @spec build(String.t() | nil) :: String.t()
   def build(client_id \\ configured_client_id()) do

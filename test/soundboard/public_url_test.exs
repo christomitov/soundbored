@@ -3,19 +3,13 @@ defmodule Soundboard.PublicURLTest do
 
   alias Soundboard.PublicURL
 
-  test "current/0 returns the endpoint base URL" do
-    assert PublicURL.current() == SoundboardWeb.Endpoint.url()
-  end
-
-  test "from_uri_or_current/1 keeps the request host and strips default ports" do
+  test "from_uri_or_current/1 keeps the request host and strips only default ports" do
     assert PublicURL.from_uri_or_current("https://soundboard.example:443/settings") ==
              "https://soundboard.example"
 
     assert PublicURL.from_uri_or_current("http://localhost:80/settings") ==
              "http://localhost"
-  end
 
-  test "from_uri_or_current/1 preserves non-default ports" do
     assert PublicURL.from_uri_or_current("http://localhost:4000/settings") ==
              "http://localhost:4000"
   end

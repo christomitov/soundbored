@@ -177,14 +177,6 @@ defmodule SoundboardWeb.Router do
     get "/*path", SoundboardWeb.UploadController, :show
   end
 
-  if Mix.env() == :test do
-    scope "/debug", SoundboardWeb do
-      pipe_through [:browser]
-
-      get "/session", AuthController, :debug_session
-    end
-  end
-
   scope "/api", SoundboardWeb.API do
     pipe_through :api
 
